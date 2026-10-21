@@ -354,27 +354,8 @@ the row→brief index is [todo-table.md](todo-table.md) §B0. A brief is named f
 14. **Decisions the last wave left open** (none has a domain brief; each is one call, and the evidence that makes it
     actionable is named with it). The gates named here are indexed in [scripts/README.md](scripts/README.md)
     §Validation gate, and every count a gate prints is re-derived by running it here, never quoted.
-    - ✅ **The 2026-10-20 owner round — nine rulings, one sitting.** **HD-1160** one tier-wide DNS upstream, a retag,
-      no converge owed · **HD-1107** the replica datasets leave the snapshotting template, never a hand-destroy ·
-      **HD-1106** prune by name, the onlyoffice named volume first · **HD-1103** `rotate 1` + `maxsize`, a new
-      role-owned file · **HD-1140** the ledger owns the laptop's Home reservation, riding an existing router window ·
-      **HD-357** `seerrng` stays tailnet-only, its tile linked-not-probed · **HD-443** revoke the Pi's `admin` on the
-      neutralized state · **HD-1110** `api_key` is the fleet spelling, report drift, never overwrite it ·
-      **HD-448/460** KEEP-THE-PARITY stands, "chase inbound IPv6" answered no → [todo-table.md](todo-table.md) §A1's
-      2026-10-20 block, and each row's `RULED 2026-10-20` note in [todo.md](todo.md).
-    - ✅ **The gate calls.** `corpus_diff.py`'s purge audit lives in-tree on a pinned window with a signed accepts
-      list · the mint space reserves `9000–9999` for tool-fixture tokens, held in both directions by a gate · every
-      station pushes after it merges → [scripts/README.md](scripts/README.md) §Validation gate (what the pool holds is
-      `--list`, never this sentence) · [CONVENTIONS.md](CONVENTIONS.md) §1 + [todo.md](todo.md) §0 ·
-      [docs/orchestration.md](docs/orchestration.md) §4 step 5.
-    - ✅ **The router and edge calls.** The converge's spelling is canonical for the IoT DoT-bypass pair · `trusted-ha`
-      is DERIVED and the Pi is a member · the NAT reconcile deletes what its own `data:` does not list, so both writers
-      must list the row (the live apply is owed in [todo.md](todo.md) HD-1142) · `tailscale-sidecar_api` is rotated and
-      the leaked key is expired · `metabase` is revived on oldsrv and the VPS copy is gone →
-      [docs/network-ops.md](docs/network-ops.md) §Rsc authoring conventions rule 11 ·
-      [docs/network-vlans.md](docs/network-vlans.md) §Proving the KNX reply rule ·
-      [docs/deployment-secrets.md](docs/deployment-secrets.md) · [docs/network-vpn.md](docs/network-vpn.md)
-      §Tailnet-exposed services · [docs/services.md](docs/services.md) · [docs/services-admin.md](docs/services-admin.md) §Metabase.
+    - ✅ **Ruled — do not re-decide.** HD-1160 · 1107 · 1106 · 1103 · 1140 · 357 · 443 · 1110 · 448/460 +
+      the gate/router/edge calls: [todo-table.md](todo-table.md) §A1 and each row's `RULED` note.
     - ⏳ The owner still runs the **secret rotations** (`HD-1170` · `HD-1171` · `HD-1150` · `HD-1181`, the last of them
       this seat's own pi transcript store, which keeps `check_secret_leak.py` red on the pi-dev seat and nowhere else
       until it is rotated). The `oldsrv` console look (`HD-1175`) ran when the box came back.
