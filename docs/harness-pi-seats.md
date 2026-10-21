@@ -68,6 +68,26 @@ tags: [ai, pi, agent-harness, harness, spark, llm, settings]
   `pi_dev_npm_version` to what it reports, or move the seat back to the pinned layout with
   `install-pi-debian.sh --pi-only`; the script refuses to npm-install a second layout underneath it.
 
+**A seat's packages resolve against the pi RELEASE they run under, so a pi pin bump is a dependency-plane
+change as well as a binary change — and the breakage is per code path, which is what makes it quiet.** pi's
+extension loader supplies the host-provided peer packages to an extension by aliasing their specifiers to the
+copies shipped inside the installed release; the detached **background** runner is a plain Node process started
+outside that loader, so the parent computes the same alias map and hands it to the runner through `JITI_ALIAS`.
+(The `subagent` seat plane owns only the extension's own `config.json` payload — nothing in this table's plane
+set carries the alias map, which is why every plane can read `OK` while the runner cannot start.) So an
+extension's optional host peer must exist under `<release>/node_modules/` or be declared by the host manifest,
+and a release that stops shipping one takes it away from every extension on that seat in one commit of a pin.
+The two release trees are told apart by one read, `ls ~/.pi/agent/install/releases/<ver>/node_modules/@earendil-works/`,
+and whether an absence is fatal is the extension's own decision, in one of two shapes: a release that decides
+from the **host's version string** (a `0.<minor>.<patch>` shape below a threshold) can only answer "older than
+the chord window", so a host NEWER than that window fails closed; a release that decides from the **host
+manifest** (required only when `dependencies`/`optionalDependencies` name the package) skips the alias and runs.
+⚠ The symptom is never a broken seat: pi starts, the footer prints, a FOREGROUND child completes, and only an
+ASYNC (background) launch builds that map — so a seat whose delegation plane is gone reads healthy up to the
+first background launch, which dies at start with `does not provide <that package>` and leaves no child session
+file, with zero seconds of work done. A `--check` green over every declared plane says nothing either way; the
+proof that the plane exists is one background launch that produces a child session file.
+
 ---
 ## 5. Reference `~/.pi/agent/settings.json` (harness tuning)
 
