@@ -13,74 +13,63 @@
 
 ## 1. Environment
 
-**The pi-dev seat is `oldsrv`, and its clone `domen@oldsrv:~/source/homelab` is the merging station** — merges
-land there, `scripts/validate-all.sh` runs there, and `git worktree list` on that host is the fleet's live set
-(harness state in [docs/harness-pi-engines.md](docs/harness-pi-engines.md)). ⚠ **The delegation-plane check — run it BEFORE routing any lane, on the seat you are on**: start the session on that
-seat, launch ONE `async: true` child, and require it to **yield a child session file**. That is the whole test, and no
-`--check` substitutes for it: pi 1.3.0 neither ships nor declares `@earendil-works/chord` while an older `pi-subagents`
-requires it for the detached background runner, so an `async: true` launch dies at start with 0 s of work and no child
-session file while a FOREGROUND child on the same seat runs normally — and every seat plane still reads `OK`.
-`pi_host_subagents_npm_version` now pins a release whose alias map asks for chord only when the host manifest declares
-it, **and a pin reaches no seat**: the seat legs (`pi-settings-config.sh --push`, then `pi install` of the pinned
-version, run FROM each seat) are in [todo.md](todo.md)'s **HD-1180** tail. ✅ **On this seat (`oldsrv`) the check PASSES (2026-10-21)** —
-`pi list` reads `npm:pi-subagents@0.80.0` under pi 1.3.0, and ONE `async: true` launch yielded a child session file, ran
-to completion and returned its result to the parent: **O11 is met HERE, so lanes launched from oldsrv run `async: true`.**
-⚠ The verdict is **per seat**, and the legs are now uneven: **`wsl`** has its declaration pushed green and
-`pi list` reading `npm:pi-subagents@0.80.0`, so **one `async: true` launch there is the whole remaining act**;
-**`win11`** now reads green on its own `settings` plane from that seat (two pushes, `win11 settings OK` twice, `--check
---strict` rc 0) and its `pi list` carries `npm:pi-subagents@0.80.0` with a path under it, so declaration AND bytes are in
-place there too: on both laptop seats the single remaining act is **one `async: true` launch**. The empty read-back that
-made win11's declaration unwitnessed is closed — a seat plane now gates its verdict on its **state word**, not on the bytes
-that arrived, so a lost or truncated pipe read is `NO VERDICT` (rc 2) and never a state about `settings.json`. A pass on oldsrv certifies only oldsrv. On any seat where the check has not passed, lanes run **foreground-sequential, one at a time**: a stated DEVIATION from O11 that ends seat by seat as **HD-1180**'s fix lands, never a new rule, and never to be
-written into [docs/orchestration.md](docs/orchestration.md) or a brief as the contract. ⚠ **On the laptop, grade from the WSL
-Debian clone and not the Win11 shell** — three gate items are red or blind on that seat (**HD-1177**), so a Win11
-green is a *partial* result and must be reported as one, never as the gate. **Pushing is not that station's exclusive
-job: every station pushes after it merges** (the rule is [docs/orchestration.md](docs/orchestration.md) §4 step 5 — an
-unpushed `main` is one disk between the work and the fleet). The laptop's WSL Debian clone is **retained, and
-now has a job: it is the designated runner station for externally-served runs** — off-box for every converge target, not the
-engine host, owner of no converge slot (the 2026-10-09 “retained but rarely used as a seat” ruling still stands for the
-pi-dev-seat question, which is a different one; the rule is [todo-table.md](todo-table.md) §C rule 9 and the state is
-[docs/harness-pi-seat-identity.md](docs/harness-pi-seat-identity.md) §5a). It stays in `pi-seat-sync.sh`'s `SEATS`, so a fan-out still names it and keeps reporting its real state — its own seat
-planes are green (`pi-seat-sync.sh --check`: every `wsl` line OK; the one problem is the oldsrv cockpit's `STALE-CLONE`, and that `ok=` count is a function of THAT seat's clone lagging `main` — with oldsrv current the same command prints `ok=18 problems=0`, so re-derive it, never copy it). Two refs were unique to that box and both are closed: the `never_evict` stash was dropped (main
-rejected the pin — `group_vars/spark.yml` §never-evict), and the arr-door branch's content is on `main`
-with its object pinned as **`rescue/arr-door-20261006`** — re-derive the rescue set with
-`git for-each-ref "refs/*/rescue/*"`, never from this sentence. The station checkout there is clean, one worktree, skills synced, tmux 3.5a.
-Its one non-derived gitignored file, `skills/mikrotik/.env.op` (`op://` references, no
-values), is TRACKED from this commit, so a clone elsewhere loses nothing. Read the inventory's `laptop-wsl` role
-("durable runner state = NAT + auto-resolv") as that host's **network** mode, not as a job runner: nothing
-is scheduled on it (no crontab, stock Debian timers only). No command changes, because the seat's clone sits
-at the same `~/source/homelab`. What the seat does buy: HD-1085's canary and its load-probe legs execute here —
-tmux 3.5a is installed on this seat, so the load probe prints a **verdict**, not a SKIP. Owner/cleanup sessions also run from
-the **Win11 Git-Bash** seat.
-`python3`/bash/LF/UTF-8 no-BOM (`.gitattributes` pins `eol=lf`, so a checkout is LF on Windows too). On a Win11 seat four
-gates were silently blind or misleadingly red until 2026-10-07 — MSYS text mode makes `grep` miss the CR of a CRLF pair
-(`grep -U` is mandatory in encoding guards), `git` lives in `/mingw64/bin` not `/usr/bin`, and a case ending in a tmux/ansible
-probe must print SKIP, not a verdict (CONVENTIONS §6; the sweep rule is [docs/orchestration.md](docs/orchestration.md) §4 step 5).
-**A Win11 seat signs and pushes without a 1Password window**: `bash scripts/git/git-bootstrap-win11.sh --git-identity` makes the
-file-path identity the seat default (`--check` shows the route, `--1password` opts back) — see
-[docs/deployment-secrets.md](docs/deployment-secrets.md) §What actually raises a 1Password prompt.
-Secrets → 1Password `Homelab-ansible` `item.field` only, `>-` for YAML renders. Multi-line bash heredocs with
-backslashes/backticks get mangled through `bash -c` — write script bodies to a temp file and run them.
-**Git identity on a seat — signing is RETIRED (HD-1116), so commit plainly.** `git log -1 --format='%G?'` → `N`
-is the expected value on every commit and is not a failure; never `git commit -s` (that trailer signs nothing).
-The only vault item left in this area is **`GitHub auth`**, the transport key; `GitHub sign` is deleted and
-`git-bootstrap.sh --ssh-auth` treats it as optional — the reason is that script's own comment, and the
-mechanism is [docs/1password.md](docs/1password.md) §GitHub signing + auth keys. Seat file map — Windows uses
-`~/.gitconfig-github` + `~/.gitconfig-nightly`, a DEBIAN seat has only `~/.gitconfig` — is in
-[docs/deployment-secrets.md](docs/deployment-secrets.md) §6.
+**Seat and merge station.** The pi-dev seat is `oldsrv`, and its clone `domen@oldsrv:~/source/homelab` is the merging
+station: merges land there, `scripts/validate-all.sh` runs there, and `git worktree list` on that host is the fleet's live
+set (harness state in [docs/harness-pi-engines.md](docs/harness-pi-engines.md)). Owner/cleanup sessions also run from the
+**Win11 Git-Bash** seat. The laptop's **WSL Debian** clone is retained and has a job: it is the designated runner station
+for externally-served runs — off-box for every converge target, never the engine host, owner of no converge slot (the
+rule is [todo-table.md](todo-table.md) §C rule 9, the state is
+[docs/harness-pi-seat-identity.md](docs/harness-pi-seat-identity.md) §5a, and the legs only that box may drive are
+[prompt-laptop-wsl.md](prompt-laptop-wsl.md) §2). It stays in `pi-seat-sync.sh`'s `SEATS`, so a fan-out still names it and
+keeps reporting its real state — re-derive its `ok=`/`problems=` count there, never copy it from a handoff. Rescue refs
+are likewise derived: `git for-each-ref "refs/*/rescue/*"`.
 
-**Reachability is settled — read the one SSOT, do not re-derive it:**
-[network-vpn.md](docs/network-vpn.md) §Reaching LAN nodes when away (measured matrix + traps) and §The laptop alias
-contract (the only alias table; governs BOTH `~/.ssh/config` files). In one line: behind-NAT hosts
-(`pi`/`nas`/`oldsrv`/`spark`) are reached over the VPS jump onto their **Home leg**; the **Mgmt plane (VLAN 99) is
-same-site only** (`router`/`switch`/`ap-*`/`pi99`/`oldsrv99`/`nas99` — never a `ProxyJump`). `ssh oldsrv` = the Home address.
+**The delegation-plane check — a rule, run it BEFORE routing any lane, on the seat you are on**: start the session on
+that seat, launch ONE `async: true` child, and require it to **yield a child session file**. That is the whole test and no
+`--check` substitutes for it; a pass certifies only the seat it ran on. Where a seat has not passed, lanes run
+**foreground-sequential, one at a time** — a stated DEVIATION from O11 that ends seat by seat as **HD-1180**'s fix
+lands, never a new rule, and never to be written into [docs/orchestration.md](docs/orchestration.md) or a brief as the
+contract.
 
-**Seat git writes can fail transiently — retry before believing it.** A `git push` from the seat was rejected with
-`remote: fatal error in commit_refs` on BOTH `main` and a fresh branch, while `git push --dry-run` and `git fetch`
-succeeded and `ssh -T` authenticated — GitHub-side, not a key/ACL problem (the ACL proof is the dry-run: it does
-request `git-receive-pack`). A retry a few minutes later pushed clean. So on that exact message: re-verify ACL with
-`--dry-run`, then retry; do not go hunting for a permissions cause, and never conclude the commit is lost — it is on
-`main` locally the moment you merge.
+| seat | delegation-plane verdict | the one act left |
+|------|--------------------------|------------------|
+| `oldsrv` | **PASSES** — one `async: true` launch yielded a child session file, completed and returned its result | none: **lanes launched from oldsrv run `async: true`** |
+| `win11` | not verified from that seat | ⏳ owner: push the `settings` plane and `pi install npm:pi-subagents@0.80.0` FROM the seat, then accept it with **its own** `async: true` launch |
+| `wsl` | not verified from that seat | ⏳ owner: the same two acts, run FROM that seat |
+
+⛔ Never by npm-installing chord under a managed seat tree. Mechanism and legs: **HD-1180** in [todo.md](todo.md) and
+[prompt-seat-cockpit-grants.md](prompt-seat-cockpit-grants.md).
+
+**Grade from the WSL Debian clone, not the Win11 shell** — gate items are red or blind on that seat (**HD-1117**,
+**HD-1177**), so a Win11 green is a *partial* result and must be reported as one, never as the gate. Three reasons from
+that seat still bind a probe: MSYS `grep` misses the CR of a CRLF pair (`grep -U` is mandatory in encoding guards),
+`git` lives in `/mingw64/bin` not `/usr/bin`, and a case ending in a tmux/ansible probe must print SKIP, not a verdict
+(CONVENTIONS §6).
+
+**Push after you merge** — the station that merged is the station that pushes; an unpushed `main` is one disk between the
+work and the fleet. That rule and the transient-failure note (a `remote: fatal error in commit_refs` reject is
+GitHub-side: re-prove the ACL with `git push --dry-run`, then retry, and never conclude the commit is lost) are both
+[docs/orchestration.md](docs/orchestration.md) §4 step 5.
+
+**Git identity:** signing is RETIRED (**HD-1116**) — commit plainly, ⛔ never `git commit -s`;
+`git log -1 --format='%G?'` → `N` is the expected value and is not a failure. A Win11 seat signs and pushes without a
+1Password window once `bash scripts/git/git-bootstrap-win11.sh --git-identity` has run (`--check` shows the route,
+`--1password` opts back). The seat file map and the one vault item left in this area (`GitHub auth`, the transport key)
+are in [docs/deployment-secrets.md](docs/deployment-secrets.md) §What actually raises a 1Password prompt and
+[docs/1password.md](docs/1password.md) §GitHub signing + auth keys. The two `.env.op` files that reference items and hold
+no values are TRACKED, so a clone elsewhere loses nothing —
+[docs/deployment-secrets.md](docs/deployment-secrets.md) §Secret Naming Convention.
+
+**Secrets:** 1Password `Homelab-ansible` `item.field` only, `>-` for YAML renders, and never a value printed anywhere —
+[docs/1password.md](docs/1password.md). Multi-line bash heredocs with backslashes/backticks get mangled through
+`bash -c`: write the body to a temp file and run it.
+
+**Reachability is settled — read the one SSOT, do not re-derive it:** [network-vpn.md](docs/network-vpn.md)
+§Reaching LAN nodes when away (measured matrix + traps) and §The laptop alias contract (the only alias table; governs
+BOTH `~/.ssh/config` files). In one line: behind-NAT hosts (`pi`/`nas`/`oldsrv`/`spark`) are reached over the VPS jump
+onto their **Home leg**; the **Mgmt plane (VLAN 99) is same-site only** (`router`/`switch`/`ap-*`/`pi99`/`oldsrv99`/
+`nas99` — never a `ProxyJump`). `ssh oldsrv` = the Home address. `python3`/bash/LF/UTF-8 no-BOM everywhere
+(`.gitattributes` pins `eol=lf`, so a checkout is LF on Windows too).
 
 ## 2. Next tasks (the rows are the authority; this is only the ranked pointer list)
 
