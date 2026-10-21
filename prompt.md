@@ -282,116 +282,86 @@ the row→brief index is [todo-table.md](todo-table.md) §B0. A brief is named f
 8. ⏳ **Edge and identity** — **HD-147**'s browser-login tail, **HD-457** (the SSO seat owns the family library — ruled; what is left is the per-user/shared-album shape, read at implementation time), **HD-458 · 459** (zipline, the published names), **HD-112**, and **HD-357** — the launchpad tiles, promoted onto this brief 2026-10-13 (its family-surface brief was retired and no successor took the row). ⏸ **HD-47** stays an owner act,
    **Deferred by owner 2026-10-08**: the external-room join is unscheduled; everything publishable is published and
    measured. → [prompt-edge-identity.md](prompt-edge-identity.md)
-9. ⏳ **The LiteLLM consumer chain** — one ordered pair left (**HD-384**).
-   The rows this brief no longer carries reached ground 2026-10-09: the thinking control IS honoured through both gateways on
-   the pinned image ([docs/services-ai.md](docs/services-ai.md) §9d); the `/ui/login` deep-link defect did not
-   survive the 2026-10-08 pin (§4c); **voice has an LLM to call** — HA's `litellm` entry, its conversation agent
-   and the Assist wire are live, proven by a Slovenian turn end to end
-   ([docs/smart-home-voice.md](docs/smart-home-voice.md) header table; the plaintext-replication ruling it required
-   is in [docs/deployment-secrets.md](docs/deployment-secrets.md) §Runtime plaintext that leaves the vault); and
-   **n8n is audited shut** — one workflow, one webhook called by Grafana on the docker network, tailnet-only, and
-   **no AI node**, so there is no key to mint yet
-   ([docs/services-utilities.md](docs/services-utilities.md)). That turn also surfaced a defect that is NOT the
-   gateway's: Assist cannot resolve "dnevna soba" (**HD-1127**).
-   What remains is **sequencing, not thinking**: `litellm-engine_api` is minted and rendered into spark's
-   accepted-key list, and the gateways may only be pointed at it **after** spark reboots with it — a spark engine
-   restart is an owner-window action (PLE load, ~20 min), so step 2 is parked rather than slipped in.
-   New in this lane, **unbriefed**: **HD-1178** — the oldsrv `embed` leg's next model gets chosen by a bench, not
-   by a leaderboard. Nothing is measured yet; the corpus, both gates and the probe commands are in
-   [docs/services-ai-bench.md](docs/services-ai-bench.md) §3d, and the bench's first act is a `server-vulkan` pin
-   bump that recreates the **reranker** leg with it. `EmbeddingGemma 2` is rejected for the RAG leg and stays in
-   scope only as the code-retrieval candidate inside that bench (OQ-14 is open on that axis, and its docs half
-   still stands parked on the measured recall floor).
-   → [prompt-litellm-consumers.md](prompt-litellm-consumers.md)
+9. ⏳ **The LiteLLM consumer chain** — one ordered pair left (**HD-384**), and what remains is **sequencing, not
+   thinking**: `litellm-engine_api` is minted and rendered into spark's accepted-key list, and the gateways may be
+   pointed at it only **after** spark reboots with it — a spark engine restart is an owner-window action (PLE load,
+   ~20 min), so step 2 is parked rather than slipped in. Settled state lives in its owning docs, not here: thinking
+   control ([docs/services-ai.md](docs/services-ai.md) §9d), the `/ui/login` deep link (§4c), voice
+   ([docs/smart-home-voice.md](docs/smart-home-voice.md); the plaintext-replication ruling in
+   [docs/deployment-secrets.md](docs/deployment-secrets.md) §Runtime plaintext that leaves the vault), and n8n audited
+   shut with no AI node, so no key to mint ([docs/services-utilities.md](docs/services-utilities.md)). One defect from
+   that turn is NOT the gateway's: Assist cannot resolve "dnevna soba" (**HD-1127**). **HD-1178** (new in this lane,
+   **unbriefed**): the oldsrv `embed` leg's next model is chosen by a bench, not a leaderboard — nothing measured yet,
+   and the corpus, both gates and the probe commands are in
+   [docs/services-ai-bench.md](docs/services-ai-bench.md) §3d; the bench's first act is a `server-vulkan` pin bump that
+   recreates the **reranker** leg with it. `EmbeddingGemma 2` stays rejected for the RAG leg and in scope only as the
+   code-retrieval candidate inside that bench (OQ-14 is open on that axis, and its docs half still stands parked on the
+   measured recall floor). → [prompt-litellm-consumers.md](prompt-litellm-consumers.md)
 10. ⏳ **The Win11 seat's serving legs** — **HD-474** FIM latency and **HD-476** the VL `mmproj` on the iGPU. The
     laptop's local **agent** leg is retired (owner ruling 2026-10-09), so this brief is FIM + vision only and claims
     no converge host — which is why it can run beside anything except a live pi-seat lane. →
     [prompt-laptop-legs.md](prompt-laptop-legs.md)
-11. ⏳ **The `scripts/` restructure** — **landed 2026-10-12**, by re-deriving the 2026-10-09 lane at the tip
-   rather than replaying it: `scripts/` is now `lib/ gate/ ansible/ secrets/ git/ harness/ bench/ hardware/
-   testdata/` with `validate-all.sh` + `render_all.py` at root, root resolution is structural, and
-   `gate/check_script_layout.py` holds the tree from inside `validate-all.sh`. The lane's 13 commits were not
-   replayable (0/13 applied across 676 commits of drift) and are pinned as `rescue/hd1118-20261011`. Three live
-   legs stay in the row — the two seat legs and the from-zero leg; **the seat legs are run FROM the seat —
-   `bash scripts/harness/pi-seat-sync.sh
-   --check` and `install-tmux-conf.sh --push` on the win11 seat, in its own session** — because a seat plane
-   converges from its own clone and the station cannot speak for a seat's PATH. ⚠ **One correction to that sentence**:
-   it was measured false for `oldsrv` (HD-1118's 2026-10-19 tail — one transport, `ssh -n … oldsrv-domen`, no local arm
-   beside the `win11`/`wsl` fallbacks), and the driver now carries that local arm, chosen by the box's own hostname
-   ([docs/harness-pi-seat-identity.md](docs/harness-pi-seat-identity.md) §5a), so `--seat oldsrv` run FROM oldsrv reads
-   the clone you are standing in. **The `wsl -d Debian` seat is
-   done 2026-10-17, run from that seat**: three planes had sat red there (the tmux target still carried the
-   pre-move marker, the skills plane had never been pushed since the self-learn landed, and the settings plane
-   had nothing to merge into), one pass of the three owners turned them green, and `pi-seat-sync.sh --seat wsl
-   --check` now reports every declared plane OK; `install-pi-debian.sh --check` on a clean Debian seat is the
-   third leg and it is **parked** — no host in the fleet is a spare clean Debian box to run it on. The `harness`
-   docs domain is REGISTERED, not missing: its five-way split, its checker and the taxonomy call are
-   [prompt-scripts.md](prompt-scripts.md) §The taxonomy call and the hub [docs/harness.md](docs/harness.md), and
-   the verdict count is that checker's own output. ⚠ **The `check_mode: false` rule now sees the line as this repo
-   writes it**: `check_self_converge_guard.py`'s detector carries the trailing comment YAML allows
-   (`check_mode: false   # read-back` IS false), and the site is then classified by its carrying task — a read-only
-   module (`stat`/`slurp`/`find`/`get_state`/`*_facts`) or a `command`/`shell` declaring `changed_when: false` is a
-   read-back, anything else (an unknown module, a `command` with no `changed_when`) is a WRITE and reddens naming
-   `file:line`. cockpit reads **0 write / 8 read-back**, so its `check_safe: true` is a gate verdict now and not an
-   accident; ⛔ the wrong fix would be declaring cockpit `check_safe: false`, which would refuse the very
-   `--check` HD-361 exists to make possible. The verdict table is
-   [docs/deployment-ansible.md](docs/deployment-ansible.md) §Self-converge guardrail. **The
-   child-lane contract is a rule with a ceiling and a gate now** — O10/O11 in
-   [docs/orchestration.md](docs/orchestration.md) §4 and `subagents.modelScope` in
-   [`pi-agent/settings-ssot.json`](pi-agent/settings-ssot.json), held by
-   [`scripts/gate/check_subagent_contract.py`](scripts/gate/check_subagent_contract.py). The arm is landed: the `subagent` seat plane ([`scripts/harness/pi-subagent-config.sh`](scripts/harness/pi-subagent-config.sh)) writes `_subagentConfig` → `~/.pi/agent/extensions/subagent/config.json` on every seat, the win11 leg is converged, and the Debian seats converge the payload on the next per-seat `pi-seat-sync.sh --push` — until a seat's own `--check` prints `OK` for that file, the seat runs the harness defaults and a run must pass the values on the launch ([docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1). **The registry's own prose is now a rule with a checker** —
-   [`gate/check_registry_prose.py`](scripts/gate/check_registry_prose.py) runs in `validate-all.sh` with its `--self-test` and prints
-   `registry: 120 linked rows, 0 state-date exempt site(s), 0 finding(s)` (`--show` prints the live count, never a number typed
-   into a handoff), so `scripts/README.md` is a facts-only map: a row states what its script does — flags, verdicts, exit
-   contract, declared limits — and names the doc that owns the detail. → [prompt-scripts.md](prompt-scripts.md)
-12. ⏳ **Owner-gated tails** (exact steps in the rows): **377** the Grafana render re-do · **444** the phone-crossing
-    drill · **1103 + 1167** one Pi visit — the boot that makes the fstab `mode=` true on the mount, and the one-time
-    re-render of `pi-eth0.nmconnection` that notifies `reload NetworkManager` (HD-418's HA restart window was spent in
-    the reconcile apply, so it is no longer gated) · **HD-06** the UPS drill · **411** the cockpit resume word ·
-    **HD-230/207** the decisions taken at the drill · **1175** a human at `oldsrv`'s console — there is no
-    out-of-band power path at all (the posture **HD-454** rules; its WoL re-test has never been run), so the
-    box is read by eye · **1170 · 1171 · 1150** the three secret-close windows: rotate
-    `spark-llm_api` (published in a tracked bench capture of the public repo — the blob is still reachable from a ref,
-    so only rotation closes it) and rule on `radarr_api`/`sonarr_api` (same publication class, `NOT_AUTO_ROTATABLE`);
-    rotate `op_api` and re-seat all four installs; re-seat `vps:/etc/op/provision-token` with the `matrix_password`
-    ruling — none of these closes with a repo change. **HD-1181** extends that list to **14 CURRENT vault values** this
-    seat's pi transcripts hold: the rotation is the owner's and it differs per item — a vault edit + re-render
-    (`cockpit-pi-web_api`, the two Victoria basic auths, the three CAPsMAN PSKs), rotate **in the app first** for the two
-    app admin logins and `bazarr_api`, **coupled** for `n8n_password` (= `N8N_ENCRYPTION_KEY`, so stored credentials must
-    be re-encrypted) and the kopia repo password (HD-1174's rotate-and-reconnect window, or backups stop quietly), the
-    unix `domen` password on `oldsrv` (lanes read it through `op read … | sudo -S -p ""`), and the provider side for the
-    VPN key. ⚠ **`check_secret_leak.py` — and with it `validate-all.sh` — is RED at the tip here BY DESIGN until that
-    rotation lands**: no ledger line was added and the checker was not edited to quiet a live value, so a green leak read
-    on this seat would mean the register was muted, not that the exposure is gone. Deleting or shredding transcripts closes
-    nothing — a rotated value stops being a finding, an unrotated one never does; the register is per seat, so win11 and
-    wsl owe the same read. **HD-1160** owes one owner-present **router window** (global slot): the converge template's
-    twin of the retagged router comment, `IaC/router/templates/rb4011_converge.rsc.j2` — a `#`-line that IS rendered
-    output, so it moves with a render + `routeros-apply-delta.sh` inside the window and never from a docs lane, never
-    `--diff`. ⏸ **HD-454 is ruled, not pending** (nothing is purchased and no
-    out-of-band path is scheduled, so a switched-off `oldsrv` waits for presence; the one owner-side leg left is a WoL
-    re-test at a planned power-off) and **HD-47** above.
-13. ⏳ **Unrowed, but not free** — **HD-1100**'s held legs: both owner-authorized PG legs are DONE and verified
-    (`litellm-db`, `authentik-postgres`), four middle legs stay held by owner ruling — run one cluster per window on the
-    owner's word, each proved by its `pg_control` + key-table read and by the next `db-backup` run that dumps it. ⚠ The
-    `wireguard` leg this line used to owe on **oldsrv does not exist there**: `home_servers.yml` carries no `wireguard` role,
-    so `--tags wireguard` there selects zero role tasks; the only wg leg in the tree is the **VPS** side, and it restarts the
-    tunnel every off-box converge rides — owner-present, detached, run **last**, then re-verify every tunnel path.
-    Rowless but not free: the **apt upgrade phase** stays OUT of the converge wave — ruled 2026-10-12 (option A), the
-    `roles/updates` design is DECLINED and not pending, and the `apt-mark hold` that ruling required is now live on
-    all five hosts (`roles/common/tasks/apt-holds.yml`, read back with `apt-mark showhold`), so `apt upgrade` can no
-    longer move a pinned HOST package anywhere in the fleet (`kopia` ships as a pinned CONTAINER image, so there is
-    no apt state there). What that leaves is the pin LAG, not the pin, and it is reported: the read-only
-    pin-lag series are live on all five hosts and the `pkg-pin-drift` rule is in the ruler (read from
-    the ruler API, not from the repo: it sits in `Homelab · Warning` on `count by (instance)
-    (homelab_pkg_pin_result{result="differ"})`, `for: 30m`, `noDataState: OK` — count what loads with
-    that same read, never from this sentence). It is QUIET, and that is the fleet reading, not a mute:
-    the last `--tags docker` apply landed on `pi` (`ok=35 changed=3 failed=0`; docker-ce/-cli/rootless-extras
-    `5:29.8.2`, containerd.io `2.3.6`, buildx `0.37.1`, compose `5.5.1`, re-held in the same play, every
-    rule `inactive` afterwards), so **no apply is owed on the docker leg anywhere** — `oldsrv` never was, `nas`
-    runs no docker role, and the row is deleted with its last ⏳ emptied. What the leg taught stays put: one
-    list (`docker_ce_suite_packages`) drives the apt call, the hold lift and the read-back, and every host
-    that carries the suite is on its pin. →
-    [docs/observability.md](docs/observability.md) §Pin-lag report.
+11. ⏳ **The `scripts/` restructure** — **landed**: `scripts/` is now `lib/ gate/ ansible/ secrets/ git/ harness/ bench/
+   hardware/ testdata/` with `validate-all.sh` + `render_all.py` at root, root resolution is structural, and
+   `gate/check_script_layout.py` holds the tree from inside `validate-all.sh`. **Three live legs stay in the row — the
+   two seat legs and the from-zero leg.** ⏳ **The seat legs are run FROM the seat** —
+   `bash scripts/harness/pi-seat-sync.sh --check` and `install-tmux-conf.sh --push` on the win11 seat, in its own
+   session — because a seat plane converges from its own clone and the station cannot speak for a seat's PATH;
+   `run_on_seat oldsrv` carries a local arm chosen by the box's own hostname
+   ([docs/harness-pi-seat-identity.md](docs/harness-pi-seat-identity.md) §5a). `install-pi-debian.sh --check` on a clean
+   Debian seat is the third leg and it is **PARKED** — no host in the fleet is a spare clean Debian box to run it on.
+   The `harness` docs domain is REGISTERED, not missing: [prompt-scripts.md](prompt-scripts.md) §The taxonomy call and
+   the hub [docs/harness.md](docs/harness.md), and the verdict count is that checker's own output.
+   ⚠ **The `check_mode: false` rule reads the line as this repo writes it** (`check_mode: false   # read-back` IS
+   false) and classifies the site by its carrying task: a read-only module (`stat`/`slurp`/`find`/`get_state`/
+   `*_facts`) or a `command`/`shell` declaring `changed_when: false` is a read-back, anything else is a WRITE and
+   reddens naming `file:line`. The verdict table is
+   [docs/deployment-ansible.md](docs/deployment-ansible.md) §Self-converge guardrail; ⛔ the wrong fix would be
+   declaring cockpit `check_safe: false`, which would refuse the very `--check` HD-361 exists to make possible.
+   **The child-lane contract is a rule with a ceiling and a gate** — O10/O11 in [docs/orchestration.md](docs/orchestration.md)
+   §4 and `subagents.modelScope` in [`pi-agent/settings-ssot.json`](pi-agent/settings-ssot.json), held by
+   [`scripts/gate/check_subagent_contract.py`](scripts/gate/check_subagent_contract.py). Until a seat's own `subagent`
+   plane `--check` prints `OK` for `~/.pi/agent/extensions/subagent/config.json`, that seat runs the harness defaults
+   and a run must pass the values on the launch ([docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1).
+   **The registry's prose is a rule with a checker** —
+   [`gate/check_registry_prose.py`](scripts/gate/check_registry_prose.py) — so `scripts/README.md` is a facts-only map;
+   print its count with `--show`, never a number typed into a handoff. → [prompt-scripts.md](prompt-scripts.md)
+12. ⏳ **Owner-gated tails** (exact steps in the rows): **377** the Grafana render re-do · **444** the phone→oldsrv
+    cockpit crossing · **1103 + 1167** one Pi visit — the boot that makes the fstab `mode=` true on the mount, and the
+    one-time re-render of `pi-eth0.nmconnection` that notifies `reload NetworkManager` · **HD-06** the UPS drill ·
+    **411** the cockpit resume word · **HD-230 · 207** the decisions taken at the drill · **1175** a human at `oldsrv`'s
+    console, because there is no out-of-band power path at all (the posture **HD-454** rules; its WoL re-test has never
+    been run) · **1170 · 1171 · 1150** the three secret-close windows: rotate `spark-llm_api` and rule on
+    `radarr_api`/`sonarr_api`; rotate `op_api` and re-seat all four installs; re-seat `vps:/etc/op/provision-token` with
+    the `matrix_password` ruling — none of these closes with a repo change · **HD-1181** the **14 CURRENT vault values**
+    this seat's pi transcripts hold: the rotation is the owner's and it **differs per item**, so act from the row's
+    per-item list, not from memory (some are a vault edit + re-render, some must be rotated **in the app first**, some
+    are coupled, one is the provider side). ⚠ **`check_secret_leak.py` — and with it `validate-all.sh` — is RED at the
+    tip here BY DESIGN until that rotation lands**: no ledger line was added and the checker was not edited to quiet a
+    live value, so a green leak read on this seat would mean the register was muted, not that the exposure is gone.
+    Deleting or shredding transcripts closes nothing — a rotated value stops being a finding, an unrotated one never
+    does — and the register is **per seat**, so win11 and wsl owe the same read. **HD-1160** owes one owner-present
+    **router window** (global slot) for the converge template's twin of the retagged router comment in
+    `IaC/router/templates/rb4011_converge.rsc.j2` — a `#`-line that IS rendered output, so it moves with a render +
+    `routeros-apply-delta.sh` inside the window; ⛔ never from a docs lane, never `--diff`. ⏸ **HD-454 is ruled, not
+    pending** — nothing is purchased and no out-of-band path is scheduled, so a switched-off `oldsrv` waits for
+    presence, and the one owner-side leg left is a WoL re-test at a planned power-off — and **HD-47** above.
+13. ⏳ **Unrowed, but not free** — **HD-1100**'s held legs: four middle PG legs stay held by owner ruling — run one
+    cluster per window on the owner's word, each proved by its `pg_control` + key-table read and by the next `db-backup`
+    run that dumps it. ⚠ The `wireguard` leg this line used to owe on **oldsrv does not exist there**:
+    `home_servers.yml` carries no `wireguard` role, so `--tags wireguard` there selects zero role tasks; the only wg leg
+    in the tree is the **VPS** side, and it restarts the tunnel every off-box converge rides — owner-present, detached,
+    run **last**, then re-verify every tunnel path. The **apt upgrade phase** stays OUT of the converge wave — ruled
+    2026-10-12 (option A), `roles/updates` is DECLINED and not pending, and the `apt-mark hold` that ruling required is
+    live on all five hosts (`roles/common/tasks/apt-holds.yml`, read back with `apt-mark showhold`), so `apt upgrade` can
+    no longer move a pinned HOST package anywhere in the fleet (`kopia` ships as a pinned CONTAINER image, so there is
+    no apt state there). What that leaves is the pin **LAG**, not the pin, and it is reported — so count it from the
+    ruler API and never from this file:
+    `count by (instance) (homelab_pkg_pin_result{result="differ"})` on
+    [docs/observability.md](docs/observability.md) §Pin-lag report, where the per-host read lives. A host that reads
+    `differ` is reporting the gap, not a false positive. No `--tags docker` apply is owed anywhere (`oldsrv` never was,
+    `nas` runs no docker role), and one list — `docker_ce_suite_packages` — drives the apt call, the hold lift and the
+    read-back on every host that carries the suite.
 14. **Decisions the last wave left open** (none has a domain brief; each is one call, and the evidence that makes it
     actionable is named with it). The gates named here are indexed in [scripts/README.md](scripts/README.md)
     §Validation gate, and every count a gate prints is re-derived by running it here, never quoted.
