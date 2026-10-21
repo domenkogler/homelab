@@ -64,8 +64,8 @@ tags: [ai, pi, agent-harness, harness, spark, llm, settings]
   **absent** from both files — the correct resolution is currently carried by hand-written lines, one of
   which pins a version directory (`node-v22.23.2-linux-x64`), which is exactly the line this leg exists to
   replace. HD-1118 Stage 2 is the follow-through for the rest of the seat family. `pi update self` installs the LATEST release and takes no version
-  flag, so a managed seat off its pin is an **owner** action — move `pi_host_npm_version` +
-  `pi_dev_npm_version` to what it reports, or move the seat back to the pinned layout with
+  flag, so a managed seat off its pin is an **owner** action — move `pi_host_npm_version` to
+  what it reports (it is the repo's only pi pin since the pi-dev container pins were removed), or move the seat back to the pinned layout with
   `install-pi-debian.sh --pi-only`; the script refuses to npm-install a second layout underneath it.
 
 **A seat's packages resolve against the pi RELEASE they run under, so a pi pin bump is a dependency-plane
@@ -149,7 +149,7 @@ under every package it has resolved and **nothing** under a declaration it has n
 `pi install <source>@<pin>`; `pi update --extensions` is never the repair, because it moves every package to
 whatever the registry calls `latest` and walks a pinned seat off its pins one sync at a time ([`harness-pi-engines.md`](harness-pi-engines.md) §7).
 
-**Which pi build a seat runs is a pinned value too** (`pi_host_npm_version`, and `pi_dev_npm_version` must equal it — the value and the reasoning live in the `versions.yml` pin lines, not in prose). Every other plane compares files, so without a binary plane a seat quietly runs a pi release the repo has not reviewed. [`../scripts/harness/pi-self-update.sh`](../scripts/harness/pi-self-update.sh) is that plane: `BEHIND` and `AHEAD` are both drift, an already-correct seat runs nothing, and `--push` re-probes the binary instead of trusting the installer.
+**Which pi build a seat runs is a pinned value too** (`pi_host_npm_version` — the repo's only pi pin since the pi-dev container pins were deleted with the harness IaC; the value and the reasoning live in the `versions.yml` pin lines, not in prose). Every other plane compares files, so without a binary plane a seat quietly runs a pi release the repo has not reviewed. [`../scripts/harness/pi-self-update.sh`](../scripts/harness/pi-self-update.sh) is that plane: `BEHIND` and `AHEAD` are both drift, an already-correct seat runs nothing, and `--push` re-probes the binary instead of trusting the installer.
 
 **A plane command is composed on the driver and executed in the seat's own shell, so anything it resolves per-box must resolve at the execution site.** Which interpreter answers `python3` is a fact about the machine that runs the command — on a Windows seat it is the Microsoft-Store stub and the real launcher is `py -3`; on a Debian seat it is `python3` itself. Choosing the launcher by asking the machine that COMPOSED the command ships a Windows command line into a Debian seat, where it dies at `py: command not found` and reads as seat drift on exactly one plane. The rule is therefore about where the branch sits, not which value wins: either the per-box case travels inside the command the seat executes, or the driver reads the seat's class before composing. A `py`/`python3` shim on the far box is not a repair — it hides the mis-placed decision and leaves every other runner class (`bash`, `powershell`) exposed the same way.
 

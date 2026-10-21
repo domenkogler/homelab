@@ -29,9 +29,10 @@ tags: [harness, pi, agent-harness, seats, tmux, llm]
   [`spark-llm-profiles.md`](spark-llm-profiles.md). Direction of truth is **engine → harness, never the
   reverse** ([`harness-pi-seats.md`](harness-pi-seats.md) §1).
 - **A coding harness is not a service.** Harnesses reach the engine **directly** at the spark name edge —
-  the consumption boundary is decision #26 in [`services-ai.md`](services-ai.md) §9, and the parked
-  `dsh` / `pi-dev` catalog entries (`enabled: false`, kept so the port contract survives a re-onboarding)
-  are recorded there. Nothing in this domain is Ansible-converged as a container: the seat planes are
+  the consumption boundary is decision #26 in [`services-ai.md`](services-ai.md) §9; the former
+  `dsh` / `pi-dev` catalog entries were deleted with the harness IaC (recorded in
+  [`services-ai.md`](services-ai.md) §9), so no container form of them survives in the registry.
+  Nothing in this domain is Ansible-converged as a container: the seat planes are
   converged by [`../scripts/harness/pi-seat-sync.sh`](../scripts/harness/pi-seat-sync.sh), from each seat's
   own clone.
 - **Domain, not a cross-cutting doc.** [`../CONVENTIONS.md`](../CONVENTIONS.md) §8.4 would allow an

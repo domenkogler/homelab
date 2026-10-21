@@ -384,7 +384,8 @@ Cockpit is a host service (not a Docker container), so its routes are a Traefik
   ([hardware-oldsrv.md](hardware-oldsrv.md) §Remote Management). Acceptance: **the name answers with either box
   shut**, not "answers off oldsrv".
   ⚠ The constraint that comes with it:
-  `pi-oldsrv.ts.kogler.si` (the pi-web seat) and `cockpit-nas.ts.kogler.si` are both served by **oldsrv's own
+  `pi-oldsrv.ts.kogler.si` (the pi-web seat — and its second name `pi-dev.ts.kogler.si` on the
+  same router/backend) and `cockpit-nas.ts.kogler.si` are both served by **oldsrv's own
   `websecure-ts` listener** — so the Pi leg needs its **own** tailnet listener + router on that box (never a
   re-point of the seat's name), and the name publishes **`tailnet: dual`** through the catalogue's dual-node
   mechanism, not a `tailnet_subdomains` bolt-on (that renders both namespaces).

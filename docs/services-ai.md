@@ -108,11 +108,12 @@ Consequences:
   + its own scoped keys, and both are Kopia-backed.
 - **Per decision #26 the LAN instance's backend set is the pinned-AI legs + spark for simple queriers** —
   NOT the coding harnesses, which talk to spark directly.
-- **Coding harnesses are not services.** `dsh` / `pi-dev` as `docker_services` entries are parked
-  (`enabled: false` — kept so `template_dir` + the port contract survive a re-onboarding). They run
-  as dedicated deployments / on the workstation and reach the engine directly. The tailnet `dsh`/`pi-dev`
-  DNS records + `dsh-backend`/`pi-backend` routes still exist and answer **502 by design**, as documented in
-  [network-vpn.md](network-vpn.md); deleting them is a separate change with its own reasoning.
+- **Coding harnesses are not services.** The `dsh` / `pi-dev` `docker_services` entries, their compose
+  templates, their pins and their tailnet surface are REMOVED — the harnesses run as dedicated
+  deployments / on the workstation and reach the engine directly. The retired 502s are gone with
+  them: `dsh.kogler.si` resolves to nothing, and `pi-dev.ts.kogler.si` survives as a **second name
+  on the live cockpit backend** (§9b-1), served node-direct by oldsrv's own listener, while the plain
+  `pi-dev.kogler.si` publishes nothing.
 
 ### Docker networks
 
@@ -905,7 +906,7 @@ service in this fleet follows:
 
 | Surface | Runtime | Bind | Auth | Why not the house style |
 |---|---|---|---|---|
-| **pi-web** | `~/.pi/agent/bin/pi-web` (28 MB Go binary, installed as a **pi package**: `pi install npm:@ygncode/pi-web@beta`), systemd **user** unit `pi-web.service` under `domen`, linger enabled, two drop-ins: `loopback-bind.conf` + `pi-on-path.conf` (the unit must be told where `pi` lives — it shells out to it) | **loopback only**, on `cockpit_pi_web_port`, published as **`https://pi-oldsrv.ts.kogler.si`** by oldsrv's OWN `websecure-ts` listener on `traefik-internal` (`network_mode: host` reaches the host loopback). No LAN socket, no `0.0.0.0`, no VPS edge, no WG S2S hop: a `tailscale0`-address bind is plain HTTP, no cert, and unreachable from every other node in the fleet (`no matching peer`) | `PI_WEB_TOKEN` from `~/.config/pi-web/env` (0600). `?token=` → 302; no token → **401**. A non-loopback bind without a token is refused by the binary unless `-insecure` | A container would mount the whole home tree of the session it watches; the point of the cockpit is to read `~/.pi/agent/sessions/`, so the container boundary would be theatre. `domen` is the blast radius, and it is the account that already owns the sessions |
+| **pi-web** | `~/.pi/agent/bin/pi-web` (28 MB Go binary, installed as a **pi package**: `pi install npm:@ygncode/pi-web@beta`), systemd **user** unit `pi-web.service` under `domen`, linger enabled, two drop-ins: `loopback-bind.conf` + `pi-on-path.conf` (the unit must be told where `pi` lives — it shells out to it) | **loopback only**, on `cockpit_pi_web_port`, published as **`https://pi-oldsrv.ts.kogler.si`** — and, since the harness removal, under a SECOND name **`https://pi-dev.ts.kogler.si`** on the SAME router and backend (one seat, two names, one token; `pi-oldsrv` stays canonical, the owner kept the retired harness's name as an alias for the live cockpit) — by oldsrv's OWN `websecure-ts` listener on `traefik-internal` (`network_mode: host` reaches the host loopback). No LAN socket, no `0.0.0.0`, no VPS edge, no WG S2S hop: a `tailscale0`-address bind is plain HTTP, no cert, and unreachable from every other node in the fleet (`no matching peer`) | `PI_WEB_TOKEN` from `~/.config/pi-web/env` (0600). `?token=` → 302; no token → **401**. A non-loopback bind without a token is refused by the binary unless `-insecure` | A container would mount the whole home tree of the session it watches; the point of the cockpit is to read `~/.pi/agent/sessions/`, so the container boundary would be theatre. `domen` is the blast radius, and it is the account that already owns the sessions |
 | **Paseo** | ⏳ **not installed** (parked, with a full resume sequence) — planned as `@getpaseo/cli` under the same account | would use `paseo_port` (6767, upstream's default) on the same tailnet bind | its own `PASEO_PASSWORD` | Same reasoning — and it stays parked because acceptance needs a hand on the phone, so no session can verify it end-to-end |
 
 **Deliberately NOT behind gateway-auth (decision).** A "second host network + gateway-auth route, if the

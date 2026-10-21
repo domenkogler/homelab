@@ -206,9 +206,7 @@ sidecar serves to the app over that private network. Functional service-to-servi
 
 | Node | Serves | App-level auth | ACL tag |
 |------|--------|----------------|---------|
-| ~~dsh (on oldsrv)~~ | ~~cockpit :3080~~ | **PARKED** — backend gone; its tailnet route + DNS record remain and answer 502. Pattern-A, not B. |
 | vps-obs (`traefik-tailnet` + its userspace sidecar) | **clean subdomain URLs over the tailnet** — `stats`, `traefik`, `logs`, `csui`, `auto` (n8n), and the AI names `db-spark`, `llm`, `litellm` plus their `*.ts.kogler.si` twins: `https://stats.kogler.si` / `https://stats.ts.kogler.si`, `https://logs.kogler.si`, `https://csui.kogler.si`, `https://traefik.kogler.si`, `https://auto.kogler.si`, `https://db-spark.kogler.si`, `https://llm.kogler.si` (spark OpenAI-API, bearer-gated), `https://litellm.kogler.si` (spine admin) — **no ports** (wildcard certs + second Traefik edge). `litellm` reaches the edge through the `tailnet-apps` app→edge overlay, not `services-internal` | plain `*.kogler.si` = Authentik Forward-Auth (AI names: engine/LiteLLM own-login, no forward-auth); **`*.ts.kogler.si` = ACL-gated** (tailnet-only names, `tag:sidecar:443` is the gate) | tag:sidecar |
-| ~~pi-dev (on oldsrv)~~ | ~~TUI/CLI agent~~ | **PARKED** — backend gone, no LiteLLM consumer; its tailnet route + DNS record remain and answer 502. |
 | litellm-ui | admin :4000/ui | bearer keys | tag:litellm |
 | owui-int (`ai.kogler.si`) | internal OWUI | Authentik OIDC | tag:owui-int |
 | openclaw | control/gateway | gateway token | tag:openclaw |
@@ -232,14 +230,15 @@ sidecar serves to the app over that private network. Functional service-to-servi
     4. Heading home with Tailscale on reaches `ha.kogler.si` via the LAN (Option A).
   - **Tailnet ACL:** `policy.hujson` already allows family nodes → `tag:sidecar` on :443 (deny-by-default + per-user own nodes). No extension needed for the existing owner set; extend only if a new family member node is added.
 
-**Parked names stay published, and their 502 is the design.** `dsh.kogler.si` / `pi-dev.kogler.si` and
-their `.ts` twins keep their headscale `extra_records` **and** their `traefik-tailnet` routers, even though the
-backends are gone: the `dsh-backend` / `pi-backend` load-balancer URLs point at `oldsrv:3080` / `oldsrv:8080`
-over the WG S2S, where nothing listens. So the names resolve
-and the edge answers **502** — that is not an outage to chase, and the `zone_kogler_si` entry says so
-where the name lives. Deleting them is a decision of its own, because it deletes MagicDNS records: do it
-as ONE change that clears `tailnet:` on those two `zone_kogler_si` entries, the routers and the two
-service blocks together.
+**The `dsh` / `pi-dev` names are un-published, and that removal WAS its own decision** (the owner
+ruled it, and the one-change procedure this section demanded was executed): the backends had been
+gone since the harnesses were parked, so the `dsh-backend` / `pi-backend` load-balancer URLs pointed
+at `oldsrv:3080` / `oldsrv:8080` over the WG S2S, where nothing listens — the names resolved and
+the edge answered **502**, a dead hop rather than a surface. `dsh` now answers nothing in any
+namespace; `pi-dev` survives ONLY as `pi-dev.ts.kogler.si`, a `.ts` node-record on oldsrv and a
+second name on the live cockpit backend (`pi-oldsrv-ts` in `traefik-internal`, see
+[services-ai.md](services-ai.md) §9b-1) — the cockpit binds loopback, so no VPS-edge answer could
+ever serve it and the PLAIN name publishes nothing by design.
 
 **A published name is only as live as the node it points at.** A `node`/`dual` entry takes
 `tailnet_oldsrv_ip` unless it declares its own `tailnet_ip`, so `cockpit-nas.ts.kogler.si`
