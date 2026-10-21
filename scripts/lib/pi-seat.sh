@@ -220,7 +220,7 @@ seat_planes_emit() {
                  # what made a Windows driver ship `py -3` into both Debian seats.
                  local _pyw
                  hl_owner_path _pyw seat-python.sh || { printf 'FATAL: seat-planes.yml: plane %s needs the launcher resolver seat-python.sh, which is not under scripts/ (a runner whose resolver moved runs nothing and says nothing)\n' "$plane" >&2; return 1; }
-                 printf '%s\t%s %s%s %s %s\n' "$plane" bash "${HL_REPO_PREFIX:-}$_pyw" "$path" "$args" ;;
+                 printf '%s\t%s %s %s %s\n' "$plane" bash "${HL_REPO_PREFIX:-}$_pyw" "$path" "$args" ;;
     powershell) printf '%s\tpowershell.exe -NoProfile -ExecutionPolicy Bypass -File %s %s\n' "$plane" "$path" "$args" ;;
     *) printf 'FATAL: seat-planes.yml: plane %s has unknown runner %s\n' "$plane" "$runner" >&2; return 1 ;;
   esac
@@ -302,8 +302,11 @@ hl_planes_selftest() {
     printf 'NOT CAUGHT: a Windows driver composed a seat command naming py: %s\n' "$_mdl"; fails=$((fails + 1))
   elif ! printf '%s' "$_mdl" | grep -q 'seat-python.sh'; then
     printf 'NOT CAUGHT: the python runner ships no launcher resolver: %s\n' "$_mdl"; fails=$((fails + 1))
+  elif { read -r _t1 _t2 _t3 _rest <<<"$_mdl"
+         [ "$_t1" = bash ] && [ "${_t2##*/}" = seat-python.sh ] && [ -f "${REPO:-.}/$_t3" ]; }; then
+    printf 'ok: the python runner ships a well-formed resolver call for %s\n' "$_t3"
   else
-    printf 'ok: the python runner ships the resolver, not a compose-time launcher\n'
+    printf 'NOT CAUGHT: the python runner emitted a malformed command: %s\n' "$_mdl"; fails=$((fails + 1))
   fi
 
   [ "$fails" -eq 0 ] || printf 'seat-planes self-test: %s arm(s) NOT caught\n' "$fails" >&2
