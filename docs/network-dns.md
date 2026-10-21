@@ -130,10 +130,12 @@ policy table above must not restate it.**
 | 4 | **Guest** | **Same as Home** |
 | 5 | **Query log** (`logQueries`) | **On the Pi tertiary only** (the dst-nat target, i.e. the box that already sees IoT traffic), **14-day retention, root-readable, no per-device dashboard.** It is a per-device behaviour record on the box that also hosts the HA primary, so the retention and the readers are part of the setting, not an afterthought. The rendered knob is `maxLogFileDays` on that instance's `technitium_settings` — Technitium's own default is 365 days, so a retention that is not written down is not this ruling. ⚠ **Where the record lives, measured:** the query log is `/var/log/technitium/dns/<date>.log` **inside the container**, one line per query carrying the client address (`[<client>:port] [UDP] QNAME: …; RCODE: …`) — that field is what makes it a per-device record. The compose binds `/etc/technitium` and `/etc/dns` only, so the directory sits in the container's writable layer: readable as root **in the container** (or via the console's query-log view), not on the host, and it does not survive a container recreate. A bind mount for it is a compose change — a resolver recreate — so it is a decision, not a settings write. The same file also carries the server's error lines, so an empty-looking log is not evidence that query logging is off; read `logQueries` back. |
 
-✅ **The Home/Guest tier carries NO block list** ([network-rejected.md](network-rejected.md)); the enforcement
-the family actually needs (Kids) is an **upstream** (Cloudflare Families), not a list. A tier with no list
-must read `enableBlocking=false`, while all three instances today run `enableBlocking=true` with
-`blockListUrls=null` — blocking switched on with nothing loaded, a silent-failure shape that must not persist.
+✅ **The Home/Guest tier carries NO block list** ([network-rejected.md](network-rejected.md)). What the family
+actually needs (Kids) is not a list question either: it needed a *different upstream*, and this tier runs ONE
+upstream for every group — so nothing here filters, and the Kids case is a device-side act (ruling 2). A tier
+with no list must read `enableBlocking=false`, and the seed DERIVES that flag from `technitium_dns_policy`; an
+instance whose last seed predates the derivation still reads `enableBlocking=true` with `blockListUrls=null` —
+blocking switched on with nothing loaded, the shape the seed now refuses ([services-dns.md](services-dns.md) §Blocking).
 
 ⚠ **Two consequences of the topology, independent of which lists are loaded**: (a) Home clients, **away
 clients and tailnet clients all resolve through the VPS primary** (`dns_primary_ip` is the VPS's public
@@ -141,14 +143,16 @@ address), so whatever the Home tier loads applies to the operator's own VPN traf
 therefore per-**instance**, not per-VLAN — a setting loaded on one of the three instances is a fleet policy
 with three failure modes, so drift-proofing the three instances is part of any change here.
 
-⛔ **Acceptance is a device, not a `dig`**: an unsupervised device on each path fails to resolve a
-filtered name while `kogler.si` still resolves. And because the Kids mechanism is an *upstream*, prove it by
-answering-authority, not by an `NXDOMAIN` that a caching layer could have produced from a stale entry.
+⛔ **Acceptance is a device, not a `dig`**, and on this tier the device can prove only one half of it: an
+unsupervised device on each path must still resolve `kogler.si`. Nothing on the tier filters — no list is
+loaded anywhere and no per-policy upstream exists — so an `NXDOMAIN` for a family-blocked name is evidence
+about the **device's** own resolver, never about this tier, and no `dig` against these instances can show more.
 
-⚠ **The per-MAC Kids-Group binding on Home VLAN 10 has no automated verification.** The dst-nat rows in
-[`main.yml`](../IaC/ansible/roles/router/tasks/main.yml) prove those MACs' `:53` reaches the Kids-Group
-resolver, not that the Kids-Group filter answers them. After any change to the filter or to the kids set
-(the `kids: true` marker in the host SSOT), prove the binding on the device, per the ⛔ rule above.
+⚠ **The per-MAC `:53` steering on Home VLAN 10 has no automated verification.** The dst-nat rows in
+[`main.yml`](../IaC/ansible/roles/router/tasks/main.yml) prove those MACs' `:53` reaches the **shared** primary
+resolver — the address the Home tier already uses, not a Kids-Group filter that could answer them. After any
+change to the kids set (the `kids: true` marker in the host SSOT), prove the steering on the device, per the
+⛔ rule above; whether those rows exist on the device at all is the live dst-nat map above.
 
 ---
 
@@ -540,8 +544,8 @@ Client → Technitium (DHCP-pushed chain, see below)
   - VPS always-on → normal path (LAN + tailnet). If the WG tunnel drops, LAN clients still reach the VPS
     primary over the public WAN (it does not depend on the tunnel).
   - If the VPS is down **or WAN is out**: timeout/failover → oldsrv (secondary), then Pi (tertiary) — both
-    on the LAN, keep resolving local `*.kogler.si` + per-subnet filtering; public internet is only a last
-    resort (unfiltered). ✅ **WAN-out failover verified on both home legs** (Pi and oldsrv): with the home
+    on the LAN, keep resolving local `*.kogler.si`; nothing filters on any instance — no list is loaded and one
+    upstream serves every group — so public internet is the same unfiltered path either way. ✅ **WAN-out failover verified on both home legs** (Pi and oldsrv): with the home
     WAN down the VPS primary times out while the LAN-local instances answer the full `*.kogler.si` set,
     and recovery on PPPoE re-enable is immediate (no negative caching).
 - **The secondary/tertiary are a true failure-domain split** — oldsrv, Pi and VPS are different physical boxes.
@@ -858,8 +862,8 @@ black hole with extra steps.
    **does** turn up is narrower and real: the per-VLAN *forcing* rules override those options, and each forces
    to a **single** target — IoT (`iot_subnet`, udp+tcp/53) is dst-nat'd to the **Pi tertiary only**
    (live-confirmed), the Kids VLAN and the kids' reserved MACs to the **VPS primary** (from the rendered
-   template, not re-measured live). Those two are deliberate — query visibility on the Pi's log, filtering
-   enforcement on the primary — but they mean **IoT devices lose DNS with the Pi** and kids' devices lose it
+   template, not re-measured live). Those two are deliberate — query visibility on the Pi's log, and steering
+   the kids' MACs onto the primary, which filters nothing (§Per-Subnet DNS Policy) — but they mean **IoT devices lose DNS with the Pi** and kids' devices lose it
    with the VPS resolver, even though their DHCP options list three servers. Re-open trigger: an IoT or kids
    incident where DNS, not WAN, is the dead leg.
 5. **`extra_records` move to the watched file** (`dns.extra_records_path`), so no record edit ever

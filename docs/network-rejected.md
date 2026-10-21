@@ -56,7 +56,7 @@ tags: [network, rejected, decision-log]
 | Internal AAAA records rejected-for-now | superseded | Authorized now, sequenced after the VPS publish; pinned addresses still owed |
 | IPv6 kept off / WAN-only | superseded | DHCPv6-PD delegates a /56; Home runs scoped dual-stack |
 | Kids filtered-DNS sighting as a separate bedtime close | dropped | One mechanism, one symptom: a re-watch buys nothing |
-| Kids filtering scoped to VLAN 40 only | rejected | The tablets sit on Home VLAN; the per-MAC dst-nat is the mechanism |
+| Kids filtering scoped to VLAN 40 only | rejected | The tablets sit on Home VLAN; the per-MAC dst-nat is the mechanism — and it STEERS: ruled 2026-10-20 the tier runs one upstream, so no DNS-tier component filters the kids' traffic and the protection is device-side |
 | LAN-address entries in the tailnet nameserver chain | rejected | Private home addresses, unreachable away; the node address takes over |
 | Laptop→Mgmt plane via ProxyJump pi | superseded | The Windows Mgmt99 vNIC reaches .99.x directly on-site |
 | LiteLLM on the flat traefik-public bridge | rejected | Keeps the key-holding spine off the public-route apps bridge |
@@ -74,8 +74,8 @@ tags: [network, rejected, decision-log]
 | One home tailnet node only | superseded | One box holding the tailnet answer leaves ha.kogler.si unreachable away |
 | Per-box unversioned resolver drop-in files | dropped | A fourth source of zone answers; the generated alias artifact replaces it |
 | Per-instance dns_resolver_upstreams lists | rejected | Parallel forwarding takes the fastest; independent operators is the point |
-| Per-policy DNS upstream: one resolver instance per policy | rejected | Fourth stateful DNS instance to filter two devices |
-| Per-policy upstream carried by the router `:53` dst-nat | dropped | No policy resolver address exists to aim them at |
+| Per-policy DNS upstream: one resolver instance per policy | rejected | Fourth stateful DNS instance to filter two devices — ruled 2026-10-20, the tier runs ONE upstream for every group, so no instance, listener address or dst-nat target is added to buy per-VLAN filtering |
+| Per-policy upstream carried by the router `:53` dst-nat | rejected | No policy resolver address exists to aim them at, and none is adopted — ruled 2026-10-20: one tier-wide upstream; those rows steer, they do not filter |
 | Chasing inbound IPv6 from the ISP for home services | accepted-as-unavailable | Delegated prefix takes no unsolicited inbound; the edge is the VPS |
 | Per-purpose SSIDs, five per VLAN | superseded | 3-SSID consolidation; every MAC is static, so per-MAC control is stronger |
 | Pi exit node alone as the sole admin VPN path | rejected | Pi 4 throughput is the ceiling; a router WG peer needs neither |
