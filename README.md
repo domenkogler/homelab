@@ -61,6 +61,11 @@ task-specific dispatch. Do **not** bulk-read the repo.
 
 ## 2. State of the world (as of the `todo.md` rows — verify against [`deployment-tasks.md`](deployment-tasks.md))
 
+> **This section is not a status log.** It states the phase verdict and points at the evidence; it does
+> not accumulate dated per-HD narration. A session that verifies live state edits the owning doc's ✅
+> status line and ticks the [`deployment-tasks.md`](deployment-tasks.md) checkbox — never this file
+> (CONVENTIONS §4: as-built evidence is the owning doc + the commit, progress is the ledger).
+
 - **Phase verdicts — every phase is live.** **Phase 1 (VPS edge)** runs its full enabled
   `docker_services` set — Traefik, Authentik, the observability backend, Technitium DNS primary, etc.
   **Phase 2 (nas)** and **Phase 4 (Pi)** are provisioned + live; **Phase 3 (oldsrv)** is complete +
