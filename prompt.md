@@ -742,19 +742,9 @@ volatile journal cannot prove a 30-day silence and the `admin` revoke proceeds o
 neutralized state · **HD-1110** — the OAuth-vs-`api_key` call on the seat's `pi_auth` providers, which a `--push` must
 not settle by rewriting a working login.
 
-**✅ 2026-10-20 owner round — what stopped being an owner act.** Ruled, with the AI tail written into the rows:
-**HD-1160** (one tier-wide upstream — the retag landed in the docs, the rejected log and the router role, and **no
-converge is owed** because the live tier already runs one shared forwarder list; what is left is the converge template's
-twin of one retagged `#`-line, which waits an owner-present router window) · **HD-1107** (retag the replica datasets out of the snapshotting template; never a
-hand-destroy) · **HD-1106** (onlyoffice named-volume fix first, then the prune by name, in a VPS window) · **HD-1103**
-(`rotate 1` + `maxsize` as a new role-owned logrotate file) · **HD-1140** (ledger row + find-guarded delta, riding an
-existing router window) · **HD-357** (`seerrng` tailnet-only; leave `homepage_seerrng_probe: false`) · **HD-443** (revoke
-Pi `admin` on the neutralized state) · **HD-1110** (`api_key` is the fleet spelling; report drift, never overwrite).
-**HD-448/HD-460** were re-examined and **not changed**: the KEEP-THE-PARITY ruling stands, and the separate
-"chase inbound IPv6 from the ISP" question is answered **no** and mints no row. **Secret rotation** (`HD-1170`,
-`HD-1171`, `HD-1150`) is the owner's to run, unscheduled — parked on that word, and no AI lane waits on it.
-> **What §D of the human table carries that this paragraph does not**, so the two lists are not mistaken for each
-> other: §D is everything genuinely left, this paragraph is only the part of it with an authored act queued behind the
+**✅ 2026-10-20 owner round — what stopped being an owner act.** The rulings live in the rows and in [todo-table.md](todo-table.md) §A1, and this file restates none of them.
+> **What §D of the human table carries that the parked list above does not**, so the two lists are not mistaken for each
+> other: §D is everything genuinely left; the parked list above is only the part of it with an authored act queued behind the
 > owner. The rest is owner eyes and hands with nothing authored waiting — the one visual pass over the boards
 > (**HD-316 · 315 · 343 · 377 · 319**), the browser-login seats still owed (**HD-147** with **HD-141**'s tail), the
 > physical windows (**HD-06 · 288 · 194 · 34 · 191**, and the two drill-time decisions **HD-230 · HD-207**), the
