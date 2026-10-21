@@ -68,8 +68,8 @@ answerable from an extension, and this section is the only place that fact is wr
   fail is not evidence" trap as [`harness-pi-terminal.md`](harness-pi-terminal.md) §5b's `-eq 1` (CONVENTIONS.md §6) — so self-test arm 8 breeds it (family first,
   ~160 KB of filler after it, counting chunks so a GREEN can tell "drained" from "this host's buffer
   absorbed it").
-  **Seat state:** the fixed driver run from the cockpit gives 8/8 green including `pi-self` (1.1.0 == the
-  `pi_host_npm_version` pin), and `validate-all.sh` exits 0 there. The retired `host-status.ts` is gone from
+  **Seat state:** the fixed driver run from the cockpit gives 8/8 green including `pi-self` (the answering
+  `pi` equals the `pi_host_npm_version` pin), and `validate-all.sh` exits 0 there. The retired `host-status.ts` is gone from
   every seat — the Win11 copy is removed by that seat's own `--push` — so the retirement mechanism has
   reached every seat and `validate-all.sh`'s RETIRED arm has nothing left to fail on.
 - **Running the driver ON the oldsrv box (seat == host):** `win11` is "this shell" only on the

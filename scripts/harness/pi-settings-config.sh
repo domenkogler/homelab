@@ -329,7 +329,7 @@ self_test() {
       const fs = require("fs");
       const [ssotPath, seatExtra, outPath, ...owned] = process.argv.slice(1);
       const s = JSON.parse(fs.readFileSync(ssotPath, "utf8"));
-      s.lastChangelogVersion = "1.1.0";
+      s.lastChangelogVersion = "1.3.0";
       s.externalEditor = "notepad.exe -multiInst";
       s.packages = [...owned, seatExtra];
       fs.writeFileSync(outPath, JSON.stringify(s, null, 2) + "\n", "utf8");

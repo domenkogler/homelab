@@ -129,7 +129,7 @@ under every package it has resolved and **nothing** under a declaration it has n
 `pi install <source>@<pin>`; `pi update --extensions` is never the repair, because it moves every package to
 whatever the registry calls `latest` and walks a pinned seat off its pins one sync at a time ([`harness-pi-engines.md`](harness-pi-engines.md) §7).
 
-**Which pi build a seat runs is a pinned value too** (`pi_host_npm_version`, and `pi_dev_npm_version` must equal it — both are `1.1.0`, and the reasoning lives in the `versions.yml` pin lines, not in prose). Every other plane compares files, so without a binary plane a seat quietly runs a pi release the repo has not reviewed. [`../scripts/harness/pi-self-update.sh`](../scripts/harness/pi-self-update.sh) is that plane: `BEHIND` and `AHEAD` are both drift, an already-correct seat runs nothing, and `--push` re-probes the binary instead of trusting the installer.
+**Which pi build a seat runs is a pinned value too** (`pi_host_npm_version`, and `pi_dev_npm_version` must equal it — the value and the reasoning live in the `versions.yml` pin lines, not in prose). Every other plane compares files, so without a binary plane a seat quietly runs a pi release the repo has not reviewed. [`../scripts/harness/pi-self-update.sh`](../scripts/harness/pi-self-update.sh) is that plane: `BEHIND` and `AHEAD` are both drift, an already-correct seat runs nothing, and `--push` re-probes the binary instead of trusting the installer.
 
 **One rule about that `packages` list:** an
 extension package must NOT list a host-provided module in `dependencies`. pi's loader compares each
