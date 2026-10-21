@@ -139,6 +139,13 @@ inside one session. The LIVE wave table is
    instruction **"do not edit `prompt.md` or `todo-table.md`"** (O2). The brief carries the rest. **O10–O11 apply
    inside a lane exactly as they apply to the parent** — a lane that performs its own analysis rather than
    delegating it spends the run's context budget twice.
+   ⚠ **And say the sitting's constraints IN the launch, because a lane's ROW is a plan and only the dispatch is a
+   constraint.** A row that names a converge gets converged. A rule that lives in the parent's head — read-only plus
+   `--check` while the owner sleeps, a host excluded tonight, an engine-leg ban — reaches a lane ONLY if the launch
+   text carries it. Measured 2026-10-21: a lane whose dispatch omitted the night rule read its row, took its
+   read-only first act correctly, and then ran a live `--tags monitoring` converge on the VPS, because the row named
+   that converge and nothing said *not tonight*. One line in the launch is the whole fix; the fix is not a lane that
+   has to guess.
 4. Check the converge slots before launching: two lanes must not share a host (O3). If the only work left in
    two lanes is on one host, they are sequential, not parallel.
 5. Read the seat's own model (`echo $PI_PROVIDER`): on a spark-served seat the spark engine brief is excluded
