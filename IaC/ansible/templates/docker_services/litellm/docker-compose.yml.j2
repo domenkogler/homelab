@@ -9,8 +9,8 @@
 #   The tailnet edge (traefik-tailnet) joins traefik-public + tailnet-apps — NOT
 #   services-internal — so its file-provider route `litellm-backend ->
 #   http://litellm:4000` cannot resolve the spine via Docker DNS (502 Bad Gateway).
-#   litellm therefore joins ONE app→edge network, `tailnet-apps` (the dedicated overlay the
-#   tailnet edge already shares with dsh/pi-dev) — NOT the flat public bridge
+#   litellm therefore joins ONE app→edge network, `tailnet-apps` (the dedicated
+#   overlay the tailnet edge uses for app→edge resolution) — NOT the flat public bridge
 #   `traefik-public` (deployment-compose.md keeps the key-holding spine isolated from the
 #   public-route apps). The edge can then resolve `litellm` for the tailnet-only admin
 #   UI.

@@ -12,7 +12,7 @@
 #     URL — probe-based, deliberately NO docker socket (on the VPS it sees only VPS containers).
 #     A tile's endpoint comes from a group_var (homepage_*_url), so the dashboard follows the
 #     edge route tables instead of duplicating them.
-#   - Domen · technical: tailnet-only admin dashboards (stats/logs/csui/traefik/auto/dsh/pi-dev
+#   - Domen · technical: tailnet-only admin dashboards (stats/logs/csui/traefik/auto
 #     + headscale control plane), hidden from the family group by `homepage_show_technical`
 #     (default true). Grafana (stats) is the technical dashboard — never a family tile.
 #   - Soon: apps with NO backend at all render as description-only tiles (href '#') so the
@@ -22,7 +22,7 @@
 #
 # Probe policy: siteMonitor is used ONLY for FQDNs the homepage container can actually
 # resolve+reach (the public CNAMEs). Tailnet-only names (stats/logs/csui/sec/traefik/auto/
-# dsh/pi-dev/ai) are NOT probed — the container is not a tailnet node, so it would render
+# ai) are NOT probed — the container is not a tailnet node, so it would render
 # false-red dots. Their health plane is Grafana itself.
 
 # Manual HA failover buttons (docs/smart-home-failover.md): href cards call the
@@ -206,14 +206,6 @@
         href: "https://vpn.{{ d }}"
         description: Tailnet control plane (+ admin UI)
         siteMonitor: "https://vpn.{{ d }}"
-    - dsh:
-        icon: mdi-code-tags
-        href: "https://dsh.{{ d }}"            # tailnet-only
-        description: DevOps / IaC cockpit
-    - pi-dev:
-        icon: mdi-code-tags
-        href: "https://pi-dev.{{ d }}"         # tailnet-only
-        description: Coding agent UI
 {% endif %}
 
 # ---- Soon — genuinely not deployed yet (family-visible, non-clickable) ----

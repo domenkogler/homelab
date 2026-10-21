@@ -256,27 +256,20 @@ openwebui_version: "0.11.4"
 openclaw_version: "2026.7.1"   # HELD: 2026.9.8 crash-loops "shared state database is unreadable … openclaw.sqlite"
                       # (doctor cannot repair) on the VPS. Needs a state-store migration first.
 
-# ==== AI coding harness (dual = pi-dev + DSH) ====
-# pi-dev: runtime is the pinned Node OCI image; the pi coding-agent is installed from npm
-# at container start (pinned below; engine node>=22.19.0).
-pi_dev_node_version: "24.21.0"              # node:24 glibc base — NOT -alpine: node-pty needs glibc prebuilds. Satisfies
-                                            # the pi agent-engine node>=22.19.0; an exact patch tag, never the floating
-                                            # `24` alias (§7).
-pi_dev_npm_package: "@earendil-works/pi-coding-agent"  # pi CLI (containerization "Plain Docker")
-pi_dev_npm_version: "1.3.0"                # MUST equal `pi_host_npm_version`: the two seats may not drift. A bump
-                                           # inside the 3-day stabilityDays hold needs an explicit owner waiver.
-pi_web_access_version: "0.36.0"             # pi-web-access extension (web search/URL fetch)
-pi_web_ui_version: "0.99.0"                 # pi-web-ui — Web chat UI for the pi agent (server on :8787, logs)
+# ==== pi harness pins — seat-class, not a container ====
+# The pi coding-agent and the DSH harness are DEDICATED seat deployments, not
+# docker_services; the container pins the `pi-dev` / `dsh` containers carried here
+# were deleted with that harness IaC. The pi BINARY + package pins for the HOST
+# seats are the `pi_host_*` pair further down — the repo now carries ONE pi version
+# pin, that one. These two pins are the pi-web seat extensions, consumed by the
+# seat planes, never by a container.
 # The `[Extension issues]` panel about `typebox` being a `dependencies` entry is closed at
 # this pin — upstream moved it to a `"*"` peer in 0.32.0. Do not "fix" it by deleting the
 # hoisted copy: the predicate is one read of the manifest.
 # A pin is not a seat: a seat can run AHEAD of this line through an unpinned installer, which
 # is a drift finding, not a reason to chase the value here.
-# DSH (DeepSeek Harness) — image runzhliu/deepseek-harness (Docker Hub repo published
-# from runzhliu/deepseek-harness-docker source; community packaging of official @deepseek/dsh,
-# non-root, version-tagged). The `deepseek-harness-docker` repo name 404s — pin the
-# published one. TODO(deploy): pin digest; replace `dsh_version` = "<tag>@<digest>".
-dsh_version: "0.1.1-rc.2"
+pi_web_access_version: "0.36.0"             # pi-web-access extension (web search/URL fetch)
+pi_web_ui_version: "0.99.0"                 # pi-web-ui — Web chat UI for the pi agent (server on :8787, logs)
 
 # ==== Platform / records / tasks ====
 # Pinned semvers for core services that would otherwise fall back to
@@ -541,7 +534,9 @@ spark_dcgm_exporter_image: "nvidia/dcgm-exporter:3.3.5-3.4.1-ubuntu22.04@sha256:
 rustdesk_server_version: "1.1.16"
 
 # ==== pi HOST seats (bare-Debian installs: scripts/harness/install-pi-debian.sh) ====
-# The CONTAINER pins above (pi_dev_*) are not these: a host seat installs the pinned
+# These are the repo's ONLY pi version pins — the container pins the retired pi-dev
+# harness carried were deleted with it, so there is no second pin left to keep equal.
+# A host seat installs the pinned
 # official Node TARBALL under ~/.local/share/pi-node/, because Debian 13's apt candidate
 # is Node 20.19.2 while pi declares engines node>=22.19.0 — an apt-based seat is a
 # harness that cannot start. Both seats (laptop +
@@ -553,7 +548,7 @@ pi_host_npm_package: "@earendil-works/pi-coding-agent"
 pi_host_npm_version: "1.3.0"                 # npm dist-tag `latest`. A seat can run AHEAD of a pin when an installer uses
                                              # an unpinned `volta install @latest` — the pin then records what the seat
                                              # actually runs, it does not move the seat.
-                                             # MUST equal `pi_dev_npm_version`. The DEBIAN seats do NOT move by reading
+                                             # The DEBIAN seats do NOT move by reading
                                              # this line: `scripts/harness/pi-self-update.sh --push` is what moves a seat, and it
                                              # re-probes the binary to prove it.
 pi_host_web_npm_package: "@ygncode/pi-web"

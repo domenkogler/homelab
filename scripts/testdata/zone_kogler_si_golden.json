@@ -179,8 +179,8 @@
   ],
   "counts": {
     "cloudflare": 22,
-    "headscale:plain": 10,
-    "headscale:ts_only": 29,
+    "headscale:plain": 8,
+    "headscale:ts_only": 28,
     "technitium:primary": 35,
     "technitium:secondary": 51,
     "technitium:secondary-pi": 51
@@ -203,11 +203,6 @@
         "value": "100.64.0.1"
       },
       {
-        "name": "dsh.kogler.si",
-        "type": "A",
-        "value": "100.64.0.1"
-      },
-      {
         "name": "litellm.kogler.si",
         "type": "A",
         "value": "100.64.0.1"
@@ -219,11 +214,6 @@
       },
       {
         "name": "logs.kogler.si",
-        "type": "A",
-        "value": "100.64.0.1"
-      },
-      {
-        "name": "pi-dev.kogler.si",
         "type": "A",
         "value": "100.64.0.1"
       },
@@ -260,11 +250,6 @@
         "value": "100.64.0.1"
       },
       {
-        "name": "dsh.ts.kogler.si",
-        "type": "A",
-        "value": "100.64.0.1"
-      },
-      {
         "name": "ha.ts.kogler.si",
         "type": "A",
         "value": "100.64.0.3"
@@ -287,7 +272,7 @@
       {
         "name": "pi-dev.ts.kogler.si",
         "type": "A",
-        "value": "100.64.0.1"
+        "value": "100.64.0.3"
       },
       {
         "name": "pi-oldsrv.ts.kogler.si",

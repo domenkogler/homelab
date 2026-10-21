@@ -89,14 +89,12 @@ Services grouped by host, in the order defined in `group_vars` (grouped by purpo
 | 30 | recyclarr | recyclarr | `https://recyclarr.kogler.si` | enabled |
 | 31 | flaresolverr | flaresolverr | `https://flaresolverr.kogler.si` | enabled |
 | 32 | lan-litellm | lan-litellm | `https://lan-litellm.kogler.si` | enabled |
-| 33 | dsh | dsh | `https://dsh.kogler.si` | disabled |
-| 34 | pi-dev | pi-dev | `https://pi-dev.kogler.si` | disabled |
-| 35 | actual-budget | actual-budget | `https://actual-budget.kogler.si` | enabled |
-| 36 | metabase | metabase | `https://metabase.kogler.si` | enabled |
-| 37 | kopia-agent | kopia-agent | `https://kopia-agent.kogler.si` | enabled |
-| 38 | mcp-victoriametrics | mcp-victoriametrics | `https://mcp-victoriametrics.kogler.si` | enabled |
-| 39 | mcp-victorialogs | mcp-victorialogs | `https://mcp-victorialogs.kogler.si` | enabled |
-| 40 | homelable | homelable | `https://homelable.kogler.si` | disabled |
+| 33 | actual-budget | actual-budget | `https://actual-budget.kogler.si` | enabled |
+| 34 | metabase | metabase | `https://metabase.kogler.si` | enabled |
+| 35 | kopia-agent | kopia-agent | `https://kopia-agent.kogler.si` | enabled |
+| 36 | mcp-victoriametrics | mcp-victoriametrics | `https://mcp-victoriametrics.kogler.si` | enabled |
+| 37 | mcp-victorialogs | mcp-victorialogs | `https://mcp-victorialogs.kogler.si` | enabled |
+| 38 | homelable | homelable | `https://homelable.kogler.si` | disabled |
 
 ## pi.kogler.si
 

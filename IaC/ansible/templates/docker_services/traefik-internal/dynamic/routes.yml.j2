@@ -190,7 +190,8 @@ http:
         - websecure-lan
       service: llogs-backend
       tls: true
-    # The LAN LiteLLM (oldsrv, dev-side AI spine — serves dsh/pi-dev/OpenHands with
+    # The LAN LiteLLM (oldsrv, dev-side AI spine — the simple-querier tier; decision #26
+    # routes the coding harnesses direct to the engine and the dsh/pi-dev services are gone) with
     # spark/llm.kogler.si as its inference backend). LLitellm.kogler.si on the HOME edge so
     # LAN clients get it name-based + TLS (wildcard from the pulled pair), same as llogs.
     # Backend = the lan-litellm container published on oldsrv_home_ip:4000 (host-net edge
@@ -228,7 +229,9 @@ http:
       service: ha-backend
       tls: true
     # The pi agent web UI (`pi-web` under `domen`) — tailnet-only BY CONSTRUCTION:
-    # headscale publishes only `pi-oldsrv.{{ tailnet_base_domain }}` (tailnet_ts_only_subdomains),
+    # headscale publishes `pi-oldsrv.{{ tailnet_base_domain }}` AND its second name
+    # `pi-dev.{{ tailnet_base_domain }}` (both in tailnet_ts_only_subdomains —
+    # one seat, two names, one token; pi-oldsrv stays canonical),
     # this listener exists only on oldsrv's own tailnet address, and the seat binds loopback, so
     # the door set is {tailnet ACL, this router, the daemon's own PI_WEB_TOKEN}. NO
     # authentik-forward-auth: a phone-driven PWA cannot complete an
@@ -236,7 +239,7 @@ http:
     # cannot answer. No `web`-entrypoint redirect here on purpose — this edge declares no :80 on
     # the tailnet address, so a plain-HTTP client never reaches it at all.
     pi-oldsrv-ts:
-      rule: "Host(`pi-oldsrv.{{ tailnet_base_domain }}`)"
+      rule: "Host(`pi-oldsrv.{{ tailnet_base_domain }}`) || Host(`pi-dev.{{ tailnet_base_domain }}`)"
       entryPoints:
         - websecure-ts
       service: pi-oldsrv-backend

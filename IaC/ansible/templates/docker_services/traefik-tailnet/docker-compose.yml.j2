@@ -25,8 +25,8 @@
 #       this edge uses to reach an app by Docker DNS without joining the app's own
 #       internal network. ⚠ Its live user is LITELLM (`litellm`, the tailnet clean URL
 #       for the gateway). It was added for the Pattern-A sidecar UIs (dsh:3080,
-#       pi-dev:8080), which live on oldsrv over WG S2S and are parked with DELIBERATE
-#       502s — so read the dsh/pi-dev wording below as the overlay's origin,
+#       pi-dev:8080); those harnesses and their sidecars were removed with
+#       their IaC — read the dsh/pi-dev wording below as the overlay's origin,
 #       not its purpose. ISO from traefik-public (defense in depth — the tailnet edge
 #       can't reach the main public apps' Docker DNS) and from services-internal (the
 #       bridged apps' UIs bind loopback-only; the edge reaches them via this overlay's
@@ -111,15 +111,15 @@ services:
         ipv4_address: 172.20.0.250
       # tailnet-apps (172.24.0.0/16, group_vars/all/main.yml network_ranges): the app→edge
       # bridge. Live user = litellm; it was added for the dsh +
-      # pi-dev sidecar UIs, which moved to oldsrv over WG S2S (parked, deliberate
-      # 502s). Either way the routers in dynamic/routes.yml.j2 resolve backends
+      # pi-dev sidecar UIs, which are gone with the harness IaC. Either way the routers
+      # in dynamic/routes.yml.j2 resolve backends
       # via Docker DNS here. NOT traefik-public
       # (the main public edge's apps live there; the tailnet edge must not be able to
-      # reach them — defense in depth) and NOT services-internal (dsh + pi-dev UIs
-      # bind loopback-only inside their containers; only the sidecar proxies them).
+      # reach them — defense in depth) and NOT services-internal (the harness UIs once
+      # served here bound loopback-only inside their containers).
       tailnet-apps:
         # No IP pin — Traefik's file-provider routes use Docker DNS for backend
-        # service discovery (e.g. `dsh:3080` resolves via the new overlay's
+        # service discovery (e.g. `litellm:4000` resolves via the overlay's
         # embedded DNS), not a fixed backend IP.
         aliases:
           - traefik-tailnet-apps
@@ -141,7 +141,7 @@ services:
       # API dashboard (internal, behind Forward-Auth)
       - "--api.dashboard=true"
       - "--api.insecure=false"
-      # HSTS for every route this edge serves (stats/logs/csui/dsh/pi-dev/*.ts…).
+      # HSTS for every route this edge serves (stats/logs/csui/*.ts…).
       # Everything it proxies is https-only by design (:80 = redirect only); this makes
       # browsers remember that — also THE roaming fix for the phone (LAN→tailnet keeps
       # https-only after the name re-resolves to the edge). Applied as the ENTRYPOINT
@@ -218,8 +218,8 @@ services:
 networks:
   traefik-public:
     external: true
-  # tailnet-apps overlay (172.24.0.0/16) — joins traefik-tailnet + the
-  # Pattern-A sidecar UIs (dsh + pi-dev). See services-internal definition below
+  # tailnet-apps overlay (172.24.0.0/16) — joins traefik-tailnet (+ historically the
+  # Pattern-A sidecar UIs (dsh + pi-dev), since removed). See services-internal definition below
   # for the reverse direction (the apps stay on services-internal; tailnet-apps
   # is the SHARED bridge between the tailnet edge and the sidecar netns via Docker
   # DNS — the apps don't actually join tailnet-apps because the sidecar shares

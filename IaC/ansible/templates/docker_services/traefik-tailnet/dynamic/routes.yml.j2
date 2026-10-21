@@ -13,12 +13,12 @@
 #     traefik-public: grafana:3000 (stats), dozzle:8080 (logs),
 #       crowdsec-web-ui:3000 (csui), n8n:5678 (auto),
 #       traefik dashboard via api@internal (traefik).
-#     tailnet-apps (172.24.0.0/16): dsh:3080 (dsh), pi-dev:8080 (pi).
-#     dsh + pi-dev run on OLDSRV — the tailnet edge now
-#     reaches their UIs over the WG S2S at {{ oldsrv_home_ip }}:3080/:8080 (no
-#     sidecars/docs; see the dsh-backend / pi-backend service entries below).
+#     tailnet-apps (172.24.0.0/16): litellm:4000 (the overlay's live user).
+#     The dsh/pi-dev backends that once lived behind `dsh-backend`/`pi-backend`
+#     were removed with the harness IaC; the coding seat is served
+#     node-direct by traefik-internal's `pi-oldsrv-ts`, not by this edge.
 #   NOTE: docker DNS on an overlay resolves by SERVICE name, not container_name
-#   (crowdsec-web-ui, NOT crowdsec_web_ui; pi-dev, NOT pi_dev).
+#   (crowdsec-web-ui, NOT crowdsec_web_ui).
 #
 #   The Traefik DASHBOARD itself is served tailnet-only here (Host(traefik.kogler.si)
 #   and Host(traefik.ts.kogler.si)) — the main public edge does NOT expose a dashboard
@@ -132,64 +132,6 @@ http:
       tls: true
     traefik-http-redirect:
       rule: "Host(`traefik.kogler.si`) || Host(`traefik.ts.kogler.si`)"
-      entryPoints:
-        - web
-      middlewares:
-        - redirect-to-https
-      service: noop@internal
-
-    # DSH Web UI (dsh) — Pattern-A sidecar UI: dsh binds
-    # 127.0.0.1:3080 INSIDE the dsh container netns; dsh-tailscale (sharing the
-    # dsh netns via network_mode: service:dsh) exposes it on the tailnet. To
-    # get a clean URL (`https://dsh.ts.kogler.si` with no port number, real
-    # TLS via the wildcard cert) we add the dsh app to the new `tailnet-apps`
-    # overlay (172.24.0.0/16, group_vars/all/main.yml network_ranges; allowlist
-    # in roles/docker_services/tasks/main.yml) and route the file-provider
-    # routers below. Backends use Docker DNS service names (NOT container_name).
-    dsh-kogler:
-      rule: "Host(`dsh.kogler.si`)"
-      entryPoints:
-        - websecure
-      middlewares:
-        - authentik-forward-auth
-      service: dsh-backend
-      tls: true
-    dsh-ts-kogler:
-      rule: "Host(`dsh.ts.kogler.si`)"
-      entryPoints:
-        - websecure
-      service: dsh-backend
-      tls: true
-    dsh-http-redirect:
-      rule: "Host(`dsh.kogler.si`) || Host(`dsh.ts.kogler.si`)"
-      entryPoints:
-        - web
-      middlewares:
-        - redirect-to-https
-      service: noop@internal
-
-    # pi Web UI (pi) — Pattern-A sidecar UI: pi-dev binds
-    # 127.0.0.1:8080 INSIDE the pi-dev netns; pi-dev-tailscale (sharing the
-    # pi-dev netns via network_mode: service:pi-dev) exposes it on the tailnet.
-    # Same tailnet-apps overlay mechanism as dsh. ACL gate (headscale
-    # `tag:pi-dev` → family user `domen@kogler.si:*`) — see the dsh
-    # comment for the full model.
-    pi-dev-kogler:
-      rule: "Host(`pi-dev.kogler.si`)"
-      entryPoints:
-        - websecure
-      middlewares:
-        - authentik-forward-auth
-      service: pi-backend
-      tls: true
-    pi-dev-ts-kogler:
-      rule: "Host(`pi-dev.ts.kogler.si`)"
-      entryPoints:
-        - websecure
-      service: pi-backend
-      tls: true
-    pi-dev-http-redirect:
-      rule: "Host(`pi-dev.kogler.si`) || Host(`pi-dev.ts.kogler.si`)"
       entryPoints:
         - web
       middlewares:
@@ -537,17 +479,9 @@ http:
       loadBalancer:
         servers:
           - url: "http://grafana:3000"
-    # dsh + pi-dev run on oldsrv (no tailscale sidecar there);
-    # the VPS edge reaches their UIs over the WG S2S on the oldsrv Home-IP ports
-    # (media-bridge pattern — same reach as actual-budget :5006 / immich-ml :3003).
-    dsh-backend:
-      loadBalancer:
-        servers:
-          - url: "http://{{ oldsrv_home_ip }}:3080"
-    pi-backend:
-      loadBalancer:
-        servers:
-          - url: "http://{{ oldsrv_home_ip }}:8080"
+    # The dsh-backend / pi-backend load balancers that pointed at
+    # {{ oldsrv_home_ip }}:3080/:8080 over the WG S2S are gone with the harness
+    # IaC — the dead hop that made those names answer 502 by design.
     # Spark AI backends over the WG S2S (spark_home_ip is in wg_s2s_vps.allowed_ips +
     # router vps_scoped_home). db-spark + llm proxy to SPARK's own edge :443 (TLS-in-TLS)
     # using the spark-tls-in-tls serversTransport (insecureSkipVerify — the wildcard cert

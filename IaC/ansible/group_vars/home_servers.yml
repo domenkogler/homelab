@@ -311,18 +311,13 @@ docker_services:
   # the container persists nothing, so there is no /srv/docker/flaresolverr/config to pre-create.
   - { name: flaresolverr, template_dir: flaresolverr, bind_dirs: [] }
 
-  # --- Dev AI — dsh + pi-dev PARKED (DISABLED) ---
-  # The owner REMOVED both harnesses: no dsh and no pi-dev container exists on the VPS or
-  # on oldsrv, and per services-ai.md §9 the coding harnesses are DEDICATED deployments,
-  # not docker_services entries. This registry is therefore their NON-host: both entries
-  # stay DISABLED (kept, not deleted, so template_dir + the port contract survive a future
-  # re-onboarding).
-  # WHY disabled and not merely absent — the fail-closed class that makes every oldsrv
-  # docker_services converge red: both compose templates render a 1P-sourced scoped key
-  # (dsh → vault['dsh_api'], pi-dev → vault['pi-harness_openai_api']) and BOTH items are
-  # DELIBERATELY EMPTY in the vault (the LAN glue owns their value), so enabling either
-  # dies at render ('dict object' has no attribute 'dsh_api') and takes the whole
-  # converge down with it.
+  # --- Dev AI harnesses: deliberately NO entries here ---
+  # The owner REMOVED both harnesses, and their registry rows + template dirs went with
+  # the rest of their IaC surface: per services-ai.md §9 the coding harnesses are
+  # DEDICATED deployments, not docker_services entries, so this registry is their
+  # NON-host. The `pi-dev` NAME survives only as a `.ts`-only second name on the
+  # oldsrv cockpit backend (the `zone_kogler_si` entry + traefik-internal's
+  # `pi-oldsrv-ts` router); there is no harness backend behind any name.
   #
   # The LAN LiteLLM itself STAYS ENABLED: it is the gateway for the
   # SIMPLE QUERIER tier (HomeAssistant, Docling, Open WebUI) + the pinned-AI legs
@@ -342,8 +337,6 @@ docker_services:
   # deploy pass and refreshes the vault dict the consumers render from.
   - { name: lan-litellm,    template_dir: lan-litellm, public: false, enabled: true,   # simple-querier gateway; own Postgres; Kopia-backed
       bootstrap_keys: true }   # the first consumer this glue mints for is `home-assistant_api`. ⚠ The glue runs inside THIS service's pass and rc1/rc2/rc4 all fail the converge (`failed_when: rc != 0`), so an empty spec list or a stale vault bearer is a red run by design — remediation is named in the log line (litellm-bootstrap-keys.sh.j2)
-  - { name: dsh,            template_dir: dsh,       public: false, enabled: false }   # PARKED — dedicated deployment, not an IaC service; UI would be oldsrv_home_ip:3080
-  - { name: pi-dev,         template_dir: pi-dev,    public: false, enabled: false }   # PARKED — dedicated deployment, not an IaC service; UI would be oldsrv_home_ip:8080
 
   # ⏳ Spark AI (Qwen3.8-Flash-Next on GB10) — DEPLOY-GATED ON SPARK:
   #     the engine lives on the spark NODE (host_vars/spark.kogler.si.yml), NOT oldsrv.
@@ -432,8 +425,8 @@ litellm_scoped_keys:
   # removes both the mint and the probe.
   # A parked consumer must not imply a deleted secret, but the
   # `dsh_api`, `dsh_forgejo_api` and `tailscale_dsh_api` items are DELETED from the vault
-  # (owner act), so a stale VPS-DB-era bearer cannot trip rc2 here; enabling the parked
-  # `dsh` service fails at the vault lookup, not just at an empty field.
+  # (owner act), so a stale VPS-DB-era bearer cannot trip rc2 here; the harness services
+  # themselves were deleted from the registry with their IaC.
   # `pi-harness_openai_api` still holds its value and is NOT remediated.
   # The LAN DB carries two keys: `home-assistant` (minted by the flip
   # below) and `pi.dev laptop` (hand-created, a live consumer — do not delete it).

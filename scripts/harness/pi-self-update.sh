@@ -197,7 +197,7 @@ install_pinned() {  # $1 = pkg, $2 = version
     npm)   PATH="$PI_NODE_PREFIX/bin:$PATH" npm install -g "$pkg@$v" ;;
     managed)
            err "this pi is pi's OWN managed install (~/.pi/agent/bin + install/releases): 'pi update self' owns that layout and installs the LATEST release, not a version it is handed (the pi.dev installer takes no version either)."
-           err "two legal moves, in order: (1) run 'pi update self' on the seat, then move pi_host_npm_version AND pi_dev_npm_version to what it reports (an owner ruling, CONVENTIONS §7); (2) move the seat back onto the pinned layout with 'bash scripts/harness/install-pi-debian.sh --pi-only'."
+           err "two legal moves, in order: (1) run 'pi update self' on the seat, then move pi_host_npm_version to what it reports (an owner ruling, CONVENTIONS §7); (2) move the seat back onto the pinned layout with 'bash scripts/harness/install-pi-debian.sh --pi-only'."
            err "refusing to npm install -g over a managed install: it leaves TWO layouts and makes 'which pi' a PATH-order question."
            return 1 ;;
     stub)  printf '%s\n' "$pkg@$v" >> "${PI_SELF_INSTALL_LOG:?self-test must set PI_SELF_INSTALL_LOG}";

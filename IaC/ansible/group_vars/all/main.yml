@@ -441,6 +441,12 @@ zone_kogler_si:
   - { name: drop.kogler.si,          internal: true, ip: "{{ dns_primary_ip }}", tailnet: none, ts_router: false, public: true }
   # --- tailnet-only names: no LAN answer by design (a LAN client must get NXDOMAIN) ---
   - { name: pi-oldsrv.kogler.si,     internal: false, tailnet: node, ts_router: false }
+  # A SECOND name on the SAME cockpit backend — the
+  # `pi-oldsrv-ts` router in traefik-internal matches both `.ts` names on one
+  # `pi-oldsrv-backend`. The `dsh` row was deleted with the harness IaC, and the PLAIN
+  # `pi-dev.kogler.si` answer is retired with it: the cockpit binds loopback, so the VPS
+  # edge could never serve it and its 502 was a dead hop, not a surface.
+  - { name: pi-dev.kogler.si,        internal: false, tailnet: node, ts_router: false }
   # --- names with NO Technitium record: published publicly, resolved by Cloudflare alone ---
   # `pairdrop` rides alongside `drop`. Neither has a docker_services entry, so
   # nothing here invents them: they are declared, which is the point of the list.
@@ -452,11 +458,6 @@ zone_kogler_si:
      public_records: [ { type: CNAME, value: dkim.smtp2go.net } ] }
   - { name: link.kogler.si,          internal: false, tailnet: none, ts_router: false,
      public_records: [ { type: CNAME, value: track.smtp2go.net } ] }
-  # PARKED: the dsh / pi-dev backends no longer exist, so the edge
-  # answers 502 BY DESIGN — this is not an outage to chase. Dropping these two would delete
-  # live MagicDNS records, which is its own decision, not a tidy-up.
-  - { name: dsh.kogler.si,           internal: false, tailnet: edge, ts_router: true }
-  - { name: pi-dev.kogler.si,        internal: false, tailnet: edge, ts_router: true }
 
 # Split-horizon target of the home-hosted apps: oldsrv's internal edge at home (no VPS
 # round-trip, so WAN-out survival keeps working), the VPS public edge everywhere else.
@@ -844,7 +845,7 @@ victoria_backend_host: "{{ wg_s2s_vps.ip }}"   # MCP → Victoria backend host (
 # (default localhost:8080 metrics / :8081 logs); inside Docker the container binds
 # :8080/:8081, published loopback-only for the local AI clients (pi/OWUI/OpenClaw on the LAN +
 # tailnet). Distinct per server; never expose on the WAN/public edge.
-mcp_metrics_port: 8083  # MCP→VM Streamable HTTP (oldsrv) — 8080 belongs to pi-dev, hence 8083
+mcp_metrics_port: 8083  # MCP→VM Streamable HTTP (oldsrv) — 8080 was pi-dev's (harness IaC removed); 8083 keeps the old allocation
 mcp_logs_port: 8084    # MCP→VL Streamable HTTP (oldsrv) — kept sequential with the metrics pair
 
 # ==== Immich ML cross-host endpoint ====

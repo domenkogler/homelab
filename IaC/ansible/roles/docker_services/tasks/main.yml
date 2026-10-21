@@ -79,11 +79,11 @@
            _pi_enabled_dirs,
            (docker_services | selectattr('enabled','defined') | selectattr('enabled') | selectattr('name','in',scope_list) | map(attribute='template_dir') | list)
            + (docker_services | rejectattr('enabled','defined') | selectattr('name','in',scope_list) | map(attribute='template_dir') | list)) }}
-    # On a FULL converge the litellm-scoped keys (dsh_api, pi-harness_openai_api, …) are
+    # On a FULL converge the litellm-scoped keys (pi-harness_openai_api, …) are
     # deliberately EXCLUDED here — they're minted by the litellm bootstrap glue later in the
     # loop and fetched via the post-glue list pre-pass (they don't exist before it on a fresh
     # host). On a DEPLOYED run the target service may be a CONSUMER of those very keys
-    # (e.g. pi-dev/dsh reference a litellm-scoped key), and litellm is NOT in the loop — so
+    # (a service referencing a litellm-scoped key), and litellm is NOT in the loop — so
     # we fetch the scoped service's FULL item set directly. On an already-provisioned host
     # those keys exist; fail-closed still aborts if a genuinely-missing key is referenced.
     op_derive_glue: >-

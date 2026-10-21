@@ -344,7 +344,7 @@ if [ "$MODE" != "--config-only" ]; then
         "'" "$pb" "$(pi_answers || echo '?')" "$PI_V" >&2
       printf '  "pi update self" owns that layout and installs the LATEST release, not a version it is handed,\n' >&2
       printf '  so this script will not npm-install underneath it (docs/harness-pi-seats.md §1). Two legal moves:\n' >&2
-      printf '    1. run "pi update self" here, then move pi_host_npm_version AND pi_dev_npm_version to what it\n       reports (an owner ruling, CONVENTIONS §7);\n' >&2
+      printf '    1. run "pi update self" here, then move pi_host_npm_version to what it\n       reports (an owner ruling, CONVENTIONS §7);\n' >&2
       printf '    2. move the seat back onto the pinned layout with "bash scripts/harness/install-pi-debian.sh --pi-only",\n       which removes the managed launcher rather than burying it.\n' >&2
       exit 1
     fi

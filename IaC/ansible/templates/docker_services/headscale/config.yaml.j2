@@ -113,7 +113,7 @@ dns:
   # namespaces, `node`/`dual` entries the `.ts` twin ONLY; that split is a per-name decision recorded
   # in the zone list, not here. `dns.extra_records` = [{name, type, value}].
   extra_records:
-{% set _any_ip = tailnet_sidecar_ip | default('', true) or tailnet_dsh_ip | default('', true) or tailnet_pi_dev_ip | default('', true) or tailnet_oldsrv_ip | default('', true) %}
+{% set _any_ip = tailnet_sidecar_ip | default('', true) or tailnet_oldsrv_ip | default('', true) %}
 {% set ns = namespace(rendered=0) %}
 {% if _any_ip %}
 {% for sub in tailnet_subdomains %}

@@ -67,8 +67,8 @@ services:
       # homelab-alerts workflow env — Signal delivery via signal-cli-rest-api on oldsrv
       # (Home-VLAN publish, WG-reachable from the VPS). Values are 1P-resolved at render; the
       # workflow JSON references these env names, not literals.
-      # :8082, not :8080 — oldsrv_home_ip:8080 belongs to pi-dev, so the gateway publishes a
-      # distinct port (see the signal-cli-rest-api compose).
+      # :8082, not :8080 — oldsrv_home_ip:8080 was pi-dev's harness port (the harness IaC
+      # is removed; the gateway keeps the distinct allocation — see the signal-cli-rest-api compose).
       # The gateway takes the token ONLY as `Authorization: Bearer <token>` (X-Api-Key -> 401).
       # The workflow's header must stay in that shape, or every send fails with 401.
       SIGNAL_CLI_URL: "http://{{ oldsrv_home_ip }}:8082/v2/send"

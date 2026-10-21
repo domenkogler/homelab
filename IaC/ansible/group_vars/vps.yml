@@ -81,11 +81,6 @@ docker_services:
       # stage would fail with a PermissionError instead of the noexec one.
       bind_owner_uid: "1001", bind_dirs: ['models', 'cache'] }
   - { name: open-webui,     template_dir: open-webui, subdomain: ai, public: true, enabled: true }
-  # === AI coding harness: dsh + pi-dev live on OLDSRV, not here ===
-  # The dev-AI tier is oldsrv's (group_vars/home_servers.yml);
-  # there are no VPS tailscale sidecars for them. The names stay served on the VPS tailnet
-  # edge (traefik-tailnet -> WG -> oldsrv_home_ip) — see the DSH/pi-dev subdomain
-  # entries + route re-point under `tailnet_subdomains` / traefik-tailnet routes.
   # === AI MCP stubs — placeholders; do not yet deploy a runnable unit ===
   - { name: rag-mcp,        template_dir: rag-mcp,   enabled: false }  # TODO(impl) kapa-style hybrid reader (Qdrant→rerank→top5)
   - { name: forgejo-mcp,    template_dir: forgejo-mcp, enabled: false }  # TODO(impl) Forgejo OKF-wiki read/write bridge
@@ -171,14 +166,6 @@ docker_services:
 # OOM-killed by its own cgroup instead of taking the host down.
 docling_memory_limit: "6g"
 
-# Tailnet sidecar opt-ins: render the `*-tailscale` Pattern-A sidecar only
-# when these flags are true. dsh + pi-dev moved to oldsrv and
-# their tailscale sidecars are REMOVED — the flags are permanently false on the
-# VPS (the names are still served by the tailnet edge over WG). They stay so a
-# re-enable has to be a deliberate edit and cannot happen by accident.
-dsh_tailnet_sidecar_enabled: false
-pi_dev_tailnet_sidecar_enabled: false
-
 # Single cert issuer: THIS host is the only ACME (DNS-01) issuer for
 # *.kogler.si — traefik runs the letsencrypt resolver + certs-dumper; every other host
 # consumes the synced pair (role default false, see roles/docker_services/defaults).
@@ -208,9 +195,8 @@ litellm_scoped_keys:
     # Re-point both records in the SAME change as the rag-mcp consumer wiring.
   - { alias: owui-int-wife, vault_item: owui-int-wife_api, models: "ollama/*,openrouter/*", max_budget: "40", budget_duration: "30d" }
   - { alias: owui-int-owner, vault_item: owui-int-owner_api, models: "", max_budget: "", budget_duration: "" }  # full access (models unset = all)
-  # dsh + pi-harness live on the LAN instance:
-  # dsh/pi-dev are served by lan-litellm (oldsrv), so their scoped keys live in the
-  # LAN DB — the records render from group_vars/home_servers.yml (its own
+  # The harnesses that once consumed LAN-scoped keys are gone with their IaC;
+  # the records render from group_vars/home_servers.yml (its own
   # `litellm_scoped_keys`). ⚠ "deleted server-side" must be re-listed, not asserted:
   # `/key/list` + `/key/info` on the VPS instance is the only evidence, and an alias
   # can be reported gone while still present with `last_used=None`. `pi-harness` is
@@ -242,7 +228,7 @@ homepage_ip_net: "172.20.0.24"
 # Homepage family-vs-technical split:
 #   - homepage_show_technical (default true): render the "Domen · technical"
 #     group (tailnet-only admin dashboards: stats/logs/csui/traefik/auto/
-#     dsh/pi-dev/vpn). Grafana (stats) is Domen's dashboard — never a family tile.
+#     vpn). Grafana (stats) is Domen's dashboard — never a family tile.
 #   - homepage_show_soon (default true): render the "Soon" roadmap group
 #     (deploy-gated apps as non-clickable description tiles).
 # Family groups (Photos/Files/Docs/Chat/Git/AI/Tools/Accounts) are always shown.
@@ -307,15 +293,6 @@ alloy_ha_exporter: false
 # `IP -> node` pair will eventually contradict live state, and the check is `ss` on the
 # host plus `headscale nodes list`. Read the command output; never trust a remembered pair.
 tailnet_sidecar_ip: "100.64.0.1"
-# Pattern-A tailnet sidecar IPs (vps-dsh / vps-pi-dev): those sidecars are retired,
-# dsh/pi-dev run on OLDSRV.
-# These values are inert: the clean-URL DNS still
-# resolves to the edge (tailnet_sidecar_ip), and the edge reaches the backends
-# over WG to {{ oldsrv_home_ip }}:3080/:8080 (NOT via these sidecar IPs). They
-# stay only so any dangling config that references them resolves; do NOT rely on
-# them for routing.
-tailnet_dsh_ip: "100.64.0.2"
-tailnet_pi_dev_ip: "100.64.0.5"
 
 # Subdomains served by the tailnet edge — the two lists headscale's `config.yaml.j2` renders into
 # `dns.extra_records`. Both are ALIASES of the tailnet views of `zone_kogler_si`
