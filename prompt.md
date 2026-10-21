@@ -41,14 +41,10 @@ now has a job: it is the designated runner station for externally-served runs** 
 engine host, owner of no converge slot (the 2026-10-09 “retained but rarely used as a seat” ruling still stands for the
 pi-dev-seat question, which is a different one; the rule is [todo-table.md](todo-table.md) §C rule 9 and the state is
 [docs/harness-pi-seat-identity.md](docs/harness-pi-seat-identity.md) §5a). It stays in `pi-seat-sync.sh`'s `SEATS`, so a fan-out still names it and keeps reporting its real state — its own seat
-planes are green (`pi-seat-sync.sh --check`: every `wsl` line OK; the one problem is the oldsrv cockpit's `STALE-CLONE`, and that `ok=` count is a function of THAT seat's clone lagging `main` — with oldsrv current the same command prints `ok=18 problems=0`, so re-derive it, never copy it). Two refs were unique to that box — a stash (`On main: never_evict
-pin experiment`, 2026-10-03) and `session/arr-door-20261006`, whose remote ref the arr-door lane had deleted
-after landing its work. Neither is live, and both are closed: the stash re-armed a flag main REJECTED on
-2026-10-05 (`group_vars/spark.yml` §never-evict — the pin held 0 blocks, and `check_spark_llm_gate.py` refuses
-it) and was dropped with its diff recorded in the commit that dropped it; the branch's content IS on `main` (the
-trio routers, the `.ts` twins, its `*_url` vars, its zone names) and its commit object `18913c63` is pinned as
-**`rescue/arr-door-20261006` on the seat** — local, in the existing `rescue/*` habit, so that object now lives
-where the box that survives does. The station checkout there is clean, one worktree, skills synced, tmux 3.5a.
+planes are green (`pi-seat-sync.sh --check`: every `wsl` line OK; the one problem is the oldsrv cockpit's `STALE-CLONE`, and that `ok=` count is a function of THAT seat's clone lagging `main` — with oldsrv current the same command prints `ok=18 problems=0`, so re-derive it, never copy it). Two refs were unique to that box and both are closed: the `never_evict` stash was dropped (main
+rejected the pin — `group_vars/spark.yml` §never-evict), and the arr-door branch's content is on `main`
+with its object pinned as **`rescue/arr-door-20261006`** — re-derive the rescue set with
+`git for-each-ref "refs/*/rescue/*"`, never from this sentence. The station checkout there is clean, one worktree, skills synced, tmux 3.5a.
 Its one non-derived gitignored file, `skills/mikrotik/.env.op` (`op://` references, no
 values), is TRACKED from this commit, so a clone elsewhere loses nothing. Read the inventory's `laptop-wsl` role
 ("durable runner state = NAT + auto-resolv") as that host's **network** mode, not as a job runner: nothing
@@ -67,11 +63,9 @@ Secrets → 1Password `Homelab-ansible` `item.field` only, `>-` for YAML renders
 backslashes/backticks get mangled through `bash -c` — write script bodies to a temp file and run them.
 **Git identity on a seat — signing is RETIRED (HD-1116), so commit plainly.** `git log -1 --format='%G?'` → `N`
 is the expected value on every commit and is not a failure; never `git commit -s` (that trailer signs nothing).
-The only vault item left in this area is **`GitHub auth`**, the transport key — `GitHub sign` was deleted
-2026-10-09 and `git-bootstrap.sh --ssh-auth` now treats it as optional, because requiring it used to abort the
-run before it pulled the auth key, which is the part a seat actually needs. `commit.gpgsign=false` is written
-explicitly by that path and by the seat template, and `%G?` on the OLD commits still verifies via
-`~/.ssh/allowed_signers` (the public half stays for exactly that). Seat file map — Windows uses
+The only vault item left in this area is **`GitHub auth`**, the transport key; `GitHub sign` is deleted and
+`git-bootstrap.sh --ssh-auth` treats it as optional — the reason is that script's own comment, and the
+mechanism is [docs/1password.md](docs/1password.md) §GitHub signing + auth keys. Seat file map — Windows uses
 `~/.gitconfig-github` + `~/.gitconfig-nightly`, a DEBIAN seat has only `~/.gitconfig` — is in
 [docs/deployment-secrets.md](docs/deployment-secrets.md) §6.
 
@@ -304,11 +298,9 @@ the read-scoped `op_api` and proven by an `op item list` that answers rows; the 
 token at all, which is its designed state. ✅ **Closed the same evening:** the **`/etc/op/provision-token`** hosts (`oldsrv`, `vps`) were refreshed by a full
 `docker_services` converge (`scope_is_all`) issued FROM the laptop — both re-hash to the current `op-write_api` value,
 the run's "Probe the deployed token is actually accepted" task green on both, no container left `unhealthy`/`exited`.
-⚠ The first attempt (18:37) died in `ansible-run.sh`'s self-update with `fatal: Cannot fast-forward to multiple
-branches.` and no `PLAY RECAP`; this handoff blamed that clone's merge refs, and **that was wrong** — `git config
---get-all branch.main.merge` prints exactly one ref, and the same launcher succeeded at 21:26 with no config change.
-The git-side cause is therefore unidentified; what was durable is the launcher fix, which now prints the branch, its
-upstream and the merge refs **at the moment of failure**, so the next occurrence arrives with its own diagnosis. Read [docs/1password.md](docs/1password.md) §1
+⚠ The first attempt died in `ansible-run.sh`'s self-update with no `PLAY RECAP`: the failure shape and the
+launcher's own diagnosis are [docs/deployment-ansible.md](docs/deployment-ansible.md) §Runner placement.
+Read [docs/1password.md](docs/1password.md) §1
 first: the leak response killed the "two-token finding" as a **mis-seed** — both seats were running the *write*-scoped
 item, and `op vault list` cannot tell the scopes apart, so prove scope with the `op whoami` **Integration ID**.
    **HD-442**'s owed read ran 2026-10-19 from this seat (`op whoami` → `SERVICE_ACCOUNT`, counts and lengths only):
