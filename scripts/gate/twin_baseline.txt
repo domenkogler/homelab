@@ -226,3 +226,27 @@ group_keys_sha256 d928eebcf006c08cf55779271abb538b2991d7233226c27b67740f5fce978a
 baseline_rev 09e466d911a56ec0616b929bac83260bb902a441
 twin_groups 2667
 group_keys_sha256 9419b74b1719ec2241e65644294592090ec6407cb11d41d3d0c4eb60b7a13769
+#
+# Moved to b2c10932 by the dsh/pi-dev harness removal (HD-1173), in the lane that removed it.
+# The run before the move redded on exactly three groups, every one of them a side that lived
+# ONLY in the two deleted compose templates: `0.0.0.0` (their bind lines), `8080` (the pi-dev
+# port publish) and `{{ timezone | default('Europe/Ljubljana') }}` (their TZ env). Those are
+# not facts in two places to rename — they are bytes of containers this change deletes, and
+# the groups' surviving sides are the live services that always carried them. A fourth group
+# died on BOTH sides in the same rm: `http://lan-litellm:4000/v1` was spelled only in the
+# dsh + pi-dev composes — decision #26 routes harnesses direct to the engine, so no live
+# service repeats it, and re-typing the URL to satisfy the byte test would re-plant an
+# endpoint whose consumer is gone.
+#
+# Shape of the move 2667 -> 2666, measured by diffing the group-KEY sets at 09e466d9 and at
+# the tip above: ONE key left (`http://lan-litellm:4000/v1`, both sides in the deleted files),
+# no key arrived, and three groups shed only harness-template sides. Net -1: the population
+# SHRANK by the one literal that died with the harnesses — the direction the canary exists to
+# catch, so the key-set diff, not the number, is the evidence.
+#
+# Detection survived the move: --self-test runs green at this baseline (its planted cross-file
+# sever arm still FAILS as required), so the re-baseline did not mute the gate.
+# Eligibility, measured BEFORE the move: `git rev-list --count 09e466d9..HEAD` = 2 (cap 300).
+baseline_rev b2c109329106fa8aa27a76ea790feb0bbed5dfb4
+twin_groups 2666
+group_keys_sha256 e056c3c57f1ab85a57ea6582c652a541fcea50d2b835557bb34e37f90b323fd3
