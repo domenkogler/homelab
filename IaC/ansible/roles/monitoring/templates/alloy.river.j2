@@ -428,31 +428,37 @@ prometheus.scrape "blackbox_exporter" {
     forward_to = [prometheus.remote_write.metrics.receiver]
 }
 
-// ⚠ LOAD-BEARING `instance` ON EVERY PROBE TARGET (HD-1166): `__param_*` is a QUERY PARAMETER
-// and never becomes a label, so a target that names nothing leaves the scrape with the exporter's
-// own address (127.0.0.1:9115) as `instance` for EVERY target of the job — the store then keeps
-// ONE series per job, a page cannot say which box/URL is down, and a rule filtering on a probed
-// URL selects nothing at all and sits green forever. Same rule as the SNMP devices
-// (docs/observability.md §Operational gotchas). The read that proves it: `count by (job, instance)
-// (probe_success)` — one line per TARGET, not one per job. Set it in the map, not in a relabel:
-// `prometheus.relabel` runs AFTER the scrape, where the reserved `__param_*` labels are already gone.
+// ⚠ LOAD-BEARING `instance` ON EVERY PROBE TARGET: `__param_*` is a QUERY PARAMETER and never
+// becomes a label, so a target that names nothing leaves the scrape with the exporter's own address
+// (127.0.0.1:9115) as `instance` for EVERY target of the job — the store then keeps ONE series per
+// job, a page cannot say which box/URL is down, and a rule filtering on a probed URL selects nothing
+// at all and sits green forever. Same rule as the SNMP devices, and the measured cost of forgetting
+// it is in docs/observability.md §Operational gotchas: a host that was OFF for 22 h never paged, because
+// the four hosts still answering shared one series with it. Set `instance` in the map, not in a
+// relabel: `prometheus.relabel` runs AFTER the scrape, where the reserved `__param_*` labels are
+// already gone. The read that proves the shape: `count by (job, instance) (probe_success)` — one line
+// per TARGET, not one per job.
 
 // HTTP probes for web services (via blackbox-exporter :9115 /probe) — valid blackbox
 // target pattern: __address__ = the blackbox exporter, params.target = the probed URL.
 // (The old config used the URL as __address__ → Alloy rejected it as an invalid
 // hostname, so no http/2xx probe ever ran → Service Reachability empty.)
 // `instance` = the probed URL, which is what the Service Reachability board renames to "Target".
-// ⛔ `ha.kogler.si` is NOT in this list and must not come back (HD-1182): the SSOT entry is
-// `{name: ha.kogler.si, internal: true, ip: ha_vip, tailnet: node}` — no public record — and this
-// box resolves with the public pair, so `getent hosts ha.kogler.si` here is rc 2 and blackbox answers
+// ⛔ `ha.kogler.si` is NOT in this list and must not come back: its SSOT entry is
+// `{name: ha.kogler.si, internal: true, ip: ha_vip, tailnet: node}` — no public record — and this box
+// resolves with the public pair, so `getent hosts ha.kogler.si` here is rc 2 and blackbox answers
 // `probe_ip_protocol 0` / `probe_http_status_code 0`: a target that can never pass. It sat here
-// anyway until HD-1166 gave every target its own `instance`, which made the permanent failure visible
-// as a FIRING critical instead of a masked sample inside a collapsed job series.
+// anyway until every target got its own `instance`, which made the permanent failure visible as a
+// FIRING critical instead of a masked sample inside a collapsed job series. HA's liveness has to come
+// from the gated `ha_exporter` job below instead; docs/observability.md §Operational gotchas owns the
+// whole story, and the probe target is the wrong instrument for a name this box cannot resolve.
 prometheus.scrape "blackbox_http_probes" {
     targets = [
-{% for url in ['https://kogler.si', 'https://sso.kogler.si', 'https://foto.kogler.si', 'https://file.kogler.si', 'https://git.kogler.si'] %}
-        {"__address__" = "127.0.0.1:9115", "job" = "blackbox_http_probes", "instance" = "{{ url }}", "__param_target" = "{{ url }}", "__param_module" = "http_2xx"},
-{% endfor %}
+        {"__address__" = "127.0.0.1:9115", "job" = "blackbox_http_probes", "instance" = "https://kogler.si", "__param_target" = "https://kogler.si", "__param_module" = "http_2xx"},
+        {"__address__" = "127.0.0.1:9115", "job" = "blackbox_http_probes", "instance" = "https://sso.kogler.si", "__param_target" = "https://sso.kogler.si", "__param_module" = "http_2xx"},
+        {"__address__" = "127.0.0.1:9115", "job" = "blackbox_http_probes", "instance" = "https://foto.kogler.si", "__param_target" = "https://foto.kogler.si", "__param_module" = "http_2xx"},
+        {"__address__" = "127.0.0.1:9115", "job" = "blackbox_http_probes", "instance" = "https://file.kogler.si", "__param_target" = "https://file.kogler.si", "__param_module" = "http_2xx"},
+        {"__address__" = "127.0.0.1:9115", "job" = "blackbox_http_probes", "instance" = "https://git.kogler.si", "__param_target" = "https://git.kogler.si", "__param_module" = "http_2xx"},
     ]
     metrics_path = "/probe"
     forward_to = [prometheus.remote_write.metrics.receiver]
@@ -463,8 +469,8 @@ prometheus.scrape "blackbox_http_probes" {
 // (Old config used the device IP as __address__ → Alloy scraped the device:9115 and
 // failed → up{job=blackbox_icmp}=0, no probe_* series.)
 // `instance` = the probed host as the inventory and every other job spell it
-// (`<name>.{{ domain_local }}`), so `host-unreachable` pages a NAME and a board can join the
-// probe series with the host's `up{job="alloy"}` / `node_*` series on one label value.
+// (`<name>.{{ domain_local }}`), so a page carries a NAME and a board can join the probe series with
+// the host's `up{job="alloy"}` / `node_*` series on one label value.
 prometheus.scrape "blackbox_icmp" {
     targets = [
 {% for hostname in ['router', 'switch'] %}

@@ -561,8 +561,8 @@ Grafana, and their COUNT is read from the backend, never carried here (`GET
 (WARN, 5 m), `cert-age-warning` (`< 14 d`, WARN, 30 m), `nut-master-unreachable` (WARN, 5 m), `pkg-pin-drift`
 (WARN, 30 m, §Pin-lag report) and `unit-last-success-stale` (WARN, 30 m, the age half below) — read back from the ruler API. Count them from the ruler API, never
 from this sentence — the read is in the table below. ⚠ One retirement is mid-air at this commit:
-`ha-unreachable` is out of `roles/monitoring/vars/main.yml` (§Operational gotchas, the probe-target
-rule) and still LOADED on the backend, because the converge that drops it is parked.
+§Operational gotchas (the probe-target rule) states why `ha-unreachable` is out of the role's
+`vars/main.yml` now; it is still LOADED on the backend, because the converge that drops it is parked.
 
 **A unit's RESULT is not its AGE, and only the age sees a dead timer.** `unit-last-result-failed` reads
 `homelab_unit_last_success`, which answers "how did the last attempt go" — so a timer that stops firing (masked,

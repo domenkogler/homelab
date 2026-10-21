@@ -89,9 +89,9 @@ grafana_alert_rules_authored:
       # noData=OK: if blackbox_http_probes produces no series (config/job gap), that is
       # NOT every public service being down — only fire when a series exists and is 0.
       # ⚠ The summary names a URL only because every target map in alloy.river.j2 carries its own
-      # `instance` (HD-1166). `__param_target` is a query parameter and is NOT a label: without that
-      # label all six probes collapse into one series carrying the exporter's address, and this rule
-      # pages "a public service is down" about the whole job at once.
+      # `instance`. `__param_target` is a query parameter and is NOT a label: without that label every
+      # probe collapses into ONE series carrying the exporter's address, and this rule pages "a public
+      # service is down" about the whole job at once. docs/observability.md §Operational gotchas.
       noDataState: OK
       execErrState: Error
       # `== 0` returns 0 — evaluator must be `lt 1`, not the `gt 0` default.
@@ -106,9 +106,9 @@ grafana_alert_rules_authored:
       # issue), that is NOT a host-down — only fire when a series exists and is 0;
       # no-data must not leave the rule stuck in an alerting state.
       # ⚠ One alert INSTANCE per probed host, and that is the whole point of naming the target in
-      # the target map (HD-1166): five targets must become five series. Before it, this rule fired
-      # with `instance="127.0.0.1:9115"` — the exporter — which is why the dark-host class was
-      # covered by the generated per-host `absent_over_time` set instead of by this rule.
+      # the target map: five targets must become five series. Before that this rule fired with
+      # `instance="127.0.0.1:9115"` — the exporter — so it could not name a down host, which is why the
+      # dark-host class was covered by the generated per-host `absent_over_time` set instead.
       noDataState: OK
       execErrState: Error
       # `== 0` returns 0 — evaluator must be `lt 1`, not the `gt 0` default.
@@ -322,7 +322,7 @@ grafana_alert_rules_authored:
       # noData=OK: absent series = no status, not a replace-battery condition.
       noDataState: OK
       execErrState: Error
-    # ⛔ `ha-unreachable` was REMOVED here (HD-1166 → HD-1182); it is not a gap to re-fill by hand.
+    # ⛔ `ha-unreachable` was REMOVED here; it is not a gap to re-fill by hand.
     # Its expression filtered `instance="https://ha.kogler.si"` — a label value no probe series could
     # carry while every HTTP target shared the exporter's address — so the rule was structurally green
     # whatever HA did. Giving each target its own `instance` made the selector live, and the series it
@@ -330,9 +330,11 @@ grafana_alert_rules_authored:
     # entry is internal-only, the VPS resolves with the public pair, blackbox answers
     # `probe_ip_protocol 0` / `probe_http_status_code 0`). A permanently-red CRITICAL class is how a
     # class gets muted, so the target is out of the probe list too. HA liveness gets a real signal from
-    # the gated `ha_exporter` job (`alloy_ha_exporter: false`, waiting on the HA long-lived token —
-    # HD-04 / HD-14, and HD-439(b) waits on the same job); until then HA is watched by nothing, and
-    # HD-1182 owns that statement rather than leaving it as a comment.
+    # the gated `ha_exporter` job (`alloy_ha_exporter: false`, waiting on the HA long-lived token whose
+    # absence several other rows already cite); until that job is on, HA is watched by nothing, and the
+    # row in `todo.md` that owns the token owns this too.
+    # ⚠ Note WHERE the gate lives: `alloy_ha_exporter` is declared in group_vars/vps.yml while this
+    # job renders in the OLDSRV-only half of alloy.river.j2 — set it where oldsrv reads it.
     - uid: ssl-cert-expiring
       title: TLS certificate expiring soon
       for: 5m
