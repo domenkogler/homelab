@@ -322,21 +322,17 @@ grafana_alert_rules_authored:
       # noData=OK: absent series = no status, not a replace-battery condition.
       noDataState: OK
       execErrState: Error
-    - uid: ha-unreachable
-      title: Home Assistant unreachable
-      for: 1m
-      expr: 'probe_success{job="blackbox_http_probes", instance="https://ha.kogler.si"} == 0'
-      summary: "ha.kogler.si HTTP probe failed"
-      # noData=OK: absent probe_success series ≠ HA down; only fire when the probe runs
-      # and reports 0 (same class as host-unreachable). `== 0` needs `lt 1` evaluator.
-      # ⚠ This filter can only match because the probe target map sets `instance` = the probed URL
-      # (HD-1166). It used to select NO series at all — the six HTTP targets shared the exporter's
-      # `instance` — so with `noDataState: OK` this rule was structurally green whatever HA did.
-      # ⛔ Do not "simplify" the selector to the bare job: that merges six services into one rule.
-      noDataState: OK
-      execErrState: Error
-      eval_type: lt
-      eval_params: [1]
+    # ⛔ `ha-unreachable` was REMOVED here (HD-1166 → HD-1182); it is not a gap to re-fill by hand.
+    # Its expression filtered `instance="https://ha.kogler.si"` — a label value no probe series could
+    # carry while every HTTP target shared the exporter's address — so the rule was structurally green
+    # whatever HA did. Giving each target its own `instance` made the selector live, and the series it
+    # then matched reads 0 forever: this instance has no answer for `ha.kogler.si` at all (the SSOT
+    # entry is internal-only, the VPS resolves with the public pair, blackbox answers
+    # `probe_ip_protocol 0` / `probe_http_status_code 0`). A permanently-red CRITICAL class is how a
+    # class gets muted, so the target is out of the probe list too. HA liveness gets a real signal from
+    # the gated `ha_exporter` job (`alloy_ha_exporter: false`, waiting on the HA long-lived token —
+    # HD-04 / HD-14, and HD-439(b) waits on the same job); until then HA is watched by nothing, and
+    # HD-1182 owns that statement rather than leaving it as a comment.
     - uid: ssl-cert-expiring
       title: TLS certificate expiring soon
       for: 5m

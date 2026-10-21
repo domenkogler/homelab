@@ -46,6 +46,7 @@ tags: [observability, alerting, rejected, decision-log]
 | Moving the HA recorder to Postgres              | rejected   | worse microSD wear and failover coupling         |
 | Observability backend on oldsrv                 | superseded | reliable tier runs on the VPS                    |
 | Promtail as the log shipper                     | superseded | Alloy ships logs to VictoriaLogs                 |
+| Probing `ha.kogler.si` from the VPS               | dropped    | internal-only name; this box has no answer to resolve |
 | Renaming the `prometheus` datasource uid        | rejected   | churns every provisioned panel                   |
 | RouterOS API access directly from the VPS       | rejected   | router INPUT accepts Mgmt VLAN only              |
 | Signal as the only alert delivery channel       | superseded | the operator reads Element, not Signal           |

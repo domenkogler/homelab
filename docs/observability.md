@@ -361,18 +361,46 @@ shows) → `.id` on the linked oldsrv daemon, stored in `group_vars/all/main.yml
   **and** the lookup must declare `type: DisplayString`; otherwise labels are missing (`interface [no value]`)
   and values render as hex (`0x65746865…`). Give each device its own `instance` label or two devices
   collapse into one flat series.
-- **A probe job needs a per-target label, or every probe of that job collapses into one series.** The
-  blackbox target shape is `__address__` = the exporter and `__param_target` = the thing probed, and
-  `__param_*` is a QUERY PARAMETER — it never becomes a label. So `instance` on a probe series is the
-  exporter's own address (`127.0.0.1:9115`) for every target of the job, the store keeps ONE series per
-  job no matter how many hosts it probes, and `count by (instance) (probe_success{job=…})` returns the
-  exporter, not the fleet. Two consequences follow: a rule over the bare job (`host-unreachable`,
-  `public-service-down`) pages without naming anything, and a rule that filters on a probed URL
-  (`instance="https://…"`) selects NO series at all — with the only sane `noDataState` for it, `OK`, it
-  is green forever. The fix is the SNMP rule above applied to the probe jobs: name the target inside the
-  target map, or relabel `__param_target` into a label. The read that shows it in one line is
-  `count by (job, instance) (probe_success)` — a probe job whose count is 1 is a job whose targets cannot
-  be told apart.
+- **A probe job needs a per-target `instance`, or every probe of that job collapses into one series —
+  and the collapse can hide a host that is DOWN.** The blackbox target shape is `__address__` = the
+  exporter and `__param_target` = the thing probed, and `__param_*` is a QUERY PARAMETER — it never
+  becomes a label. The probe series therefore carry only `job` and `instance`, and if the target map
+  does not name the target, `instance` is the exporter's own address (`127.0.0.1:9115`) for EVERY
+  target: the store keeps ONE series per job no matter how many hosts it probes, and
+  `count by (job, instance) (probe_success)` answers one line per JOB.
+  **Measured cost of that, taken from the store on 2026-10-21:** through the whole **22 h** that
+  oldsrv was dark (2026-10-20 10:26 → 2026-10-21 08:44), `probe_success{job="blackbox_icmp"}` held
+  **one series reading `1` in all 271 samples of a 5-minute range** — the four hosts still answering
+  overwrote the one that was not, so `host-unreachable` never fired for a host that was off for a day.
+  The only thing that paged was the generated per-host `absent_over_time` set (§Silent-failure
+  hygiene), which is coverage of the telemetry hole, not of the host.
+  **✅ Fixed (HD-1166) by the SNMP rule above: the target map names itself.** In
+  `roles/monitoring/templates/alloy.river.j2` the HTTP job's `instance` is the probed URL, the ICMP
+  job's is the inventory spelling `<name>.<domain_local>` (so a page's host name joins with
+  `up{job="alloy"}` and `node_*` on one label value) and `wg_icmp`'s is `wg-s2s`. It is set **in the
+  map**, not in a `prometheus.relabel`: relabel runs after the scrape, on series that no longer carry
+  the reserved `__param_*` labels — measured, the probe series carry only `job` and `instance` — so
+  there is nothing there left to move. Read back after the converge: 3 lines became **12** (6 HTTP URLs,
+  5 hosts, 1 tunnel — the retired target below takes the HTTP leg to 5, so 11 once that converge lands)
+  and `count by (instance) (probe_success{job="blackbox_icmp"})` answers **5**.
+  ⚠ A probe job whose count is 1 is a job whose targets cannot be told apart — that read is the check,
+  not this sentence.
+- **A probe target must be resolvable and reachable FROM THE INSTANCE THAT RUNS THE PROBE.** A target
+  that answers nothing is not a gap, it is a permanently-red alert with a green-looking file beside it.
+  Measured 2026-10-21: `https://ha.kogler.si` sat in the VPS's HTTP probe list although the SSOT entry
+  is `{name: ha.kogler.si, internal: true, ip: ha_vip, tailnet: node}` — no public record — and this
+  box resolves with the public pair, so `getent hosts ha.kogler.si` there is **rc 2** and blackbox
+  answers `probe_ip_protocol 0` / `probe_http_status_code 0`: no address, never a `2xx`, while HA
+  itself answers `200` from the LAN through the VIP. The failure was invisible because BOTH rules over
+  that job were blind in different ways (the collapsed series kept the job's value at 1; the
+  `instance="https://…"` selector matched no series at all, so with `noDataState: OK` the rule was
+  green forever and its alert instance carried no `instance` label — `Normal (NoData)` read as
+  agreement and was only silence). Fixing the label made both masks disappear at once and the rule
+  fired within two intervals, naming the URL exactly as designed. The target and the
+  `ha-unreachable` rule are now **retired** rather than left permanently red — see
+  [observability-rejected.md](observability-rejected.md) and `todo.md` HD-1182 for where HA liveness
+  actually comes from (the gated `ha_exporter` job). ⛔ Do not re-add the target to close that gap: the gap is
+  the row, and a target that can never pass is the wrong instrument for it.
 - **Do not alert on intentionally-empty state.** Unprovisioned is not incident-worthy: a link rule that
   matches every switch port pages on the ports that carry nothing (ten simultaneous instances on ports with
   no cable). Alert on the loss of a link that carries something.
@@ -526,18 +554,22 @@ while a host reaches the store only if its **own Alloy** ships what it scraped. 
 and no cert series because it declares neither a watched unit nor a cert pair, and that absence is
 topology; the absence that matters is when a host publishes **nothing at all**, which the next
 paragraph is about. The rules are in
-Grafana: of 32 rules loaded, **8 reference `homelab_*`** — `cert-pair-missing` (CRIT, 5 m),
+Grafana, and their COUNT is read from the backend, never carried here (`GET
+/api/prometheus/grafana/api/v1/rules`; a file-provisioned rule lists under its TITLE, not its `uid`).
+**8 of them reference `homelab_*`** — `cert-pair-missing` (CRIT, 5 m),
 `cert-age-critical` (`< 7 d`, CRIT, 10 m), `hygiene-collector-stale` (CRIT, 5 m), `unit-last-result-failed`
 (WARN, 5 m), `cert-age-warning` (`< 14 d`, WARN, 30 m), `nut-master-unreachable` (WARN, 5 m), `pkg-pin-drift`
 (WARN, 30 m, §Pin-lag report) and `unit-last-success-stale` (WARN, 30 m, the age half below) — read back from the ruler API. Count them from the ruler API, never
-from this sentence — the read is in the table below.
+from this sentence — the read is in the table below. ⚠ One retirement is mid-air at this commit:
+`ha-unreachable` is out of `roles/monitoring/vars/main.yml` (§Operational gotchas, the probe-target
+rule) and still LOADED on the backend, because the converge that drops it is parked.
 
 **A unit's RESULT is not its AGE, and only the age sees a dead timer.** `unit-last-result-failed` reads
 `homelab_unit_last_success`, which answers "how did the last attempt go" — so a timer that stops firing (masked,
 unset, a `.timer` whose install never landed) leaves the gauge at **1** for as long as the host is up, and a run
 that never returns leaves it wherever the last good run left it. `homelab_unit_last_success_timestamp_seconds`
 above, with the `unit-last-success-stale` warning rule (90 min, `for: 30 m`), is the age half. **It is loaded and
-evaluating, and it has never been watched red**: 32 rules load on the backend and this one lists two live
+evaluating, and it has never been watched red**: the loaded set (read it fresh) lists two live
 instances (`traefik-cert-pull.service`, `ha-cert-sync.service`), both `Normal` at ~4 min of age. Reaching it needs
 90 min of a watched timer not succeeding, and both shortcuts are refused below — fail a real cert puller, or park
 a fabricated sample in the metric store, which is a page that lies. The series is the proof to look at first: on the Pi it read
@@ -613,6 +645,32 @@ signal**: it is naming a real hole in what the fleet can see, and the fix is not
 
 ⚠ **`active` is not `serving`, on any collector host.** The reads that answer are the collector's own`/metrics` on the box and `up{job="alloy"}` in the store; `systemctl is-active` answers a different
 question and, in the case above, answered it wrongly for 19 hours.
+
+**A scrape leg dies alone; a host dies all at once — and the store can say what the death was NOT.**
+Measured on the 2026-10-20 `oldsrv` blackout (down 10:26:05, back 08:44:31 the next morning, `last -x`
+marks the boot `crash`): the **last sample of every job whose data that host carries** — `alloy`,
+`homelab-hygiene`, `llama-cpp` ×2, `network-clients` — fell in the SAME minute. A dead scrape leg leaves
+its siblings ticking, so the job-by-job shape separates the two classes without touching the box. The
+second half of the read is the hour before the last sample, and it is worth taking before anyone calls
+it hardware: `query_range` at 60 s over `node_hwmon_temp_celsius` / `node_thermal_zone_temp` /
+`node_memory_MemAvailable_bytes` / `node_load1` / `node_filesystem_avail_bytes` / `up`, all filtered
+`instance="<host>"`. On oldsrv that hour read **≤ 51 °C on the cores, ≤ 48 °C on the zones, ~34 GB
+MemAvailable with no slope, load1 ≤ 2.28, 372 GB free on `/`, and `up = 1` on all five jobs at the last
+scrape** — no thermal, memory, load or disk excursion, and nothing degrading: a clean hard stop, not a
+long decline. What the store CANNOT do is name the cause: the kernel's last words live in boot `-1`'s
+journal and `/sys/fs/pstore`, both `root:adm`, and an unprivileged journal read returns only user lines
+— so a hard stop stays **unexplained** until someone reads it as root. Do not fill that silence with a
+likely cause. · `todo.md` HD-1175
+
+⚠ **A `dial tcp: lookup victoria-metrics … no such host` recorded on many rules at once is a restart
+artifact, and it is not the same finding as the detached-network fault in §Access & login path.** Observed 2026-10-21 in
+the annotations of rules that had not been touched, in the minute a `--tags monitoring` converge
+restarted Grafana: the states read `Normal (NoData)` with that error attached, and re-reading the rule
+list a little later showed them evaluating again, with `victoria-metrics` resolving from inside the
+container (`docker exec grafana getent hosts victoria-metrics`). So: re-read before you investigate, and
+use the DETACHED-network shape (the container up but on no network, `docker inspect -f
+'{{len .NetworkSettings.Networks}}'` → `0`) only when the error is still being produced on a fresh
+evaluation.
 
 **`hygiene-collector-stale` must be written as unfiltered A + a threshold expression**, the shape
 §Alerting demands: `time() - max_over_time(homelab_hygiene_scrape_ok[6h])` in A, `gt [900]` in B, `for: 5m`,
@@ -864,7 +922,7 @@ those applies run, the red is the report working.
 | Severity | What alerts | Channel | Notes |
 |----------|-------------|---------|-------|
 | **Critical** | oldsrv disk ≥90%, **nas ZFS pool usage ≥80% (`tank` & `bulk`)**, host down, ZFS pool degraded, service down >2min, `probe_success==0` · **UPS battery <20% or runtime <5 min (impending shutdown)** | Signal + email | page-worthy |
-| **Warning** | high CPU/load (`host-load-high`), HA unreachable (`ha-unreachable`), **nas pool ≥70%** (`zfs-pool-warn`) · **UPS on-battery / mains lost (`ups-on-battery`, auto-clears on return)** · a systemd unit whose last run failed (`unit-last-result-failed`) · a consumer cert under 14 d (`cert-age-warning`) · spark usable memory < 12 GiB (`spark-host-mem-oom-warning`) · a NUT client that cannot read its master (`nut-master-unreachable`) · a host off its version pin (`pkg-pin-drift`, §Pin-lag report) | Signal (deduped) | first send once; re-sent only by the 24 h poke below. There is **no `mikrotik-link-down` rule** (an unpatched port is not incident-worthy, §Operational gotchas) and **no container-restart rule**; adding either class needs a rule in `roles/monitoring/vars/main.yml`, not a doc edit |
+| **Warning** | high CPU/load (`host-load-high`), **nas pool ≥70%** (`zfs-pool-warn`) · **UPS on-battery / mains lost (`ups-on-battery`, auto-clears on return)** · a systemd unit whose last run failed (`unit-last-result-failed`) · a consumer cert under 14 d (`cert-age-warning`) · spark usable memory < 12 GiB (`spark-host-mem-oom-warning`) · a NUT client that cannot read its master (`nut-master-unreachable`) · a host off its version pin (`pkg-pin-drift`, §Pin-lag report). **HA is not on this list any more:** `ha-unreachable` was retired with the never-resolvable probe target it filtered on (§Operational gotchas), and until the gated `ha_exporter` job is on, no rule can fire for HA at all — HD-1182 owns that gap | Signal (deduped) | first send once; re-sent only by the 24 h poke below. There is **no `mikrotik-link-down` rule** (an unpatched port is not incident-worthy, §Operational gotchas) and **no container-restart rule**; adding either class needs a rule in `roles/monitoring/vars/main.yml`, not a doc edit |
 | **Info** | transient / everything else · **UPS online ↔ on-battery transitions / restored** | logged only | no push |
 
 - **Poke/throttle:** a still-firing alert re-sends at most every **24 h** (`repeat_interval` in the notification policy the monitoring role renders). The first send is not throttled by it — `group_wait: 2m`, then `group_interval: 10m` between different alerts in one group. The value is deliberately a day: a fault that is parked for days by design (a host awaiting an owner hardware window, a host off its pin) is one finding, and re-paging it every half hour costs the reader the ability to hear the ones that are new.
