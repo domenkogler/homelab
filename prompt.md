@@ -288,25 +288,18 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
    match, behind the order that keeps the door open (`ansible-admin` and `domen` proven first). ⛔ A raw journal grep
    for the phrase also **matches the probe that greps for it** — filter on `sshd-session[…]` / `-u ssh.service`.
    ⚠ Never re-add `git commit -s`; signing is retired. **HD-1110**: `scripts/harness/pi-seat-sync.sh` is
-   the one deploy path; its 2026-10-08 "oldsrv closed on all eight planes" reading is VOID, and the
-   2026-10-21 re-read is the current one: the driver run **FROM the Win11 seat** reaches all three seats and reads
-   **`RESULT ok=29 problems=0`** — every declared plane on `win11` + `wsl` + `oldsrv` OK, after each seat clone was
-   fast-forwarded to the driver's own commit (`pi-self` OK everywhere at the new **1.3.0**: win11 by volta, wsl by the
-   pinned npm prefix, oldsrv by `pi update`, whose answering binary is pi's managed layout — the layout
-   `pi-self-update.sh` refuses to npm-install underneath, and the same command on the win11 layout refuses:
-   "not managed by a global npm install"). The first run of that fan-out read `ok=27 problems=2`, both lines
-   `models` on the Debian seats at `bash: line 1: py: command not found`: the `runner: python3` branch chose the
-   interpreter on the DRIVER and shipped `py -3` into a Debian seat. Fixed here — `scripts/harness/seat-python.sh`
-   carries the case and the seat resolves its own launcher (rule: [docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1),
-   both halves canaried in `pi-seat.sh --self-test` and the resolver's own `--self-test`. Earlier readings stand as
-   seat-local truth: `--check --seat wsl` FROM the wsl seat → `RESULT ok=10 problems=0`, the `models` line reporting
-   **no drift** because this seat's `pi_auth` entries really are `type: api_key` as
-   `scripts/harness/pi/models-spec.yml` declares. The row's own tail closed tonight: `install-pi-wsl.sh` now **owns
+   the one deploy path; its 2026-10-08 "oldsrv closed on all eight planes" reading is VOID. Current reading: the driver
+   run **FROM the Win11 seat** reaches all three seats → **`RESULT ok=29 problems=0`**, `pi-self` OK everywhere at the
+   **1.3.0** pin (win11 volta, wsl the pinned npm prefix, oldsrv `pi update` — pi's managed layout, which
+   `pi-self-update.sh` refuses to npm-install under, and `pi update` on the win11 layout refuses too). ⚠ A plane
+   command executes in the SEAT's shell, so its python launcher resolves there —
+   [docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1. Earlier readings stay as seat-local truth: `--check
+   --seat wsl` FROM the wsl seat → `RESULT ok=10 problems=0`, `models` reporting **no drift** because that seat's
+   `pi_auth` entries really are `type: api_key` as `scripts/harness/pi/models-spec.yml` declares. The row's own tail closed tonight: `install-pi-wsl.sh` now **owns
    PATH persistence** (`persist_path()` writes the node `current` bin dir and pi's entrypoint dir under its own marks,
    distinct from `install-pi-debian.sh`'s, and `verify_login_path()` then asks a LOGIN shell and fails if a `/mnt/c`
-   copy wins) instead of printing a NOTE about `~/.bashrc`. **The Win11 seat leg is paid — run FROM that seat
-   2026-10-21**, which is also how the driver-side `python3` defect above surfaced (a Windows driver had never
-   fanned out to the Debian seats before). What remains: the OAuth-vs-`api_key` call on the
+   copy wins) instead of printing a NOTE about `~/.bashrc`. **The Win11 seat leg is paid** (2026-10-21, FROM that seat — the fan-out reading above).
+   What remains: the OAuth-vs-`api_key` call on the
    `pi_auth` providers — **ruled 2026-10-20 (owner): `api_key` is the fleet spelling**, an OAuth entry on a seat is drift,
    and it is never cured by overwriting a live credential: the plane reads the live `type` and reports the mismatch instead
    of rewriting. Mint through the `pi_auth` vendor lane of
