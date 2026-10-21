@@ -22,8 +22,11 @@ requires it for the detached background runner, so an `async: true` launch dies 
 session file while a FOREGROUND child on the same seat runs normally — and every seat plane still reads `OK`.
 `pi_host_subagents_npm_version` now pins a release whose alias map asks for chord only when the host manifest declares
 it, **and a pin reaches no seat**: the seat legs (`pi-settings-config.sh --push`, then `pi install` of the pinned
-version, run FROM each seat) are in [todo.md](todo.md)'s **HD-1180** tail. Until the check passes on the seat you are
-sitting on, lanes run **foreground-sequential, one at a time**: a stated DEVIATION from O11 that ends the day **HD-1180**'s fix lands, never a new rule, and never to be
+version, run FROM each seat) are in [todo.md](todo.md)'s **HD-1180** tail. ✅ **On this seat (`oldsrv`) the check PASSES (2026-10-21)** —
+`pi list` reads `npm:pi-subagents@0.80.0` under pi 1.3.0, and ONE `async: true` launch yielded a child session file, ran
+to completion and returned its result to the parent: **O11 is met HERE, so lanes launched from oldsrv run `async: true`.**
+⚠ The verdict is **per seat** — `win11` and `wsl` still owe their install and their own launch, and a pass on oldsrv
+certifies only oldsrv. On any seat where the check has not passed, lanes run **foreground-sequential, one at a time**: a stated DEVIATION from O11 that ends seat by seat as **HD-1180**'s fix lands, never a new rule, and never to be
 written into [docs/orchestration.md](docs/orchestration.md) or a brief as the contract. ⚠ **On the laptop, grade from the WSL
 Debian clone and not the Win11 shell** — three gate items are red or blind on that seat (**HD-1177**), so a Win11
 green is a *partial* result and must be reported as one, never as the gate. **Pushing is not that station's exclusive
@@ -347,14 +350,17 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
    `pi-subagent-config.sh --self-test`. ⚠ **HD-1180 is the delegation plane the pi 1.3.0 bump took away** —
    pi-subagents 0.76.1 requires `@earendil-works/chord` from any host that is not a pre-chord `0.<minor>.<patch>`, and
    pi 1.3.0 ships and declares neither, so EVERY `async: true` launch fails at start (a foreground child on the same
-   seat runs normally) while `pi-seat-sync.sh --check` reads all-OK: O11 is unmet on all three seats and no plane check
-   can see it. ✅ **The AI half is DONE 2026-10-21:** `npm view pi-subagents version` re-probed → 0.80.0 and
+   seat runs normally) while `pi-seat-sync.sh --check` reads all-OK: O11 was unmet on all three seats and no plane check
+   could see it. ✅ **The AI half is DONE 2026-10-21:** `npm view pi-subagents version` re-probed → 0.80.0 and
    `pi_host_subagents_npm_version` moved 0.76.1 → 0.80.0 in [`IaC/ansible/group_vars/all/versions.yml`](IaC/ansible/group_vars/all/versions.yml)
    (0.80.0 requires chord only when the host manifest declares it) — a pin reaches no host, so nothing changed on any
-   seat by that commit; **owner** — the `settings` plane pushed and `pi install npm:pi-subagents@0.80.0` run FROM win11, wsl and oldsrv,
-   accepted by ONE `async: true` launch that yields a child session file (a green plane matrix proves none of it).
-   ⛔ never by npm-installing chord under a managed seat tree. Until the owner leg runs, the foreground-sequential
-   deviation in §1 stays in force. → [prompt-seat-cockpit-grants.md](prompt-seat-cockpit-grants.md)
+   seat by that commit; ✅ **the oldsrv leg is DONE + PROVEN 2026-10-21** — that seat's `pi list` reads `pi-subagents@0.80.0`
+   under pi 1.3.0 and ONE `async: true` launch yielded a child session file, completed, and returned its result (the row's
+   own acceptance form, met on that box — §1 launches async there now). ⏳ **owner, two seats left** — the `settings` plane
+   pushed and `pi install npm:pi-subagents@0.80.0` run FROM win11 and FROM wsl, each accepted by **its own** `async: true`
+   launch that yields a child session file (a green plane matrix proves none of it, and a pass on oldsrv certifies only oldsrv).
+   ⛔ never by npm-installing chord under a managed seat tree. Until a seat's own leg runs, the foreground-sequential
+   deviation in §1 binds THAT seat. → [prompt-seat-cockpit-grants.md](prompt-seat-cockpit-grants.md)
 6. ⏳ **Storage, backup, the DR story** — **HD-191**'s ZFS policy units (**HD-1107**: the policy snapshots do exist
    on every configured dataset — `@autosnap_*_hourly|daily|weekly|monthly`, the row's original "zero snapshots" read
    grepped `@hourly.`, which sanoid's naming can never match — and retention is **43 / 24 / 24**, not the "~100" the

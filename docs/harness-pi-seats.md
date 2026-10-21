@@ -87,6 +87,11 @@ ASYNC (background) launch builds that map — so a seat whose delegation plane i
 first background launch, which dies at start with `does not provide <that package>` and leaves no child session
 file, with zero seconds of work done. A `--check` green over every declared plane says nothing either way; the
 proof that the plane exists is one background launch that produces a child session file.
+**Certification is per seat, never per pin.** A pin records the package a seat *should* run; the plane exists on the seat
+whose INSTALLED package resolves the host-peer question from the manifest. So the whole read is that seat's own
+`pi list` version line plus one background launch — and a seat that passes certifies only itself, while every other seat
+keeps the failure shape above regardless of what the pin says. Live-verified on the oldsrv seat 2026-10-21: pi 1.3.0 with
+`pi-subagents@0.80.0` installed, one background launch produced a child session file, ran, and returned its result.
 
 ---
 ## 5. Reference `~/.pi/agent/settings.json` (harness tuning)
