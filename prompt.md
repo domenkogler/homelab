@@ -16,7 +16,7 @@
 **The pi-dev seat is `oldsrv`, and its clone `domen@oldsrv:~/source/homelab` is the merging station** — merges
 land there, `scripts/validate-all.sh` runs there, and `git worktree list` on that host is the fleet's live set
 (harness state in [docs/harness-pi-engines.md](docs/harness-pi-engines.md)). ⚠ **No ASYNC child starts on this seat**: pi 1.3.0 neither ships nor declares
-`@earendil-works/chord`, and `pi-subagents` 0.76.1 requires it for the detached background runner, so an `async: true`
+`@earendil-works/chord`, and the `pi-subagents` this seat still has installed (0.76.1) requires it for the detached background runner, so an `async: true`
 launch dies at start with 0 s of work and no child session file while a FOREGROUND child on the same seat runs normally
 — and every seat plane still reads `OK`, so no `--check` reveals it. Lanes therefore run **foreground-sequential, one at
 a time**: a stated DEVIATION from O11 that ends the day **HD-1180**'s fix lands, never a new rule, and never to be
@@ -332,10 +332,10 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
    pi-subagents 0.76.1 requires `@earendil-works/chord` from any host that is not a pre-chord `0.<minor>.<patch>`, and
    pi 1.3.0 ships and declares neither, so EVERY `async: true` launch fails at start (a foreground child on the same
    seat runs normally) while `pi-seat-sync.sh --check` reads all-OK: O11 is unmet on all three seats and no plane check
-   can see it. What is owed: **AI** — re-probe `npm view pi-subagents version`, then move
-   `pi_host_subagents_npm_version` 0.76.1 → 0.80.0 in [`IaC/ansible/group_vars/all/versions.yml`](IaC/ansible/group_vars/all/versions.yml)
-   (0.80.0 requires chord only when the host manifest declares it; one line, and no seat moves by the pin alone);
-   **owner** — the `settings` plane pushed and `pi install npm:pi-subagents@0.80.0` run FROM win11, wsl and oldsrv,
+   can see it. ✅ **The AI half is DONE 2026-10-21:** `npm view pi-subagents version` re-probed → 0.80.0 and
+   `pi_host_subagents_npm_version` moved 0.76.1 → 0.80.0 in [`IaC/ansible/group_vars/all/versions.yml`](IaC/ansible/group_vars/all/versions.yml)
+   (0.80.0 requires chord only when the host manifest declares it) — a pin reaches no host, so nothing changed on any
+   seat by that commit; **owner** — the `settings` plane pushed and `pi install npm:pi-subagents@0.80.0` run FROM win11, wsl and oldsrv,
    accepted by ONE `async: true` launch that yields a child session file (a green plane matrix proves none of it).
    ⛔ never by npm-installing chord under a managed seat tree. Until the owner leg runs, the foreground-sequential
    deviation in §1 stays in force. → [prompt-seat-cockpit-grants.md](prompt-seat-cockpit-grants.md)

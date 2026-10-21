@@ -569,8 +569,7 @@ pi_host_tui_npm_version: "0.3.11"              # npm dist-tag `latest` (`npm vie
 # session hand-runs it — so nothing converges and no version is recorded anywhere. Naming
 # them here is what makes them fleet state.
 pi_host_subagents_npm_package: "pi-subagents"      # the subagent/orchestrator extension this repo's own lane workflow runs on
-pi_host_subagents_npm_version: "0.76.1"            # npm dist-tag `latest` — re-probe it before pinning; the pin records
-                                               # the observed value, it moves no seat by itself
+pi_host_subagents_npm_version: "0.80.0"            # re-probed from npm. 0.76.1's async runner needs a package newer pi hosts no longer ship; a pin moves no seat.
 pi_host_deepseek_npm_package: "pi-deepseek-optimized"   # DeepSeek-aware provider/harness tuning for the seats
 pi_host_deepseek_npm_version: "1.0.4"              # npm dist-tag `latest` — re-probe it before pinning
 
