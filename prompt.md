@@ -15,11 +15,15 @@
 
 **The pi-dev seat is `oldsrv`, and its clone `domen@oldsrv:~/source/homelab` is the merging station** — merges
 land there, `scripts/validate-all.sh` runs there, and `git worktree list` on that host is the fleet's live set
-(harness state in [docs/harness-pi-engines.md](docs/harness-pi-engines.md)). ⚠ **No ASYNC child starts on this seat**: pi 1.3.0 neither ships nor declares
-`@earendil-works/chord`, and the `pi-subagents` this seat still has installed (0.76.1) requires it for the detached background runner, so an `async: true`
-launch dies at start with 0 s of work and no child session file while a FOREGROUND child on the same seat runs normally
-— and every seat plane still reads `OK`, so no `--check` reveals it. Lanes therefore run **foreground-sequential, one at
-a time**: a stated DEVIATION from O11 that ends the day **HD-1180**'s fix lands, never a new rule, and never to be
+(harness state in [docs/harness-pi-engines.md](docs/harness-pi-engines.md)). ⚠ **The delegation-plane check — run it BEFORE routing any lane, on the seat you are on**: start the session on that
+seat, launch ONE `async: true` child, and require it to **yield a child session file**. That is the whole test, and no
+`--check` substitutes for it: pi 1.3.0 neither ships nor declares `@earendil-works/chord` while an older `pi-subagents`
+requires it for the detached background runner, so an `async: true` launch dies at start with 0 s of work and no child
+session file while a FOREGROUND child on the same seat runs normally — and every seat plane still reads `OK`.
+`pi_host_subagents_npm_version` now pins a release whose alias map asks for chord only when the host manifest declares
+it, **and a pin reaches no seat**: the seat legs (`pi-settings-config.sh --push`, then `pi install` of the pinned
+version, run FROM each seat) are in [todo.md](todo.md)'s **HD-1180** tail. Until the check passes on the seat you are
+sitting on, lanes run **foreground-sequential, one at a time**: a stated DEVIATION from O11 that ends the day **HD-1180**'s fix lands, never a new rule, and never to be
 written into [docs/orchestration.md](docs/orchestration.md) or a brief as the contract. ⚠ **On the laptop, grade from the WSL
 Debian clone and not the Win11 shell** — three gate items are red or blind on that seat (**HD-1177**), so a Win11
 green is a *partial* result and must be reported as one, never as the gate. **Pushing is not that station's exclusive
@@ -194,8 +198,15 @@ the row→brief index is [todo-table.md](todo-table.md) §B0. A brief is named f
    `host-unreachable` cannot name the host that is down, because `probe_success{job="blackbox_icmp"}` carries the
    EXPORTER's address (`127.0.0.1:9115`) as `instance` for all five targets — `__param_target` is a query parameter and
    never becomes a label — and `ha-unreachable`'s `instance="https://ha.kogler.si"` filter can therefore never match a
-   series at all. Its first act is one read, `count by (job, instance) (probe_success)`, and nothing was written for it
-   and no row was minted for the probe-label rule itself, which is already written down for SNMP.
+      series at all. **The read ran, the premise held, and the fix is live**: through the 2026-10-20 `oldsrv` outage
+   `probe_success{job="blackbox_icmp"}` read `1` for all 271 samples — four live hosts masking the dead one — so
+   `host-unreachable` could neither fire nor name a host, and the relabel that makes each target name itself in
+   `instance` is what made that visible. ⚠ **Retiring a probe target can be the cheaper half of a fix — check what the
+   rule was actually watching.** `ha.kogler.si` is `internal: true` with no public record, so the backend host cannot
+   resolve it and `ha-unreachable` had never matched a series; giving the series a real `instance` made the target fail
+   and a CRITICAL page that describes a healthy HA. The target and the rule are retired, and the honest consequence is
+   that **HA liveness has no firing rule** until the gated `ha_exporter` job → **HD-1182**; one owner-present VPS
+   `--tags monitoring` converge applies the retirement, and that apply is the row's only live tail.
    **HD-1164** is why `nas` is the blind host — the
    collector dies ~5 s after every start with `fatal error: traceback did not unwind completely` on Go 1.26.7, with the
    repo, the backend and the DMAR lines all excluded, so the acceptance is a firmware/kernel look plus a memory test the
@@ -203,7 +214,12 @@ the row→brief index is [todo-table.md](todo-table.md) §B0. A brief is named f
    `nas` and that is the instrument working — do not soften the expected set to make it green. **`oldsrv` is the
    second blind host and it is an incident, not a rule defect** — every job it publishes stopped at the same minute
    on 2026-10-20, it answers on no leg while the three other hosts ride the same tunnel peer, and there is no
-   out-of-band power path (HD-454's posture), so the first act is an owner at its console → **HD-1175**.
+   out-of-band power path (HD-454's posture), so the first act was an owner at its console → **HD-1175**, which is
+   **recovered but not closed**: its telemetry is proven, not assumed — all four of its jobs `up`, `check_host_reporting.py --check`
+   reports its series, the exported units all read `success`, and the store excludes a thermal, memory, load or disk
+   excursion — a clean hard stop. What the row still owes is the root-only read (the previous boot's journal and
+   `pstore`), because the cause is still unexplained and no rule can reach it from a user session. The same reboot
+   surfaced a boot-time DB-dump push race that no rule can see → **HD-1183**.
    **What arrives in the channel is a separate design question from what fires.** A still-firing alert now
    re-sends at most every **24 h** (`repeat_interval` in the notification policy `roles/monitoring` renders;
    `group_wait: 2m` and `group_interval: 10m` are untouched, so the FIRST send is not delayed). At 30 min a
@@ -554,8 +570,9 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
       entry is reported as drift, never overwritten to green a check. **HD-448/HD-460**: the 2026-10-12 KEEP-THE-PARITY
       ruling stands — a fresh proposal to scope the SSH and RustDesk accepts to IPv4 was weighed and **not adopted** — and
       "chase inbound IPv6 from the ISP" is answered **no** and mints no row. ⏳ The owner still runs the **secret rotations**
-      (`HD-1170` · `HD-1171` · `HD-1150`) and the `oldsrv` console look (`HD-1175`, owner away); both are parked on that word
-      and no AI lane waits on them. Rulings live in the rows and in the docs each row names — this bullet is an index.
+      (`HD-1170` · `HD-1171` · `HD-1150` · `HD-1181`, the last of them this seat's own pi transcript store, which keeps
+      `check_secret_leak.py` red on the pi-dev seat and nowhere else until it is rotated). The `oldsrv` console look
+      (`HD-1175`) ran when the box came back. Rulings live in the rows and in the docs each row names — this bullet is an index.
     - ✅ **`corpus_diff.py --gate` in the pool, or a hand-run wave audit — ANSWERED: it is a pool item now, and
       the rule that kept it out is the rule that changed.** Both halves are registered (`--list` prints the run and
       its `--self-test`). What held it out was that its verdict is a function of a pinned window: measured at one tip
@@ -751,8 +768,10 @@ each, all measured into their rows on 2026-10-19 — **⚠ read this list with t
 `HD-1107`, `HD-1106`, `HD-1103`-retention, `HD-1140`, `HD-357`, `HD-443` and `HD-1110` entries below are
 RULED and their remaining work is AI work, so the owner act they describe no longer exists** (the ruling and the ordered
 act are in the rows and in §14); what is genuinely owner-blocked in this paragraph is `HD-1122`, `HD-1088`, `HD-1091`,
-`HD-1093`, `HD-1164`, `HD-1143`, `HD-1152`, `HD-1160`'s router window and the Pi-visit bundle — and `oldsrv`-targeted
-acts of any kind, because the box is dark and the owner is away from it. **HD-1160** — the ruling landed and the retag
+`HD-1093`, `HD-1164`, `HD-1143`, `HD-1152`, `HD-1160`'s router window and the Pi-visit bundle. ⚠ **`oldsrv` is back and
+its parked acts are un-parked**, with one exception that is not about presence: a lockout-class role (`network`,
+`storage`, `wireguard`, `tailscale-node`, `cockpit`) applied to `oldsrv` is refused by the self-converge guard while
+`oldsrv` is itself the controller, so those legs still need another control node or an in-band console. **HD-1160** — the ruling landed and the retag
 with it, so what is left is one owner-present **router window** for the converge template's twin of the retagged
 `#`-comment (`IaC/router/templates/rb4011_converge.rsc.j2`; a `#`-line IS rendered output — HD-1167's class, global
 router slot, never `--diff`, never from a docs lane). Nothing else in that row is owed and **no converge is behind it**
