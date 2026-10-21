@@ -80,25 +80,16 @@ task-specific dispatch. Do **not** bulk-read the repo.
   Canonical list + naming/IP conventions: `docs/index.md` → Conventions. Purchased but **not yet
   provisioned**: Lenovo ThinkStation PGX (`spark.kogler.si`), the headless NVIDIA GB10 inference node
   replacing the old Phase-2 Ryzen/Proxmox plan (HD-335, [`docs/hardware-spark.md`](docs/hardware-spark.md)).
-- **Recommended next tasks:** see the latest `prompt-*.md` handoff (date-stamped) — it names the
-  current most-valuable, laptop-doable items. **Handoff family note (2026-09-19, pointers re-grounded 2026-10-09):** `prompt.md` is the
-  standing handoff; `prompt-<domain>.md` files are **single-lane briefs** (one lane session each, named for the
-  domain + host, never for an HD id — CONVENTIONS §6), referenced from
-  their `todo.md` rows and indexed in the [`todo-table.md`](todo-table.md) §B0 lane map; a brief dies with its lane (O7) and any
-  small residue folds back into the rows — read those, not `prompt-next.md` (a 2026-09-15 spark handoff, superseded by
-  `prompt.md` and deleted — the record is git history). **HD-312 3-SSID WiFi + per-MAC cloud-IoT WAN is LIVE
-  (2026-09-03)** — the cloud-IoT appliances (LG/Bosch/HAP) regain WAN as leases turn over; the phantom
-  **VLAN 21 (IoT-Internet) was DELETED (HD-325, 2026-09-04)** — cloud-IoT moved to VLAN 20 with a
-  per-device `wan_allow` flag (SSOT = live). Remaining tails (`kids-*` lists, n8n firmware automation) are in
-  [`todo.md`](todo.md) HD-312. **HD-317 Technitium DNS-primary on the VPS is LIVE** (3-instance DNS
-  HA); the split-horizon A-record **seed is DONE + LIVE on the VPS primary AND Pi tertiary**
-  (HD-324, 2026-09-03 — VPS admin recreated to the 1P value via the documented API; the seed
-  role now idempotent). **Open-resolver exposure FIXED 2026-09-08:** the `:53` publish is now
-  source-restricted at the nftables FORWARD chain (tailnet CGNAT + home-WAN `@dns-allow-home`
-  only; external scanners dropped) — the input source-allow alone could not gate Docker
-  published-port traffic (see network-dns.md).
-  oldsrv secondary seeds automatically once its Phase-3 admin is up.
-  Detail: [`todo.md`](todo.md) HD-317.
+- **Recommended next tasks:** see the latest date-stamped `prompt-*.md` handoff — it names the current
+  most-valuable, laptop-doable items. **Handoff family:** `prompt.md` is the standing handoff;
+  `prompt-<domain>.md` files are **single-lane briefs** (one lane session each, named for the domain +
+  host, never for an HD id — CONVENTIONS §6), referenced from their `todo.md` rows and indexed in the
+  [`todo-table.md`](todo-table.md) §B0 lane map; a brief dies with its lane (O7) and any small residue
+  folds back into the rows — read those. The ruled network items stay as facts, not as dated results:
+  the Wi-Fi model is **3 SSIDs with per-device cloud-IoT WAN egress**
+  ([`docs/network-vlans.md`](docs/network-vlans.md) §CAPsMAN SSID-to-VLAN Mapping) and the DNS tier is
+  **three live seeded instances**, whose public `:53` publish is source-restricted at the nftables
+  FORWARD chain ([`docs/network-dns.md`](docs/network-dns.md) §Recursion + exposure controls).
 
 ---
 
