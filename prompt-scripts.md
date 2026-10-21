@@ -148,7 +148,7 @@ Commit: one commit, `validate-all` green. **Do not start Stage 3 in the same ses
    ✅ **2026-10-09 (part, seat lane):** `pi-subagents` + `pi-deepseek-optimized` now have pins
    (`pi_host_subagents_npm_*` / `pi_host_deepseek_npm_*`) and belong to the settings plane's owned set, and
    `install-pi-wsl.sh` versions those two from the pins instead of naming them bare. ✅ **Closed at the tip:** the inventory in
-   `IaC/ansible/group_vars/all/versions.yml` carries **name + version + scope for all seven `pi_pkg_*` rows** (the version is
+   `IaC/ansible/group_vars/all/versions.yml` carries **name + version + scope for every `pi_pkg_*` row** (the version is
    either literal or a `version_pin:` reference to an existing pin), `pi-settings-config.sh` composes the settings `packages`
    array from the `scope: fleet` rows by **discovery**, and the installer names no package literally. The one `mutable: true` row
    (`pi_pkg_web_*`, `scope: seat`) is the documented exception — the cockpit self-updates inside a dist-tag — do not "fix" it by

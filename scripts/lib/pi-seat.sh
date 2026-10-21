@@ -390,7 +390,11 @@ hl_pkg_selftest() {
   # 1. corpus: the real SSOT yields rows, and the FLEET half is not empty.
   n="$(seat_pkg_rows 2>/dev/null | wc -l)"
   fleet="$(seat_pkg_rows 2>/dev/null | awk -F'\t' '$3=="fleet"' | wc -l)"
-  if [ "$n" -ge 6 ] && [ "$fleet" -ge 5 ]; then
+  # The floors are the CURRENT owned set, with no slack: the arm's subject is a TRUNCATED read, and a
+  # truncated read yields fewer rows than the file carries. A package leaving the fleet lowers the
+  # floor as a deliberate edit in the same change that deletes its row — an arm that quietly kept the
+  # old number would pass on an inventory someone had cut in half.
+  if [ "$n" -ge 5 ] && [ "$fleet" -ge 4 ]; then
     printf 'ok: package inventory reads — %s rows, %s fleet\n' "$n" "$fleet"
   else
     printf 'NOT CAUGHT: inventory read %s rows / %s fleet\n' "$n" "$fleet"; fails=$((fails + 1))
@@ -467,9 +471,12 @@ hl_pkg_selftest() {
     # `npm:name@$_old` got a spec with trailing blanks. Stripping it is the fix, not a divergence.
     [ "${_old//[[:space:]]/}" = "$_new" ] || { _bad=$((_bad + 1)); [ "$_bad" -le 3 ] && printf 'NOT CAUGHT: cache disagrees with the fork body on %s: fork=[%s] cache=[%s]\n' "$_k" "$_old" "$_new"; }
   done
-  if [ "$_bad" -eq 0 ] && [ "$_nkeys" -ge 20 ]; then
+  # The floor tracks the inventory's own row count (a walk that reads nothing yields single digits);
+  # a package leaving the fleet removes three keys, so the floor sits below the current set rather
+  # than one step above a broken read.
+  if [ "$_bad" -eq 0 ] && [ "$_nkeys" -ge 15 ]; then
     printf 'ok: seat_pkg_val answers like the fork body on %s inventory keys\n' "$_nkeys"
-  elif [ "$_nkeys" -lt 20 ]; then
+  elif [ "$_nkeys" -lt 15 ]; then
     printf 'NOT CAUGHT: the inventory key walk saw only %s keys — the SSOT was not read, not compared\n' "$_nkeys"; fails=$((fails + 1))
   else
     fails=$((fails + _bad))

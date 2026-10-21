@@ -25,9 +25,10 @@
 # seat's package from a sync would be data loss dressed up as hygiene.
 #
 # MODES
-#   --check (default)  OK / DRIFT (names the keys) / MISSING / INVALID. MISSING and INVALID
-#                      exit 1; a DRIFT is report-only unless --strict — the same contract as
-#                      sync-extensions.sh / pi-tui-config.sh.
+#   --check (default)  OK / DRIFT (names the keys) / MISSING / INVALID / NO VERDICT. MISSING and
+#                      INVALID exit 1; a DRIFT is report-only unless --strict — the same contract as
+#                      sync-extensions.sh / pi-tui-config.sh. NO VERDICT means the PROBE broke: the
+#                      seat file was not read, so it is neither a pass nor a verdict about its bytes.
 #   --check --strict   exit 1 on a drift too (gate use; validate-all.sh item 31).
 #   --push             write the owned keys + the composed packages, keep every other key,
 #                      keep a timestamped backup. An UNPARSEABLE file is a REFUSAL.
@@ -36,7 +37,8 @@
 #                      seat placement (e.g. the cockpit's pi-web), not a fleet key.
 #
 # Exit codes: 0 OK / repaired · 1 drift(strict), missing, invalid, refusal ·
-#             2 SKIP — no usable node, so nothing was read (a SKIP is never a pass).
+#             2 SKIP — nothing was read (no usable node, or node died without a verdict line);
+#                 a SKIP is never a pass, and it is never a claim about settings.json.
 #
 # Env (sandbox hooks only): REPO, PI_SETTINGS (default $HOME/.pi/agent/settings.json),
 # PI_NODE (which node — the oldsrv seat runs this over `ssh seat '…'`, a NON-interactive
@@ -114,8 +116,9 @@ while IFS=$'\t' read -r _p_name _p_spec _p_scope; do
   [ "$_p_scope" = fleet ] || continue
   PKG_BASE+=("$_p_spec")
 done < <(seat_pkg_rows "$VERSIONS")
-# Corpus ratchet, not a style rule: a truncated read looks exactly like a small fleet.
-[ "${#PKG_BASE[@]}" -ge 5 ] || { err "fleet inventory yielded ${#PKG_BASE[@]} package(s) from $VERSIONS — a short read is a broken read, not a small fleet"; exit 1; }
+# Corpus ratchet, not a style rule: a truncated read looks exactly like a small fleet. The floor is
+# the fleet set the inventory carries today — a row leaves it only in the change that lowers this.
+[ "${#PKG_BASE[@]}" -ge 4 ] || { err "fleet inventory yielded ${#PKG_BASE[@]} package(s) from $VERSIONS — a short read is a broken read, not a small fleet"; exit 1; }
 # Still needed by the package-pin canary below (the pin wins over whatever the seat carries).
 pin PKG_TUI_V pi_host_tui_npm_version
 
@@ -220,21 +223,36 @@ write_from_scratch() {
 }
 
 # run_node -> STATE / DETAIL / SEATLOCAL
+# A VERDICT MUST EXIST BEFORE IT IS ACTED ON. node's exit status used to be thrown away here, so a
+# node that DIED — a crash, an unreadable SSOT, or the shape that cost this a session: a Windows
+# node.exe reached from a WSL bash (pwsh's `bash` is C:\WINDOWS\system32\bash.exe, the WSL launcher)
+# cannot open a `/mnt/...` path and exits with a stack trace — left STATE empty, and do_check's
+# catch-all then told the operator their settings.json was "not parseable JSON" about a file it had
+# never opened. An empty verdict is now its own loud state: rc 2, the SKIP arm's meaning, because
+# nothing was read. `require_node` cannot catch this class — its probe is `-e process.exit(0)`, which
+# a mis-pathed or half-working node answers happily.
 invoke() {
   # FORK-FREE split (the HD-1135 diet, surviving HD-1118's move): SIX execs per
   # call -- three `printf | sed` pairs -- to read two lines the shell splits itself.
   # Same parse: line 1 = STATE<TAB>DETAIL, line 2 = SEATLOCAL<TAB>names.
-  local out l1 l2
-  out="$(run_node "$1")"
+  local out l1 l2 rc=0
+  out="$(run_node "$1")" || rc=$?
+  if [ -z "$out" ]; then
+    err "NO VERDICT: node (rc $rc) wrote no verdict line — $CONF was NOT read. The node error above is the cause; this is a broken probe, not a broken settings file."
+    STATE="no-verdict"; return 2
+  fi
   l1="${out%%$'\n'*}"; l2="${out#*"$'\n'"}"; l2="${l2%%$'\n'*}"
   STATE="${l1%%$'\t'*}"
   DETAIL="${l1#*$'\t'}"; [ "$DETAIL" = "$l1" ] && DETAIL=""
   SEATLOCAL="${l2#SEATLOCAL$'\t'}"; [ "$SEATLOCAL" = "$l2" ] && SEATLOCAL=""
+  # A verdict line plus a non-zero exit is the verdict's own business (the program exits 0 on every
+  # path it understands); the case arms below are what decides the rc the seat reports.
+  return 0
 }
 
 do_check() {
   require_node || return $?
-  invoke check
+  invoke check || return $?
   case "$STATE" in
     ok)
       info "OK: $CONF carries every repo-owned key of pi-agent/settings-ssot.json"
@@ -253,7 +271,7 @@ do_check() {
 do_push() {
   require_node || return $?
   local stamp _d
-  invoke push
+  invoke push || return $?
   case "$STATE" in
     ok)
       info "in place: every repo-owned key matches ($CONF)"
@@ -269,7 +287,7 @@ do_push() {
   # `date +…`, without the exec — HD-1135)
   printf -v stamp '%(%Y%m%d-%H%M%S)T' -1
   cp -p "$CONF" "$CONF.pre-pi-settings-$stamp" 2>/dev/null || true
-  invoke check
+  invoke check || return $?
   [ "$STATE" = ok ] || { err "wrote $CONF but the keys still read '$STATE' ($DETAIL)"; return 1; }
   info "merged the repo-owned keys into $CONF (backup: ${CONF##*/}.pre-pi-settings-$stamp)"
   [ -n "$SEATLOCAL" ] && info "seat-local package(s), kept: $SEATLOCAL"
@@ -419,6 +437,30 @@ self_test() {
   PI_NODE="$tmp/there-is-no-such-node" PI_SETTINGS="$tmp/rest.json" \
     bash "$SCRIPT_DIR/${BASH_SOURCE[0]##*/}" --check --strict >/dev/null 2>&1 || rc=$?
   if [ "$rc" -eq 2 ]; then info "skip-arm         GREEN (rc 2 = SKIP, not a pass)"; else err "canary: the no-node path returned $rc — a SKIP must be 2"; fails=$((fails+1)); fi
+
+  # 8. a node that answers require_node's probe and THEN dies -> NO VERDICT (rc 2), and never the
+  #    INVALID text. Both halves, because the failure this arm exists for was a FALSE ACCUSATION: an
+  #    rc-blind `invoke` read the empty stdout as "not parseable JSON" about a file it had never
+  #    opened (a Windows node.exe reached from a WSL bash cannot open the POSIX paths and dies with a
+  #    stack trace). So the arm asserts the rc AND the words it must not print — an rc check alone
+  #    would survive a reverted message, and a message check alone would survive a reverted rc.
+  local out8=""
+  printf '#!/bin/sh\nif [ "$#" -le 2 ]; then exit 0; fi\necho "fake-node: the fixture cannot open the SSOT" >&2\nexit 1\n' > "$tmp/dying-node"
+  chmod +x "$tmp/dying-node" 2>/dev/null || true
+  rc=0
+  out8="$(PI_NODE="$tmp/dying-node" PI_SETTINGS="$tmp/rest.json" \
+            bash "$SCRIPT_DIR/${BASH_SOURCE[0]##*/}" --check --strict 2>&1)" || rc=$?
+  if [ "$rc" -ne 2 ]; then
+    err "canary: a node that died without a verdict returned $rc — nothing was read, so it must be 2"; fails=$((fails+1))
+  else
+    case "$out8" in
+      *NO\ VERDICT*) case "$out8" in
+        *INVALID*|*"not parseable"*|*OK:*|*DRIFT*) err "canary: a dead probe still printed a verdict about the seat file"; fails=$((fails+1)) ;;
+        *) info "no-verdict         GREEN (rc 2, and no claim about $CONF)" ;;
+      esac ;;
+      *) err "canary: the dead-probe path printed no NO VERDICT line (got: $(printf '%s' "$out8" | head -1))"; fails=$((fails+1)) ;;
+    esac
+  fi
 
   printf '\nself-test: %s\n' "$([ "$fails" -eq 0 ] && echo "OK — all canaries caught" || echo "$fails canary/canaries NOT caught")"
   return "$fails"

@@ -35,6 +35,21 @@ tags: [ai, pi, agent-harness, harness, spark, llm, settings]
   vault). Never commit the literal and never print its value (CONVENTIONS §6).
 - Reload: `models.json` is re-read every time `/model` is opened in a running session; a new session
   picks it up at start. `settings.json` is read at start → restart pi.
+- **Which shell runs the harness on the Win11 seat: a bare `bash` is not one binary.** Every harness
+  command is written `bash scripts/...`, and on a Windows-native PATH that name is
+  `C:\WINDOWS\system32\bash.exe`, the WSL launcher — the PATH names `C:\WINDOWS\system32` and, for Git,
+  only `Git\cmd`, while Git's bash sits in `Git\bin`, which no PATH entry adds. WSL keeps the Windows
+  working directory (`D:\x` arrives as `/mnt/d/x`), so the clone and its SSOT resolve and the script then
+  reads **that distro's** `$HOME` and **that distro's** node: the finding lines describe a file that is not
+  this seat's, and a Windows `node.exe` reached over WSL interop cannot open a `/mnt/...` path at all, so a
+  probe can die and have its death reported as a settings-file problem. [`../scripts/harness/seat-bash-build.sh`](../scripts/harness/seat-bash-build.sh)
+  names the build for PowerShell hosts — a profile block, the same shape by which the ssh-build plane names
+  which ssh loads the fleet's keys — and proves the outcome behaviourally: ask a profile-loaded shell, with
+  the PATH rebuilt from the registry rather than inherited, what `bash -c 'uname -s'` answers; `MINGW*` is
+  the seat, `Linux` is the launcher. Git-Bash needs no block (it *is* the Windows seat), the Debian seats
+  have one bash and cannot reach this, and **cmd.exe is not covered** — a profile cannot reach it, so run the
+  harness from Git-Bash or pwsh there. Changing the WSL default distro is not the repair: it would make a
+  stray WSL bash report another seat's verdict under the `win11` label, and a false green is worse than a red.
 - **Where the pi BINARY lives — two layouts, one PATH.** `npm -g`
   installs it as a symlink at `<pi-node prefix>/bin/pi` next to the pinned node (what
   [`../scripts/harness/install-pi-debian.sh`](../scripts/harness/install-pi-debian.sh) does); pi's own installer writes a
@@ -143,7 +158,12 @@ pinned and owned: the plane fails (`--check --strict`) when a seat is missing on
 the pin — an arm of `--self-test` proves that half, and another proves the cockpit's pi-web still survives
 the same write. What stays seat-local is exactly the placement a fleet key must not own: the cockpit's
 `@ygncode/pi-web` (`--with-package`). A seat-local entry is retired on the seat with `pi remove` — the sync
-never deletes one.
+never deletes one. **Dropping a package from the fleet demotes it to seat-local, it does not remove it:**
+deleting its `pi_pkg_*` rows stops every seat path from placing it again (the settings plane composes
+`packages` from those rows and the WSL installer installs exactly the `scope: fleet` set), and each seat that
+still carries the name keeps it and prints it — so a fleet removal is two steps, the row deletion here and
+`pi remove npm:<name>` on each seat. A removal that only did the first step leaves the package installed,
+declared in no file the machine can read, and green: the shape this paragraph exists to refuse.
 
 **The settings plane converges the declaration, not the bytes.** `--push` writes the package entries into
 `settings.json` and runs no installer, so a seat that is already installed and merely gains a fleet row reads

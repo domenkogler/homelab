@@ -35,7 +35,8 @@
 #                      invariant, including "a file we cannot parse is not overwritten".
 #
 # Exit codes: 0 OK / repaired · 1 drift(strict), missing, invalid, or a refusal ·
-#             2 SKIP — no node on PATH, so NOTHING was read (a SKIP is never a pass).
+#             2 SKIP — NOTHING was read: no node on PATH, or node died without printing a verdict
+#                 line (a SKIP is never a pass, and never a claim about the file's bytes).
 #
 # Env (sandbox hooks only): REPO, PI_TUI_CONFIG (default $HOME/.pi/agent/open-tui.json),
 # PI_TUI_NODE (which node to run; the self-test uses it to prove the SKIP arm).
@@ -106,7 +107,12 @@ require_node() {
 }
 
 # --- the read: print "state" and nothing else ---------------------------------
-# ok | missing | drift | invalid  (invalid = unreadable JSON, not a missing key)
+# ok | missing | drift | invalid | no-verdict
+# `no-verdict` is NOT `invalid`: an rc-blind read used to answer "not parseable JSON" for a node that
+# had simply died (a crash, an unreadable path, or the shape that cost the Win11 seat a session — a
+# Windows node.exe reached from a WSL bash, which cannot open the POSIX paths and exits with a stack
+# trace). Accusing the operator's config of the probe's own death is the failure this line exists to
+# prevent; nothing was read, so nothing may be claimed about the file.
 read_state() {
   local out
   out="$("$NODE" -e '
@@ -117,8 +123,9 @@ read_state() {
     try { c = JSON.parse(fs.readFileSync(p, "utf8")); }
     catch { console.log("invalid"); process.exit(0); }
     console.log(c && c.footerSegments && c.footerSegments.hostname === true ? "ok" : "drift");
-  ' "$CONF" 2>/dev/null)" || { echo "invalid"; return; }
-  printf '%s' "${out:-invalid}"
+  ' "$CONF")" || { echo "no-verdict"; return; }        # node died: NO verdict exists (its own error, printed above, is the cause)
+  [ -n "$out" ] || { printf 'no-verdict'; return 0; }   # a silent 0 read nothing either
+  printf '%s' "$out"
 }
 
 # --- the write: ONE key, everything else preserved ----------------------------
@@ -151,14 +158,19 @@ do_check() {
     drift)   err "DRIFT: $CONF has $KEY_PATH not true — the seat footer is anonymous (docs/harness-pi-seat-identity.md §5a)"
              [ "$STRICT" -eq 1 ] && return 1
              info "reported, not failed (add --strict for the gate form)"; return 0 ;;
-    *)       err "INVALID: $CONF is not parseable JSON — fix it by hand; this script will NOT rewrite a file it cannot read"
+    invalid) err "INVALID: $CONF is not parseable JSON — fix it by hand; this script will NOT rewrite a file it cannot read"
              return 1 ;;
+    *)       err "NO VERDICT: node returned no verdict line — $CONF was NOT read; a broken probe, not a broken config file (a node error above, if any, is the cause)"
+             return 2 ;;
   esac
 }
 
 do_push() {
   require_node || return $?
   local st; st="$(read_state)"
+  # NEVER write over an unread file: `missing` is the only empty-file state this writes into, and a
+  # probe that died must not be "fixed" by a write.
+  [ "$st" = "no-verdict" ] && { err "NO VERDICT: nothing was read, so nothing is written to $CONF"; return 2; }
   [ "$st" = "ok" ] && { info "in place: $KEY_PATH is true"; return 0; }
   if [ "$st" = "invalid" ]; then
     err "REFUSAL: $CONF does not parse — refusing to overwrite it (fix the JSON, then --push)"
@@ -251,6 +263,34 @@ self_test() {
     [ "$rc" -ne 2 ] && info "pinned-node      GREEN (the seat prefix is read when PATH is bare)" \
       || { err "canary: a bare-PATH leg SKIPPED although the pinned prefix holds node (HD-446)"; fails=$((fails+1)); }
   fi
+
+  # 5c. a node that ANSWERS require_node's probe and THEN dies -> rc 2 NO VERDICT, and the words
+  #     "not parseable" must not appear. The accusation this arm holds down once sent an operator to
+  #     fix a file the script had never opened (an rc-blind read mapped a dead node to `invalid`).
+  #     Both halves — the rc AND the words — plus the write guard: a probe that died may not "fix" a
+  #     file it has not read.
+  printf '#!/bin/sh\nif [ "$#" -le 2 ]; then exit 0; fi\necho "fake-node: the fixture cannot open the file" >&2\nexit 1\n' > "$tmp/dying-node"
+  chmod +x "$tmp/dying-node" 2>/dev/null || true
+  rc=0; out5c=""
+  out5c="$(PI_TUI_NODE="$tmp/dying-node" PI_TUI_CONFIG="$tmp/rest.json" \
+            bash "$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")" --check --strict 2>&1)" || rc=$?
+  if [ "$rc" -ne 2 ]; then
+    err "canary: a node that died without a verdict returned $rc — nothing was read, so it must be 2"; fails=$((fails+1))
+  else
+    case "$out5c" in
+      *NO\ VERDICT*) case "$out5c" in
+        *INVALID*|*"not parseable"*|*OK:*|*DRIFT*) err "canary: a dead probe still printed a verdict about $CONF"; fails=$((fails+1)) ;;
+        *) info "no-verdict         GREEN (rc 2, and no claim about the file)" ;;
+      esac ;;
+      *) err "canary: the dead-probe path printed no NO VERDICT line"; fails=$((fails+1)) ;;
+    esac
+  fi
+  cp -p "$tmp/rest.json" "$tmp/rest5c.before" 2>/dev/null || : > "$tmp/rest5c.before"
+  PI_TUI_NODE="$tmp/dying-node" PI_TUI_CONFIG="$tmp/rest.json" \
+    bash "$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")" --push >/dev/null 2>&1 || rc=$?
+  cmp -s "$tmp/rest5c.before" "$tmp/rest.json" \
+    && info "no-verdict-write   GREEN (a probe that died wrote nothing)" \
+    || { err "canary: --push wrote $CONF although node had died"; fails=$((fails+1)); }
 
   printf '\nself-test: %s\n' "$([ "$fails" -eq 0 ] && echo "OK — all canaries caught" || echo "$fails canary/canaries NOT caught")"
   return "$fails"

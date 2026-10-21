@@ -33,6 +33,8 @@ decisions taken since the domain existed.
 
 | Subject | Status | Why |
 |---------|--------|-----|
+| `@ogulcancelik/pi-ssh-tools` | dropped | Owner runs no ssh from a seat |
+| `@season179/pi-worktree` | dropped | Owner runs git worktrees by hand, not by command |
 | The harness as an unprefixed cross-cutting doc | rejected | Harness candidates already carry a reject history |
 | The subagent payload as a second settings-plane target | rejected | Coverage comes free in the matrix; a second target escapes it |
 | The git identity as a pi-seat-sync plane | rejected | Own concern with own scripts under `scripts/git/`; the seat matrix stays out of it |

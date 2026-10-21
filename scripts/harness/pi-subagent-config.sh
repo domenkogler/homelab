@@ -38,7 +38,8 @@
 #   --self-test        sandboxed canaries; both halves of every rule above
 #
 # Exit codes: 0 OK / repaired · 1 drift(strict), missing, invalid, refusal ·
-#             2 SKIP — no usable node, so nothing was read.
+#             2 SKIP — nothing was read: no usable node, or node died without a verdict line
+#                 (a SKIP is never a pass, and never a claim about the payload file's bytes).
 #
 # Env (sandbox hooks only): REPO, PI_SUBAGENT_CONF (default
 # $HOME/.pi/agent/extensions/subagent/config.json), PI_NODE.
@@ -147,16 +148,28 @@ run_node() {
   ' "$SSOT" "$CONF"
 }
 invoke() {
-  local out l1
-  out="$(run_node)"
+  # An EMPTY verdict is its own state, not `invalid`. node's exit status used to be dropped here, so
+  # a node that died after answering require_node's probe — the shape a WSL bash reaches when pwsh's
+  # `bash` is C:\WINDOWS\system32\bash.exe and the Windows node.exe behind it cannot open the POSIX
+  # paths — left STATE empty, and do_check's catch-all reported "not parseable JSON" about a file it
+  # had never opened. rc 2 = nothing was read.
+  local out l1 rc=0
+  out="$(run_node)" || rc=$?
+  if [ -z "$out" ]; then
+    err "NO VERDICT: node (rc $rc) wrote no verdict line — $CONF was NOT read; a broken probe, not a broken payload file"
+    STATE="no-verdict"; return 2
+  fi
   l1="${out%%$'\n'*}"
   STATE="${l1%%$'\t'*}"
   DETAIL="${l1#*$'\t'}"; [ "$DETAIL" = "$l1" ] && DETAIL=""
+  # Explicit 0: the `[ … ] &&` above is the last command and is FALSE for a clean `ok` verdict, and
+  # do_check/do_push now branch on invoke's rc — a verdict must not arrive with a failed status.
+  return 0
 }
 
 do_check() {
   require_node || return $?
-  invoke
+  invoke || return $?
   case "$STATE" in
     ok)      info "OK: $CONF carries the _subagentConfig payload of pi-agent/settings-ssot.json"
              # Honest about the one thing the compare deliberately does not look at: prose only.
@@ -166,7 +179,8 @@ do_check() {
              [ "$STRICT" -eq 1 ] && return 1
              info "reported, not failed (add --strict for the gate form; --push converges)"; return 0 ;;
     missing) err "MISSING: no $CONF — the subagent payload is not installed (run --push, or an install-pi-*.sh)"; return 1 ;;
-    *)       err "INVALID: $CONF is not parseable JSON — fix it by hand; this script will not rewrite a file it cannot read"; return 1 ;;
+    invalid) err "INVALID: $CONF is not parseable JSON — fix it by hand; this script will not rewrite a file it cannot read"; return 1 ;;
+    *)       err "NO VERDICT: the compare returned no state — $CONF was NOT read, so nothing here is a verdict about it"; return 2 ;;
   esac
 }
 
@@ -177,7 +191,7 @@ do_push() {
   # whether the target directory must exist. `ok` with the `_note` detail means the functional
   # payload is already right but the PROSE lags — and --push writes the WHOLE payload, so it
   # refreshes the note anyway. Only a byte-for-byte equal file is left alone (no spurious backup).
-  invoke
+  invoke || return $?
   case "$STATE" in
     ok)      [ -n "$DETAIL" ] || { info "in place: $CONF carries the _subagentConfig payload ($CONF)"; return 0; } ;;
     invalid) err "REFUSAL: $CONF does not parse — refusing to overwrite it"; return 1 ;;
@@ -246,6 +260,33 @@ self_test() {
   PI_NODE="$tmp/there-is-no-such-node" PI_SUBAGENT_CONF="$tmp/good.json" \
     bash "$SCRIPT_DIR/${BASH_SOURCE[0]##*/}" --check --strict >/dev/null 2>&1 || rc=$?
   if [ "$rc" -eq 2 ]; then info "skip-arm         GREEN (rc 2 = SKIP, not a pass)"; else err "canary: the no-node path returned $rc — a SKIP must be 2"; fails=$((fails+1)); fi
+  # 5b. a node that answers require_node's probe and THEN dies -> rc 2 NO VERDICT, and never the
+  #     INVALID text. An rc-blind `invoke` mapped a dead node to "not parseable JSON" — an accusation
+  #     about a file the script never opened — so this arm asserts the rc AND the words it must not
+  #     print, and that --push wrote nothing in that state (CONVENTIONS §6: both halves).
+  printf '#!/bin/sh\nif [ "$#" -le 2 ]; then exit 0; fi\necho "fake-node: the fixture cannot open the SSOT" >&2\nexit 1\n' > "$tmp/dying-node"
+  chmod +x "$tmp/dying-node" 2>/dev/null || true
+  local _o5=""
+  rc=0
+  _o5="$(PI_NODE="$tmp/dying-node" PI_SUBAGENT_CONF="$tmp/good.json" \
+          bash "$SCRIPT_DIR/${BASH_SOURCE[0]##*/}" --check --strict 2>&1)" || rc=$?
+  if [ "$rc" -ne 2 ]; then
+    err "canary: a node that died without a verdict returned $rc — nothing was read, so it must be 2"; fails=$((fails+1))
+  else
+    case "$_o5" in
+      *NO\ VERDICT*) case "$_o5" in
+        *INVALID*|*"not parseable"*|*OK:*|*DRIFT*) err "canary: a dead probe still printed a verdict about the payload file"; fails=$((fails+1)) ;;
+        *) info "no-verdict         GREEN (rc 2, no claim about the file)" ;;
+      esac ;;
+      *) err "canary: the dead-probe path printed no NO VERDICT line"; fails=$((fails+1)) ;;
+    esac
+  fi
+  cp -p "$tmp/good.json" "$tmp/good5.before" 2>/dev/null || : > "$tmp/good5.before"
+  PI_NODE="$tmp/dying-node" PI_SUBAGENT_CONF="$tmp/good.json" \
+    bash "$SCRIPT_DIR/${BASH_SOURCE[0]##*/}" --push >/dev/null 2>&1 || true
+  cmp -s "$tmp/good5.before" "$tmp/good.json" \
+    && info "no-verdict-write   GREEN (a probe that died wrote nothing)" \
+    || { err "canary: --push wrote $CONF although node had died"; fails=$((fails+1)); }
   # 6. THE NOTE CLASS (HD-1119(a), measured 2026-10-19): a doc path lives inside `_subagentConfig._note`
   #    and the plane byte-compared the payload, so a PROSE-ONLY rename in the docs tree reddened the
   #    `subagent` plane on two seats whose functional values were identical. Both halves, per

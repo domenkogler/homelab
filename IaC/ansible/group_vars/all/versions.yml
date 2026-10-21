@@ -591,7 +591,7 @@ nerd_fonts_family: "JetBrainsMono"             # the release asset name AND the 
 # scope:fleet rows — DISCOVERY, not a copy: adding a fleet package is one row here and every seat
 # gets it on the next settings-plane run.
 #
-# The four `fleet` rows are fleet infrastructure, not seat-local extras: a version written HERE
+# The `scope: fleet` rows are fleet infrastructure, not seat-local extras: a version written HERE
 # is what lets the from-zero path and every seat converge the same package, instead of a name in
 # one installer's `pi install` list — which is how a package reached a seat only when a session
 # happened to hand-install it. pi-subagents is the clearest case: it is the thing that runs sessions.
@@ -612,13 +612,12 @@ pi_pkg_subagents_name: "pi-subagents"
 pi_pkg_subagents_version_pin: pi_host_subagents_npm_version
 pi_pkg_subagents_scope: "fleet"
 
-pi_pkg_worktree_name: "@season179/pi-worktree"
-pi_pkg_worktree_version: "26.7.1"              # npm dist-tag `latest` (registry-verified, `npm view @season179/pi-worktree version`) — the extension behind the /worktree-* commands
-pi_pkg_worktree_scope: "fleet"
-
-pi_pkg_ssh_tools_name: "@ogulcancelik/pi-ssh-tools"
-pi_pkg_ssh_tools_version: "0.1.6"              # npm dist-tag `latest` (registry-verified, `npm view @ogulcancelik/pi-ssh-tools version`)
-pi_pkg_ssh_tools_scope: "fleet"
+# `@season179/pi-worktree` and `@ogulcancelik/pi-ssh-tools` carry no rows: the owner ruled them off
+# the fleet, and a package with no row here is placed on NO seat by any seat path (the settings
+# plane composes from these rows, and `install-pi-wsl.sh` installs exactly `scope: fleet` out of
+# them). A seat that still carries one of the names reports it as seat-local and KEEPS it — the
+# plane never deletes a package it does not own — so the removal itself is an operator `pi remove`
+# on each seat. Adding a package back is a row here, not an edit in a script.
 
 pi_pkg_deepseek_name: "pi-deepseek-optimized"
 pi_pkg_deepseek_version_pin: pi_host_deepseek_npm_version

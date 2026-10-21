@@ -1166,6 +1166,22 @@ blk_seat_ssh_check() {
   esac
 }
 
+# The seat's BASH BUILD plane: the same HD-1128 defect on the other binary. A bare `bash` on a
+# Windows-native PATH is the WSL launcher, and every harness command in this repo is written
+# `bash scripts/...` — so a seat can read the right repo through /mnt and the WRONG $HOME, and a
+# settings-plane finding there describes a file that is not this seat's. rc 2 is a boundary (not
+# Windows here, no Git bash resolves, or no shell loads a profile), never a green.
+blk_seat_bash_check() {
+  local rc_sbash=0
+  bash scripts/harness/seat-bash-build.sh --check --strict || rc_sbash=$?
+  case "$rc_sbash" in
+    0) echo "OK: a profile-loaded shell on this seat resolves Git-Bash for a bare bash (not the WSL launcher)" ;;
+    2) echo "SKIP: the bash-build plane owns only the win11 seat's PowerShell profiles (or no shell here loads a profile) — deploy on that seat with: bash scripts/harness/seat-bash-build.sh --push" ;;
+    3) echo "FAIL: the seat's bash-build block was hand-edited, duplicated, or is shadowed by another bash definition — reconcile it, then: bash scripts/harness/seat-bash-build.sh --push"; exit 1 ;;
+    *) echo "FAIL: this seat's bash-build block is missing or stale, or a profile-loaded shell still resolves the WSL launcher (which runs the harness in another distro's HOME) — run: bash scripts/harness/seat-bash-build.sh --push"; exit 1 ;;
+  esac
+}
+
 # --------------------------------------------------------------------------- #
 # The queue. Longest items FIRST — the pool launches in this order, so putting #
 # the multi-second items here is the scheduling, not a priority system.        #
@@ -1260,6 +1276,7 @@ item_x "arms sandboxed installers and a canary package name across every probe l
 item_x "spawns a real tmux per canary to prove the config TAKES EFFECT: where tmux is absent it can print no verdict at all (CONVENTIONS §6), so a pre-commit loop buys only waiting here" "install-tmux-conf.sh --self-test (HD-1085: config == repo AND actually takes effect)" bash scripts/harness/install-tmux-conf.sh --self-test
 item_x "seat deploy state, not a tree check: it converges this host's ~/.tmux.conf, and where tmux is absent it prints SKIP either way" "install-tmux-conf.sh --check --strict (seat tmux drift)" blk_tmux_check
 item_x "seat deploy state, not a tree check: it asks a profile-loaded PowerShell on THIS seat which ssh binary answers (win11 only)" "seat-ssh-build.sh --check --strict (HD-1128: which ssh build a seat shell resolves)" blk_seat_ssh_check
+item_x "seat deploy state, not a tree check: it asks a profile-loaded PowerShell on THIS seat what a bare `bash` IS (win11 only; the WSL launcher is not a bash seat)" "seat-bash-build.sh --check --strict (which bash build a seat shell resolves)" blk_seat_bash_check
 item_x "seat deploy state, not a tree check: the pi build against pi_host_npm_version, converged by pi-seat-sync.sh --push where pi is installed" "pi-self-update.sh --check --strict (the pi build vs pi_host_npm_version)" blk_pi_self_check
 item_x "seat deploy state, not a tree check: it reads and can rewrite ~/.pi/agent/settings.json on this host" "pi-settings-config.sh --check --strict (settings.json vs settings-ssot.json)" blk_pi_settings_check
 item_x "seat deploy state, not a tree check: the pi-open-tui footer key in this host's ~/.pi/agent/open-tui.json" "pi-tui-config.sh --check --strict (open-tui.json footer key)" blk_pi_tui_check
