@@ -25,8 +25,10 @@ it, **and a pin reaches no seat**: the seat legs (`pi-settings-config.sh --push`
 version, run FROM each seat) are in [todo.md](todo.md)'s **HD-1180** tail. ✅ **On this seat (`oldsrv`) the check PASSES (2026-10-21)** —
 `pi list` reads `npm:pi-subagents@0.80.0` under pi 1.3.0, and ONE `async: true` launch yielded a child session file, ran
 to completion and returned its result to the parent: **O11 is met HERE, so lanes launched from oldsrv run `async: true`.**
-⚠ The verdict is **per seat** — `win11` and `wsl` still owe their install and their own launch, and a pass on oldsrv
-certifies only oldsrv. On any seat where the check has not passed, lanes run **foreground-sequential, one at a time**: a stated DEVIATION from O11 that ends seat by seat as **HD-1180**'s fix lands, never a new rule, and never to be
+⚠ The verdict is **per seat**, and the legs are now uneven: **`wsl`** has its declaration pushed green and
+`pi list` reading `npm:pi-subagents@0.80.0`, so **one `async: true` launch there is the whole remaining act**;
+**`win11`** wrote its `settings.json` but the plane's read-back came back empty (HD-1184), so its declaration is
+unwitnessed and its launch is owed too. A pass on oldsrv certifies only oldsrv. On any seat where the check has not passed, lanes run **foreground-sequential, one at a time**: a stated DEVIATION from O11 that ends seat by seat as **HD-1180**'s fix lands, never a new rule, and never to be
 written into [docs/orchestration.md](docs/orchestration.md) or a brief as the contract. ⚠ **On the laptop, grade from the WSL
 Debian clone and not the Win11 shell** — three gate items are red or blind on that seat (**HD-1177**), so a Win11
 green is a *partial* result and must be reported as one, never as the gate. **Pushing is not that station's exclusive
@@ -271,7 +273,11 @@ the row→brief index is [todo-table.md](todo-table.md) §B0. A brief is named f
    no brief claims the row — it is in the unbriefed list below.) → [prompt-media-arrs.md](prompt-media-arrs.md)
 5. ⏳ **Cockpit, the coding seats, grants** — the cluster (**HD-361 · 411 · 442 · 443 · 444 · 465 · 495 · 1085 ·
    1110 · 1138 · 1139 · 1140 · 1161 · **1173**) with its owner-gated tails intact, plus **HD-1180** (unbriefed — its AI
-   half is one pin line in `IaC/ansible/group_vars/all/versions.yml`, its acceptance half is a hand on each seat). **HD-1173 is registered and
+   half is one pin line in `IaC/ansible/group_vars/all/versions.yml`, its acceptance half is a hand on each seat), plus **HD-1184**
+   (unbriefed — the win11 `settings` leg comes back with an **empty** verdict, so the leg fails AND a bare `--check` there calls a
+   good `settings.json` corrupt; ⛔ never hand-edit that file to silence it. Its ⏳(1) is three read-only probes run **FROM** the
+   win11 seat — `--check` twice, a `process.exit(0)` pipe byte-count canary, and Git-Bash vs pwsh — and the fix waits on which one
+   answers. Pull the DRIVER clone first: at `main~2` the pre-flight calls two current seats `STALE-CLONE`). **HD-1173 is registered and
    UNIMPLEMENTED** — the parked `dsh` + `pi-dev` harness IaC is to be removed and `pi-dev.ts.kogler.si` made a
    second name on the existing `pi-oldsrv-backend` (`pi-oldsrv.ts.kogler.si` stays canonical); only the row landed,
    so its four lanes and its live tails are all still open. Sequence note UPDATED: the fleet pi pin moved to 1.3.0 on 2026-10-21 with **both** vars moved together (`pi_host_npm_version` and `pi_dev_npm_version` MUST stay equal), so what this row still owes on the pin side is the deletion half — dropping `pi_dev_npm_version` and its `image-pin-probe.py` row is what leaves the repo with one pi pin instead of two. **The laptop↔oldsrv coding leg closed
