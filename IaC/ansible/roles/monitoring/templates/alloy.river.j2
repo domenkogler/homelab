@@ -443,7 +443,7 @@ prometheus.scrape "blackbox_exporter" {
 // target pattern: __address__ = the blackbox exporter, params.target = the probed URL.
 // (The old config used the URL as __address__ → Alloy rejected it as an invalid
 // hostname, so no http/2xx probe ever ran → Service Reachability empty.)
-// `instance` = the probed URL, which is what the Service Reachability board renames to "Target".
+// `instance` = the probed URL, which is the column the Service Reachability board titles Target.
 // ⛔ `ha.kogler.si` is NOT in this list and must not come back: its SSOT entry is
 // `{name: ha.kogler.si, internal: true, ip: ha_vip, tailnet: node}` — no public record — and this box
 // resolves with the public pair, so `getent hosts ha.kogler.si` here is rc 2 and blackbox answers
