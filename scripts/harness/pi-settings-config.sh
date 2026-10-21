@@ -29,6 +29,9 @@
 #                      INVALID exit 1; a DRIFT is report-only unless --strict — the same contract as
 #                      sync-extensions.sh / pi-tui-config.sh. NO VERDICT means the PROBE broke: the
 #                      seat file was not read, so it is neither a pass nor a verdict about its bytes.
+#                      The gate is the STATE WORD, not the byte count — a record that arrives with text
+#                      but with no state word in its first line (a lost head, a truncated pipe read) is
+#                      NO VERDICT too, not a state (docs/harness-pi-seats.md §5).
 #   --check --strict   exit 1 on a drift too (gate use; validate-all.sh item 31).
 #   --push             write the owned keys + the composed packages, keep every other key,
 #                      keep a timestamped backup. An UNPARSEABLE file is a REFUSAL.
@@ -37,8 +40,9 @@
 #                      seat placement (e.g. the cockpit's pi-web), not a fleet key.
 #
 # Exit codes: 0 OK / repaired · 1 drift(strict), missing, invalid, refusal ·
-#             2 SKIP — nothing was read (no usable node, or node died without a verdict line);
-#                 a SKIP is never a pass, and it is never a claim about settings.json.
+#             2 SKIP — nothing was read (no usable node; node died without a verdict line; or the
+#                 verdict it printed carried no state word). A SKIP is never a pass, and it is never a
+#                 claim about settings.json.
 #
 # Env (sandbox hooks only): REPO, PI_SETTINGS (default $HOME/.pi/agent/settings.json),
 # PI_NODE (which node — the oldsrv seat runs this over `ssh seat '…'`, a NON-interactive
@@ -185,11 +189,18 @@ run_node() {
       console.log("SEATLOCAL\t" + names(seatLocal(have)));
     };
 
-    if (!fs.existsSync(confPath)) { report("missing", "", []); process.exit(0); }
+    // A VERDICT ENDS THIS PROGRAM BY BREAKING OUT, never by process.exit(): `process.exit()` discards
+    // stdout bytes still sitting in the buffer when stdout is a PIPE, and a command substitution is
+    // exactly a pipe — a verdict whose bytes never landed is a verdict that never happened, which is
+    // the half docs/harness-pi-seats.md §5 states and this program used to violate. Top-level `return`
+    // is illegal under `node -e`, so the exit sites end a labelled block instead: same one statement,
+    // and the process then drains stdout and exits 0 on its own.
+    VERDICT: {
+    if (!fs.existsSync(confPath)) { report("missing", "", []); break VERDICT; }
     let cur;
     try { cur = JSON.parse(fs.readFileSync(confPath, "utf8")); }
-    catch { report("invalid", "", []); process.exit(0); }
-    if (!isObj(cur)) { report("invalid", "", []); process.exit(0); }
+    catch { report("invalid", "", []); break VERDICT; }
+    if (!isObj(cur)) { report("invalid", "", []); break VERDICT; }
     const have = Array.isArray(cur.packages) ? cur.packages : [];
 
     const bad = owned.filter((k) => !eq(cur[k], ssot[k]));
@@ -198,14 +209,15 @@ run_node() {
     const badPkgs = pkgs.filter((src) => !have.some((h) => nameOf(h) === nameOf(src) && eq(h, src)));
     const detail = [...bad, ...(badPkgs.length ? ["packages"] : [])].join(",");
 
-    if (action === "check") { report(detail ? "drift" : "ok", detail, have); process.exit(0); }
+    if (action === "check") { report(detail ? "drift" : "ok", detail, have); break VERDICT; }
 
     const out = { ...cur };
     for (const k of owned) out[k] = ssot[k];
     out.packages = [...pkgs, ...seatLocal(have)];      // owned first, seat-local preserved after
-    if (eq(cur, out)) { report("ok", "", have); process.exit(0); }
+    if (eq(cur, out)) { report("ok", "", have); break VERDICT; }
     fs.writeFileSync(confPath, JSON.stringify(out, null, 2) + "\n", "utf8");
     report("changed", detail, have);
+    }
   ' "$SSOT" "$CONF" "$action" "${PKG_BASE[@]}" ${EXTRA_PKGS[@]+"${EXTRA_PKGS[@]}"}
 }
 
@@ -235,6 +247,12 @@ invoke() {
   # FORK-FREE split (the HD-1135 diet, surviving HD-1118's move): SIX execs per
   # call -- three `printf | sed` pairs -- to read two lines the shell splits itself.
   # Same parse: line 1 = STATE<TAB>DETAIL, line 2 = SEATLOCAL<TAB>names.
+  # BYTES ARE NOT A VERDICT (docs/harness-pi-seats.md §5). The empty test alone was the half that
+  # stayed: a record that arrives WITH bytes but with no state word in its first line — a
+  # lost head, a truncated pipe read,
+  # anything — used to reach the case arms as STATE="", which do_check printed as "not parseable
+  # JSON" and do_push printed as "wrote … but the keys still read '' ()" about a file it had not
+  # written. So the gate is the VOCABULARY, not the byte count: no recognised state word = no verdict.
   local out l1 l2 rc=0
   out="$(run_node "$1")" || rc=$?
   if [ -z "$out" ]; then
@@ -243,8 +261,18 @@ invoke() {
   fi
   l1="${out%%$'\n'*}"; l2="${out#*"$'\n'"}"; l2="${l2%%$'\n'*}"
   STATE="${l1%%$'\t'*}"
+  case "$STATE" in
+    ok|drift|changed|missing|invalid) : ;;
+    *) err "NO VERDICT: the compare's first line carried no state word (got: '${l1:0:60}') — $CONF was NOT read. A lost or truncated verdict is a failed read, never a state: do NOT edit $CONF from this line."
+       STATE="no-verdict"; return 2 ;;
+  esac
   DETAIL="${l1#*$'\t'}"; [ "$DETAIL" = "$l1" ] && DETAIL=""
-  SEATLOCAL="${l2#SEATLOCAL$'\t'}"; [ "$SEATLOCAL" = "$l2" ] && SEATLOCAL=""
+  # SEATLOCAL by PREFIX, not by position: a record is read for what its lines ARE, so a record that
+  # arrives out of order (or with a line lost) cannot pass as a different one.
+  SEATLOCAL=""
+  case $'\n'"$out" in
+    *$'\n'"SEATLOCAL"$'\t'*) l2="${out#*$'\n'SEATLOCAL$'\t'}"; SEATLOCAL="${l2%%$'\n'*}" ;;
+  esac
   # A verdict line plus a non-zero exit is the verdict's own business (the program exits 0 on every
   # path it understands); the case arms below are what decides the rc the seat reports.
   return 0
@@ -264,7 +292,11 @@ do_check() {
       [ "$STRICT" -eq 1 ] && return 1
       info "reported, not failed (add --strict for the gate form; --push converges)"; return 0 ;;
     missing) err "MISSING: no $CONF — the seat has no harness settings (run --push, or an install-pi-*.sh)" >&2; return 1 ;;
-    *)       err "INVALID: $CONF is not parseable JSON — fix it by hand; this script will not rewrite a file it cannot read"; return 1 ;;
+    invalid) err "INVALID: $CONF is not parseable JSON — fix it by hand; this script will not rewrite a file it cannot read"; return 1 ;;
+    # The fall-through is split (docs/harness-pi-seats.md §5): an accusation of corrupt JSON is owed
+    # only by a path that READ the file. Anything else here means the probe never produced a
+    # state word, so it says so.
+    *)       err "NO VERDICT: the compare produced no state — $CONF was NOT read, so nothing on this line is a verdict about it (a node or pipe error above is the cause)"; return 2 ;;
   esac
 }
 
@@ -282,12 +314,20 @@ do_push() {
              mkdir -p "$_d" 2>/dev/null || true
              write_from_scratch || { err "could not write $CONF"; return 1; }
              info "created $CONF from pi-agent/settings-ssot.json"; return 0 ;;
+    changed) : ;;   # the ONLY state in which a write happened (the program writes, then reports)
+    # The read-back used to be reached from ANY state, so a probe that produced no state word
+    # printed "wrote $CONF" for a file nothing had touched. The read-back is now reached by an
+    # actual write and by nothing else.
+    *)       err "NO VERDICT: nothing was read, so nothing is written to $CONF"; return 2 ;;
   esac
   # a write happened: keep the pre-change file nameable (`printf %(...)T` = the same stamp as
   # `date +…`, without the exec — HD-1135)
   printf -v stamp '%(%Y%m%d-%H%M%S)T' -1
   cp -p "$CONF" "$CONF.pre-pi-settings-$stamp" 2>/dev/null || true
-  invoke check || return $?
+  # A lost read-back is named as such (docs/harness-pi-seats.md §5): the write DID happen, so this is a
+  # failed verification (rc 1), not a SKIP — and "the keys still read ''" would describe a
+  # state nobody computed.
+  invoke check || { err "wrote $CONF, but the read-back produced NO VERDICT — $CONF is unverified; run --check before trusting this line"; return 1; }
   [ "$STATE" = ok ] || { err "wrote $CONF but the keys still read '$STATE' ($DETAIL)"; return 1; }
   info "merged the repo-owned keys into $CONF (backup: ${CONF##*/}.pre-pi-settings-$stamp)"
   [ -n "$SEATLOCAL" ] && info "seat-local package(s), kept: $SEATLOCAL"
@@ -460,6 +500,114 @@ self_test() {
       esac ;;
       *) err "canary: the dead-probe path printed no NO VERDICT line (got: $(printf '%s' "$out8" | head -1))"; fails=$((fails+1)) ;;
     esac
+  fi
+
+  # 9. A VERDICT WHOSE HEAD IS LOST is a failed read, never a state (docs/harness-pi-seats.md §5,
+  #    reproduced on the win11 seat 2026-10-21). The record arrives WITH bytes — so "did node
+  #    print anything?" answers yes — but its first line carries no state word. The parser used
+  #    to hand that to the case arms: --check printed "INVALID: … is not parseable JSON — fix it
+  #    by hand" and --push printed "wrote … but the
+  #    keys still read '' ()" about a file it had NOT written. Three halves, all asserted: the rc, the
+  #    words it must NOT print, and that a push in that state touches nothing.
+  printf '#!/bin/sh\nif [ "$#" -le 2 ]; then exit 0; fi\nprintf "\\nSEATLOCAL\\tlost-head-fixture\\n"\nexit 0\n' > "$tmp/headlost-node"
+  chmod +x "$tmp/headlost-node" 2>/dev/null || true
+  local _o9="" _rc9=0
+  _rc9=0
+  _o9="$(PI_NODE="$tmp/headlost-node" PI_SETTINGS="$tmp/rest.json" \
+          bash "$SCRIPT_DIR/${BASH_SOURCE[0]##*/}" --check --strict 2>&1)" || _rc9=$?
+  if [ "$_rc9" -ne 2 ]; then
+    err "canary: a verdict with no state word returned $_rc9 — bytes are not a verdict, so it must be 2"; fails=$((fails+1))
+  else
+    case "$_o9" in
+      *NO\ VERDICT*) case "$_o9" in
+        *INVALID*|*"not parseable"*|*"still read"*|*"wrote "*|*OK:*|*DRIFT*) err "canary: a head-less verdict still printed a verdict about $CONF"; fails=$((fails+1)) ;;
+        *) info "lost-head          GREEN (rc 2, and no state claimed from a read that did not happen)" ;;
+      esac ;;
+      *) err "canary: the head-lost path printed no NO VERDICT line (got: $(printf '%s' "$_o9" | head -1))"; fails=$((fails+1)) ;;
+    esac
+  fi
+  cp -p "$tmp/rest.json" "$tmp/rest9.before" 2>/dev/null || : > "$tmp/rest9.before"
+  PI_NODE="$tmp/headlost-node" PI_SETTINGS="$tmp/rest.json" \
+    bash "$SCRIPT_DIR/${BASH_SOURCE[0]##*/}" --push >/dev/null 2>&1 || true
+  cmp -s "$tmp/rest9.before" "$tmp/rest.json" \
+    && info "lost-head-write    GREEN (--push wrote nothing on a verdict with no state word)" \
+    || { err "canary: --push wrote $CONF on a verdict that carried no state word"; fails=$((fails+1)); }
+
+  # 9b. THE HISTORICAL STRING ITSELF. This is the exact line the win11 seat printed on 2026-10-21:
+  #     `wrote … but the keys still read '' ()`. It appears when a real write is followed by a
+  #     read-back whose record lost its head — the push leg's verdict arrives, the check leg's does
+  #     not. So the stub writes on `push` and loses the head on `check`, and the arm requires rc 1 (a
+  #     write DID happen, so this is not a SKIP), the read-back named as a lost verdict, and the empty
+  #     quote GONE. Delete the state-word gate in invoke() and this arm prints the old bug.
+  # fork-free stub (a heredoc with no command word truncates the file and DISCARDS the body — the
+  # arm would then have run an empty script that exits 0 and prints nothing, which is a silent SKIP).
+  printf '#!/bin/sh\nif [ "$#" -le 2 ]; then exit 0; fi\nif [ "$5" = push ]; then\n  printf "stub write\\n" > "$4"\n  printf "changed\\tpackages\\nSEATLOCAL\\t\\n"\n  exit 0\nfi\nprintf "\\nSEATLOCAL\\tlost-head-fixture\\n"\nexit 0\n' > "$tmp/split-node"
+  chmod +x "$tmp/split-node" 2>/dev/null || true
+  printf '{"packages": [], "defaultThinkingLevel": "medium"}\n' > "$tmp/split.json"
+  local _o9b="" _rc9b=0
+  _rc9b=0
+  _o9b="$(PI_NODE="$tmp/split-node" PI_SETTINGS="$tmp/split.json" \
+          bash "$SCRIPT_DIR/${BASH_SOURCE[0]##*/}" --push 2>&1)" || _rc9b=$?
+  if [ "$_rc9b" -ne 1 ]; then
+    err "canary: a write whose read-back lost its head returned $_rc9b — the bytes are unverified, so it must be 1"; fails=$((fails+1))
+  else
+    case "$_o9b" in
+      *"still read ''"*) err "canary: the lost-head read-back printed the empty-quote line again — a state nobody computed"; fails=$((fails+1)) ;;
+      *NO\ VERDICT*) info "read-back-lost     GREEN (a lost read-back is named, never printed as a state)" ;;
+      *) err "canary: the lost-read-back path named nothing: $(printf '%s' "$_o9b" | head -1)"; fails=$((fails+1)) ;;
+    esac
+  fi
+
+  # 10. THE RECORD'S BYTES, not its state word. Scanning the captured text for `ok`/`drift` prints
+  #     green on a record that lost everything before the tab, so this arm reads the compare's OWN
+  #     record through a command substitution — a pipe, the same shape invoke() reads — and asserts
+  #     its byte length, its line count, that the FIRST line carries a state word, and that a
+  #     SEATLOCAL record is present. Arm 9 is this arm's negative control: it is the input that makes
+  #     every one of these assertions redder, so the arm cannot be decoration.
+  local _rec="" _nb=0 _t="" _lines=1 _rc10=0 _c10="$CONF"
+  CONF="$tmp/rest.json"
+  _rec="$(run_node check)" || _rc10=$?
+  CONF="$_c10"
+  _nb="$(printf '%s' "$_rec" | wc -c)"    # ONE fork, on purpose: the assertion IS a byte count
+  _t="$_rec"; _lines=1
+  while [ "$_t" != "${_t#*$'\n'}" ]; do _t="${_t#*$'\n'}"; _lines=$((_lines+1)); done
+  if [ "$_rc10" -ne 0 ]; then
+    err "canary: the verdict program exited $_rc10 on a compliant fixture — the byte record cannot be judged"; fails=$((fails+1))
+  elif [ "$_nb" -lt 22 ] || [ "$_lines" -ne 2 ]; then
+    err "canary: a piped verdict returned $_nb bytes in $_lines line(s) — a lost record reads as a state below this floor"; fails=$((fails+1))
+  else
+    case "${_rec%%$'\t'*}" in
+      ok|drift|changed|missing|invalid)
+        case $'\n'"$_rec" in
+          *$'\n'"SEATLOCAL"$'\t'*) info "piped-record       GREEN ($_nb bytes, 2 records, state word first)" ;;
+          *) err "canary: a piped verdict lost its SEATLOCAL record at $_nb bytes — line count alone is not a record"; fails=$((fails+1)) ;;
+        esac ;;
+      *) err "canary: the first field of a piped verdict is '$_rec', not a state word — bytes arrived, no verdict did"; fails=$((fails+1)) ;;
+    esac
+  fi
+
+  # 11. No verdict path forces an exit. `process.exit()` drops stdout bytes still buffered when stdout
+  #     is a pipe, so the programs END by breaking out of a labelled block (and node then drains and
+  #     exits 0). The probe `node -e 'process.exit(0)'` is the one allowed call: it prints nothing, so
+  #     there is nothing to lose. Re-add process.exit(0) to a verdict site and this arm reddens.
+  # The scan covers the VERDICT MACHINERY only — everything above self_test(), whose own assertions
+  # may exit with a status because they print nothing. Prose that merely NAMES process.exit is not a
+  # call, and require_node's `-e 'process.exit(0)'` probe is allowed: it prints nothing, so it has
+  # nothing to lose. Why the awk carries no comments: a `#` inside a single-quoted program embedded in
+  # "$( )" costs bash 5.3 the quote tracking for the rest of the line, and the awk parentheses then
+  # become shell syntax — the arm dies as a syntax error, not as a verdict.
+  local _forced=""
+  _forced="$(awk 'index($0, "self_test() {") == 1 { exit }
+                 /process\.exit\(/ {
+                   line = $0
+                   if (line ~ /^[[:space:]]*(\/\/|#)/) next
+                   if (line ~ /-e .process\.exit\(0\)/) next
+                   printf "L%s:", NR; sub(/^[[:space:]]+/, "", line); printf "%s ", line
+                 }' "$SCRIPT_DIR/${BASH_SOURCE[0]##*/}")" || true
+  if [ -n "$_forced" ]; then
+    err "canary: a verdict path forces an exit — piped stdout can be dropped, use 'break VERDICT' ($_forced)"; fails=$((fails+1))
+  else
+    info "drain-no-exit      GREEN (no verdict path calls process.exit)"
   fi
 
   printf '\nself-test: %s\n' "$([ "$fails" -eq 0 ] && echo "OK — all canaries caught" || echo "$fails canary/canaries NOT caught")"

@@ -147,14 +147,7 @@ file (owned keys replaced, everything else preserved, timestamped backup, an unp
 REFUSAL; `packages` is composed from the `versions.yml` pins and a seat-local package the repo does
 not name — the cockpit's pi-web — is KEPT and printed, never deleted).
 
-**A verdict and the bytes a verdict is read from are two different facts.** The plane takes its STATE from
-what its node program prints into a command substitution, so an invocation that prints **nothing** is not a
-bad verdict — it arrives through the same fall-through as `invalid` and reports the seat's file unparseable.
-The signature that separates them sits in the arm's own line: `wrote … but the keys still read '' ()` — an
-empty quote means the read produced no verdict at all, while a real `invalid` verdict describes a file it did
-read. So: a piped verdict is judged on its **bytes** (empty stdout is a failed read, never a state), a verdict
-program lets stdout drain before ending rather than forcing an exit, and an accusation that a config file is
-corrupt is only owed by a path that read it.
+**A verdict and the bytes a verdict is read from are two different facts.** A seat plane takes its STATE from what its node program prints into a command substitution — that is, through a **pipe**. So the arm's gate is the **state word**, never the byte count: no recognised word in the record's first line is `NO VERDICT` (rc 2), whether the program printed nothing or printed text whose head was lost, and `NO VERDICT` is a failed read — no claim is owed about the seat file, and `--push` writes nothing in that state. Two corollaries bind every leg: a verdict program **ends by letting stdout drain rather than forcing an exit** (an exit discards the bytes still buffered in the pipe, and the drain costs nothing because the process then exits on its own), and a **read-back is reached only by the write it verifies** — a write whose read-back lost its verdict is named as unverified, never printed as a state. An accusation that a config file is corrupt is owed only by a path that read it.
 
 **The owned package set.** The set this plane writes is DISCOVERED from the `pi_pkg_*` inventory in
 [`../IaC/ansible/group_vars/all/versions.yml`](../IaC/ansible/group_vars/all/versions.yml) — every `scope: fleet`

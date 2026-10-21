@@ -118,14 +118,25 @@ read_state() {
   out="$("$NODE" -e '
     const fs = require("fs");
     const p = process.argv[1];
-    if (!fs.existsSync(p)) { console.log("missing"); process.exit(0); }
+    // The verdict ENDS this program by BREAKING OUT, never by process.exit(): process.exit() discards
+    // stdout bytes still buffered when stdout is a PIPE, and a command substitution IS a pipe — a
+    // verdict whose bytes never landed is a verdict that never happened (docs/harness-pi-seats.md §5).
+    // Top-level `return` is illegal under `node -e`, hence the labelled block.
+    VERDICT: {
+    if (!fs.existsSync(p)) { console.log("missing"); break VERDICT; }
     let c;
     try { c = JSON.parse(fs.readFileSync(p, "utf8")); }
-    catch { console.log("invalid"); process.exit(0); }
+    catch { console.log("invalid"); break VERDICT; }
     console.log(c && c.footerSegments && c.footerSegments.hostname === true ? "ok" : "drift");
+    }
   ' "$CONF")" || { echo "no-verdict"; return; }        # node died: NO verdict exists (its own error, printed above, is the cause)
   [ -n "$out" ] || { printf 'no-verdict'; return 0; }   # a silent 0 read nothing either
-  printf '%s' "$out"
+  # BYTES ARE NOT A VERDICT (docs/harness-pi-seats.md §5): text that is not a state word is a lost
+  # read, not a state.
+  case "$out" in
+    ok|missing|drift|invalid) printf '%s' "$out"; return 0 ;;
+  esac
+  printf 'no-verdict'
 }
 
 # --- the write: ONE key, everything else preserved ----------------------------
@@ -136,15 +147,20 @@ write_key() {
   "$NODE" -e '
     const fs = require("fs");
     const p = process.argv[1];
+    // Same shape as read_state: end by breaking out, and set the STATUS rather than forcing an exit —
+    // process.exit() drops piped stdout; only stderr matters to this program, and nothing is buffered
+    // away when the program ends by breaking out (VERDICT below).
+    VERDICT: {
     let c = {};
     if (fs.existsSync(p)) {
       try { c = JSON.parse(fs.readFileSync(p, "utf8")); }
-      catch { console.error("unparseable"); process.exit(3); }
-      if (c === null || typeof c !== "object" || Array.isArray(c)) { console.error("not an object"); process.exit(3); }
+      catch { console.error("unparseable"); process.exitCode = 3; break VERDICT; }
+      if (c === null || typeof c !== "object" || Array.isArray(c)) { console.error("not an object"); process.exitCode = 3; break VERDICT; }
     }
     c.footerSegments = (c.footerSegments && typeof c.footerSegments === "object" && !Array.isArray(c.footerSegments)) ? c.footerSegments : {};
     c.footerSegments.hostname = true;
     fs.writeFileSync(p, JSON.stringify(c, null, 2) + "\n", "utf8");   // same shape the extension writes
+    }
   ' "$CONF" 2>/dev/null
 }
 
@@ -178,7 +194,11 @@ do_push() {
   fi
   mkdir -p "$(dirname "$CONF")" 2>/dev/null || true
   write_key || { err "could not write $CONF"; return 1; }
+  # A lost read-back is named as such (docs/harness-pi-seats.md §5): the write DID happen, so printing
+  # "still reads 'no-verdict'" would describe a state nobody computed, and a SKIP would hide
+  # a half-verified write.
   st="$(read_state)"
+  [ "$st" != "no-verdict" ] || { err "wrote $CONF, but the read-back produced NO VERDICT — $CONF is unverified; run --check before trusting this line"; return 1; }
   [ "$st" = "ok" ] || { err "wrote $CONF but $KEY_PATH still reads '$st'"; return 1; }
   info "set $KEY_PATH=true in $CONF (other keys preserved; a missing file becomes the minimal override)"
   return 0
@@ -291,6 +311,56 @@ self_test() {
   cmp -s "$tmp/rest5c.before" "$tmp/rest.json" \
     && info "no-verdict-write   GREEN (a probe that died wrote nothing)" \
     || { err "canary: --push wrote $CONF although node had died"; fails=$((fails+1)); }
+
+  # 5d. a record that arrives WITH bytes but with NO state word in it (docs/harness-pi-seats.md §5,
+  #     reproduced on the win11 seat 2026-10-21, where the settings leg answered "the keys still
+  #     read '' ()" for a lost head). Bytes are not a verdict — the vocabulary is. rc 2, no
+  #     claim about the file, and no write.
+  printf '#!/bin/sh\nif [ "$#" -le 2 ]; then exit 0; fi\nprintf "\\n_orphaned_after_a_lost_head\\n"\nexit 0\n' > "$tmp/headlost-node"
+  chmod +x "$tmp/headlost-node" 2>/dev/null || true
+  local _o5d="" _rc5d=0
+  _rc5d=0
+  _o5d="$(PI_TUI_NODE="$tmp/headlost-node" PI_TUI_CONFIG="$tmp/rest.json" \
+          bash "$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")" --check --strict 2>&1)" || _rc5d=$?
+  if [ "$_rc5d" -ne 2 ]; then
+    err "canary: a verdict with no state word returned $_rc5d — bytes are not a verdict, so it must be 2"; fails=$((fails+1))
+  else
+    case "$_o5d" in
+      *NO\ VERDICT*) case "$_o5d" in
+        *INVALID*|*"not parseable"*|*"still reads"*|*OK:*|*DRIFT*) err "canary: a head-less verdict still printed a verdict about $CONF"; fails=$((fails+1)) ;;
+        *) info "lost-head          GREEN (rc 2, and no claim about the file)" ;;
+      esac ;;
+      *) err "canary: the head-lost path printed no NO VERDICT line"; fails=$((fails+1)) ;;
+    esac
+  fi
+  cp -p "$tmp/rest.json" "$tmp/rest5d.before" 2>/dev/null || : > "$tmp/rest5d.before"
+  PI_TUI_NODE="$tmp/headlost-node" PI_TUI_CONFIG="$tmp/rest.json" \
+    bash "$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")" --push >/dev/null 2>&1 || true
+  cmp -s "$tmp/rest5d.before" "$tmp/rest.json" \
+    && info "lost-head-write    GREEN (--push wrote nothing on a verdict with no state word)" \
+    || { err "canary: --push wrote $CONF on a verdict that carried no state word"; fails=$((fails+1)); }
+
+  # 5e. no verdict path forces an exit: process.exit() drops stdout bytes still buffered when
+  #     stdout is a pipe, so read_state/write_key end by breaking out of a labelled block.
+  # The scan covers the VERDICT MACHINERY only — everything above self_test(), whose own assertions
+  # may exit with a status because they print nothing. Prose that merely NAMES process.exit is not a
+  # call, and require_node's `-e 'process.exit(0)'` probe is allowed: it prints nothing, so it has
+  # nothing to lose. Why the awk carries no comments: a `#` inside a single-quoted program embedded in
+  # "$( )" costs bash 5.3 the quote tracking for the rest of the line, and the awk parentheses then
+  # become shell syntax — the arm dies as a syntax error, not as a verdict.
+  local _forced=""
+  _forced="$(awk 'index($0, "self_test() {") == 1 { exit }
+                 /process\.exit\(/ {
+                   line = $0
+                   if (line ~ /^[[:space:]]*(\/\/|#)/) next
+                   if (line ~ /-e .process\.exit\(0\)/) next
+                   printf "L%s:", NR; sub(/^[[:space:]]+/, "", line); printf "%s ", line
+                 }' "$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")")" || true
+  if [ -n "$_forced" ]; then
+    err "canary: a verdict path forces an exit — piped stdout can be dropped, use 'break VERDICT' ($_forced)"; fails=$((fails+1))
+  else
+    info "drain-no-exit      GREEN (no verdict path calls process.exit)"
+  fi
 
   printf '\nself-test: %s\n' "$([ "$fails" -eq 0 ] && echo "OK — all canaries caught" || echo "$fails canary/canaries NOT caught")"
   return "$fails"

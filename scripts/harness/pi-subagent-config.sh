@@ -126,25 +126,30 @@ run_node() {
     const fn = (o) => { const c = Object.assign({}, o); delete c[NOTE]; return c; };
     const ssot = JSON.parse(fs.readFileSync(ssotPath, "utf8"));
     const state = (s, d) => { console.log(s + "\t" + d); };
+    // The verdict ENDS this program by BREAKING OUT, never by process.exit(): process.exit() discards
+    // stdout bytes still buffered when stdout is a PIPE, and a command substitution IS a pipe — a
+    // verdict whose bytes never landed is a verdict that never happened (docs/harness-pi-seats.md §5).
+    // Top-level `return` is illegal under `node -e`, hence the labelled block.
+    VERDICT: {
     if (!ssot._subagentConfig || typeof ssot._subagentConfig !== "object") {
-      state("missing", "_subagentConfig block absent from the SSOT"); process.exit(0);
+      state("missing", "_subagentConfig block absent from the SSOT"); break VERDICT;
     }
     const wantAll = ssot._subagentConfig, want = fn(wantAll);
-    if (!fs.existsSync(confPath)) { state("missing", ""); process.exit(0); }
+    if (!fs.existsSync(confPath)) { state("missing", ""); break VERDICT; }
     let cur;
     try { cur = fs.readFileSync(confPath, "utf8"); }
-    catch { state("invalid", ""); process.exit(0); }
+    catch { state("invalid", ""); break VERDICT; }
     let parsed;
     try { parsed = JSON.parse(cur); }
-    catch { state("invalid", ""); process.exit(0); }
-    if (typeof parsed !== "object" || parsed === null) { state("invalid", ""); process.exit(0); }
+    catch { state("invalid", ""); break VERDICT; }
+    if (typeof parsed !== "object" || parsed === null) { state("invalid", ""); break VERDICT; }
     const got = fn(parsed);
-    if (j(got) === j(want)) { state("ok", j(parsed) === j(wantAll) ? "" : NOTE); process.exit(0); }
+    if (j(got) === j(want)) { state("ok", j(parsed) === j(wantAll) ? "" : NOTE); break VERDICT; }
     // name the keys that differ — the old body printed the BLOCK name here, and "these keys
     // differ: _subagentConfig" is what sent a lane looking for a key that had not moved.
     const names = Array.from(new Set(Object.keys(want).concat(Object.keys(got)))).sort();
     state("drift", names.filter((k) => j(want[k]) !== j(got[k])).join(", ") || "(shape)");
-    process.exit(0);
+    }
   ' "$SSOT" "$CONF"
 }
 invoke() {
@@ -161,6 +166,14 @@ invoke() {
   fi
   l1="${out%%$'\n'*}"
   STATE="${l1%%$'\t'*}"
+  # BYTES ARE NOT A VERDICT (docs/harness-pi-seats.md §5): a record that arrives WITH text but whose
+  # first line carries no state word is a lost read, not a state. The gate is the vocabulary,
+  # never the byte count.
+  case "$STATE" in
+    ok|drift|missing|invalid) : ;;
+    *) err "NO VERDICT: the compare's first line carried no state word (got: '${l1:0:60}') — $CONF was NOT read. A lost or truncated verdict is a failed read, never a state: do NOT edit $CONF from this line."
+       STATE="no-verdict"; return 2 ;;
+  esac
   DETAIL="${l1#*$'\t'}"; [ "$DETAIL" = "$l1" ] && DETAIL=""
   # Explicit 0: the `[ … ] &&` above is the last command and is FALSE for a clean `ok` verdict, and
   # do_check/do_push now branch on invoke's rc — a verdict must not arrive with a failed status.
@@ -211,7 +224,10 @@ do_push() {
     fs.writeFileSync(confPath, JSON.stringify(payload, null, 2) + "\n", "utf8");
     try { fs.chmodSync(confPath, 0o600); } catch {}
   ' "$SSOT" "$CONF"
-  invoke
+  # A missing read-back verdict is named as such (docs/harness-pi-seats.md §5): the write DID happen here,
+  # so this is not a SKIP, and "the payload still reads '<empty>'" would describe a state
+  # nobody computed.
+  invoke || { err "wrote $CONF, but the read-back produced NO VERDICT — the bytes are unverified; run --check before trusting this line"; return 1; }
   [ "$STATE" = ok ] || { err "wrote $CONF but the payload still reads '$STATE' ($DETAIL)"; return 1; }
   info "wrote $CONF from pi-agent/settings-ssot.json _subagentConfig (backup: ${CONF##*/}.pre-subagent-$stamp)"
   return 0
@@ -287,6 +303,55 @@ self_test() {
   cmp -s "$tmp/good5.before" "$tmp/good.json" \
     && info "no-verdict-write   GREEN (a probe that died wrote nothing)" \
     || { err "canary: --push wrote $CONF although node had died"; fails=$((fails+1)); }
+  # 5c. a record that arrives WITH bytes but with NO state word in its first line
+  #     (docs/harness-pi-seats.md §5,
+  #     reproduced on the win11 seat 2026-10-21: "the keys still read '' ()" was a lost head,
+  #     not a state). Bytes are not a verdict — the vocabulary is. rc 2, no claim about the
+  #     file, and no write.
+  printf '#!/bin/sh\nif [ "$#" -le 2 ]; then exit 0; fi\nprintf "\\t_orphaned_after_a_lost_head\\n"\nexit 0\n' > "$tmp/headlost-node"
+  chmod +x "$tmp/headlost-node" 2>/dev/null || true
+  local _o5c="" _rc5c=0
+  _rc5c=0
+  _o5c="$(PI_NODE="$tmp/headlost-node" PI_SUBAGENT_CONF="$tmp/good.json" \
+          bash "$SCRIPT_DIR/${BASH_SOURCE[0]##*/}" --check --strict 2>&1)" || _rc5c=$?
+  if [ "$_rc5c" -ne 2 ]; then
+    err "canary: a verdict with no state word returned $_rc5c — bytes are not a verdict, so it must be 2"; fails=$((fails+1))
+  else
+    case "$_o5c" in
+      *NO\ VERDICT*) case "$_o5c" in
+        *INVALID*|*"not parseable"*|*"still reads"*|*OK:*|*DRIFT*) err "canary: a head-less verdict still printed a verdict about the payload file"; fails=$((fails+1)) ;;
+        *) info "lost-head          GREEN (rc 2, no state claimed from a read that did not happen)" ;;
+      esac ;;
+      *) err "canary: the head-lost path printed no NO VERDICT line"; fails=$((fails+1)) ;;
+    esac
+  fi
+  cp -p "$tmp/good.json" "$tmp/good5c.before" 2>/dev/null || : > "$tmp/good5c.before"
+  PI_NODE="$tmp/headlost-node" PI_SUBAGENT_CONF="$tmp/good.json" \
+    bash "$SCRIPT_DIR/${BASH_SOURCE[0]##*/}" --push >/dev/null 2>&1 || true
+  cmp -s "$tmp/good5c.before" "$tmp/good.json" \
+    && info "lost-head-write    GREEN (--push wrote nothing on a verdict with no state word)" \
+    || { err "canary: --push wrote $CONF on a verdict that carried no state word"; fails=$((fails+1)); }
+  # 5d. no verdict path forces an exit: process.exit() drops stdout bytes still buffered when
+  #     stdout is a pipe, so the compare ends by breaking out of a labelled block (see run_node).
+  # The scan covers the VERDICT MACHINERY only — everything above self_test(), whose own assertions
+  # may exit with a status because they print nothing. Prose that merely NAMES process.exit is not a
+  # call, and require_node's `-e 'process.exit(0)'` probe is allowed: it prints nothing, so it has
+  # nothing to lose. Why the awk carries no comments: a `#` inside a single-quoted program embedded in
+  # "$( )" costs bash 5.3 the quote tracking for the rest of the line, and the awk parentheses then
+  # become shell syntax — the arm dies as a syntax error, not as a verdict.
+  local _forced=""
+  _forced="$(awk 'index($0, "self_test() {") == 1 { exit }
+                 /process\.exit\(/ {
+                   line = $0
+                   if (line ~ /^[[:space:]]*(\/\/|#)/) next
+                   if (line ~ /-e .process\.exit\(0\)/) next
+                   printf "L%s:", NR; sub(/^[[:space:]]+/, "", line); printf "%s ", line
+                 }' "$SCRIPT_DIR/${BASH_SOURCE[0]##*/}")" || true
+  if [ -n "$_forced" ]; then
+    err "canary: a verdict path forces an exit — piped stdout can be dropped, use 'break VERDICT' ($_forced)"; fails=$((fails+1))
+  else
+    info "drain-no-exit      GREEN (no verdict path calls process.exit)"
+  fi
   # 6. THE NOTE CLASS (HD-1119(a), measured 2026-10-19): a doc path lives inside `_subagentConfig._note`
   #    and the plane byte-compared the payload, so a PROSE-ONLY rename in the docs tree reddened the
   #    `subagent` plane on two seats whose functional values were identical. Both halves, per
