@@ -199,3 +199,30 @@ group_keys_sha256 e3a2ac07273b743775d8fda884097eefbbb73620c3df75ffd2bb6a8eeb3532
 baseline_rev b432210f3f1ec22918258466d67fa6066bdfd9e9
 twin_groups 2668
 group_keys_sha256 d928eebcf006c08cf55779271abb538b2991d7233226c27b67740f5fce978a29
+#
+# Moved to 09e466d9 by the commit that retired the Home Assistant probe target, in the lane that
+# retired it. The red group was base value `https://ha.kogler.si`, and it died on BOTH sides in one
+# change: the HTTP probe entry in `alloy.river.j2` and the `ha-unreachable` expression in
+# `vars/main.yml` were the two places that spelled it, and both are gone because the target can never
+# pass FROM THIS BOX — the DNS SSOT entry for `ha.kogler.si` is `internal: true` with no public record
+# and the VPS resolves with the public pair, so blackbox answers `probe_ip_protocol 0` forever. So this
+# is not a rename to undo and not a side to re-buy: putting the bytes back to satisfy the byte test
+# would re-add a probe target that pages a CRITICAL no host can satisfy, which is the fiction the gate
+# exists to refuse rather than the debt it exists to record. HA liveness moves to the gated
+# `ha_exporter` job, and the row that owns that job owns the fact now.
+#
+# Shape of the move 2668 -> 2667, measured by diffing the group-KEY sets at b432210f and at the tip
+# above rather than reading the count: ONE key left, `https://ha.kogler.si`, exactly the retired twin,
+# and no key arrived. The first run at this tip showed a second, arriving key — `Target` — which was
+# this lane's own new comment quoting the dashboard's column title in the same literal class: a
+# comment that quotes a UI string starts owing it to the UI, so the comment was rewritten in prose
+# rather than the population being widened to hold it. Net -1, and the population SHRANK by the one
+# thing that legitimately died — the direction the canary exists to catch, which is why the diff of
+# keys, not the number, is the evidence.
+#
+# Detection survived the move: a twin planted in this tree at this commit came back FAIL with both
+# sides named by file:line, so a re-baseline that mutes the gate is not what happened here.
+# Eligibility, measured BEFORE the move: `git rev-list --count b432210f..HEAD` = 14 (cap 300).
+baseline_rev 09e466d911a56ec0616b929bac83260bb902a441
+twin_groups 2667
+group_keys_sha256 9419b74b1719ec2241e65644294592090ec6407cb11d41d3d0c4eb60b7a13769
