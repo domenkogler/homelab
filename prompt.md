@@ -446,96 +446,52 @@ the row→brief index is [todo-table.md](todo-table.md) §B0. A brief is named f
     re-measure. Record: [scripts/README.md](scripts/README.md) `validate-all.sh` + `sync-skills.sh` rows ·
     [docs/network-dns.md](docs/network-dns.md) §Host-side resolver.
 **Parked on an owner-present window** — authored work with exactly one blocked action in front of it, named with that
-action so no lane re-derives it: **HD-436** (a) re-render headscale's `config.yaml` on the **VPS** slot, ONE guarded
-converge — the answer set is identical, the FILE is not (entry order + comments), so it reports changed and restarts
-the control plane: sampled liveness probe, never a one-shot inspect; (b) `IaC/ansible/playbooks/dns.yml` from the **home control
-plane**, because the Cloudflare token is IP-filtered there, expected to report no record change; and its step 2 (the
-`extra_records_path` swap) is the converge **HD-435**'s `tailnet: dual` publish rides · **the one network leg**
-HD-487's row still names — the narrow `--tags netd` delete of `/etc/systemd/network/20-eno1.netdev` **on the VPS**
-(vps declares no `netd_phys_name`, so only the role's removal leg reaches it; `wg-s2s.*` and the OS units sit outside the
-namespace pattern). The spark networkd disarm, the pi removals (three unread units) and the nas removals (four) are
-**landed** — and the nas box settled on NetworkManager on 2026-10-18, so its address and resolver legs are no longer
-frozen — and
-oldsrv's own lockout-class run **alone**
-and off the box with a console reachable (driven FROM the oldsrv controller its `network` tag is refused by the
-self-converge guard `IaC/ansible/playbooks/tasks/self-converge-guard.yml`, by design; and a self-target run dies at
-the transport before the guard is even reached — the inventory's `ProxyJump=vps` makes the last hop authenticate
-against the bare `ansible_host`, where the seat's own alias block pins the operator key — so drive it from another
-controller, or use one of the two forms that section measures:
-[docs/deployment-ansible.md](docs/deployment-ansible.md) §Runner placement) ·
-**HD-384 step 2** — the
-two LiteLLM gateways may be pointed at `litellm-engine_api` only AFTER spark reboots with it in its accepted-key
-list, and a spark engine restart is an owner window (PLE load, ~20 min); inverting the order 401s every upstream
-call · **the docker-family apply landed on `pi`**, which was the last one owed (`vps` and `spark` landed
-earlier, so no daemon restart is owed on any host now) — the shape stays the rule for the next pin bump:
-one host at a time, detached, `--check` first, never behind a timeout, ⛔ not overnight, and the §1.10
-survivor restart after it, because a live-restore survivor keeps the OLD `docker.sock` inode. `oldsrv`
-owes no apply and `nas` runs
-no docker role at all. An apply lifts the hold for exactly the suite names it moves and re-holds them in the same play,
-so there is no manual `apt-mark` dance and no `--allow-change-held-packages`; when a host does read `differ`,
-that is the gap being reported, not a false positive. Six more parks carry exactly one blocked action
-each, all measured into their rows on 2026-10-19 — **⚠ read this list with the 2026-10-20 owner round applied: the
-`HD-1107`, `HD-1106`, `HD-1103`-retention, `HD-1140`, `HD-357`, `HD-443` and `HD-1110` entries below are
-RULED and their remaining work is AI work, so the owner act they describe no longer exists** (the ruling and the ordered
-act are in the rows and in §14); what is genuinely owner-blocked in this paragraph is `HD-1122`, `HD-1088`, `HD-1091`,
-`HD-1093`, `HD-1164`, `HD-1143`, `HD-1152`, `HD-1160`'s router window and the Pi-visit bundle. ⚠ **`oldsrv` is back and
-its parked acts are un-parked**, with one exception that is not about presence: a lockout-class role (`network`,
-`storage`, `wireguard`, `tailscale-node`, `cockpit`) applied to `oldsrv` is refused by the self-converge guard while
-`oldsrv` is itself the controller, so those legs still need another control node or an in-band console. **HD-1160** — the ruling landed and the retag
-with it, so what is left is one owner-present **router window** for the converge template's twin of the retagged
-`#`-comment (`IaC/router/templates/rb4011_converge.rsc.j2`; a `#`-line IS rendered output — HD-1167's class, global
-router slot, never `--diff`, never from a docs lane). Nothing else in that row is owed and **no converge is behind it**
-(⛔ shipping a resolver instance, a listener address or a `:53` dst-nat target to buy per-policy filtering stays refused
-permanently) ·
-**HD-1122** — flip `ai_tier_metrics_publish: true` and converge **oldsrv** `--tags docker_services,monitoring`: the
-flag, the `127.0.0.1` publish and the `prometheus.scrape "llama_cpp"` leg are ONE change that recreates two serving
-containers · **HD-1088** — ONE act: register oldsrv's public key on the live Box in the storage provider's console
-(port 23 is key-auth-only, and `Hertzner-SB-Data` holds only a CIFS/WebDAV password, so there is no other way in).
-The two seed halves are **already done on oldsrv and verified there** — `/root/.ssh/livebox_push` `0600`, its public
-half re-derived from the private key with `ssh-keygen -yf` and diffed against the stored `.pub`, and
-`/etc/storage/box_known_hosts` `0600` carrying the Box's three host keys for the `:23` endpoint — so no seed step is
-owed here. Then set `storage_push_music.enabled: true`, converge `--tags storage --limit oldsrv.kogler.si`,
-`systemctl start push-music.service` once · **HD-1091** — rotate `lidarr_api` in an owner window: it is
-`NOT_AUTO_ROTATABLE`, the order is forced (mint → write Lidarr's own `config.xml` → restart lidarr → re-render
-soularr's `config.ini` → re-point Seerr), and missing a step 401s every consumer while the vault looks correct; blast
-radius lidarr/soularr/seerr. Then the one-album proof, which waits on a peer finishing a transfer inside the poll
-window rather than on an act here. Seeding the slskd API key is **done** — soularr is `enabled: true` and both ends
-already hash to the same credential — so do not re-open that half · **HD-1107** — the parked `systemctl stop storage-syncoid.service` on `nas` was RUN
-and the wedged tree died, but the authorised re-fire failed a different way: **66 snapshots on the destination are newer
-than the send base and every one is a sanoid `@autosnap_*` the replica takes for itself** (`use_template = data` on
-`bulk/data/*`), and an incremental `-F` receive cannot land on a target holding snapshots the stream does not contain —
-`cannot restore to bulk/data/services@autosnap_2026-10-08_21:05:07_monthly: destination already exists`, twice,
-identically. So either the replica's own post-base rollback history is destroyed (that snapshot plus 65 more) or the
-replica datasets come out of `sanoid.conf.j2`'s `data` template and the 66 age out; ⛔ neither is an overnight act, and
-pruning stays blocked meanwhile because sanoid's `iszfsbusy()` greps the process table for a `zfs send`/`zfs receive`
-line that only the wedged pipeline's **shell wrapper** still carries ·
-**HD-1106** — the prune itself, one `docker volume rm` per row the table marks `prune`, and a named volume or bind for
-the two `onlyoffice-docs` paths · **HD-1164** — an `intel_iommu=off` experiment plus a memory test on the HP Gen8 in a
-window the owner schedules (the box holds the NFS media export, the Kopia agent and HD-1107's stuck `zfs receive`, so
-nobody reboots it overnight); the restore line is `systemctl start alloy` on `nas`, and the unit stays stopped until
-then · **HD-1143** — exactly one KNX `GroupValueRead` from the Pi with the reverse rule's counters read either side,
-which needs a privileged act (`docker exec` into the HA container, or an integration reload) · **HD-1152** — the first
-REAL `playbooks/dns-seed.yml` apply per instance, and only after its two defects are repaired, because `--check` skips
-the whole Technitium block and can never name candidates · **HD-1103 + HD-1167** — one owner-window Pi visit carrying
-the boot that makes the fstab `mode=` true on the running mount, the UNTAGGED converge that applies `ai_diag`'s derived
-smartd mask, and the one-time re-render of `pi-eth0.nmconnection` (⛔ the `nm-resolver` applies and HD-418's reconcile
-are DONE on both hosts — do not re-run them; on a keyfile host the write leg is `nm-pi`) ·
-**HD-443** — either a host whose journal actually covers the claimed interval, or the owner's ruling that the Pi's
-volatile journal cannot prove a 30-day silence and the `admin` revoke proceeds on nine old acceptances plus the
-neutralized state · **HD-1110** — the OAuth-vs-`api_key` call on the seat's `pi_auth` providers, which a `--push` must
-not settle by rewriting a working login.
+action so no lane re-derives it. **The 2026-10-20 owner round is applied throughout: an entry marked RULED is AI work,
+not an owner act** — the rulings are the rows' and [todo-table.md](todo-table.md) §A1's, and this file restates none.
 
-**✅ 2026-10-20 owner round — what stopped being an owner act.** The rulings live in the rows and in [todo-table.md](todo-table.md) §A1, and this file restates none of them.
-> **What §D of the human table carries that the parked list above does not**, so the two lists are not mistaken for each
-> other: §D is everything genuinely left; the parked list above is only the part of it with an authored act queued behind the
-> owner. The rest is owner eyes and hands with nothing authored waiting — the one visual pass over the boards
-> (**HD-316 · 315 · 343 · 377 · 319**), the browser-login seats still owed (**HD-147** with **HD-141**'s tail), the
-> physical windows (**HD-06 · 288 · 194 · 34 · 191**, and the two drill-time decisions **HD-230 · HD-207**), the
-> on-site matrix and `Mgmt99` tail (**HD-397**), the JupyterLab LAN edge deliberately untouched on instruction
-> (**HD-366**), the Immich family-library seat question (**HD-457**), the enrolment sessions (**HD-412**), the WoL
-> ruling (**HD-454**), the Jellyfin-login eyeball (**HD-353**) and the `opensubtitles_login` fix (**HD-1096**). They are
-> parked too, but with no half-written change behind them — so a lane reading only this file should not go looking for
-> an authored act to flip, and a lane reading only §D should not assume the acts above are already written.
+| HD | the one blocked action | slot / host | 📋 brief |
+|----|------------------------|-------------|----------|
+| **HD-436** (a) | ONE guarded converge re-rendering headscale's `config.yaml` — the answer set is identical and the FILE is not, so it reports changed and restarts the control plane: sampled liveness probe, never a one-shot inspect | **VPS** slot | [prompt-dns-transport.md](prompt-dns-transport.md) |
+| **HD-436** (b) | `IaC/ansible/playbooks/dns.yml` run where the Cloudflare token is IP-filtered; expected to report no record change | home control plane | [prompt-dns-transport.md](prompt-dns-transport.md) |
+| **HD-436** step 2 | the `extra_records_path` swap that **HD-435**'s `tailnet: dual` publish rides | **VPS** | [prompt-dns-transport.md](prompt-dns-transport.md) |
+| **HD-487** | the narrow `--tags netd` delete of `/etc/systemd/network/20-eno1.netdev` — only the role's removal leg reaches it, because vps declares no `netd_phys_name` | **VPS** | [prompt-dns-transport.md](prompt-dns-transport.md) |
+| **HD-1152** | the first REAL `playbooks/dns-seed.yml` apply per instance, and only after its two defects are repaired — `--check` skips the whole Technitium block and can never name candidates | vps · oldsrv · pi | [prompt-dns-transport.md](prompt-dns-transport.md) |
+| **HD-1160** | render + `routeros-apply-delta.sh` for the converge template's twin of the retagged `#`-comment (a `#`-line IS rendered output — HD-1167's class); ⛔ never `--diff`, never from a docs lane, and **no converge is behind it** | router window, global slot | [prompt-dns-transport.md](prompt-dns-transport.md) |
+| **HD-384** step 2 | point the two LiteLLM gateways at `litellm-engine_api` — only AFTER spark reboots with it in its accepted-key list; inverting the order 401s every upstream call | spark window (PLE load, ~20 min) | [prompt-litellm-consumers.md](prompt-litellm-consumers.md) |
+| **HD-1122** | flip `ai_tier_metrics_publish: true` and converge `--tags docker_services,monitoring` — ONE change that recreates two serving containers, so not at night | **oldsrv** | [prompt-observability-alerting.md](prompt-observability-alerting.md) |
+| **HD-1164** | an `intel_iommu=off` experiment plus a memory test; the restore line is `systemctl start alloy` and the unit stays stopped until then | **nas** (HP Gen8) | [prompt-observability-alerting.md](prompt-observability-alerting.md) |
+| **HD-1088** | register oldsrv's public key on the live Box (port 23 is key-auth-only and `Hertzner-SB-Data` holds only a CIFS/WebDAV password, so there is no other way in); then `storage_push_music.enabled: true`, converge `--tags storage --limit oldsrv.kogler.si`, `systemctl start push-music.service` once | **oldsrv** | [prompt-media-arrs.md](prompt-media-arrs.md) |
+| **HD-1091** | rotate `lidarr_api` — `NOT_AUTO_ROTATABLE`, and the order is forced: mint → Lidarr's own `config.xml` → restart lidarr → re-render soularr's `config.ini` → re-point Seerr | **oldsrv** | [prompt-media-arrs.md](prompt-media-arrs.md) |
+| **HD-1093** | land the rotated family SMB passwords with `storage_samba_password_force` — a vault rotate alone changes nothing on the box | **nas** | [prompt-storage-backup.md](prompt-storage-backup.md) |
+| **HD-1107** RULED | the retag: the replica datasets leave `sanoid.conf.j2`'s `data` template, never a hand-destroy of the 66. Kill the wedged pipeline's shell wrapper first, or `iszfsbusy()` defers every prune and the retag reads as doing nothing | **nas** | [prompt-storage-backup.md](prompt-storage-backup.md) |
+| **HD-1106** RULED | the prune — one `docker volume rm` per row the table marks `prune`, plus a named volume or bind for the two `onlyoffice-docs` paths | **VPS** | [prompt-storage-backup.md](prompt-storage-backup.md) |
+| **HD-1103 · HD-1167 · HD-1109** | ONE owner-window Pi visit: the boot that makes the fstab `mode=0755` true on the mount, the UNTAGGED converge that applies `ai_diag`'s derived smartd mask, and the one-time re-render of `pi-eth0.nmconnection`. ⛔ the `nm-resolver` applies and HD-418's reconcile are DONE on both hosts — do not re-run them; on a keyfile host the write leg is `nm-pi` | **pi** | [prompt-smart-home.md](prompt-smart-home.md) |
+| **HD-1143** | one privileged act (`docker exec` into the HA container, or a KNX integration reload) so exactly one `GroupValueRead` leaves the Pi, with the reverse rule's counters read either side | oldsrv + **pi** | [prompt-smart-home.md](prompt-smart-home.md) |
+| **HD-443** RULED | revoke the Pi's `admin` on the neutralized state — the volatile journal cannot prove a 30-day silence | **pi** | [prompt-seat-cockpit-grants.md](prompt-seat-cockpit-grants.md) |
+| **HD-1110** RULED | the OAuth-vs-`api_key` call on each seat's `pi_auth` providers; a `--push` must not settle it by rewriting a working login | every seat | [prompt-seat-cockpit-grants.md](prompt-seat-cockpit-grants.md) |
+| **HD-1140** RULED | the laptop's Home reservation apply, which rides an existing router window rather than needing one of its own | router window | [prompt-seat-cockpit-grants.md](prompt-seat-cockpit-grants.md) |
+| **HD-357** RULED | `seerrng` stays tailnet-only, its tile linked-not-probed | — | unbriefed |
+| **HD-454** ⏸ | ruled and not pending — a switched-off `oldsrv` waits for presence; the one owner-side leg left is a WoL re-test at a planned power-off | **oldsrv** | — |
+
+⚠ **`oldsrv` is back and its parked acts are un-parked**, with one exception that is not about presence: a
+lockout-class role (`network`, `storage`, `wireguard`, `tailscale-node`, `cockpit`) applied to `oldsrv` is refused by the
+self-converge guard `IaC/ansible/playbooks/tasks/self-converge-guard.yml` while `oldsrv` is itself the controller, so
+those legs still need another control node or an in-band console — run **alone** and off the box with a console
+reachable ([docs/deployment-ansible.md](docs/deployment-ansible.md) §Runner placement). The docker-family apply shape
+stays the rule for the next pin bump (no apply is owed anywhere now): one host at a time, detached, `--check` first,
+never behind a timeout, ⛔ not overnight, and the §1.10 survivor restart after it — a live-restore survivor keeps the
+OLD `docker.sock` inode. An apply lifts the hold for exactly the suite names it moves and re-holds them in the same play.
+
+**Parity with [todo-table.md](todo-table.md) §D** — §D is everything genuinely left; this table is only the part of it
+with an authored act queued behind the owner. Two rows here (**HD-357**, **HD-1140**) are no longer §D rows at all: the
+2026-10-20 ruling turned their owner act into AI work, and they are kept in this table so no park is silently dropped. What §D carries and this table does not is owner eyes and hands with
+nothing authored waiting: the one visual pass over the boards (**HD-316 · 315 · 343 · 377 · 319**), the browser-login
+seats still owed (**HD-147** with **HD-141**'s tail), the physical windows (**HD-06 · 288 · 194 · 34 · 191**) and the two
+drill-time decisions (**HD-230 · HD-207**), the on-site matrix and `Mgmt99` tail (**HD-397**), the JupyterLab LAN edge
+left untouched on instruction (**HD-366**), the Immich family-library seat question (**HD-457**), the enrolment sessions
+(**HD-412**), the Jellyfin-login eyeball (**HD-353**) and the `opensubtitles_login` fix (**HD-1096**). A lane reading
+only this file should not go looking for an authored act to flip, and a lane reading only §D should not assume these
+acts are already written.
 
 **Unbriefed open rows** — no session launches from them; they live in [todo.md](todo.md) and every view, and the full
 list is **derived** in [todo-table.md](todo-table.md) §B0. Two ids must not be lost: **HD-357** (the launchpad tiles —
