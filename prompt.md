@@ -754,32 +754,10 @@ not settle by rewriting a working login.
 > parked too, but with no half-written change behind them — so a lane reading only this file should not go looking for
 > an authored act to flip, and a lane reading only §D should not assume the acts above are already written.
 
-**Unbriefed open rows** — no session launches from them; they live in [todo.md](todo.md) and every view. The full
-list is **derived** in [todo-table.md](todo-table.md) §B0, so only the ones an owner or a
-lane should not lose are named here: **HD-357** (the launchpad tiles — the family-surface brief was retired and
-**no domain brief took this row**; the work is wiring, and it wants a promoting decision, not a re-scope) ·
-**HD-1083** (the routed group's routes→`*_url` half, owner-present edge window — read §Reachability rule in
-[docs/services-traefik.md](docs/services-traefik.md) before touching a route or a publish) · **HD-1089** (one read
-from a real tailnet client; the fix is live) · **HD-1116** / **HD-1117** (the two gate halves of the same hygiene
-pass: both payloads are paid — Win11, and the WSL seat's own `~/.gitconfig-github` 2026-10-17 run FROM that box — and the
-generated-doc drift check is wired as `render_all.py --check --no-write`, because the in-place form truncates `docs/`
-and raced every doc-reading checker in the pool. HD-1116's Debian-seat leg is paid — the explicit `commit.gpgsign =
-false` was installed and read back FROM `oldsrv`, `vps` and `spark` (the runner accounts; the rest of the Debian seats
-are provably not git seats) — and what is left of that row is the owner's `GitHub sign` 1Password deletion. **HD-1117**
-carries tonight's pool flake as MEASURED state, not as a fix: three lanes independently watched
-`scripts/git/git-bootstrap.sh --self-test` fail inside the `validate-all` pool while passing 5/5 and 10/10 alone on this
-WSL Debian seat — it reddened the full gate at a tip tonight and passed every solo repeat, so the row keeps the
-reproduction note (red in the pool, green solo, and the arm reaches no real `op` because every fixture dir is first on
-PATH) and stays open until someone catches it in the red with the leg's own output) ·
-**HD-1130** (a service `enabled: true` in IaC that is **deployed nowhere** — the probe that does not lie is
-`ss -ltn | grep 11434` on every host plus the absence of `/srv/docker/<svc>`; decide converge-or-delete, and if delete,
-scrub the `ollama/*` wildcards from the VPS key model lists) ·
-**HD-1131** (a name answered from a **stale row in the Technitium DNSDB** although no zone and no
-`tailnet_subdomains` entry exists — deleting it is an owner act on the DNS tier, then confirm NXDOMAIN on both resolvers) ·
-**the ghost CCU reservations are parked** (two address reservations for **hardware never bought** had the generated
-address doc publishing ghost CCUs — now commented out in the ledger, not deleted; the parked local-HomeMatic
-failover variant itself stays; nothing left to do here) ·
-**HD-421** (a pre-seeded writable Docling artifacts bind — chowning `/models` cannot work, the mechanism is in
-[docs/services-ai.md](docs/services-ai.md)) · **HD-412** (two enrolment sessions, and ⛔ never on oldsrv: a rescue
-tool behind the thing it rescues is not a rescue) · **HD-406** · **HD-440** · **HD-472** · **HD-454** (⏸ owner) ·
-and the long tail in §B0.
+**Unbriefed open rows** — no session launches from them; they live in [todo.md](todo.md) and every view, and the full
+list is **derived** in [todo-table.md](todo-table.md) §B0. Two ids must not be lost: **HD-357** (the launchpad tiles —
+the family-surface brief was retired and no successor took the row; it wants a promoting decision, not a re-scope) and
+**HD-1100** (the PG legs — owner-paced, one cluster per window, spanning every host so no one domain brief owns it).
+One thing carries neither a row nor a brief, so it is named rather than re-derived: **the ghost CCU reservations** stay
+parked — their two entries are commented out in `network_static_hosts`
+(`IaC/ansible/group_vars/all/main.yml`), not deleted, and the generated address doc no longer publishes them.
