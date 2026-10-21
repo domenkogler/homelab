@@ -801,11 +801,13 @@
         action: drop
         comment: "IoT -> DoT bypass drop udp (HD-342)"
       # --- Kids VLAN 40 controls ---
-      # Forced filtered DNS: plain :53 from Kids is dst-nat'ed to the Technitium primary
-      # (ip firewall nat above), which enforces the Kids-Group policy (Cloudflare
-      # Families, network-dns.md); DoT (853) to anything but the resolver is dropped here
-      # so DNS cannot bypass the filter. Residual bypass: DoH/443 — accepted, upstream
-      # filtering still applies on the resolver.
+      # DNS STEERING, not filtering: plain :53 from Kids is dst-nat'ed to the Technitium
+      # primary (ip firewall nat above), which is the SAME resolver the Home tier uses —
+      # the tier runs one upstream for every group and holds no per-policy resolver
+      # address, so this resolver filters nothing (network-dns.md §Per-Subnet DNS Policy).
+      # DoT (853) to anything but that resolver is dropped here so clients cannot route
+      # around the steering. Residual bypass: DoH/443 — accepted, and with one tier-wide
+      # upstream nothing would filter it anyway.
       - chain: forward
         src-address: "{{ vlan_subnets[40] }}"
         protocol: tcp
