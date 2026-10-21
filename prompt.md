@@ -567,58 +567,30 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
 14. **Decisions the last wave left open** (none has a domain brief; each is one call, and the evidence that makes it
     actionable is named with it). The gates named here are indexed in [scripts/README.md](scripts/README.md)
     §Validation gate, and every count a gate prints is re-derived by running it here, never quoted.
-    - ✅ **The 2026-10-20 backlog decision round — ANSWERED in one sitting; nine rows became pure AI work.**
-      **HD-1160**: one upstream for the whole DNS tier, the per-policy claim dropped, so the fix was a retag of the policy
-      table and `technitium_dns_policy` and **no converge is owed** — the live tier already runs one shared forwarder list
-      (mechanism in the row; the two views lettered the options differently, so quote the mechanism, not the letter). The
-      retag landed; the row's ONE item left is the converge template's twin of the retagged router comment, which moves
-      only inside an owner-present router window (a `#`-line that IS rendered output — HD-1167's class).
-      **HD-1107**: replica datasets come out of the snapshotting template — a receive target takes no autosnapshots of its
-      own and rollbacks are source-side — never a hand-destroy of the 66. **HD-1106**: approved, by name, with the
-      onlyoffice named-volume fix **before** any `docker volume rm`; the blanket prune stays refused. **HD-1103**: `rotate 1`
-      + `maxsize`, a new role-owned file sized against the 100 MB tmpfs. **HD-1140**: the ledger owns the laptop's Home
-      reservation via a find-guarded delta riding a router window. **HD-357**: `seerrng.kogler.si` stays tailnet-only and its
-      tile stays linked-not-probed. **HD-443**: revoke Pi `admin`, accepting that a `Storage=volatile` journal cannot prove a
-      30-day silence, with `ansible-admin`/`domen` proven first. **HD-1110**: `api_key` is the fleet spelling; a live OAuth
-      entry is reported as drift, never overwritten to green a check. **HD-448/HD-460**: the 2026-10-12 KEEP-THE-PARITY
-      ruling stands — a fresh proposal to scope the SSH and RustDesk accepts to IPv4 was weighed and **not adopted** — and
-      "chase inbound IPv6 from the ISP" is answered **no** and mints no row. ⏳ The owner still runs the **secret rotations**
-      (`HD-1170` · `HD-1171` · `HD-1150` · `HD-1181`, the last of them this seat's own pi transcript store, which keeps
-      `check_secret_leak.py` red on the pi-dev seat and nowhere else until it is rotated). The `oldsrv` console look
-      (`HD-1175`) ran when the box came back. Rulings live in the rows and in the docs each row names — this bullet is an index.
-    - ✅ **`corpus_diff.py --gate` in the pool, or a hand-run wave audit — ANSWERED: it is a pool item now, and
-      the rule that kept it out is the rule that changed.** Both halves are registered (`--list` prints the run and
-      its `--self-test`). What held it out was that its verdict is a function of a pinned window: measured at one tip
-      it printed 203 REJECTs, 194 of them the add/drop-line rule firing on ordinary development and 7 losing a token
-      at all — a window green only in the commit that signed it, which is the definition of an item this pool cannot
-      hold. The fix was not the constant. `audit_text()`'s add/drop-line rule now carries the same token anchor
-      `audit_line()` got, and walking a length-changed file by opcode closed a real hole beside it: an aligned
-      in-place rewrite in any file that had also grown or shrunk went unjudged entirely. The same window after:
-      17 REJECTs, every one signed by name in [`scripts/gate/corpus_diff_accepts.txt`](scripts/gate/corpus_diff_accepts.txt)
-      with the change that made it named in the reason. The pinned pair is immutable, so the item reads the same at
-      every commit until `STALE_AFTER_COMMITS` trips it — and that red is the re-sign being owed, not a regression.
-      Re-derive every count by running it (`--gate --show-baseline`, plus the closed-window recipe in the NOTE beside
-      the registration), never from this sentence. · [scripts/README.md](scripts/README.md) §Validation gate
-    - ✅ **The mint space is poisoned by test fixtures — ANSWERED: `9000–9999` is the fixture block, and a gate holds it**
-      (owner ruling, A1). A per-id exclusion list was the first answer and it went stale the day a fixture was added:
-      `corpus_diff.py`'s classifier fixtures must mint ids that look real, and `scripts/next-hd.sh` scans the whole tree
-      on purpose, so the minter handed out an id four orders of magnitude above the registry top. The reservation is a
-      RANGE now — `RESERVED_RANGES` in `scripts/next-hd.sh` — stated in [CONVENTIONS.md](CONVENTIONS.md) §1 and
-      [todo.md](todo.md) §0, and held in BOTH directions by
-      [`scripts/gate/check_hd_mint_space.py`](scripts/gate/check_hd_mint_space.py) (registered: a fixture id outside the
-      block reddens, a registry row inside it reddens, prose that disagrees with the tool reddens, a minter that declares
-      no block refuses to run). Its ceiling is the **registry rows**, not the token max — a token-based ceiling is a test
-      the poison passes by existing, which is how the minter was fooled. Re-derive with `bash scripts/next-hd.sh`; every
-      count is that command's output, never this sentence. Of the two findings this line kept un-rowed, the reserved-range
-      prose is this change; the `git-bootstrap.sh --self-test` `signedout` arm (it keys on a string its own fixture
-      writes, so it proves branch logic and not the `op` contract) is now row **HD-1159** — minted from the clean space,
-      which is what made rowing it trustworthy possible.
-    - ✅ **Does this station have to push? — ANSWERED: yes, every station pushes after it merges** (option B3).
-      The old wording made the push another station's job, which left the fleet's only copy of merged work on one
-      disk. So: merge → `git push` → and the check is `git status -sb` reading **level with** `origin/main` (re-derive
-      it, never copy a count). A session closing with a count above zero has left a step undone, not skipped one on
-      request. On `remote: fatal error in commit_refs` the answer is the §1 retry (`--dry-run` to re-prove ACL, then
-      push again), not a permissions hunt — and the commit is never lost, it is on `main` locally the moment you merge.
+    - ✅ **The 2026-10-20 owner round — nine rulings, one sitting.** **HD-1160** one tier-wide DNS upstream, a retag,
+      no converge owed · **HD-1107** the replica datasets leave the snapshotting template, never a hand-destroy ·
+      **HD-1106** prune by name, the onlyoffice named volume first · **HD-1103** `rotate 1` + `maxsize`, a new
+      role-owned file · **HD-1140** the ledger owns the laptop's Home reservation, riding an existing router window ·
+      **HD-357** `seerrng` stays tailnet-only, its tile linked-not-probed · **HD-443** revoke the Pi's `admin` on the
+      neutralized state · **HD-1110** `api_key` is the fleet spelling, report drift, never overwrite it ·
+      **HD-448/460** KEEP-THE-PARITY stands, "chase inbound IPv6" answered no → [todo-table.md](todo-table.md) §A1's
+      2026-10-20 block, and each row's `RULED 2026-10-20` note in [todo.md](todo.md).
+    - ✅ **The gate calls.** `corpus_diff.py`'s purge audit lives in-tree on a pinned window with a signed accepts
+      list · the mint space reserves `9000–9999` for tool-fixture tokens, held in both directions by a gate · every
+      station pushes after it merges → [scripts/README.md](scripts/README.md) §Validation gate (what the pool holds is
+      `--list`, never this sentence) · [CONVENTIONS.md](CONVENTIONS.md) §1 + [todo.md](todo.md) §0 ·
+      [docs/orchestration.md](docs/orchestration.md) §4 step 5.
+    - ✅ **The router and edge calls.** The converge's spelling is canonical for the IoT DoT-bypass pair · `trusted-ha`
+      is DERIVED and the Pi is a member · the NAT reconcile deletes what its own `data:` does not list, so both writers
+      must list the row (the live apply is owed in [todo.md](todo.md) HD-1142) · `tailscale-sidecar_api` is rotated and
+      the leaked key is expired · `metabase` is revived on oldsrv and the VPS copy is gone →
+      [docs/network-ops.md](docs/network-ops.md) §Rsc authoring conventions rule 11 ·
+      [docs/network-vlans.md](docs/network-vlans.md) §Proving the KNX reply rule ·
+      [docs/deployment-secrets.md](docs/deployment-secrets.md) · [docs/network-vpn.md](docs/network-vpn.md)
+      §Tailnet-exposed services · [docs/services.md](docs/services.md) · [docs/services-admin.md](docs/services-admin.md) §Metabase.
+    - ⏳ The owner still runs the **secret rotations** (`HD-1170` · `HD-1171` · `HD-1150` · `HD-1181`, the last of them
+      this seat's own pi transcript store, which keeps `check_secret_leak.py` red on the pi-dev seat and nowhere else
+      until it is rotated). The `oldsrv` console look (`HD-1175`) ran when the box came back.
 
     - **Register the heading gate, price it, or leave it a tool.** `scripts/gate/check_doc_headings.py` exists and carries
       `--self-test`, and it IS registered now, alongside `check_doc_path_refs.py`: `--list` prints both its run and its
@@ -628,46 +600,6 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
       revision shows which way the trend moves; the three lawful answers are register it with a frozen baseline and
       refuse growth, run a clearing campaign, or keep it a tool and say so in the index. Ruled 2026-10-13: option (a) — registered with the frozen baseline, growth refused; no clearing
       campaign is owed. (Owning index: [scripts/README.md](scripts/README.md) §Validation gate)
-    - ✅ **Which spelling of the IoT DoT-bypass drop is canonical — ANSWERED: the converge's.** The converge writes
-      `IoT -> DoT bypass drop tcp (HD-342)` / `… udp (HD-342)` at `IaC/router/templates/rb4011_converge.rsc.j2:441,442`,
-      the role's `api_modify` twins at `IaC/ansible/roles/router/tasks/main.yml:793,799` now carry that same pair, and
-      the delta's guards compare on it (`rb4011_hd326_fix_delta.rsc.j2:71,74`), so the re-add-a-second-rule shape is
-      gone and nothing is owed live — the device pair already read this way, and the folded `iot_off_mgmt` delta that
-      used to carry those rows is retired. What the reading taught stays true and general: `community.routeros` has no `key:` parameter
-      and pairs device rows to data rows by minimum diff weight, so `comment` is one weighted field and not an
-      identifier, and renaming one side of a pair is what `check_string_twins.py` reddens. The remaining `comment=` ids
-      come out only with the deltas (the bullet below), which is rule 11 of
-      [network-ops.md](docs/network-ops.md) §Rsc authoring conventions.
-    - ✅ **`trusted-ha` membership, stated three ways — ANSWERED: the Pi IS a member, and the list is DERIVED.** The
-      role and the converge now carry the same expression — the inventory hosts that run HA (`raspberry_pi` +
-      `home_servers`, trimmed to short names) plus the VIP — and [network-vlans.md](docs/network-vlans.md) states the
-      derivation instead of enumerating it; the read-only render proved the derived set is the live list byte for byte,
-      the 2026-09-23 Pi widening included. ✅ **The device read followed on 2026-10-19:** `/ip firewall address-list
-      print where list=trusted-ha` holds **5 rows** (`oldsrv`×2, `pi`×2, `ha-vip`) and deriving the set from the inventory
-      + `network_static_hosts` reproduces exactly those 5 addresses with those 5 comments; the reverse rule's counter
-      reads 1 packet / 53 bytes against the forward rule's 36 / 1 934, which is what first-match-wins expects above an
-      `established,related` acceptor, and HA's `sensor.knx_interface_telegrams` was live at 3 611 — so the half-open
-      symptom is not present. ⚠ One probe this line assumed is a **no-op**: `homeassistant.update_entity` on a KNX entity
-      returns `200` with `[]` in 5 ms and moves neither `last_updated` nor either counter (KNX entities are non-polling).
-      The remaining proof is exactly one `GroupValueRead` from the Pi with the counters read either side, which needs a
-      privileged act (`docker exec` into the HA container — the socket is `root:docker` — or an integration reload), so at
-      night it is an owner act: [todo.md](todo.md) HD-1143.
-    - ✅ **The NAT reconcile, and what it removes — ANSWERED: list it.** The reconcile runs with
-      `handle_absent_entries: remove` and `restrict: [srcnat, dstnat]`, so anything its own `data:` does not list comes
-      off the device — and the Comtrend modem `srcnat` row is now LISTED there, as the byte-twin of the converge's, so
-      neither writer can drop it. Narrowing `restrict:` was weighed and declined. What remains is the live apply
-      (merge-only so far, the router slot is global) in [todo.md](todo.md) HD-1142 — read the before/after from the
-      device, never from the import's exit code.
-    - ✅ **Promote the string-purge gate, or keep calling it advisory — ANSWERED 2026-10-13: promoted, in-tree; SUPERSEDED — the run half left the pool, the `--self-test` stayed.** `corpus_diff.py` and its signed accepts list
-      live OUTSIDE this repository, so `validate-all.sh` cannot register them and deleting an accept entry narrows the
-      check while the suite stays green. Re-derive it: `--list` now prints items for the run and for its
-      `--self-test`, and `scripts/gate/corpus_diff.py`, `gate/corpus_baseline.txt` and
-      `gate/corpus_diff_accepts.txt` all live in this tree. Promotion takes three things, in this order:
-      the tool in-tree with both its run and its `--self-test` registered; a pinned baseline naming the compared
-      revision and carrying a digest of what was compared, with the staleness refusal `scripts/gate/check_string_twins.py`
-      already has; and the accepts list in-tree under the canary discipline of
-      `scripts/gate/iac_identifier_allowlist.txt`, so that deleting an entry reddens instead of quietly narrowing. All three landed together; the run half was later taken out of the pool, because its verdict is a function of the window it pins and a pool item must read the same way at every commit. Its self-test still shows by mutation that deleting an accept entry
-      reddens the run instead of quietly narrowing it — so deleting an entry remains an act the suite notices. (Owning index: [scripts/README.md](scripts/README.md) §Validation gate)
     - ⏸ **Retire the RB4011 deltas — RULED 2026-10-13: yes, and scheduled, not executed.** The retire procedure and its
       proof order are written into [network-ops.md](docs/network-ops.md); the window is owner-set (on-site, WinBox on the
       Home leg, read state back through the API), and until it runs the four `comment=` match keys stay untouched.
@@ -694,25 +626,7 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
     act is now safe to perform anywhere in a wave, because HD-1118 pinned the gate's own positive control to a
     population of its own (`CONTROL_BASE_REV`) and made the divergent-family witness a fixture — before that, moving
     `baseline_rev` past `8b28edd3` made case (v) measure backwards, which is why an earlier attempt was backed out.
-    - ✅ **Rotate the tailnet sidecar's pre-auth key (`tailscale-sidecar_api`) — ANSWERED 2026-10-18: rotated, and the
-      key that leaked is expired.** headscale minted a replacement (`tag:sidecar`, reusable), the vault item points at
-      it, and the rendered compose and the live container env both carry it; the leaked key was expired afterwards with
-      `vps-obs` still `online`, its tags unchanged, the peer roster identical and a `tailscale ping` ponging. What that
-      did NOT prove is the new key's power to register a REPLACEMENT node — `TS_AUTH_ONCE: "true"` means containerboot
-      authenticates only when the node is not already logged in, so the new key still reads `Used=false`, and exercising
-      it needs a genuine re-registration window, which drops every tailnet dashboard and is an owner-present act. The
-      leak class is worth remembering: a redactor that matches `KEY=value` does not match `KEY: "value"`.
-      (Owning: [docs/deployment-secrets.md](docs/deployment-secrets.md) · [docs/network-vpn.md](docs/network-vpn.md)
-      §Tailnet-exposed services)
-    - ✅ **`metabase`: retire the entry or enable it — ANSWERED 2026-10-18: revived on OLDSRV, and the VPS copy is
-      gone.** The owner ruled the revival (native login, since Metabase OSS has no OIDC; `sec.kogler.si` stays retired
-      forever), so it now runs on oldsrv at `metabase.kogler.si` — a loopback publish, `metabase` + `metabase-ts`
-      routers in oldsrv's own `traefik-internal`, no Authentik anywhere, both names answering 200 — and the VPS's
-      `/opt/metabase` is removed (16K of two September-2025 renders, no containers, no data volume: nothing to
-      preserve). Two hands: the DNS seed converge (`playbooks/dns-seed.yml`, owner-present under HD-436) — until it
-      runs the name does not resolve, and every doc says so rather than claiming a live service — and the browser
-      first-run wizard plus the `metabase_login` vault item, both in `deployment-manual.md` §P3.7.
-      (Owning: [docs/services.md](docs/services.md) · [docs/services-admin.md](docs/services-admin.md) §Metabase)
+
     - ⏳ **Prove the compose-boot verdict idempotent with one real converge.** The new
       `/usr/local/sbin/docker-compose-ensure` and the rewritten `docker-compose@.service` reached vps/oldsrv/pi/spark
       through task-level template runs, so one `--tags docker_services` pass must return those two legs
