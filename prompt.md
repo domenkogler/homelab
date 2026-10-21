@@ -431,35 +431,20 @@ the row→brief index is [todo-table.md](todo-table.md) §B0. A brief is named f
       `ok`/unchanged and every service's new reachability check green — the leg that proves IaC and the hosts agree.
       (Owning: [docs/deployment-compose.md](docs/deployment-compose.md) §Boot auto-start (docker-compose@))
 
-15. ⏳ **The gate's own speed on a Windows seat — and, since 2026-10-20, its trustworthiness there** — **HD-1135** landed the fork diet (gate 134 s → 78 s measured
-    interleaved on the Win11 git-bash seat, `$(<file)` proven to be as blind to CR as plain `grep` was) and gave
-    `sync-skills.sh` the `--self-test` its encoding guard had been waiting on (teeth proven by mutation, both
-    siblings now share one guard). **The bill the folder move re-bought is now paid**: `scripts/lib/pi-seat.sh`'s single
-    `pin()` is one `IFS=: read` pass into a `declare -gA` cache (ZERO execs where a `grep|head|sed|tr` call cost 398 ms
-    on the Windows seat) and `hl_owner_path()` resolves by ONE `globstar` walk per process as an out parameter, so
-    `$( )` cannot swallow its rc. Measured on the Debian seat, interleaved, three rounds: `seat_pkg_rows` went from 82
-    execs per inventory walk to 1 with byte-identical output, `pi-settings-config --self-test` 1.11 s → 0.71 s,
-    `pi-seat.sh --self-test` 1.06 s → 0.95 s with three EXTRA arms, and the whole `validate-all.sh` 24.1 s → 24.1 s —
-    **flat**, which is the honest Debian reading: process creation is not the cost here, so the win11 figures were never
-    a Debian forecast. A new counting arm (arm 8) is what catches the regression arm 6 could not — a `sed|head` body
-    compares sed with sed and prints GREEN. ⏳ **What is left:** the win11 side of THIS change has not been re-run on
-    that seat, so the 398 ms-per-pin numbers still stand for it. **And that seat cannot be trusted to grade itself
-    (**HD-1177**)**: measured in the primary checkout, `check_secret_leak.py` dies in a cp1252 `UnicodeDecodeError`
-    inside a subprocess reader thread (rc 1 direct, rc 127 inside the gate, where no `~/ansible-venv` exists),
-    `check_self_converge_guard.py`'s `check_mode` fixture calls all five role dirs `INVISIBLE` here while the same
-    commit is green in WSL, and `check_doc_path_refs.py` reds on citations to paths `.gitignore` excludes — so two
-    clones of one commit reach opposite verdicts, and HD-1117's `POOL DIAGNOSTIC` cannot say so on that seat because
-    `-v load=` is a gawk fatal. ⏳ **in order from there:** the gawk rename (one variable, prove the block prints on a
-    forced red run), the UTF-8 pin in `check_secret_leak.py`, then the fix-or-`SKIP` call on the converge-guard
-    fixture and the ledger-or-rescope call on the generated-path citations. The seat's DNS plane settled the same day
-    (**HD-1176** — the mechanism is in place on the seat: internal names routed to the MagicDNS loop per-link and
-    re-asserted by a timer, the Windows adapter's registration read back as effective, the WSL seat's drifted
-    `models.json` re-rendered), and the row stays **open** for what it still owes: that the four seat artifacts have
-    **no repo owner** (the `wsl` seat plane in
-    `scripts/harness/`), the headscale-side call on MagicDNS `SERVFAIL`ing most of `zone_kogler_si`, and the
-    suspend/resume + away-from-home re-measure. Record: [scripts/README.md](scripts/README.md)
-    `validate-all.sh` + `sync-skills.sh` rows · [docs/network-dns.md](docs/network-dns.md) §Host-side resolver.
-
+15. ⏳ **The gate's own speed and trustworthiness on a Windows seat** — **HD-1135** landed the fork diet and gave
+    `sync-skills.sh` the `--self-test` its encoding guard was waiting on; ⏳ what is left is that **the win11 side of
+    that change has never been re-run on that seat**, so its per-`pin()` cost figures still stand for it. The timings are
+    the row's and the registry's business, not this file's: [scripts/README.md](scripts/README.md) `validate-all.sh` +
+    `sync-skills.sh`. **That seat cannot be trusted to grade itself (**HD-1177**)**: gate items there read red or blind
+    while the same commit is green in WSL, so two clones of one commit reach opposite verdicts — **grade from the WSL
+    Debian clone, and a Win11 green is a *partial* result that must be reported as one**, never as the gate.
+    ⏳ **In order from there:** the gawk rename (one variable, prove the block prints on a forced red run), the UTF-8 pin
+    in `check_secret_leak.py`, then the fix-or-`SKIP` call on the converge-guard fixture and the ledger-or-rescope call
+    on the generated-path citations. **HD-1176**'s mechanism is in place on the seat and the row stays **open** for what
+    it still owes: the four seat artifacts have **no repo owner** (the `wsl` seat plane in `scripts/harness/`), the
+    headscale-side call on MagicDNS `SERVFAIL`ing most of `zone_kogler_si`, and the suspend/resume + away-from-home
+    re-measure. Record: [scripts/README.md](scripts/README.md) `validate-all.sh` + `sync-skills.sh` rows ·
+    [docs/network-dns.md](docs/network-dns.md) §Host-side resolver.
 **Parked on an owner-present window** — authored work with exactly one blocked action in front of it, named with that
 action so no lane re-derives it: **HD-436** (a) re-render headscale's `config.yaml` on the **VPS** slot, ONE guarded
 converge — the answer set is identical, the FILE is not (entry order + comments), so it reports changed and restarts
