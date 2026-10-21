@@ -186,3 +186,16 @@ group_keys_sha256 bf4ee1f9e97ddb6c4ab2ead4bea6b35da3d99c62faa6624d80c0cf94e03ae6
 baseline_rev 524a332feffb3d356633115ff69649a078f056cb
 twin_groups 2612
 group_keys_sha256 e3a2ac07273b743775d8fda884097eefbbb73620c3df75ffd2bb6a8eeb35326b
+#
+# Moved to b432210f, the seat-python fix (the seat fan-out's python runner). One group lost a
+# side and it is a MOVE, not a loss: `$(uname -s 2>/dev/null)` left scripts/lib/pi-seat.sh when the
+# per-box interpreter choice moved out of the plane COMPOSER and into the box that RUNS the command,
+# scripts/harness/seat-python.sh. Five sides still carry the identical bytes (pi-seat-sync.sh,
+# seat-ssh-build.sh, seed-seat-ssh-config.sh ×2, validate-all.sh); the deleted side was the same
+# idiom in the file that no longer needs to ask. The run before the move redded naming exactly
+# that one GONE side, which is the gate doing its job, and the fix is to record the move rather than
+# re-buy a fork the composer no longer needs.
+# Eligibility, measured BEFORE the move: `git rev-list --count 524a332f..HEAD` = 40 (cap 300).
+baseline_rev b432210f3f1ec22918258466d67fa6066bdfd9e9
+twin_groups 2668
+group_keys_sha256 d928eebcf006c08cf55779271abb538b2991d7233226c27b67740f5fce978a29
