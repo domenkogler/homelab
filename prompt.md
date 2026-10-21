@@ -290,7 +290,7 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
    ⚠ Never re-add `git commit -s`; signing is retired. **HD-1110**: `scripts/harness/pi-seat-sync.sh` is
    the one deploy path; its 2026-10-08 "oldsrv closed on all eight planes" reading is VOID, and the
    2026-10-21 re-read is the current one: the driver run **FROM the Win11 seat** reaches all three seats and reads
-   **`RESULT ok=27 problems=0`** — every declared plane on `win11` + `wsl` + `oldsrv` OK, after each seat clone was
+   **`RESULT ok=29 problems=0`** — every declared plane on `win11` + `wsl` + `oldsrv` OK, after each seat clone was
    fast-forwarded to the driver's own commit (`pi-self` OK everywhere at the new **1.3.0**: win11 by volta, wsl by the
    pinned npm prefix, oldsrv by `pi update`, whose answering binary is pi's managed layout — the layout
    `pi-self-update.sh` refuses to npm-install underneath, and the same command on the win11 layout refuses:
@@ -620,8 +620,10 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
       mgmt-sensitive changes — run it from an on-site station with WinBox reachable on the Home leg, and read the live
       state back through the API rather than trusting the import's exit code.
 
-    Standing on top of those, and not another decision: **no wave owes the twins re-baseline right now — it landed
-    at the HD-1118 × HD-1135 merge tip**, and a baseline still never ages past one wave.
+    Standing on top of those, and not another decision: **the twins baseline moved again at the 2026-10-21
+    seat-python commit** — one side of the `$(uname -s 2>/dev/null)` group left the plane COMPOSER for the resolver
+    that now runs it, which is the MOVE case the file records, and the population grew (2,612 → 2,668, re-derive with
+    `--show-baseline`); a baseline still never ages past one wave.
     `scripts/gate/twin_baseline.txt` pins the revision the population is read from, and the run compares how far `HEAD`
     has moved from it against its own staleness constant, so re-derive the distance with
     `git rev-list --count $(awk '/^baseline_rev/{print $2}' scripts/gate/twin_baseline.txt)..HEAD` and publish the three
