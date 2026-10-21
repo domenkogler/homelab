@@ -206,6 +206,14 @@ inside one session. The LIVE wave table is
    update `prompt.md` §2 to the post-merge state and remove the closed brief from the wave table;
    `git rm` each finished brief **together with** its link fixes in `prompt.md` / `todo.md` / `todo-table.md`
    (O7). No view may link a deleted brief.
+   **The handoff seal re-derives in this same commit.** If the merge touched `prompt.md`, run
+   `python3 scripts/gate/check_handoff_size.py --reseal` and commit the rewritten
+   `scripts/gate/handoff_baseline.txt` beside it — the seal is the station's to write and a lane's never
+   to touch, because two lanes resealing loses an entry and a lane that reseals has answered its own
+   finding. **A ceiling red after a merge means the handoff GREW: trim the handoff.** Raising a ceiling
+   is how this guard gets muted rather than kept. A ⚠ that a new typed count was frozen is the same
+   offer twice — deleting the number is the cheaper fix, and the seal is where the rest of the debt gets
+   booked, not where it gets argued with.
 5. `git worktree remove` each lane worktree, `git worktree prune`, `git branch -d session/<lane>…` (O8), `git push`.
    **The station that merged is the station that pushes** — every station pushes after its merge, so no merged commit
    waits on another host being switched on, and `git status -sb` reading level with `origin/main` is the close-out
