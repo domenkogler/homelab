@@ -484,23 +484,11 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
    pre-move marker, the skills plane had never been pushed since the self-learn landed, and the settings plane
    had nothing to merge into), one pass of the three owners turned them green, and `pi-seat-sync.sh --seat wsl
    --check` now reports every declared plane OK; `install-pi-debian.sh --check` on a clean Debian seat is the
-   third leg and it is **parked** — no host in the fleet is a spare clean Debian box to run it on. The `harness` docs
-   domain is registered rather than missing — its row closed 2026-10-19, so the record is the docs and git, not a
-   pointer: the hub [docs/harness.md](docs/harness.md) and its §8.3 review/rejected pair exist,
-   the one-file harness body is now five subject docs — [docs/harness-pi-engines.md](docs/harness-pi-engines.md),
-   [docs/harness-pi-models.md](docs/harness-pi-models.md), [docs/harness-pi-seats.md](docs/harness-pi-seats.md),
-   [docs/harness-pi-seat-identity.md](docs/harness-pi-seat-identity.md), [docs/harness-pi-terminal.md](docs/harness-pi-terminal.md) —
-   with the whole-tree reference sweep in the same change, and
-   [`scripts/gate/check_doc_domain.py`](scripts/gate/check_doc_domain.py) runs in `validate-all.sh` (run + `--self-test`) and prints
-   `OK: 88 docs, 10 domains, each with one claimed home`. The taxonomy call it was told about is recorded in
-   [prompt-scripts.md](prompt-scripts.md) §The taxonomy call (domain set
-   derived from frontmatter; hub required only at ≥2 non-pair docs; a `-review`/`-rejected` pair cannot create a
-   domain, so `storage` is not one and its pair retags to `domain: deployment`; `orchestration.md` → `meta`,
-   `spark-llm-profiles.md` → `hardware`, `manual/README.md` → `role: index`; §8.1's role vocabulary admits
-   `log`/`queue`/`evidence`/`incident-log`). Of its three prose tails, two landed 2026-10-19 and the third landed with
-   this commit: the one lane brief whose ownership list named a single harness doc "(split docs: … etc.)" now names all
-   five, so a lane's file set can no longer exclude four of them by prose. ⚠ **The `check_mode: false` rule now sees the
-   line as this repo writes it**: `check_self_converge_guard.py`'s detector carries the trailing comment YAML allows
+   third leg and it is **parked** — no host in the fleet is a spare clean Debian box to run it on. The `harness`
+   docs domain is REGISTERED, not missing: its five-way split, its checker and the taxonomy call are
+   [prompt-scripts.md](prompt-scripts.md) §The taxonomy call and the hub [docs/harness.md](docs/harness.md), and
+   the verdict count is that checker's own output. ⚠ **The `check_mode: false` rule now sees the line as this repo
+   writes it**: `check_self_converge_guard.py`'s detector carries the trailing comment YAML allows
    (`check_mode: false   # read-back` IS false), and the site is then classified by its carrying task — a read-only
    module (`stat`/`slurp`/`find`/`get_state`/`*_facts`) or a `command`/`shell` declaring `changed_when: false` is a
    read-back, anything else (an unknown module, a `command` with no `changed_when`) is a WRITE and reddens naming
