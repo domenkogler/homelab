@@ -15,7 +15,12 @@
 
 **The pi-dev seat is `oldsrv`, and its clone `domen@oldsrv:~/source/homelab` is the merging station** — merges
 land there, `scripts/validate-all.sh` runs there, and `git worktree list` on that host is the fleet's live set
-(harness state in [docs/harness-pi-engines.md](docs/harness-pi-engines.md)). ⚠ **On the laptop, grade from the WSL
+(harness state in [docs/harness-pi-engines.md](docs/harness-pi-engines.md)). ⚠ **No ASYNC child starts on this seat**: pi 1.3.0 neither ships nor declares
+`@earendil-works/chord`, and `pi-subagents` 0.76.1 requires it for the detached background runner, so an `async: true`
+launch dies at start with 0 s of work and no child session file while a FOREGROUND child on the same seat runs normally
+— and every seat plane still reads `OK`, so no `--check` reveals it. Lanes therefore run **foreground-sequential, one at
+a time**: a stated DEVIATION from O11 that ends the day **HD-1180**'s fix lands, never a new rule, and never to be
+written into [docs/orchestration.md](docs/orchestration.md) or a brief as the contract. ⚠ **On the laptop, grade from the WSL
 Debian clone and not the Win11 shell** — three gate items are red or blind on that seat (**HD-1177**), so a Win11
 green is a *partial* result and must be reported as one, never as the gate. **Pushing is not that station's exclusive
 job: every station pushes after it merges** (the rule is [docs/orchestration.md](docs/orchestration.md) §4 step 5 — an
@@ -135,11 +140,16 @@ the row→brief index is [todo-table.md](todo-table.md) §B0. A brief is named f
    the VPS and oldsrv instances pick it up in their own slots. **What did not land is not an unbuilt feature:**
    Technitium 15.6 answers **404** on every per-client/per-group endpoint on the pin and upstream alike, so a per-policy
    upstream has nowhere to live and the router's one `:53` dst-nat pair aims every policy at ONE shared resolver address
-   — **✅ RULED 2026-10-20 (owner): ONE tier-wide upstream; the per-policy claim is dropped** (option C in that row's
-   lettering — read the mechanism there, because the two views lettered the options differently). So the device-level
-   Kids/IoT acceptance in HD-481/482 is not owed by any settings change: filtering, where the family needs it, is a
-   device-side act. What the lane owes is now pure AI — the doc retag and the `technitium_dns_policy` retag named in the
-   row, with no converge behind it. Also open on the same tier, unbriefed: **HD-1152**'s prune leg has been proved
+   — **✅ RULED 2026-10-20 (owner): ONE tier-wide upstream; the per-policy claim is dropped** (quote the mechanism from
+   the row, never a letter — the two views lettered the options differently). So the device-level Kids/IoT acceptance in
+   HD-481/482 is not owed by any settings change: filtering, where the family needs it, is a device-side act.
+   **HD-1160** is now ONE item and it is not AI: the retag LANDED — [network-dns.md](docs/network-dns.md)
+   §What the pin can and cannot enforce, [network-rejected.md](docs/network-rejected.md) and the router role's comment —
+   and **no converge is owed**, because the tier already runs the one shared forwarder list. What remains is the
+   converge template's twin of that retagged router comment: the `#`-line in
+   `IaC/router/templates/rb4011_converge.rsc.j2` is RENDERED output (HD-1167's class), so it moves only inside an
+   **owner-present router window** (the global slot; ⛔ never from a docs lane, never `--diff`). The rules' own
+   `comment=` strings are live device state and stay as they are. Also open on the same tier, unbriefed: **HD-1152**'s prune leg has been proved
    un-runnable rather than un-run — the read uses a query-string shape this API does not answer, and the candidate build
    uses a Jinja list comprehension that dies at render; both are invisible to `--syntax-check` because the block is
    gated `not ansible_check_mode`. → [prompt-dns-transport.md](prompt-dns-transport.md)
@@ -241,7 +251,8 @@ the row→brief index is [todo-table.md](todo-table.md) §B0. A brief is named f
    (`smbclient //nas/domen -A creds`), parked. (**HD-1089**, the SABnzbd locality read, is the same lane's subject but
    no brief claims the row — it is in the unbriefed list below.) → [prompt-media-arrs.md](prompt-media-arrs.md)
 5. ⏳ **Cockpit, the coding seats, grants** — the cluster (**HD-361 · 411 · 442 · 443 · 444 · 465 · 495 · 1085 ·
-   1110 · 1138 · 1139 · 1140 · 1161 · 1162 · **1173**) with its owner-gated tails intact. **HD-1173 is registered and
+   1110 · 1138 · 1139 · 1140 · 1161 · **1173**) with its owner-gated tails intact, plus **HD-1180** (unbriefed — its AI
+   half is one pin line in `IaC/ansible/group_vars/all/versions.yml`, its acceptance half is a hand on each seat). **HD-1173 is registered and
    UNIMPLEMENTED** — the parked `dsh` + `pi-dev` harness IaC is to be removed and `pi-dev.ts.kogler.si` made a
    second name on the existing `pi-oldsrv-backend` (`pi-oldsrv.ts.kogler.si` stays canonical); only the row landed,
    so its four lanes and its live tails are all still open. Sequence note UPDATED: the fleet pi pin moved to 1.3.0 on 2026-10-21 with **both** vars moved together (`pi_host_npm_version` and `pi_dev_npm_version` MUST stay equal), so what this row still owes on the pin side is the deletion half — dropping `pi_dev_npm_version` and its `image-pin-probe.py` row is what leaves the repo with one pi pin instead of two. **The laptop↔oldsrv coding leg closed
@@ -304,19 +315,30 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
    and it is never cured by overwriting a live credential: the plane reads the live `type` and reports the mismatch instead
    of rewriting. Mint through the `pi_auth` vendor lane of
    [`scripts/harness/render-pi-config.py`](scripts/harness/render-pi-config.py) (§4 of [docs/harness-pi-models.md](docs/harness-pi-models.md)) and
-   never overwrite a live token to green a check. **The seat legs do NOT run FROM the `oldsrv` seat** — that sentence
-   held for `win11` and `wsl` and is now measured false for oldsrv (HD-1118's tail): `run_on_seat oldsrv` has one
-   transport, `ssh -n … oldsrv-domen`, with no local arm, so `--seat oldsrv` on that box dies at `Could not resolve
-   hostname` and with `PI_OLDSRV_TARGET=localhost` at `Host key verification failed`; from any other host the pre-flight
-   compares the seat clone with the checkout the driver runs from, so a session branch that is not on `origin/main`
-   reads `STALE-CLONE` forever and the planes can only be run **in place** in that clone. That gap is **HD-1162**
-   (add the local arm, proved by a `--self-test` arm whose stub transport records whether it was called), and its
-   sibling **HD-1161** is the same class one file over: `install-pi-wsl.sh`'s pi leg is `curl … https://pi.dev/install.sh | sh`
+   never overwrite a live token to green a check. **The seat legs run FROM their own seat, oldsrv included**:
+   `run_on_seat oldsrv` has two arms and the box's own hostname picks one — the local arm when this host IS the oldsrv
+   seat (so `--seat oldsrv` there reads the clone you are standing in and the pre-flight certifies it), the ssh arm
+   first everywhere else (`oldsrv-domen`, `oldsrv-domen-vps` included) — proved by two `--self-test` arms that shim
+   `hostname` and record which leg ran; run from any OTHER host the pre-flight still compares the seat clone with the
+   checkout the driver runs from, so a session branch that is not on `origin/main` reads `STALE-CLONE` there.
+   The matrix and the seat-side rule:
+   [docs/harness-pi-seat-identity.md](docs/harness-pi-seat-identity.md) §5a. Its sibling **HD-1161** is the same class
+   one file over: `install-pi-wsl.sh`'s pi leg is `curl … https://pi.dev/install.sh | sh`
    with no version at all while its Debian sibling installs `"${PI_PKG}@${PI_V}"` from the pin — the seat's own smoke
    test printed `expected 1.3.0` against `pi_host_npm_version: 1.1.0`, and `pi-self-update.sh` REFUSES the managed layout
    that installer creates. ⚠ The seat planes are also how the `subagent` payload drift reached two boxes: the compare now
    ignores `_note` (prose) and the push still writes the whole block, with four mutation-proven arms in
-   `pi-subagent-config.sh --self-test`. → [prompt-seat-cockpit-grants.md](prompt-seat-cockpit-grants.md)
+   `pi-subagent-config.sh --self-test`. ⚠ **HD-1180 is the delegation plane the pi 1.3.0 bump took away** —
+   pi-subagents 0.76.1 requires `@earendil-works/chord` from any host that is not a pre-chord `0.<minor>.<patch>`, and
+   pi 1.3.0 ships and declares neither, so EVERY `async: true` launch fails at start (a foreground child on the same
+   seat runs normally) while `pi-seat-sync.sh --check` reads all-OK: O11 is unmet on all three seats and no plane check
+   can see it. What is owed: **AI** — re-probe `npm view pi-subagents version`, then move
+   `pi_host_subagents_npm_version` 0.76.1 → 0.80.0 in [`IaC/ansible/group_vars/all/versions.yml`](IaC/ansible/group_vars/all/versions.yml)
+   (0.80.0 requires chord only when the host manifest declares it; one line, and no seat moves by the pin alone);
+   **owner** — the `settings` plane pushed and `pi install npm:pi-subagents@0.80.0` run FROM win11, wsl and oldsrv,
+   accepted by ONE `async: true` launch that yields a child session file (a green plane matrix proves none of it).
+   ⛔ never by npm-installing chord under a managed seat tree. Until the owner leg runs, the foreground-sequential
+   deviation in §1 stays in force. → [prompt-seat-cockpit-grants.md](prompt-seat-cockpit-grants.md)
 6. ⏳ **Storage, backup, the DR story** — **HD-191**'s ZFS policy units (**HD-1107**: the policy snapshots do exist
    on every configured dataset — `@autosnap_*_hourly|daily|weekly|monthly`, the row's original "zero snapshots" read
    grepped `@hourly.`, which sanoid's naming can never match — and retention is **43 / 24 / 24**, not the "~100" the
@@ -424,10 +446,11 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
    legs stay in the row — the two seat legs and the from-zero leg; **the seat legs are run FROM the seat —
    `bash scripts/harness/pi-seat-sync.sh
    --check` and `install-tmux-conf.sh --push` on the win11 seat, in its own session** — because a seat plane
-   converges from its own clone and the station cannot speak for a seat's PATH. ⚠ **That sentence is measured false
-   for `oldsrv`** (HD-1118's 2026-10-19 tail): `run_on_seat oldsrv` has one transport, `ssh -n … oldsrv-domen`, and no
-   local arm beside the `win11`/`wsl` fallbacks, so the driver cannot reach the seat it is standing on — run it from a
-   host that resolves the alias, or read the planes in place. That gap has its own row now, **HD-1162**. **The `wsl -d Debian` seat is
+   converges from its own clone and the station cannot speak for a seat's PATH. ⚠ **One correction to that sentence**:
+   it was measured false for `oldsrv` (HD-1118's 2026-10-19 tail — one transport, `ssh -n … oldsrv-domen`, no local arm
+   beside the `win11`/`wsl` fallbacks), and the driver now carries that local arm, chosen by the box's own hostname
+   ([docs/harness-pi-seat-identity.md](docs/harness-pi-seat-identity.md) §5a), so `--seat oldsrv` run FROM oldsrv reads
+   the clone you are standing in. **The `wsl -d Debian` seat is
    done 2026-10-17, run from that seat**: three planes had sat red there (the tmux target still carried the
    pre-move marker, the skills plane had never been pushed since the self-learn landed, and the settings plane
    had nothing to merge into), one pass of the three owners turned them green, and `pi-seat-sync.sh --seat wsl
@@ -447,13 +470,15 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
    `spark-llm-profiles.md` → `hardware`, `manual/README.md` → `role: index`; §8.1's role vocabulary admits
    `log`/`queue`/`evidence`/`incident-log`). Of its three prose tails, two landed 2026-10-19 and the third landed with
    this commit: the one lane brief whose ownership list named a single harness doc "(split docs: … etc.)" now names all
-   five, so a lane's file set can no longer exclude four of them by prose. ⚠ **HD-1165** is a gate blind spot found
-   while making `--check` usable: `check_self_converge_guard.py`'s check-5 detector is anchored
-   `^\s*check_mode:\s*false\s*$`, so a `check_mode: false` line that carries a trailing comment — all eight in
-   `roles/cockpit/tasks/maint-user.yml` — is invisible to the rule that demands `check_safe: false`, and the claim is
-   true today by accident rather than by gate. The row names the fix, the read-back (cockpit 0 visible files → 1) and
-   the classification step; ⛔ the wrong fix is declaring cockpit `check_safe: false`, which would refuse the very
-   `--check` HD-361 exists to make possible. **The
+   five, so a lane's file set can no longer exclude four of them by prose. ⚠ **The `check_mode: false` rule now sees the
+   line as this repo writes it**: `check_self_converge_guard.py`'s detector carries the trailing comment YAML allows
+   (`check_mode: false   # read-back` IS false), and the site is then classified by its carrying task — a read-only
+   module (`stat`/`slurp`/`find`/`get_state`/`*_facts`) or a `command`/`shell` declaring `changed_when: false` is a
+   read-back, anything else (an unknown module, a `command` with no `changed_when`) is a WRITE and reddens naming
+   `file:line`. cockpit reads **0 write / 8 read-back**, so its `check_safe: true` is a gate verdict now and not an
+   accident; ⛔ the wrong fix would be declaring cockpit `check_safe: false`, which would refuse the very
+   `--check` HD-361 exists to make possible. The verdict table is
+   [docs/deployment-ansible.md](docs/deployment-ansible.md) §Self-converge guardrail. **The
    child-lane contract is a rule with a ceiling and a gate now** — O10/O11 in
    [docs/orchestration.md](docs/orchestration.md) §4 and `subagents.modelScope` in
    [`pi-agent/settings-ssot.json`](pi-agent/settings-ssot.json), held by
@@ -472,7 +497,20 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
     `spark-llm_api` (published in a tracked bench capture of the public repo — the blob is still reachable from a ref,
     so only rotation closes it) and rule on `radarr_api`/`sonarr_api` (same publication class, `NOT_AUTO_ROTATABLE`);
     rotate `op_api` and re-seat all four installs; re-seat `vps:/etc/op/provision-token` with the `matrix_password`
-    ruling — none of these closes with a repo change. ⏸ **HD-454 is ruled, not pending** (nothing is purchased and no
+    ruling — none of these closes with a repo change. **HD-1181** extends that list to **14 CURRENT vault values** this
+    seat's pi transcripts hold: the rotation is the owner's and it differs per item — a vault edit + re-render
+    (`cockpit-pi-web_api`, the two Victoria basic auths, the three CAPsMAN PSKs), rotate **in the app first** for the two
+    app admin logins and `bazarr_api`, **coupled** for `n8n_password` (= `N8N_ENCRYPTION_KEY`, so stored credentials must
+    be re-encrypted) and the kopia repo password (HD-1174's rotate-and-reconnect window, or backups stop quietly), the
+    unix `domen` password on `oldsrv` (lanes read it through `op read … | sudo -S -p ""`), and the provider side for the
+    VPN key. ⚠ **`check_secret_leak.py` — and with it `validate-all.sh` — is RED at the tip here BY DESIGN until that
+    rotation lands**: no ledger line was added and the checker was not edited to quiet a live value, so a green leak read
+    on this seat would mean the register was muted, not that the exposure is gone. Deleting or shredding transcripts closes
+    nothing — a rotated value stops being a finding, an unrotated one never does; the register is per seat, so win11 and
+    wsl owe the same read. **HD-1160** owes one owner-present **router window** (global slot): the converge template's
+    twin of the retagged router comment, `IaC/router/templates/rb4011_converge.rsc.j2` — a `#`-line that IS rendered
+    output, so it moves with a render + `routeros-apply-delta.sh` inside the window and never from a docs lane, never
+    `--diff`. ⏸ **HD-454 is ruled, not pending** (nothing is purchased and no
     out-of-band path is scheduled, so a switched-off `oldsrv` waits for presence; the one owner-side leg left is a WoL
     re-test at a planned power-off) and **HD-47** above.
 13. ⏳ **Unrowed, but not free** — **HD-1100**'s held legs: both owner-authorized PG legs are DONE and verified
@@ -501,9 +539,11 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
     actionable is named with it). The gates named here are indexed in [scripts/README.md](scripts/README.md)
     §Validation gate, and every count a gate prints is re-derived by running it here, never quoted.
     - ✅ **The 2026-10-20 backlog decision round — ANSWERED in one sitting; nine rows became pure AI work.**
-      **HD-1160**: one upstream for the whole DNS tier, the per-policy claim dropped, so the fix is a retag of the policy
+      **HD-1160**: one upstream for the whole DNS tier, the per-policy claim dropped, so the fix was a retag of the policy
       table and `technitium_dns_policy` and **no converge is owed** — the live tier already runs one shared forwarder list
-      (mechanism in the row; the two views lettered the options differently, so quote the mechanism, not the letter).
+      (mechanism in the row; the two views lettered the options differently, so quote the mechanism, not the letter). The
+      retag landed; the row's ONE item left is the converge template's twin of the retagged router comment, which moves
+      only inside an owner-present router window (a `#`-line that IS rendered output — HD-1167's class).
       **HD-1107**: replica datasets come out of the snapshotting template — a receive target takes no autosnapshots of its
       own and rollbacks are source-side — never a hand-destroy of the 66. **HD-1106**: approved, by name, with the
       onlyoffice named-volume fix **before** any `docker volume rm`; the blanket prune stays refused. **HD-1103**: `rotate 1`
@@ -708,13 +748,16 @@ no docker role at all. An apply lifts the hold for exactly the suite names it mo
 so there is no manual `apt-mark` dance and no `--allow-change-held-packages`; when a host does read `differ`,
 that is the gap being reported, not a false positive. Six more parks carry exactly one blocked action
 each, all measured into their rows on 2026-10-19 — **⚠ read this list with the 2026-10-20 owner round applied: the
-`HD-1160`, `HD-1107`, `HD-1106`, `HD-1103`-retention, `HD-1140`, `HD-357`, `HD-443` and `HD-1110` entries below are
+`HD-1107`, `HD-1106`, `HD-1103`-retention, `HD-1140`, `HD-357`, `HD-443` and `HD-1110` entries below are
 RULED and their remaining work is AI work, so the owner act they describe no longer exists** (the ruling and the ordered
 act are in the rows and in §14); what is genuinely owner-blocked in this paragraph is `HD-1122`, `HD-1088`, `HD-1091`,
-`HD-1093`, `HD-1164`, `HD-1143`, `HD-1152` and the Pi-visit bundle — and `oldsrv`-targeted acts of any kind, because the
-box is dark and the owner is away from it. **HD-1160** — the owner chooses A/B/C/D for where a per-policy DNS
-upstream may live at all (Technitium 15.6 has no such surface and the router's one `:53` dst-nat pair aims every policy
-at one shared address; ⛔ shipping a fourth resolver instance as a side effect of a DNS row is what the row forbids) ·
+`HD-1093`, `HD-1164`, `HD-1143`, `HD-1152`, `HD-1160`'s router window and the Pi-visit bundle — and `oldsrv`-targeted
+acts of any kind, because the box is dark and the owner is away from it. **HD-1160** — the ruling landed and the retag
+with it, so what is left is one owner-present **router window** for the converge template's twin of the retagged
+`#`-comment (`IaC/router/templates/rb4011_converge.rsc.j2`; a `#`-line IS rendered output — HD-1167's class, global
+router slot, never `--diff`, never from a docs lane). Nothing else in that row is owed and **no converge is behind it**
+(⛔ shipping a resolver instance, a listener address or a `:53` dst-nat target to buy per-policy filtering stays refused
+permanently) ·
 **HD-1122** — flip `ai_tier_metrics_publish: true` and converge **oldsrv** `--tags docker_services,monitoring`: the
 flag, the `127.0.0.1` publish and the `prometheus.scrape "llama_cpp"` leg are ONE change that recreates two serving
 containers · **HD-1088** — ONE act: register oldsrv's public key on the live Box in the storage provider's console
@@ -754,8 +797,9 @@ neutralized state · **HD-1110** — the OAuth-vs-`api_key` call on the seat's `
 not settle by rewriting a working login.
 
 **✅ 2026-10-20 owner round — what stopped being an owner act.** Ruled, with the AI tail written into the rows:
-**HD-1160** (one tier-wide upstream — a doc/`group_vars` retag, and **no converge is owed**, because the live tier already
-runs one shared forwarder list) · **HD-1107** (retag the replica datasets out of the snapshotting template; never a
+**HD-1160** (one tier-wide upstream — the retag landed in the docs, the rejected log and the router role, and **no
+converge is owed** because the live tier already runs one shared forwarder list; what is left is the converge template's
+twin of one retagged `#`-line, which waits an owner-present router window) · **HD-1107** (retag the replica datasets out of the snapshotting template; never a
 hand-destroy) · **HD-1106** (onlyoffice named-volume fix first, then the prune by name, in a VPS window) · **HD-1103**
 (`rotate 1` + `maxsize` as a new role-owned logrotate file) · **HD-1140** (ledger row + find-guarded delta, riding an
 existing router window) · **HD-357** (`seerrng` tailnet-only; leave `homepage_seerrng_probe: false`) · **HD-443** (revoke
