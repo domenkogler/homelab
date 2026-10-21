@@ -85,9 +85,13 @@ grafana_alert_rules_authored:
       title: Public service unreachable
       for: 2m
       expr: 'probe_success{job="blackbox_http_probes"} == 0'
-      summary: "Unreachable public service (probe_success = 0)"
+      summary: !unsafe "Unreachable public service {{ $labels.instance }} (probe_success = 0)"
       # noData=OK: if blackbox_http_probes produces no series (config/job gap), that is
       # NOT every public service being down — only fire when a series exists and is 0.
+      # ⚠ The summary names a URL only because every target map in alloy.river.j2 carries its own
+      # `instance` (HD-1166). `__param_target` is a query parameter and is NOT a label: without that
+      # label all six probes collapse into one series carrying the exporter's address, and this rule
+      # pages "a public service is down" about the whole job at once.
       noDataState: OK
       execErrState: Error
       # `== 0` returns 0 — evaluator must be `lt 1`, not the `gt 0` default.
@@ -97,10 +101,14 @@ grafana_alert_rules_authored:
       title: Host unreachable
       for: 2m
       expr: 'probe_success{job="blackbox_icmp"} == 0'
-      summary: "Host unreachable (ICMP probe failed)"
+      summary: !unsafe "Host {{ $labels.instance }} unreachable (ICMP probe failed)"
       # noData=OK: when blackbox_icmp produces NO series at all (e.g. config
       # issue), that is NOT a host-down — only fire when a series exists and is 0;
       # no-data must not leave the rule stuck in an alerting state.
+      # ⚠ One alert INSTANCE per probed host, and that is the whole point of naming the target in
+      # the target map (HD-1166): five targets must become five series. Before it, this rule fired
+      # with `instance="127.0.0.1:9115"` — the exporter — which is why the dark-host class was
+      # covered by the generated per-host `absent_over_time` set instead of by this rule.
       noDataState: OK
       execErrState: Error
       # `== 0` returns 0 — evaluator must be `lt 1`, not the `gt 0` default.
@@ -321,6 +329,10 @@ grafana_alert_rules_authored:
       summary: "ha.kogler.si HTTP probe failed"
       # noData=OK: absent probe_success series ≠ HA down; only fire when the probe runs
       # and reports 0 (same class as host-unreachable). `== 0` needs `lt 1` evaluator.
+      # ⚠ This filter can only match because the probe target map sets `instance` = the probed URL
+      # (HD-1166). It used to select NO series at all — the six HTTP targets shared the exporter's
+      # `instance` — so with `noDataState: OK` this rule was structurally green whatever HA did.
+      # ⛔ Do not "simplify" the selector to the bare job: that merges six services into one rule.
       noDataState: OK
       execErrState: Error
       eval_type: lt
