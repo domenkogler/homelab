@@ -98,15 +98,16 @@ host/slot rule that decides what may run together are [docs/orchestration.md](do
 the row→brief index is [todo-table.md](todo-table.md) §B0. A brief is named for a host + domain, never for an HD
 (CONVENTIONS §6), so nothing here points at a per-HD brief any more.
 
-1. ⏳ **The spark engine lane** — the under-cap `clocks.sm` baseline for **HD-469** (only a sustained trace under
-   load proves the regime; run it from a session whose own model is **not** spark — rule 0), `fast`'s triton fix
-   (**HD-475**), the upstream-blocked engine pin (**HD-473**), and **HD-489**'s last certificate item: gate 6's
-   battery at `max_tokens 16,384` is **recorded, not applied**, and applying it means re-running the B1 baseline
-   in the same change. Gate 7 is CLOSED (read twice 2026-10-07, PASS both); B10's gates 6/8/9 were declined by
-   owner and B9 · B5 · B8 are closed — do not re-run any of them. **HD-494**'s re-derive is arithmetic-complete
-   with the value deliberately unchanged — price the 2026-10-06 transient before touching the var, and read
-   [docs/hardware-spark.md](docs/hardware-spark.md) first. →
-   [prompt-spark-llm.md](prompt-spark-llm.md) (one spark slot; HD-376 · 400 · 359 · 367 · 380 ride it too)
+1. ⏳ **The spark engine lane** — its legs are **scripted**, so an externally-served session runs them instead of
+   re-deriving them: `hd469-baseline.sh` (**HD-469** — only a sustained `clocks.sm` trace under load proves the
+   regime), `gate6-couple.sh` (**HD-489** — the battery at `max_tokens 16,384` AND the B1 baseline in one act, with
+   exit 4 breaking a broken pairing; `accuracy-gate.sh`'s own default stays 1024), `usable-sampler.sh` (**HD-494**),
+   `needle-window.sh` (**HD-376**), `text-only-preflight.sh` (**HD-400** — a read, legal from any seat; the profile
+   stays NOT applied). Run order, refusal exit codes and rollback:
+   [spark/reports/external-window-card.md](spark/reports/external-window-card.md). **HD-473 waits on an upstream
+   build, not on a seat** (re-proved at this tip: no `qwen*` tag newer than the 2026-08-26 pin, no fp8 `qsa.py`).
+   **HD-380 needs no external model** — it is a `/metrics` read. Gate 7 CLOSED, B10's 6/8/9 declined, B9 · B5 · B8
+   closed — do not re-run. → [prompt-spark-llm.md](prompt-spark-llm.md) (one spark slot; HD-359 · 367 ride it too)
 2. ⏳ **The transport / answer plane** — **HD-436**: the repo-side hinge is CLOSED (one derived list, both consumers
    read it, parity-proven on all six surfaces); the row owes ONLY the live half — the two converges in the parked table
    below, both still PARKED. **HD-477** make the resolver actually float with the VIP: premise measured green, the row
