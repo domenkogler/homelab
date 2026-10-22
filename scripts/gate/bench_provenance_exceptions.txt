@@ -1,0 +1,22 @@
+# bench_provenance_exceptions.txt — off-station timed spark legs the repo has ACCEPTED, one line per leg.
+# One line per leg: <step><TAB><ts><TAB><reason>. Those two keys ARE the leg's identity in the results
+# CSV — `run-scenario.sh` writes one `step` + one immutable `RUN_TS` per leg — so a line excuses ONE leg
+# that was already taken and cannot grow into an amnesty for a class. A line naming a host, a scenario, a
+# profile arm or a model would retro-actively accept every leg of that shape, which is how a debt
+# register becomes a mute button.
+# The gate is scripts/gate/check_bench_provenance.py. A leg named here prints NAMED DEBT and the run
+# stays green; an off-station leg that is not named here reddens it; a line whose leg is absent from the
+# CSV read prints NOT MATCHED, so the book cannot quietly rot into a standing free pass — deleting a line
+# is lawful only in the change that removes the leg it names.
+# ONLY the station rule is excusable here. A leg stamped `agent:spark/…` — a timed number taken by a
+# session served by the very engine it measures — is barred by Rule 0 (spark/llm-profiles/README.md) and
+# no line in this file opens that door: an exception is a statement about a box, Rule 0 is a statement
+# about a model. The station rule the exceptions are exceptions TO is docs/orchestration.md §4 and
+# todo-table.md §C rule 9: the designated runner station is the WSL Debian laptop seat, off-box for every
+# converge target, not the engine host, owner of no converge slot.
+# A reason under 40 characters is refused by the gate, not warned: the line's whole job is the argument,
+# so name the session that took the leg, why the station could not, and what the number may be quoted for.
+# HD-1154: no line yet, and that is the honest state — the pre-station legs the reports name (the HD-489
+# legs stamped `--client oldsrv`) are exactly the class this file exists for, but a line belongs here only
+# for a leg whose CSV row the gate can read, and those rows live on the hosts, not in the tree. Writing a
+# line for a row nobody can read would book the amnesty without the debt.

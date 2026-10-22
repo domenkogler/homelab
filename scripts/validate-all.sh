@@ -382,6 +382,31 @@
 #                                     ruling, each typed count shape, a copy of a carried story, a
 #                                     frozen site whose text was deleted, and the shapes in which the
 #                                     gate must refuse rather than print OK.
+#  38. check_bench_provenance.py     — a timed spark leg's stamp must name a runner that was allowed to
+#                                     take it. Two rules were prose-only and this is the mechanical half:
+#                                     Rule 0 (never a timed spark number from a session served by spark,
+#                                     incidents #3 + #6) and the designated runner station (an
+#                                     externally-served run takes timed legs from the WSL Debian laptop
+#                                     seat — off-box for every target, not the engine host, owner of no
+#                                     converge slot). Nothing else in the repo could ask either question:
+#                                     `PI_PROVIDER` appeared in no script and no gate, the engine cannot
+#                                     tell operators apart because every profile arm shares one
+#                                     `model_name`, and `PI_MODEL` reaches the tree in exactly one place
+#                                     — the `client` column run-scenario.sh appends per leg
+#                                     (`<hostname -s>/agent:<PI_MODEL>`). So the gate reads that column
+#                                     and prints RULE-0 (model half names provider `spark`; no exception
+#                                     excuses it — an exception is about a box, Rule 0 is about a model)
+#                                     and OFF-STATION (another box, no ledger line: a PROVENANCE finding,
+#                                     not a failed measurement). `gate/bench_provenance_exceptions.txt`
+#                                     keys one line to one leg (`step` + `ts`) so an exception cannot
+#                                     become an amnesty for a class, prints those legs as NAMED DEBT, and
+#                                     reports a line whose leg is absent as NOT MATCHED. The station test
+#                                     imports host_norm() from harness/render-pi-config.py rather than
+#                                     re-spelling hostname equality — HD-474 is what a second opinion
+#                                     about `Domen_P14s`/`DomenP14s` already cost. It reads a CSV and
+#                                     touches no host, so it is safe on a spark-served seat; and a run
+#                                     that could not read a stamp is NOT JUDGED (rc 2), which on a seat
+#                                     with no bench CSV here is a printed SKIP, never a pass.
 #   + ansible-playbook --syntax-check across all playbooks (WSL/CI-gated, HD-197) — its stderr is
 #                                     kept and the duplicate-mapping-key warning fails the run, the
 #                                     second witness for HD-1098 (it sees role task files as ansible
@@ -1121,6 +1146,19 @@ blk_tmux_check() {
   fi
 }
 
+# The bench provenance eye. Its rc 2 is NOT JUDGED: the results CSV is a bench artifact that lives on the
+# seat that ran the legs, so a tree without one has no evidence either way. Printed, never passed off as
+# a clean provenance read — the same shape as the leak eye below and the rsync cap above.
+blk_bench_provenance() {
+  local rc_prov=0
+  "$PY" scripts/gate/check_bench_provenance.py || rc_prov=$?
+  case "$rc_prov" in
+    0) return 0 ;;
+    2) echo "SKIP: no results CSV was read — the legs this item would judge are not in this tree. A provenance"; echo "      read that read no stamp is not a pass: run it with --csv <results-v2.csv> where the legs landed."; return 0 ;;
+    *) return "$rc_prov" ;;
+  esac
+}
+
 # The leak eye. Its own SKIP semantics: `op` absent or an unreadable vault is an environment
 # boundary (rc 2), printed and never counted green — the check compares captured bytes against the
 # vault's CURRENT values, so without them it has no idea what a leak would look like. It judges three
@@ -1373,6 +1411,12 @@ item_x "every leg executes real ansible-playbook against the literal localhost i
 # four files at once; this is the only thing that keeps those four agreeing. Run + canaries.
 item_q "check_subagent_contract.py (the subagent contract agrees across settings SSOT + the three rule docs)" $PY scripts/gate/check_subagent_contract.py
 item_q "check_subagent_contract.py --self-test (each rule bred, plus the silence canaries)" $PY scripts/gate/check_subagent_contract.py --self-test
+# The spark bench's provenance half: it reads a results CSV and touches no host, so a spark-served seat
+# runs it safely (it is the check that would have named a Rule 0 violation instead of prose hoping).
+# The rc 2 half is NOT JUDGED — no CSV here, a CSV with no `client` column, an unreadable ledger — printed
+# as a SKIP and never counted as a pass, because a seat with no bench rows has proved nothing about them.
+item_q "check_bench_provenance.py (a timed leg's client stamp must name an allowed runner: Rule 0 + the designated station)" blk_bench_provenance
+item_q "check_bench_provenance.py --self-test (each verdict on fixtures, then a mutation of its own parser — including the leg a ledger line must NOT excuse)" $PY scripts/gate/check_bench_provenance.py --self-test
 # corpus_diff.py --gate IS in the pool, and what made that possible is the token anchor on the
 # add/drop-line rule. Its verdict is a pure function of the two revisions pinned in
 # gate/corpus_baseline.txt, so it reads identically at every commit until the staleness cap trips it
