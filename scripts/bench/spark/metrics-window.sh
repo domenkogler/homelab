@@ -183,9 +183,20 @@ case "$INTERVAL" in (*[!0-9]*|'') die "--interval wants whole seconds, got '$INT
 # 32400 becomes 86400 by accident.
 dur_seconds() {
   local v="$1" n unit
+  # An empty value has to be refused HERE: the `(*)` arm below would echo it back as a
+  # "successful" parse and the failure would surface as a broken `[ -ge ]` further down.
+  [ -n "$v" ] || return 1
   case "$v" in
     (*[!0-9smhdSMHD]*) return 1 ;;
-    (*[smhdSMHD]) n="${v%"${v##[!0-9]}"}"; unit="$(printf '%s' "${v##*[0-9]}" | tr 'A-Z' 'a-z')"
+    # DO NOT "SIMPLIFY" THIS STRIP: the inner `*` in `${v##*[0-9]}` is load-bearing. It makes
+    # the pattern the LONGEST prefix ending in a digit, so stripping it leaves the suffix
+    # (`9h` → `h`) and removing that from `$v` leaves the digits (`9h` → `9`). Dropped, the
+    # pattern is a single non-digit character: on `9h` it matches no prefix, the strip is a
+    # no-op, `${v%"9h"}` yields an empty `n`, and every suffixed form dies as garbage while
+    # only bare seconds parses. `unit` on the next line already used the correct idiom, which
+    # is how the bug survived: the unit was right and the number was empty.
+    (*[smhdSMHD]) n="${v%"${v##*[0-9]}"}"
+                  unit="$(printf '%s' "${v##*[0-9]}" | tr 'A-Z' 'a-z')"
                     [ -n "$n" ] || return 1
                     case "$unit" in (s) printf '%s' "$n" ;; (m) printf '%s' "$((n * 60))" ;;
                                     (h) printf '%s' "$((n * 3600))" ;; (d) printf '%s' "$((n * 86400))" ;;
@@ -604,6 +615,8 @@ report_comparison() {
 #   (c) append-not-truncate across two attempts, and a second sampler refused
 #   (d) --report prints the comparison, and NOT COMPARED when the doc has no numbers
 #   (e) a zero-counter window is ZERO TRAFFIC, never a 0 % hit rate
+#   (f) --duration: the forms the header and the START-UP CARD advertise resolve to exact
+#       seconds, the garbage is refused at the CLI, and a mutation of the parser reddens them
 # plus the contract cases: read-only verbs, one ssh per sample, the stamp, and no
 # Rule 0 refusal under PI_PROVIDER=spark.
 # ---------------------------------------------------------------------------
@@ -825,6 +838,92 @@ FIX
   bad="$(grep -nE 'docker (restart|stop|rm|kill)|systemctl|reboot|shutdown|ansible|spark_llm_profile[[:space:]]*:|drop_caches|sed -i| -N |-L |-D ' "$t/commands.log" || true)"
   [ -z "$bad" ] && ok "no mutate verb and no tunnel flag in $(wc -l < "$t/commands.log") command(s)" \
     || bad "a mutate verb or a forward reached the box: $bad"
+
+  echo "self-test 7 (case f): --duration resolves the forms the header advertises"
+  # The header documents `N, Ns, Nm, Nh, Nd` and the START-UP CARD's own start line says
+  # `--duration 9h`, so the suffixed forms ARE the advertised interface. The shipped bug was
+  # that every one of them was refused and only bare seconds parsed — and no arm here fed a
+  # suffixed duration, so --self-test stayed green on a card that could not start. The parser
+  # is taken from THIS file's bytes and the same arms are re-run against a copy with the fix
+  # neutered: an arm that cannot redden is decoration. Hand-valued like the rest of the file:
+  # 9h = 9 × 3600, 45m = 45 × 60, 2d = 2 × 86400, and the uppercase arms exist because the
+  # case patterns have always listed SMHD beside smhd.
+  local fnc fixline mutline neutered pair key got_s mut_redden
+  fnc="$(awk '/^dur_seconds\(\) \{/,/^\}/' "$self")"
+  fixline='n="${v%"${v##*[0-9]}"}"'      # the fix: strip the longest prefix ENDING IN A DIGIT
+  mutline='n="${v%"${v##[!0-9]}"}"'      # the bug: a ONE-character prefix, so nothing is stripped
+  neutered="${fnc//"$fixline"/"$mutline"}"
+  if [ -z "$fnc" ]; then
+    bad "the parser could not be extracted from $(basename "$self") — case (f) cannot run"
+  elif [ "$neutered" = "$fnc" ]; then
+    bad "the mutation found no fix line to neuter in $(basename "$self") — case (f) cannot prove it can fail"
+  else
+    printf '%s\n' "$fnc" > "$t/parser.sh"
+    printf '%s\n' "$neutered" > "$t/parser-neutered.sh"
+    cat > "$t/dur-probe" <<'PROBE'
+#!/usr/bin/env bash
+# dur-probe <parser file> <value> — source one dur_seconds definition and print what it makes
+# of the value. Two words, no fixture, no transport: these arms never reach a host.
+set -euo pipefail
+. "$1"
+dur_seconds "$2"
+PROBE
+    for pair in "9h=32400" "45m=2700" "2d=172800" "32400=32400" "90s=90" "9H=32400" "9D=777600"; do
+      key="${pair%%=*}"
+      if got_s="$(bash "$t/dur-probe" "$t/parser.sh" "$key" 2>/dev/null)"; then :; else got_s="REFUSED"; fi
+      [ "$got_s" = "${pair#*=}" ] && ok "--duration $key resolves to ${pair#*=} s" \
+        || bad "--duration $key resolved to '$got_s', want ${pair#*=} s"
+    done
+    # The garbage, at the parser: refused with 1, never parsed into a number.
+    for key in "9x" "h" "9 h" ""; do
+      bash "$t/dur-probe" "$t/parser.sh" "$key" >/dev/null 2>&1 \
+        && bad "dur_seconds '$key' parsed — garbage must return 1" \
+        || ok "dur_seconds '$key' returns 1"
+    done
+    # The mutation arm: the same three suffixed arms against the neutered copy. Every one the
+    # neutered copy REFUSES is an arm above that really can fail.
+    mut_redden=0
+    for key in "9h" "45m" "2d"; do
+      bash "$t/dur-probe" "$t/parser-neutered.sh" "$key" >/dev/null 2>&1 || mut_redden=$(( mut_redden + 1 ))
+    done
+    [ "$mut_redden" -gt 0 ] \
+      && ok "mutation: dropping the inner * reddens $mut_redden of the 3 suffixed arms — those arms can fail" \
+      || bad "mutation: the neutered parser still resolves 9h/45m/2d, so the arms above prove nothing"
+    bash "$t/dur-probe" "$t/parser-neutered.sh" "32400" >/dev/null 2>&1 \
+      && ok "mutation: bare seconds still parses in the neutered copy — it fails ONLY the suffixed forms, which is the shipped bug" \
+      || bad "mutation: the neutered copy refuses bare seconds too, so it is not the shipped bug and the reddening above is not the right signal"
+    rm -f "$t/parser.sh" "$t/parser-neutered.sh" "$t/dur-probe"
+
+    # The same forms through the flag, because that is what a human types into the card: the
+    # resolved length is printed on the sampler's own line. --once keeps it to one fixture
+    # sample, so no window waits out a duration and nothing reaches a host.
+    for pair in "9h=32400" "45m=2700" "2d=172800" "32400=32400"; do
+      key="${pair%%=*}"
+      out="$(FAKE_LOG="$t/dur-commands.log" MW_OUT="$t/out-dur" bash "$self" --duration "$key" --once 2>&1)" && rc=0 || rc=$?
+      [ "$rc" = 0 ] && want "for ${pair#*=} s into" "--duration $key reaches the sampler as ${pair#*=} s" \
+        || bad "--duration $key exited $rc: $(printf '%s' "$out" | tail -1)"
+    done
+    # And the garbage through the flag too: refused with the usage exit code, and without a read.
+    : > "$t/dur-commands.log"
+    for key in "9x" "h" "9 h" ""; do
+      out="$(FAKE_LOG="$t/dur-commands.log" MW_OUT="$t/out-dur-bad" bash "$self" --duration "$key" --once 2>&1)" && rc=0 || rc=$?
+      case "$key" in
+        # An EMPTY argument is caught one layer earlier by the flag's own `:?` guard, which
+        # exits 1 for every flag in this script — so the CLI assertion here is "refused, and
+        # before any read", and the exit-2 assertion applies to the forms that do reach the
+        # parser. The parser refuses it too, which is what keeps a future caller honest.
+        ('') [ "$rc" != 0 ] && ok "--duration '' is refused at the CLI (exit $rc), before any read" \
+               || bad "--duration '' was accepted at the CLI"
+             ;;
+        (*)  [ "$rc" = 2 ] && ok "--duration '$key' is refused at the CLI with exit 2" \
+               || bad "--duration '$key' exited $rc, want 2: $(printf '%s' "$out" | tail -1)"
+             want "is not N, Ns, Nm, Nh or Nd" "the refusal names the forms it does accept"
+             ;;
+      esac
+    done
+    [ ! -s "$t/dur-commands.log" ] && ok "no rejected duration reached the box" \
+      || bad "a rejected duration reached the box: $(tr '\n' '|' < "$t/dur-commands.log")"
+  fi
 
   rm -rf "$t"
   if [ "$fails" = 0 ]; then echo "SELF-TEST OK"; return 0; fi
