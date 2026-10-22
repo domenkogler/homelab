@@ -26,6 +26,7 @@ still identifiable afterwards in the results CSV's `client` column.
 value `fast` means **today**) → [spark/llm-profiles/README.md](spark/llm-profiles/README.md) (rule 0 + the gate ladder =
 the test plan) → [docs/hardware-spark.md](docs/hardware-spark.md) §Unified-memory budget + §GPU clock cap →
 [spark/BENCHMARK-PLAN.md](spark/BENCHMARK-PLAN.md) §6/§6a/§9 → [docs/harness-pi-engines.md](docs/harness-pi-engines.md) §2–§3.
+**And when the sitting is externally-served:** [spark/reports/external-window-card.md](spark/reports/external-window-card.md) — the leg ORDER across this brief's rows, the seat that may take each one, the guards' exit codes and the closed items not to re-run; it dispatches, the docs above still outrank it.
 
 ## Order of work
 
