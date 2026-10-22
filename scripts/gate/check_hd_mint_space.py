@@ -23,18 +23,29 @@ and this file is what keeps the reservation true in both directions:
   4. PROSE AGREES — the block named in CONVENTIONS §1 and in todo.md §0 must be the block the TOOL
      uses, derived from the tool rather than compared against a constant. A widened range that forgot
      its prose is how a rule becomes two rules that disagree.
+  5. REUSE — the id the minter actually PROPOSES (it is RUN, never re-derived here) must be an id no
+     commit ever wrote. The tree half of the minter cannot see a row that was deleted, so "above every
+     id still standing in a file" is not the same statement as "never used". The commits that wrote
+     the id are named in the finding, read off the DIFF LINES of one history pass: `git log -S` asks
+     whether the occurrence COUNT changed on a path, so the commit that swaps an id's row for an
+     id's citation inside one file changes nothing and disappears from that sweep — the id stays,
+     the sweep forgets it, and a number that already has a history gets minted again.
 
 Both directions matter: rule 2 protects the minter from the fixtures, rule 3 protects the fixtures
-from the minter.
+from the minter, rule 5 protects the minter from its own tree scan.
 
 Run:    python3 scripts/gate/check_hd_mint_space.py [--show] [--self-test]
-        `--show` prints the derived block and the derived real max — print them, never type them.
-Exit:   0 clean · 1 finding(s) · 2 could not run (no minter, no range declared, corpus floor).
-Stdlib + git only. Wired into `validate-all.sh`.
+        `--show` prints the derived block, the derived real max and the id the minter proposes —
+        print them, never type them.
+Exit:   0 clean · 1 finding(s) · 2 could not run (no minter, no range declared, corpus floor, a
+        history pass that saw no commit). A minter that refuses to mint (its bounded candidate window
+        ran out) is not a finding here: it proposed nothing, so there is nothing to judge.
+Stdlib + git + bash only. Wired into `validate-all.sh`.
 """
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import subprocess
 import sys
@@ -43,10 +54,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(next(p for p in Path(__file__).resolve().parents
                             if p.name == "scripts") / "lib"))
-from repo_root import require_corpus, root as _hl_root  # noqa: E402
+from repo_root import require_corpus, root as _hl_root, script_path  # noqa: E402
 
 ROOT = _hl_root(__file__)
 MINTER = "scripts/next-hd.sh"
+# The minter is RUN to learn what it proposes — found by name, so it stays the real tool wherever the
+# tree moves it. A number re-derived in here would be a second implementation proving nothing.
+MINTER_PATH = script_path("next-hd.sh", __file__)
+# One commit per line, before its diff: the boundary the history pass needs to say WHO wrote an id.
+COMMIT_MARK = "\x01"
 # The same token shape next-hd.sh scans. Deliberately a CLASS, not a literal: an authored `HD-<n>`
 # inside this file would be picked up by the scan of the tree and make the checker cite itself.
 TOKEN = re.compile(r"[Hh][Dd][-_+–]([0-9]+)")
@@ -125,8 +141,76 @@ def tokens(root: Path, floor: int = CORPUS_FLOOR) -> list[tuple[str, int, int]]:
     return out
 
 
+def history_writers(root: Path) -> dict[int, list[str]]:
+    """id -> the commits whose diff WROTE it, from one pass over every reachable commit.
+
+    Line-level on purpose. `git log -S` compares the occurrence COUNT on a path, so a commit that
+    adds one copy of an id and deletes another — a row swapped for its citation inside one file —
+    answers "nothing changed" and vanishes from that sweep; streaming the +/- diff lines still sees it.
+    `--diff-merges=first-parent` keeps merge commits in the walk (plain `git log -p` prints no diff
+    for a merge, and the `-S` sweep cannot see one either). Same scan set as the minter's tree half:
+    reports/ is archive-only, so an id that survives only there is an id no row ever held.
+    """
+    proc = subprocess.Popen(["git", "-C", str(root), "log", "--all", "--no-color",
+                             f"--format={COMMIT_MARK}%h", "-p", "-U0",
+                             "--diff-merges=first-parent", "--", ".", ":(exclude)reports"],
+                            stdout=subprocess.PIPE, text=True, encoding="utf-8", errors="replace")
+    writers: dict[int, list[str]] = {}
+    sha, commits = "", 0
+    for line in proc.stdout or "":
+        if line.startswith(COMMIT_MARK):
+            sha, commits = line[len(COMMIT_MARK):].strip(), commits + 1
+            continue
+        for m in TOKEN.finditer(line):
+            hit = writers.setdefault(int(m.group(1)), [])
+            if sha and sha not in hit:
+                hit.append(sha)
+    proc.wait()
+    if proc.returncode != 0:
+        raise RuntimeError(f"git log --all -p in {root}: the history pass failed")
+    # A pass that saw no commit sees nothing, and "nothing written" would make every id look free.
+    require_corpus(commits, 0, "check_hd_mint_space history pass")
+    return writers
+
+
+def run_minter(root: Path, mode: str = "--raw", *, history: bool = True,
+               window: int | None = None) -> tuple[int, int | None, str]:
+    """RUN the minter on `root` and read the number it prints: (rc, id, stderr).
+
+    The reserved block/ids are passed back exactly as `root`'s own minter declares them, so a fixture
+    that moved its block is judged by its block and the real repo is unchanged by the passing. The
+    tool under test is the real script, not a copy of its logic written here.
+    """
+    ranges, ids = declared_block(root)
+    env = {**os.environ, "REPO": str(root),
+           "RESERVED_RANGES": ",".join(f"{lo}-{hi}" for lo, hi in ranges),
+           "RESERVED_IDS": " ".join(str(i) for i in sorted(ids))}
+    if not history:
+        env["GIT_SCAN"] = "0"       # the tree half alone: what this script proposed before the fix
+    if window is not None:
+        env["CANDIDATE_WINDOW"] = str(window)
+    try:
+        proc = subprocess.run(["bash", str(MINTER_PATH), mode], cwd=str(root), env=env,
+                              capture_output=True, text=True, encoding="utf-8", errors="replace")
+    except OSError as exc:                      # no bash on this host — a refusal, never a silent pass
+        raise SystemExit(f"CANNOT RUN: cannot exec bash {MINTER_PATH}: {exc}") from exc
+    out = proc.stdout.strip()
+    num = int(out) if out.isdigit() else None
+    return proc.returncode, num, proc.stderr.strip()
+
+
+def check_reuse(root: Path, proposal: int) -> list[str]:
+    """Rule 5: the id about to be minted must be an id no commit ever wrote — named, not asserted."""
+    written = sorted(history_writers(root).get(proposal, ()))
+    if not written:
+        return []
+    return [f"{tok(proposal)} is not free: {len(written)} commit(s) already wrote it "
+            f"({', '.join(written)}) — minting it again cross-links two rows and makes "
+            f"`git log -S {tok(proposal)}`, the prior-art sweep §0 leans on, match the older row"]
+
+
 def check(root: Path, floor: int = CORPUS_FLOOR) -> tuple[list[str], dict[str, object]]:
-    """The four rules. Returns (findings, derived values)."""
+    """The five rules. Returns (findings, derived values)."""
     bad: list[str] = []
     info: dict[str, object] = {}
     try:
@@ -160,7 +244,8 @@ def check(root: Path, floor: int = CORPUS_FLOOR) -> tuple[list[str], dict[str, o
     minter_max = max((n for _, _, n in toks if not in_block(n) and n not in reserved_ids),
                      default=registry_max)
     info = {"ranges": ranges, "registry_max": registry_max, "minter_max": minter_max,
-            "tokens": len(toks), "block_span": sum(hi - lo + 1 for lo, hi in ranges)}
+            "tokens": len(toks), "block_span": sum(hi - lo + 1 for lo, hi in ranges),
+            "proposal": None}
 
     # rule 2: poison — synthetic id text outside the reserved block
     for path, line, n in sorted(set((p, l, n) for p, l, n in toks)):
@@ -191,43 +276,91 @@ def check(root: Path, floor: int = CORPUS_FLOOR) -> tuple[list[str], dict[str, o
         if not any(re.search(RANGE_SP.format(lo=lo, hi=hi), text) for lo, hi in ranges):
             bad.append(f"{rel}: does not state the reserved block "
                        f"({'/'.join(f'{lo}-{hi}' for lo, hi in ranges)}) that {MINTER} actually uses")
+
+    # rule 5: reuse — ask the minter what it proposes, then ask history whether it is free.
+    rc, proposal, err = run_minter(root, "--raw")
+    if rc == 2:
+        # The minter refused to mint (its bounded window ran out). It proposed nothing, so there is
+        # nothing to judge here; the script itself failed loudly and that is its own contract.
+        info["refused"] = err.splitlines()[-1] if err else "no id proposed"
+    elif rc != 0 or proposal is None:
+        raise SystemExit(f"CANNOT RUN: {MINTER} {err[:160] or f'exited {rc} with no id'}")
+    else:
+        info["proposal"] = proposal
+        bad += check_reuse(root, proposal)
     return bad, info
 
 
 # --- self-test: every rule bred, and seen to be caught -----------------------------------------
+SEED_TOP = 401          # the highest row in the seeded fixture registry
+
+
 def self_test() -> int:
     tmp = Path(tempfile.mkdtemp(prefix="hd-mint-space-"))
-    repo = tmp / "repo"
-    (repo / "scripts" / "gate").mkdir(parents=True)
-    (repo / MINTER).write_text(
-        '#!/usr/bin/env bash\nRESERVED_IDS="${RESERVED_IDS-900 901}"\n'
-        'RESERVED_RANGES="${RESERVED_RANGES-9000-9999}"\n', encoding="utf-8")
-    # A legal tree: two rows, a citation to a closed id, and fixture text INSIDE the block.
-    (repo / "todo.md").write_text("# backlog\n\n| ID |\n|----|\n| HD-400 | one |\n| HD-401 | two |\n"
-                                  "\n9000-9999 is the fixture block.\n", encoding="utf-8")
-    (repo / "CONVENTIONS.md").write_text("| Backlog IDs | 9000-9999 is the fixture block |\n",
-                                         encoding="utf-8")
+
+    def seed(name: str) -> Path:
+        """A legal mini-repo: two rows, a citation to a closed id, fixture text INSIDE the block."""
+        repo = tmp / name
+        (repo / "scripts" / "gate").mkdir(parents=True)
+        (repo / MINTER).write_text(
+            '#!/usr/bin/env bash\nRESERVED_IDS="${RESERVED_IDS-900 901}"\n'
+            'RESERVED_RANGES="${RESERVED_RANGES-9000-9999}"\n', encoding="utf-8")
+        (repo / "todo.md").write_text(
+            "# backlog\n\n| ID |\n|----|\n"
+            f"| {tok(SEED_TOP - 1)} | one |\n| {tok(SEED_TOP)} | two |\n"
+            "\n9000-9999 is the fixture block.\n", encoding="utf-8")
+        (repo / "CONVENTIONS.md").write_text("| Backlog IDs | 9000-9999 is the fixture block |\n",
+                                             encoding="utf-8")
+        (repo / "scripts" / "gate" / "fixture_tool.py").write_text(
+            f"# classifier fixture\nX = '{tok(9001)}'\nY = '{tok(SEED_TOP)} is cited here'\n",
+            encoding="utf-8")
+        subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True)
+        subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
+        subprocess.run(["git", "-C", str(repo), "-c", "user.email=t@t", "-c", "user.name=t",
+                        "commit", "-qm", "fixture"], check=True)
+        return repo
+
+    def commit(repo: Path, msg: str) -> None:
+        subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
+        subprocess.run(["git", "-C", str(repo), "-c", "user.email=t@t", "-c", "user.name=t",
+                        "commit", "-qm", msg], check=True)
+
+    def mint_then_sweep(repo: Path, n: int) -> None:
+        """Breed the shape the tree scan cannot see, in three commits. The id is minted as a row, then
+        SWAPPED within the same file — the row goes, a citation line arrives, one path, one copy added
+        and one deleted — so its occurrence COUNT does not change and `git log -S` does not name that
+        commit at all. The third commit sweeps the citation. Afterwards no file carries the id and
+        every commit that touched it still does.
+        """
+        todo = repo / "todo.md"
+        row, cite = f"| {tok(n)} | minted |\n", f"\n> cited: {tok(n)}\n"
+        text = todo.read_text(encoding="utf-8")
+        todo.write_text(text + row, encoding="utf-8")
+        commit(repo, f"mint {tok(n)}")
+        todo.write_text(todo.read_text(encoding="utf-8").replace(row, cite, 1), encoding="utf-8")
+        commit(repo, f"swap the {tok(n)} row for a citation in the same file")   # zero-delta for -S
+        todo.write_text(todo.read_text(encoding="utf-8").replace(cite, "", 1), encoding="utf-8")
+        commit(repo, "sweep the closed row")
+
+    repo = seed("repo")
     fixture = repo / "scripts" / "gate" / "fixture_tool.py"
-    fixture.write_text(f"# classifier fixture\nX = '{tok(9001)}'\nY = '{tok(401)} is cited here'\n",
-                       encoding="utf-8")
-    subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True)
-    subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
-    subprocess.run(["git", "-C", str(repo), "-c", "user.email=t@t", "-c", "user.name=t",
-                    "commit", "-qm", "fixture"], check=True)
 
     def run() -> list[str]:
         return check(repo, floor=0)[0]
 
     fails = 0
 
-    def expect(label: str, want_red: bool, findings: list[str]) -> None:
+    def expect_true(label: str, ok: bool, detail: str = "") -> None:
         nonlocal fails
-        if bool(findings) != want_red:
-            print(f"SELFTEST FAIL [{label}]: wanted "
-                  f"{'RED' if want_red else 'GREEN'}, got {findings[:2]}")
-            fails += 1
+        if ok:
+            print(f"  ok  {label}")
         else:
-            print(f"  ok  {label}: {'redens' if want_red else 'stays green'}")
+            print(f"SELFTEST FAIL [{label}]{': ' + detail if detail else ''}")
+            fails += 1
+
+    def expect(label: str, want_red: bool, findings: list[str]) -> None:
+        expect_true(f"{label}: {'redens' if want_red else 'stays green'}", bool(findings) == want_red,
+                    f"wanted {'RED' if want_red else 'GREEN'}, got {findings[:2]}")
 
     def patch(path: Path, old: str, new: str) -> None:
         path.write_text(path.read_text(encoding="utf-8").replace(old, new, 1), encoding="utf-8")
@@ -247,9 +380,9 @@ def self_test() -> int:
         patch(fixture, f"X = '{tok(42000)}'", f"X = '{tok(9001)}'")
 
         # rule 3: a real row minted into the fixture block.
-        patch(repo / "todo.md", f"| {tok(401)} | two |", f"| {tok(9001)} | two |")
+        patch(repo / "todo.md", f"| {tok(SEED_TOP)} | two |", f"| {tok(9001)} | two |")
         expect("rule 3: registry row inside the block", True, run())
-        patch(repo / "todo.md", f"| {tok(9001)} | two |", f"| {tok(401)} | two |")
+        patch(repo / "todo.md", f"| {tok(9001)} | two |", f"| {tok(SEED_TOP)} | two |")
 
         # rule 4: the prose stops matching the tool's block.
         patch(repo / "CONVENTIONS.md", "9000-9999", "8000-8999")
@@ -275,6 +408,49 @@ def self_test() -> int:
         expect("control: tool and prose moved to a different block together", False, run())
         patch(fixture, f"X = '{tok(7500)}'", f"X = '{tok(9001)}'")  # legal under the OLD block only
         expect("rule 2: an id legal under the OLD block is poison under the new one", True, run())
+
+        # --- rule 5: REUSE. Two corpora, the same shape, one id apart: `used` minted the canary and
+        # swept it out of the tree, so the tree max points at it again; `free` ran the identical
+        # sequence one number higher, which leaves the canary genuinely unwritten.
+        canary = SEED_TOP + 1
+        used, free = seed("reuse-used"), seed("reuse-free")
+        mint_then_sweep(used, canary)
+        mint_then_sweep(free, canary + 1)
+
+        # The tree half alone still proposes the canary — the minter's own answer, not a number this
+        # file wrote down, and the exact shape the defect handed out as "free".
+        rc, tree_only, err = run_minter(used, "--raw", history=False)
+        expect_true(f"the tree half alone proposes the swept id {tok(canary)}",
+                    rc == 0 and tree_only == canary, f"got rc={rc} {tree_only} :: {err[-160:]}")
+        expect("rule 5: an id the tree forgot that history already wrote", True,
+               check_reuse(used, canary))
+
+        # The trap, witnessed: the count-based sweep names FEWER commits than the diff-line pass does,
+        # because the commit that SWAPPED the row for a citation changed no count on that path. The
+        # finding has to name all of them, including the one no `-S` invocation ever names.
+        written = history_writers(used).get(canary, [])
+        named = set(git(used, "log", "--all", "--format=%h", "-S" + tok(canary)).split())
+        expect_true("the finding names a commit the count-based sweep never names",
+                    bool(set(written) - named), f"pass={sorted(written)} sweep={sorted(named)}")
+
+        # The minter as shipped walks past the used id, and what it lands on is clean.
+        rc, shipped, err = run_minter(used, "--raw")
+        expect_true(f"rule 5: the minter as shipped walks past it to {tok(canary + 1)}",
+                    rc == 0 and shipped == canary + 1, f"got rc={rc} {shipped} :: {err[-160:]}")
+        expect("rule 5: what it lands on is written by no commit", False,
+               check_reuse(used, shipped or -1))
+        expect("rule 5 end to end: the whole check on the reuse corpus", False, check(used, floor=0)[0])
+
+        # The green half of the canary: the same corpus, the id genuinely unused, stays clean.
+        expect("rule 5: the same corpus, the canary genuinely unused", False,
+               check_reuse(free, canary))
+        expect("control: and the whole check on it stays green", False, check(free, floor=0)[0])
+
+        # The bound is load-bearing: given one candidate to look at, the minter must REFUSE to mint
+        # rather than hand out the used id it has just proved is used.
+        rc, nothing, err = run_minter(used, "--raw", window=1)
+        expect_true("bound: a 1-wide candidate window refuses to mint (rc 2, no id printed)",
+                    rc == 2 and nothing is None, f"got rc={rc} {nothing} :: {err[-160:]}")
     finally:
         import shutil
         shutil.rmtree(tmp, ignore_errors=True)
@@ -297,9 +473,13 @@ def main() -> int:
         return 2
     block = "+".join(f"{lo}-{hi}" for lo, hi in info["ranges"])  # type: ignore[index]
     real_max = info["registry_max"]  # type: ignore[assignment]
+    # The next free id is the minter's answer, read by running it — never this file's arithmetic.
+    proposal = info["proposal"]
+    free = str(proposal) if proposal is not None else \
+        f"none minted: {info.get('refused', 'the minter printed no id')}"
     if args.show:
         print(f"mint space: block={block} registry_max={real_max} minter_max={info['minter_max']} "
-              f"tokens={info['tokens']} ids set aside={info['block_span']}")
+              f"tokens={info['tokens']} ids set aside={info['block_span']} next_free={free}")
     for f in bad:
         print(f"FINDING: {f}", file=sys.stderr)
     if bad:
@@ -307,8 +487,8 @@ def main() -> int:
               file=sys.stderr)
         return 1
     print(f"OK: mint space reserved — block {block}, registry ceiling {real_max}, "
-          "no synthetic id outside the block, no registry row inside it "
-          f"(next free: {int(real_max) + 1})")
+          "no synthetic id outside the block, no registry row inside it, "
+          f"the minter's id is written by no commit (next free: {free})")
     return 0
 
 
