@@ -408,6 +408,26 @@
 #                                     touches no host, so it is safe on a spark-served seat; and a run
 #                                     that could not read a stamp is NOT JUDGED (rc 2), which on a seat
 #                                     with no bench CSV here is a printed SKIP, never a pass.
+#  39. the spark bench instruments' --self-test — the seven instruments this wave landed under
+#                                     scripts/bench/spark/ each SHIP a --self-test, and NOT ONE of
+#                                     them was registered: the grep for `accuracy-gate|gate6-couple|
+#                                     hd469-baseline|usable-sampler|metrics-window|needle-window|
+#                                     text-only-preflight` in this file returned nothing, and the
+#                                     only bench/spark item here was gate7-read.py. So every arm in
+#                                     them ran only when a human remembered to run it — which is
+#                                     exactly how a driver ships with a contract its own fixture
+#                                     never asked about (HD-1182: the TERM trap that deleted a LIVE
+#                                     sampler's pid file was one of those unasked contracts).
+#                                     Registration criterion, applied per arm: it must be HOST-FREE,
+#                                     because this gate runs on the seat whose own model is spark.
+#                                     Every one of the seven routes its far side through ONE door
+#                                     (host_read, with an `if [ -n "${X_SSH_CMD:-}" ]` branch, plus
+#                                     accuracy-gate's HTTP through ACCURACY_GATE_CURL_CMD) and
+#                                     run_self_test exports the fixture hook before its first arm;
+#                                     proven by running all seven with ssh/curl/docker/op replaced
+#                                     by logging tripwires on PATH — SELF-TEST OK seven times, ZERO
+#                                     tripwire lines logged, ~20 s of fixture work all together.
+#                                     What is NOT here, and why, is in the note by the items.
 #   + ansible-playbook --syntax-check across all playbooks (WSL/CI-gated, HD-197) — its stderr is
 #                                     kept and the duplicate-mapping-key warning fails the run, the
 #                                     second witness for HD-1098 (it sees role task files as ansible
@@ -1448,6 +1468,31 @@ item_q "knx-hass-gen.py --self-test (HD-439: emitted addresses must exist in the
 item_q "laptop-llm.py gate --self-test (HD-474: laptop serving-leg gate must be PROVEN OFFLINE)" $PY scripts/bench/laptop-llm.py gate --self-test
 item_q "laptop-llm.py probe-client (HD-474: client contract may not drift ahead of the engine)" $PY scripts/bench/laptop-llm.py probe-client
 item_q "gate7-read.py --self-test (HD-489 gate-7 bucketing: mixed-pid artifact, bounded fill, leak)" $PY scripts/bench/spark/gate7-read.py --self-test
+# The spark instruments' own verdicts. Each of these seven SHIPPED a --self-test and none of them
+# was registered, so the arms ran only when a human remembered them — the defect this registers.
+# The criterion for being here is HOST-FREE, not "has a test": a gate item runs on the seat whose
+# own model is spark, so an arm that could reach a box is un-registerable at any cost. How each
+# one is kept off the box, read out of the files rather than asserted: every far side goes through
+# ONE door — `host_read`, whose first branch is `if [ -n "${MW_SSH_CMD:-}" ]` (and the HD469_,
+# HD494_, GATE6_, NEEDLE_, PREFLIGHT_ twins; accuracy-gate's HTTP goes through
+# ACCURACY_GATE_CURL_CMD and its bearer read is skipped outright under FIXTURE=1) — and each file's
+# run_self_test EXPORTS its hook before its first arm re-enters the script. That was then checked,
+# not trusted: all seven run with ssh, curl, docker and `op` on PATH replaced by tripwires that log
+# and fail → 7× SELF-TEST OK, 0 tripwire lines, ~20 s together; text-only-preflight carries its own
+# ssh tripwire arm for the same question.
+# NOT registered, and that is a finding rather than an omission: gate 7's `--self-test` needs the
+# gpu_top_mib samples of a timed watchdog window, and run-scenario.sh — the only writer of those
+# rows — has no fixture hook, so minting them here would mean the timed leg this seat is barred
+# from. The READER half is already gated above (check_bench_provenance.py and its --self-test, both
+# in the quick profile); what stays unproven is run-scenario.sh's row shape, and it stays unproven
+# honestly: no stub can stand in for a row a timed leg is the only thing that writes.
+item_q "accuracy-gate.sh --self-test (the un-flagged battery body is byte-identical to the pre-change one, --max-tokens reaches the wire and changes nothing else, a bad budget is refused before any request)" bash scripts/bench/spark/accuracy-gate.sh --self-test
+item_q "gate6-couple.sh --self-test (Rule 0 refused before anything is read, the pairing guard seen from both sides, no mutate verb on the transport)" bash scripts/bench/spark/gate6-couple.sh --self-test
+item_q "hd469-baseline.sh --self-test (the KV/capacity verdicts on hand-valued fixtures + every command the driver sends is a read)" bash scripts/bench/spark/hd469-baseline.sh --self-test
+item_q "usable-sampler.sh --self-test (the MemAvailable−CmaFree verdict on fixtures, the transport path, and no mutate verb)" bash scripts/bench/spark/usable-sampler.sh --self-test
+item_q "metrics-window.sh --self-test (the /metrics parser, the hit-rate arithmetic, append-not-truncate, and the sampler pid file — including the two-sampler case that must not delete a file it does not own)" bash scripts/bench/spark/metrics-window.sh --self-test
+item_q "needle-window.sh --self-test (the depth floor with teeth, a FAIL-DEPTH recorded as a result, the run's own commands on fixtures)" bash scripts/bench/spark/needle-window.sh --self-test
+item_q "text-only-preflight.sh --self-test (the HD-400 pre-flight verdicts on fixtures, with an ssh tripwire that must never have been fired)" bash scripts/bench/spark/text-only-preflight.sh --self-test
 # Not the query itself — a read tool must never fail a commit — but its offline fixture is a real
 # verdict, and it is the witness for the venv-guard predicate render-pi-config.py copies verbatim.
 item_q "testdata/rsync-max-delete/run.sh --self-test (--max-delete is a CAP: exactly N/2 deleted + rc 25, asserted as numbers; every weakening reddens a canary)" bash scripts/testdata/rsync-max-delete/run.sh --self-test
