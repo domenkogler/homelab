@@ -365,28 +365,19 @@ the row→brief index is [todo-table.md](todo-table.md) §B0. A brief is named f
       this seat's own pi transcript store, which keeps `check_secret_leak.py` red on the pi-dev seat and nowhere else
       until it is rotated). The `oldsrv` console look (`HD-1175`) ran when the box came back.
 
-    - **Register the heading gate, price it, or leave it a tool.** `scripts/gate/check_doc_headings.py` exists and carries
-      `--self-test`, and it IS registered now, alongside `check_doc_path_refs.py`: `--list` prints both its run and its
-      `--self-test`, and the anchor half runs against a frozen baseline (`gate/doc_headings_baseline.txt`),
-      so growth is what reddens a commit — re-derive the count by running it, never by quoting it. The size of
-      the debt is the last line of its own run, and the same tool copied into a worktree checked out at an earlier
-      revision shows which way the trend moves; the three lawful answers are register it with a frozen baseline and
-      refuse growth, run a clearing campaign, or keep it a tool and say so in the index. Ruled 2026-10-13: option (a) — registered with the frozen baseline, growth refused; no clearing
-      campaign is owed. (Owning index: [scripts/README.md](scripts/README.md) §Validation gate)
+    - **Register the heading gate (`scripts/gate/check_doc_headings.py`), price it, or leave it a tool — RULED
+      2026-10-13, option (a): registered in the index with a frozen baseline (`gate/doc_headings_baseline.txt`),
+      growth refused, no clearing campaign owed.** (Owning index:
+      [scripts/README.md](scripts/README.md) §Validation gate)
     - ⏸ **Retire the RB4011 deltas — RULED 2026-10-13: yes, and scheduled, not executed.** The retire procedure and its
       proof order are written into [network-ops.md](docs/network-ops.md); the window is owner-set (on-site, WinBox on the
       Home leg, read state back through the API), and until it runs the four `comment=` match keys stay untouched.
-      `IaC/router/templates/rb4011_converge.rsc.j2:314,315,370,449` remove both nat chains and both filter chains and
-      rewrite them in template order, and at this tip every firewall rule the surviving `rb4011_*_delta.rsc.j2` /
-      `rb4011_ha_iot_repair.rsc.j2` files add is already written by the converge (measured by comparing rule attributes
-      with the comment text ignored; the hd326 pair that reads `to-addresses=$vip` is `:local vip {{ dns_primary_ip }}`
-      at `rb4011_hd326_fix_delta.rsc.j2:88` — the same literal the converge writes). So the deltas are redundant for
-      firewall state, and their `find where comment="…"` guards are exactly why the ids cannot come out: editing one
+      Every rule the surviving `rb4011_*_delta.rsc.j2` / `rb4011_ha_iot_repair.rsc.j2` files add is already written by
+      the converge, and their `find where comment="…"` guards are exactly why the ids cannot come out: editing one
       side makes a guard ADD a second rule (`Mgmt -> Home`) or a `remove` stop matching (the `comment~` prefix deletes).
       Proof order and the rule: [network-ops.md](docs/network-ops.md) §Rsc authoring conventions rule 11; owed legs:
-      [todo.md](todo.md) HD-1136. ⚠ A full converge is also the one operation §Mgmt-plane caution refuses for
-      mgmt-sensitive changes — run it from an on-site station with WinBox reachable on the Home leg, and read the live
-      state back through the API rather than trusting the import's exit code.
+      [todo.md](todo.md) HD-1136. ⚠ §Mgmt-plane caution refuses a full converge for mgmt-sensitive changes — run it
+      from an on-site station with WinBox reachable on the Home leg, and read the live state back through the API.
 
     Standing on top of those, and not another decision: **the twins baseline moved again at the 2026-10-21
     seat-python commit** — one side of the `$(uname -s 2>/dev/null)` group left the plane COMPOSER for the resolver
