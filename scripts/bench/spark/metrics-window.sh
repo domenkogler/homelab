@@ -28,12 +28,13 @@
 # this file's stamp column is named `stamp` — a spark-served READ is the permitted case, and
 # naming it `client` would hand a legal window to a gate built for timed legs.
 #
-# READ-ONLY against the box, by construction: ONE ssh session per sample batch, running
-# two greps — `/metrics` through curl, then /proc/meminfo. The route is the on-box :8000 the
+# READ-ONLY against the box, by construction: ONE ssh session per sample batch, running two
+# greps — `/metrics` through curl, then /proc/meminfo. The route is the on-box :8000 the
 # sibling spark instruments already read; if a deployment does not expose it, every counter
-# lands as MISSING and --report says so, because guessing a port is how a read becomes a 0. No tunnel, no listener, no
-# docker state change, no converge, no render, no restart, and no session held open
-# (one short ssh per sample is also what leaves nothing alive when the lane ends).
+# lands as MISSING and --report says so, because guessing a port is how a read becomes a 0.
+# No tunnel, no listener, no docker state change, no converge, no render, no restart and no
+# session held open — one short ssh per sample is also what leaves nothing alive when the
+# lane ends.
 # --self-test asserts one command per sample and that no mutate verb reaches the transport.
 #
 # START-UP CARD — the PARENT starts this. A lane may not leave a running process
@@ -579,8 +580,12 @@ report_comparison() {
     printf '>>>   VERDICT: NOT DECIDED — the comparison the row asks for needs the pre-raise number, and this script will not guess one.\n'
   fi
   if [ -n "$pre_ref" ]; then
-    word="$(awk -v a="$pre" -v b="$pre_ref" 'BEGIN{ print (a+0 > b+0) ? "HIGHER" : ((a+0 < b+0) ? "LOWER" : "LEVEL") }')"
-    printf '>>>   preemptions  +%s vs pre-raise %s  →  %s\n' "$pre" "$pre_ref" "$word"
+    # Direction, not an equivalence: the pre-raise figure is a count from ONE bench run and
+    # this one counts a working day of whoever's traffic showed up. Same unit, different
+    # traffic, so the line says which side of the old number the day landed.
+    word="$(awk -v a="$pre" -v b="$pre_ref" 'BEGIN{ print (a+0 > b+0) ? "ABOVE the old count" : ((a+0 < b+0) ? "BELOW the old count" : "level with the old count") }')"
+    printf '>>>   preemptions  +%s in this window vs pre-raise %s  →  %s (different traffic behind the two counts, so read it as direction, not as a like-for-like delta)\n' \
+      "$pre" "$pre_ref" "$word"
   else
     printf '>>>   preemptions  +%s vs pre-raise NOT COMPARED — %s describes the pre-raise preemption behaviour in prose and carries no COUNT (§6, "Preemption under 94 %% fill is real and it is slow, not fatal"). The 8.2-era counts live in the reports under spark/reports/; pass --preemptions-ref N to pin the comparison and it will be printed as operator-supplied.\n' "$pre" "${REF_DOC##*/}"
   fi
@@ -652,15 +657,15 @@ FIX
   {
     printf '%s\n' "$CSV_HEADER"
     printf 'A,1792000000,2026-10-22T09:00:00Z,seat/agent:none,173,100,250,100,0.6000,16900000,130000,15.99,ok\n'
-    printf 'A,1792003600,2026-10-22T10:00:00Z,seat/agent:none,176,900,1250,900,0.6100,16800000,120000,15.92,ok\n'
+    printf 'A,1792003600,2026-10-22T10:00:00Z,seat/agent:none,176,900,1250,900,0.6100,16800000,120000,15.91,ok\n'
   } > "$t/window.csv"
   # The same window with an engine restart inside it: 250 → 1250 (+1000), then the
   # counters come back from 50 (the restart) ⇒ the day is 1000 + 50, NOT 50 − 250.
   {
     printf '%s\n' "$CSV_HEADER"
     printf 'A,1792000000,2026-10-22T09:00:00Z,seat/agent:none,173,100,250,100,0.6000,16900000,130000,15.99,ok\n'
-    printf 'A,1792003600,2026-10-22T10:00:00Z,seat/agent:none,176,900,1250,900,0.6100,16800000,120000,15.92,ok\n'
-    printf 'B,1792007200,2026-10-22T11:00:00Z,seat/agent:none,50,20,50,20,0.1000,16800000,120000,15.92,ok\n'
+    printf 'A,1792003600,2026-10-22T10:00:00Z,seat/agent:none,176,900,1250,900,0.6100,16800000,120000,15.91,ok\n'
+    printf 'B,1792007200,2026-10-22T11:00:00Z,seat/agent:none,50,20,50,20,0.1000,16800000,120000,15.91,ok\n'
   } > "$t/window-reset.csv"
   # A day where nothing asked the cache anything: every counter identical.
   {
@@ -780,7 +785,7 @@ FIX
   out="$(bash "$self" --report --csv "$t/window.csv" --ref-doc "$t/ref-with.txt" 2>&1)" || true
   want "80.00 %  vs  pre-raise 75 %" "the hit-rate comparison prints the number parsed from the fixture doc"
   want "ref $t/ref-with.txt:2" "the comparison cites the path and line it read the number from"
-  want "preemptions  +3 vs pre-raise 17" "the preemption comparison prints the count parsed from the fixture doc"
+  want "preemptions  +3 in this window vs pre-raise 17  →  BELOW the old count" "the preemption comparison prints the count parsed from the fixture doc and says which side of it the window landed"
   out="$(bash "$self" --report --csv "$t/window.csv" --ref-doc "$t/ref-without.txt" 2>&1)" || true
   want "pre-raise NOT COMPARED" "a reference the doc does not carry prints NOT COMPARED"
   never "vs pre-raise 0" "and never as a silent zero"
