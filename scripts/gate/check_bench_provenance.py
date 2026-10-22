@@ -182,10 +182,10 @@ class Parsed:
 def read_legs(path: Path) -> Parsed:
     """Every data row of the results CSV, with the `client` column found BY HEADER NAME.
 
-    Position is not part of the verdict: the v2 header has 32 columns and a writer that adds one would
-    otherwise make this gate read a `profile` arm where an operator stamp used to sit — a false green
-    with a straight face. A header without `client` is unattributable, which is NOT JUDGED rather than
-    a finding, because nothing here can prove who took those legs."""
+    Position is not part of the verdict: the writer's header is wide, and a writer that adds, drops or
+    reorders one column would otherwise leave this gate reading a `profile` arm where an operator stamp
+    used to sit — a false green with a straight face. A header without `client` is unattributable, which
+    is NOT JUDGED rather than a finding, because nothing here can prove who took those legs."""
     if not path.exists():
         raise Boundary(f"{path} does not exist — the legs it would have listed were never read")
     if path.is_dir():
