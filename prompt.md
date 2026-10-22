@@ -158,10 +158,10 @@ the row→brief index is [todo-table.md](todo-table.md) §B0. A brief is named f
    apply is the row's only live tail. **HD-1164** is a firmware/kernel question, not a repo question: the `nas` unit
    stays **stopped on purpose** until the owner schedules the look plus a memory test. ⚠
    `check_host_reporting.py --check` reads RED for `nas` and that is the instrument working — do not soften the expected
-   set to make it green. **HD-1183** is the boot-time DB-dump push race the `oldsrv` hard-stop's reboot surfaced (its
-   console read is an owner-gated tail below): the unit and its fix belong to **storage**, this lane's half is the call
-   on adding it to `monitoring_hygiene_units` so a failure changes a series, not only a log line (the HD-450 canary
-   class). What *arrives* in the channel is a separate design question from what *fires*: a still-firing alert re-sends
+   set to make it green. The **boot-time DB-dump push race** the `oldsrv` hard-stop's reboot surfaced is **storage**'s
+   unit — the storage item below names the id and the fix; here only its paging half is ours, the HD-450 canary class:
+   adding the unit to `monitoring_hygiene_units` so a failure changes a series, not only a log line. What *arrives*
+   in the channel is a separate design question from what *fires*: a still-firing alert re-sends
    at most every **24 h** (`repeat_interval` in the notification policy `roles/monitoring` renders; the first send is
    not delayed). → [prompt-observability-alerting.md](prompt-observability-alerting.md)
 4. ⏳ **The media / music ladder** — **HD-362**: what Lidarr is missing is APP state, not a secret — one indexer and one
@@ -229,8 +229,9 @@ the row→brief index is [todo-table.md](todo-table.md) §B0. A brief is named f
    alone changes nothing on the box. Plus **HD-207** and **HD-238**. ⛔ **HD-1174** is registered and open: kopia's
    `repository connect server` echoes the URL it was handed, so the `kopia-server-internal_api` credential sits in
    plaintext in the kopia-agent's container log and in the log store for the retention window — scrub that connect line,
-   then rotate with the agent **re-connected**, because its `repository.config` caches the credential. →
-   [prompt-storage-backup.md](prompt-storage-backup.md)
+   then rotate with the agent **re-connected**, because its `repository.config` caches the credential. **HD-1183** is
+   that reboot's DB-dump push race: its fix lives here — an **oldsrv** `--tags storage` act, run **off-box** (the
+   self-converge guardrail); its paging half is the observability lane's. → [prompt-storage-backup.md](prompt-storage-backup.md)
 7. ⏳ **The Pi's own box** — **HD-418**: reconciled at both ends and owned in IaC
    (`roles/home_assistant/tasks/pi.yml`, tag **`hd418`**). ⚠ The proof is BEHAVIOUR, not the YAML: the list HA
    **enforces** is the `.storage/http` object, so `grep -A6 trusted_proxies configuration.yaml` can neither prove nor
@@ -273,7 +274,7 @@ the row→brief index is [todo-table.md](todo-table.md) §B0. A brief is named f
    [docs/deployment-secrets.md](docs/deployment-secrets.md) §Runtime plaintext that leaves the vault), and n8n audited
    shut with no AI node, so no key to mint ([docs/services-utilities.md](docs/services-utilities.md)). One defect from
    that turn is NOT the gateway's: Assist cannot resolve "dnevna soba" — the entity/area-exposure Gap the voice doc
-   above names, so it is the smart-home lane's row, not an LLM leg. **HD-1178** (new in this lane, **unbriefed**): the
+   above names, so it is the smart-home lane's row, not an LLM leg. **HD-1178** (new in this lane): the
    oldsrv `embed` leg's next model is chosen by a bench, not a leaderboard — nothing measured yet, and the corpus,
    both gates and the probe commands are in [docs/services-ai-bench.md](docs/services-ai-bench.md) §3d; the bench's
    first act is a `server-vulkan` pin bump that recreates the **reranker** leg with it. `EmbeddingGemma 2` stays

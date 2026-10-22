@@ -428,6 +428,27 @@
 #                                     by logging tripwires on PATH — SELF-TEST OK seven times, ZERO
 #                                     tripwire lines logged, ~20 s of fixture work all together.
 #                                     What is NOT here, and why, is in the note by the items.
+#  40. check_brief_coverage.py       — the row→brief map, with the view gate above. Which brief carries
+#                                     which row is written down in THREE places — `todo-table.md` §B0's
+#                                     `Rows it carries` cells, every root `prompt-<domain>.md`'s dispatch
+#                                     header, and `prompt.md`'s §2 pointers (`→ [prompt-x.md]` plus the
+#                                     parked table's `📋 brief` column) — and `check_view_registry_sync.py`
+#                                     above proves only the §B9↔`todo.md` seam, `check_todo_done.py --refs`
+#                                     only that a cited id is a live row. Nothing compared the three copies
+#                                     of the MAP, so a §B0 cell could hand a row to a brief that never
+#                                     mentions it (the lane is dispatched FROM the brief, so the work is
+#                                     never read), a brief could claim a row the index gives to another
+#                                     lane (two writers, one row), and `prompt.md` could point a row at a
+#                                     brief §B0 omits. Claims come from a brief's dispatch header and
+#                                     citations from its prose — containment may be lenient, a claim may
+#                                     not — and all three id spellings are parsed, so a cluster tail visible
+#                                     only as `HD-480/481` is its own rule (that is the half `--refs` cannot
+#                                     see: it checks an abbreviated cluster by its HEAD). §B0 is bounded by
+#                                     its `### 🔥 Active lanes` neighbour and its columns by their header
+#                                     text, a corpus floor refuses a walk that read nothing, and every tally
+#                                     (open / briefed / unbriefed) prints from the run, never from prose.
+#                                     Carried debt lives in `gate/brief_coverage_baseline.txt` keyed on the
+#                                     (brief, id) relation, and it reddens when a carried difference clears.
 #   + ansible-playbook --syntax-check across all playbooks (WSL/CI-gated, HD-197) — its stderr is
 #                                     kept and the duplicate-mapping-key warning fails the run, the
 #                                     second witness for HD-1098 (it sees role task files as ansible
@@ -1405,6 +1426,8 @@ item_q "check_vault_docs.py (every IaC-read vault item is documented)" $PY scrip
 item_q "check_todo_done.py (CONVENTIONS §4(a) done-row sweep)" $PY scripts/gate/check_todo_done.py
 item_q "check_view_registry_sync.py (todo-table.md §B9 holds exactly todo.md's row ids, in both directions — the dispatch view cannot silently lose a row, and cannot invent one)" $PY scripts/gate/check_view_registry_sync.py
 item_q "check_view_registry_sync.py --self-test (a row missing from §B9 must redden AND an id §B9 carries that the registry lacks must redden; the ratchet line whose difference cleared must go STALE)" $PY scripts/gate/check_view_registry_sync.py --self-test
+item_q "check_brief_coverage.py (the row→brief map is ONE map, not three — todo-table.md §B0's cells, every root brief's dispatch header and prompt.md's pointers name the same rows, in every id spelling)" $PY scripts/gate/check_brief_coverage.py
+item_q "check_brief_coverage.py --self-test (one canary per rule plus its reconciled twin; a vanished §B0, an empty §B0, a brief with no dispatch header and a link carried only by cluster shorthand must all be loud)" $PY scripts/gate/check_brief_coverage.py --self-test
 item_q "check_todo_done.py --refs (an HD id named by any root prompt brief must still be a row)" $PY scripts/gate/check_todo_done.py --refs
 item_x "breeds both directions of the marker grammar and the reference rule in a synthetic tree: a checker self-test, not a tree check — and HD-1117 names this leg as a pool flake" "check_todo_done.py --self-test (marker grammar + reference-existence canaries, both directions)" $PY scripts/gate/check_todo_done.py --self-test
 item_q "check_merge_markers.py (HD-453: no conflict markers in tracked files)" $PY scripts/gate/check_merge_markers.py
