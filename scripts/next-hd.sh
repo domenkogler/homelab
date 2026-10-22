@@ -90,7 +90,8 @@ RESERVED_RANGES="${RESERVED_RANGES-9000-9999}"
 # ids has this repo used", and the gap is the whole defect: a row minted and then deleted at
 # close-out leaves the tree, the minter's max walks past it, and the next row gets a number that
 # already has a history. Measured on the id this fix was written for:
-# `git log --all --format=%h -S'HD-1184'` returns commits while the script called that number free.
+# `git log --all --format=%h -S'<the number this fix was written for>'` returns commits, while the
+# script — reading only the tree — called that very number free.
 # The aggregate sweep cannot save it either, and neither can the per-id form of it everywhere: `git
 # log -S` asks "did the NUMBER of occurrences change on a path?", so a commit that swaps an id's row
 # for its citation inside one file — one copy added, one deleted — answers "no", and an aggregate
