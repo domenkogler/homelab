@@ -437,6 +437,16 @@ banner() {
   printf '>>> the record of what was read and by whom: %s on %s\n' "$(client_stamp)" "$HOST"
 }
 
+# release_pidfile — drop OUR sampler.pid, and only while it is still ours. Two samplers can point
+# at one window directory, and the file names whoever wrote it LAST, so a process that is still
+# alive is not necessarily its owner. Measured 2026-10-22: an older copy of this script (pid
+# 4169043) was signalled while a newer one (pid 153123) held the file; the trap removed it
+# unconditionally, so the LIVE sampler lost its handle — `--status` then read "not running" over a
+# running process and `kill $(cat sampler.pid)` had nothing to stop. Ownership, not existence.
+release_pidfile() {
+  if [ "$(cat "$OUT/sampler.pid" 2>/dev/null)" = "$$" ]; then rm -f "$OUT/sampler.pid"; fi
+}
+
 run_sample() {
   local dur start end n=0 fails=0
   dur="$(dur_seconds "$DURATION")" || die "--duration '$DURATION' is not N, Ns, Nm, Nh or Nd" 2
@@ -457,7 +467,7 @@ run_sample() {
     "$INTERVAL" "$dur" "$CSV" "$(date -u +%Y%m%d-%H%M)" "$(( $(wc -l < "$CSV") - 1 ))"
   printf '>>> poll it:   bash %s --status\n>>> stop it:   kill "$(cat %s/sampler.pid)"\n' "$SELF_DIR/$(basename "${BASH_SOURCE[0]}")" "$OUT"
   [ "$ONCE" = 1 ] || printf '%s\n' "$$" > "$OUT/sampler.pid"
-  trap 'if [ "$ONCE" != 1 ]; then rm -f "$OUT/sampler.pid"; fi
+  trap 'if [ "$ONCE" != 1 ]; then release_pidfile; fi
         printf ">>> stopped on signal after %s sample(s) — the window is still readable: --report\n" "$n"; exit 0' INT TERM
   start="$(date +%s)"; end=$(( start + dur ))
   while :; do
@@ -470,7 +480,7 @@ run_sample() {
     if [ "$(date +%s)" -ge "$end" ]; then break; fi
     sleep "$INTERVAL"
   done
-  [ "$ONCE" = 1 ] || rm -f "$OUT/sampler.pid"
+  [ "$ONCE" = 1 ] || release_pidfile
   printf '>>> %s sample(s) appended, %s failed read(s) · %s\n' "$n" "$fails" "$CSV"
   printf '>>> read it: bash %s --report --csv %s\n' "$SELF_DIR/$(basename "${BASH_SOURCE[0]}")" "$CSV"
 }
@@ -617,6 +627,9 @@ report_comparison() {
 #   (e) a zero-counter window is ZERO TRAFFIC, never a 0 % hit rate
 #   (f) --duration: the forms the header and the START-UP CARD advertise resolve to exact
 #       seconds, the garbage is refused at the CLI, and a mutation of the parser reddens them
+#   (g) the sampler pid file: the owner's signal removes it, a signal to a process that does NOT
+#       own it leaves the LIVE sampler's file intact (the two-sampler case measured on a real
+#       seat), and a mutation of the ownership test reddens the arm that proves it
 # plus the contract cases: read-only verbs, one ssh per sample, the stamp, and no
 # Rule 0 refusal under PI_PROVIDER=spark.
 # ---------------------------------------------------------------------------
@@ -923,6 +936,111 @@ PROBE
     done
     [ ! -s "$t/dur-commands.log" ] && ok "no rejected duration reached the box" \
       || bad "a rejected duration reached the box: $(tr '\n' '|' < "$t/dur-commands.log")"
+  fi
+
+  echo "self-test 8 (case g): the pid file goes with its OWNER — a signal to a passing sampler leaves it"
+  # The measured shape — two samplers, one window directory: an OLDER copy of this script (pid
+  # 4169043) was still alive when a
+  # newer one (pid 153123) took the same --out directory and wrote sampler.pid. Signalling the old
+  # copy ran its trap, which did `rm -f "$OUT/sampler.pid"` without asking whose pid the file held,
+  # so the LIVE sampler lost its handle: --status then read "not running" over a running process,
+  # and `kill "$(cat sampler.pid)"` had nothing left to stop. The arms run THIS file's own trap
+  # statement and its release_pidfile function, read out of the file's bytes the way case (f) reads
+  # the duration parser, so what is judged is the shipped text and not a copy of it. The pid the
+  # arms leave in the file is a live process of ours, so --status asks the very question the seat
+  # could not get an honest answer to. NOTHING here starts a sampler, touches a host or signals a
+  # process it did not spawn.
+  local gdef gtrap gmut gdir guardline unguarded gpid
+  gdef="$(awk '/^release_pidfile\(\) \{/,/^\}/' "$self")"
+  gtrap="$(awk '/^ *trap .*release_pidfile/,/INT TERM/' "$self")"
+  count_rm_sites() { sed -n '1,/^run_self_test()/p' "$1" | grep -cF 'rm -f "$OUT/sampler.pid"'; }
+  # Both paths that can drop the file must go through the guard, and no third one may exist: the
+  # count is how a re-added unconditional `rm` is caught, at the trap, at the normal exit, or on a
+  # line nobody thought to look at.
+  [ "$(count_rm_sites "$self")" = 1 ] \
+    && ok "one removal site is left in the code, and it is the guarded one" \
+    || bad "$(count_rm_sites "$self") removal site(s) in the code — every path that drops the pid file must call release_pidfile"
+  if [ -z "$gdef" ] || [ -z "$gtrap" ]; then
+    bad "neither release_pidfile nor the trap that calls it could be read out of $(basename "$self") — case (g) cannot run"
+  else
+    gdir="$t/case-g"; mkdir -p "$gdir/orig" "$gdir/mut"
+    printf '%s\n' "$gdef" > "$gdir/orig/def.sh"
+    printf '%s\n' "$gtrap" > "$gdir/orig/trap.stmt"
+    cat > "$gdir/probe" <<'PROBE'
+#!/usr/bin/env bash
+# One signalled sampler, assembled from the trap statement and the release_pidfile function read
+# out of the script under test. Args: <dir with def.sh + trap.stmt> <OUT> <pid to leave in the
+# file> [ONCE]. "SELF" means the file names this process — the owner; anything else is somebody
+# else's handle, which is the state a NEWER sampler leaves behind. No transport, no host, no
+# vault: the only thing that matters is whose pid the file holds when the signal lands.
+set -euo pipefail
+. "$1/def.sh"
+OUT="$2"; ONCE="${4:-0}"; n=7
+mkdir -p "$OUT"
+if [ "$3" = SELF ]; then printf '%s\n' "$$" > "$OUT/sampler.pid"; else printf '%s\n' "$3" > "$OUT/sampler.pid"; fi
+eval "$(cat "$1/trap.stmt")"
+kill -TERM $$
+sleep 30          # reachable only if the trap never exited: a hung arm, never a silent pass
+PROBE
+    chmod +x "$gdir/probe"
+
+    # (g1) the owner: the file names the process the signal reached, so it goes with it.
+    out="$("$gdir/probe" "$gdir/orig" "$t/out-g-owner" SELF 0 2>&1)" && rc=0 || rc=$?
+    [ "$rc" = 0 ] && ok "the owner exits on TERM (rc 0) instead of waiting out its sleep" \
+      || bad "the owner's trap gave rc $rc: $(printf '%s' "$out" | tail -1)"
+    want "stopped on signal" "the owner still prints the stopped-on-signal line"
+    [ ! -e "$t/out-g-owner/sampler.pid" ] \
+      && ok "and a sampler that owns the file cleans it up on the way out" \
+      || bad "the owner left its own pid file behind: $(cat "$t/out-g-owner/sampler.pid" 2>/dev/null)"
+
+    # (g2) the non-owner — the measured case. What the fixture reproduces is the state of the FILE
+    # at the moment the signal lands; a second REAL sampler could not be started beside the first,
+    # because case (c) proves the live-pid guard refuses it.
+    sleep 120 & gpid=$!
+    out="$("$gdir/probe" "$gdir/orig" "$t/out-g-live" "$gpid" 0 2>&1)" && rc=0 || rc=$?
+    [ "$rc" = 0 ] && ok "the signalled non-owner exits on TERM too — it stops, it does not linger" \
+      || bad "the non-owner's trap gave rc $rc: $(printf '%s' "$out" | tail -1)"
+    want "stopped on signal" "and it prints the same stopped-on-signal line"
+    [ "$(cat "$t/out-g-live/sampler.pid" 2>/dev/null)" = "$gpid" ] \
+      && ok "the LIVE sampler's pid file survived a signal to a process that does not own it" \
+      || bad "a non-owner deleted the file — the shipped bug: it now holds '$(cat "$t/out-g-live/sampler.pid" 2>/dev/null)', want $gpid"
+    cp "$t/window.csv" "$t/out-g-live/window.csv"
+    out="$(bash "$self" --status --out "$t/out-g-live" 2>&1)" && rc=0 || rc=$?
+    [ "$rc" = 0 ] && ok "--status read the surviving handle" || bad "--status gave rc $rc: $(printf '%s' "$out" | tail -1)"
+    want "RUNNING (pid $gpid)" "and --status still calls the live sampler RUNNING — the answer the seat lost"
+    kill "$gpid" 2>/dev/null || true; wait "$gpid" 2>/dev/null || true
+
+    # (g3) a --once run never claimed the file, so even a matching pid is not its file to delete.
+    out="$("$gdir/probe" "$gdir/orig" "$t/out-g-once" SELF 1 2>&1)" && rc=0 || rc=$?
+    [ -e "$t/out-g-once/sampler.pid" ] \
+      && ok "--once leaves a pid file it never wrote alone, even when the pid matches" \
+      || bad "a --once run deleted a pid file — the ONCE half of the trap is gone"
+
+    # (g4) mutation, first half: neuter the ownership test and the SAME non-owner arm must delete
+    # the live file. An arm that cannot redden is decoration (the case-(f) lesson).
+    guardline='  if [ "$(cat "$OUT/sampler.pid" 2>/dev/null)" = "$$" ]; then rm -f "$OUT/sampler.pid"; fi'
+    unguarded='  rm -f "$OUT/sampler.pid"'
+    gmut="${gdef//"$guardline"/"$unguarded"}"
+    if [ "$gmut" = "$gdef" ]; then
+      bad "the mutation found no guard line to neuter in $(basename "$self") — case (g) cannot prove it can fail"
+    else
+      printf '%s\n' "$gmut" > "$gdir/mut/def.sh"
+      printf '%s\n' "$gtrap" > "$gdir/mut/trap.stmt"
+      sleep 120 & gpid=$!
+      "$gdir/probe" "$gdir/mut" "$t/out-g-mut" "$gpid" 0 >/dev/null 2>&1 || true
+      [ ! -e "$t/out-g-mut/sampler.pid" ] \
+        && ok "mutation: with the ownership test gone the live file IS deleted — the arms above can fail" \
+        || bad "mutation: the neutered copy left the file alone, so arm (g2) proves nothing"
+      kill "$gpid" 2>/dev/null || true; wait "$gpid" 2>/dev/null || true
+    fi
+
+    # (g5) mutation, second half: rewiring the TRAP back to a direct `rm` (leaving the guarded
+    # function in place, so no behavioural arm above would notice) must be caught by the count.
+    # The copy is counted, never run.
+    sed 's|then release_pidfile; fi|then rm -f "$OUT/sampler.pid"; fi|' "$self" > "$gdir/rewired.sh"
+    [ "$(count_rm_sites "$gdir/rewired.sh")" = 2 ] \
+      && ok "mutation: a trap rewired to a direct rm shows up as a SECOND removal site — the count has teeth" \
+      || bad "mutation: the rewired copy printed $(count_rm_sites "$gdir/rewired.sh") site(s), so the count above cannot see a re-added unconditional rm"
   fi
 
   rm -rf "$t"

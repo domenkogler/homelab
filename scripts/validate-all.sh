@@ -416,7 +416,7 @@
 #                                     only bench/spark item here was gate7-read.py. So every arm in
 #                                     them ran only when a human remembered to run it — which is
 #                                     exactly how a driver ships with a contract its own fixture
-#                                     never asked about (HD-1182: the TERM trap that deleted a LIVE
+#                                     never asked about — the TERM trap that deleted a LIVE
 #                                     sampler's pid file was one of those unasked contracts).
 #                                     Registration criterion, applied per arm: it must be HOST-FREE,
 #                                     because this gate runs on the seat whose own model is spark.
