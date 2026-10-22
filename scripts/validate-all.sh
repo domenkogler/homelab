@@ -389,10 +389,11 @@
 #                                     externally-served run takes timed legs from the WSL Debian laptop
 #                                     seat — off-box for every target, not the engine host, owner of no
 #                                     converge slot). Nothing else in the repo could ask either question:
-#                                     `PI_PROVIDER` appeared in no script and no gate, the engine cannot
-#                                     tell operators apart because every profile arm shares one
-#                                     `model_name`, and `PI_MODEL` reaches the tree in exactly one place
-#                                     — the `client` column run-scenario.sh appends per leg
+#                                     no bench script and no gate READ `PI_PROVIDER` (the mentions are all
+#                                     prose — the briefs, docs/orchestration.md, one IaC comment), the
+#                                     engine cannot tell operators apart because every profile arm shares
+#                                     one `model_name`, and `PI_MODEL` reaches the tree in exactly one
+#                                     place — the `client` column run-scenario.sh appends per leg
 #                                     (`<hostname -s>/agent:<PI_MODEL>`). So the gate reads that column
 #                                     and prints RULE-0 (model half names provider `spark`; no exception
 #                                     excuses it — an exception is about a box, Rule 0 is about a model)

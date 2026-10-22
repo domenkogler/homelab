@@ -7,9 +7,11 @@
 > `docs/orchestration.md` §4, `todo-table.md` §C rules 2 and 9
 
 WHY THIS EXISTS. Rule 0 — "never produce a timed spark number from a session whose own model is spark"
-— is backed by two incidents and enforced by prose. Measured before this file existed: `PI_PROVIDER`
-appeared in NO file under `scripts/` and in NO gate, so nothing in the repo could tell whether the
-session that wrote a row of `tok/s` was served by the box it was measuring. The engine cannot tell
+— is backed by two incidents and enforced by prose. Measured, not assumed: `grep -rln PI_PROVIDER
+scripts/bench/` answers NOTHING and no gate read the variable at all, so nothing in the repo could tell
+whether the session that wrote a row of `tok/s` was served by the box it was measuring; the mentions
+elsewhere are prose — the seat briefs, `docs/orchestration.md` §4 and one comment in
+`IaC/ansible/group_vars/spark.yml`. The engine cannot tell
 operators apart (all the profile arms share one `model_name`, which is a client anchor that must not
 move), so the only mechanical record of who took a window is the `client` column that
 `scripts/bench/spark/run-scenario.sh` writes — `<hostname>/agent:<PI_MODEL>`, one value per leg, already
