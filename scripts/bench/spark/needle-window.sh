@@ -32,10 +32,13 @@
 # WHAT THE ACT RUNS for a profile the box is actually serving, at that profile's depth:
 #   · the existing needle/depth probe, REPS times (gate 5 asks 3/3): `spark-llm-probe.py …
 #     ctx <depth>` — the probe that already plants a NEEDLE code word in a deep prompt and reads
-#     `prompt_tokens` back. Reused, not reinvented.
+#     `prompt_tokens` back. Reused, not reinvented. A leg counts as PASS-DEPTH on HTTP 200 AND
+#     `prompt_tokens` >= 80 % of the ask, which is gate 3's own bar and the highest the probe can
+#     construct (it sizes its body to 0.9 × 0.9 of the ask); a higher bar here would be a bar no
+#     real run can clear, i.e. a permanent false FAIL — see DEPTH_FLOOR_FRACTION.
 #   · `/metrics` at both ends of the window, so "no preemption" (gate 3) is a number in the
 #     report and not a hope. That half is a counter READ, legal from any session.
-#   · ONE timed leg through `run-scenario.sh … S1-N` at 90 % of depth on the box, stamped
+#   · ONE timed leg through `run-scenario.sh … S1-N` at 90 % of ctx on the box, stamped
 #     `--profile <name> --client <hostname>/agent:<PI_MODEL>` — the record that makes a depth leg
 #     quotable afterwards (its `req_ok_delta` proves the window was the leg's own). `--no-window`
 #     skips it.
@@ -126,7 +129,12 @@ while [ ! -f "$_hl_d/lib/repo-root.sh" ] && [ "$_hl_d" != / ]; do _hl_d="$(dirna
 . "$_hl_d/lib/repo-root.sh"
 
 CEILING=262144                 # --max-model-len ceiling = the checkpoint's max_position_embeddings
-WINDOW_FRACTION=90             # gate 5: the needle sits at >= 90 % of the window
+WINDOW_FRACTION=90             # the S1-N window leg: ONE session at ~90 % of ctx (run-scenario.sh)
+DEPTH_FLOOR_FRACTION=80        # gate 3: the depth leg passes at prompt_tokens >= 80 % of the ask.
+                               # NOT 90: spark-llm-probe.py sizes its body to 0.9 x 0.9 of the ask
+                               # (measured 5.2 chars/token), so it can only ever reach ~81 % — a
+                               # floor above that is unsatisfiable by construction and would turn
+                               # every honest run into a false FAIL. An unreachable bar is not rigor.
 KV_SLOTS_QUOTE='273k'          # the number the row keeps quoting — a slot projection, not a context
 CORRUPTION_TRAP='sglang#36806 / sglang#36845 (QSA decode via XQA on sm_12x, answers HTTP 200)'
 PROBE="${NEEDLE_PROBE:-$SELF_DIR/../spark-llm-probe.py}"
@@ -269,7 +277,8 @@ counter_sum() {
   printf '%s\n' "$1" | awk -v m="$2" '!/^#/ && $1 ~ "^"m"([ {]|$)" { s += $NF } END{printf "%.0f", s+0}'
 }
 
-pct_of() { awk -v d="$1" -v p="$WINDOW_FRACTION" 'BEGIN{printf "%.0f", d*p/100}'; }
+pct_of()   { awk -v d="$1" -v p="$WINDOW_FRACTION"        'BEGIN{printf "%.0f", d*p/100}'; }
+floor_of() { awk -v d="$1" -v p="$DEPTH_FLOOR_FRACTION"   'BEGIN{printf "%.0f", d*p/100}'; }
 
 # row <profile> <verdict> <depth> <what the verdict rests on> <certified> <live> — one report
 # row, NEWLINE-terminated on purpose: a verdict table that glues two profiles onto one line is a
@@ -323,14 +332,14 @@ flip_cmd() {
 }
 
 # one_attempt <profile> <depth> <n> — one needle/depth leg, into its own attempt log. Returns 0
-# when the probe says HTTP 200 AND the prompt_tokens it read back reach 90 % of the window asked
-# for. An unparseable probe line is a hard error, never a zero.
+# when the probe says HTTP 200 AND the prompt_tokens it read back reach gate 3's floor, 80 % of the
+# depth asked for. An unparseable probe line is a hard error, never a zero.
 one_attempt() {
   local profile="$1" depth="$2" n="$3" log out rc http pt want
   log="$(attempt_log "$profile")"
-  want="$(pct_of "$depth")"
+  want="$(floor_of "$depth")"
   printf '>>> attempt %s/%s profile=%s depth=%s (floor %s = %s%% of it) log=%s\n' \
-    "$n" "$REPS" "$profile" "$depth" "$want" "$WINDOW_FRACTION" "$log"
+    "$n" "$REPS" "$profile" "$depth" "$want" "$DEPTH_FLOOR_FRACTION" "$log"
   if [ "$DRY" = 1 ]; then
     printf '    (dry-run) %s\n' "$(probe_cmd "$depth")"
     return 0
@@ -847,6 +856,22 @@ FIX
   want "FAIL-DEPTH" "the attempt prints its own verdict with its numbers"
   grep -qF '| FAIL |' "$(find "$t/repo/spark/reports/ev-h" -name 'needle-*.md' | head -1)" \
     && ok "the verdict file carries the FAIL" || bad "the FAIL did not reach the report"
+
+  echo "case (i): the depth floor is reachable AND has teeth — the number a false FAIL turns on"
+  : > "$probe_calls"
+  drive --no-window
+  depth_asked="$(tail -1 "$probe_calls")"
+  live_prof="$(awk '/^spark_llm_profile:/{print $2}' "$t/repo/IaC/ansible/group_vars/spark.yml")"
+  # spark-llm-probe.py sizes its prompt to 0.9 x 0.9 of the ask, so ~81 % is the truest reading a
+  # healthy engine can return. A floor above that is not rigour, it is a permanent false FAIL.
+  FAKE_PROMPT="$(awk -v d="$depth_asked" 'BEGIN{printf "%.0f", d*0.81}')" drive --profile "$live_prof" --no-window
+  want "PASS-DEPTH" "a reading of 81 % of the ask passes — the floor is reachable by construction"
+  [ "$rc" = 0 ] && ok "and that run exits 0" || bad "reachable reading rc=$rc, want 0"
+  FAKE_PROMPT="$(awk -v d="$depth_asked" 'BEGIN{printf "%.0f", d*0.79}')" drive --profile "$live_prof" --no-window
+  want "FAIL-DEPTH" "and 79 % of the ask fails — the floor is enforced, not decorative"
+  [ "$rc" = 1 ] && ok "the sub-floor run exits 1" || bad "sub-floor reading rc=$rc, want 1"
+  want "floor $(awk -v d="$depth_asked" 'BEGIN{printf "%.0f", d*0.80}') = 80% of it" \
+    "the printed floor is 80 % of the depth the run asked for ($depth_asked)"
 
   rm -rf "$t"
   if [ "$fails" = 0 ]; then echo "SELF-TEST OK"; return 0; fi
