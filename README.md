@@ -8,7 +8,7 @@
 
 ---
 
-## 0. How every session starts (intent-routed, HD-253)
+## 0. How every session starts (intent-routed)
 
 The human ALWAYS starts a session with the universal phrase **"read README.md"** followed by ONE
 free-form intent sentence (e.g. *"read README.md — zipline uploads stopped working"*). This file
@@ -82,9 +82,11 @@ task-specific dispatch. Do **not** bulk-read the repo.
   3. Doc status banners (`🟢 IaC done, not yet live — ⏳ deploy-gated`) are **hints, not proof** —
      trust the owning-doc ✅ lines + deployment-tasks ticks over banners until the docs catch up.
 - **Hosts:** single namespace `kogler.si` → `oldsrv`, `spark`, `nas`, `pi`, `router`, `switch`, `vps`.
-  Canonical list + naming/IP conventions: `docs/index.md` → Conventions. Purchased but **not yet
-  provisioned**: Lenovo ThinkStation PGX (`spark.kogler.si`), the headless NVIDIA GB10 inference node
-  replacing the old Phase-2 Ryzen/Proxmox plan (HD-335, [`docs/hardware-spark.md`](docs/hardware-spark.md)).
+  Canonical list + naming/IP conventions: `docs/index.md` → Conventions. **All of them are provisioned**,
+  including the last arrival: the Lenovo ThinkStation PGX (`spark.kogler.si`), the headless NVIDIA GB10
+  inference node that replaced the old Phase-2 Ryzen/Proxmox plan, is a **live first-class IaC host** beside
+  `nas`/`oldsrv`/`vps`/`pi` — state and evidence in [`docs/hardware-spark.md`](docs/hardware-spark.md) and the
+  [`deployment-tasks.md`](deployment-tasks.md) Phase 4b ticks; the legs still open on it are row HD-335.
 - **Recommended next tasks:** see the latest date-stamped `prompt-*.md` handoff — it names the current
   most-valuable, laptop-doable items. **Handoff family:** `prompt.md` is the standing handoff;
   `prompt-<domain>.md` files are **single-lane briefs** (one lane session each, named for the domain +
@@ -106,7 +108,7 @@ task-specific dispatch. Do **not** bulk-read the repo.
   `rack-connections.json`). Generated `*-generated.md` docs are render views — **never hand-edit**
   them, and scripts never parse generated MD.
 - **Secrets:** never literal in docs / group_vars / templates — always 1Password `Homelab-ansible` vault
-  refs (or the Private SA vault per HD-140). **Fail-loud**: no `default('')`.
+  refs (or the `Private` vault — [docs/1password.md](docs/1password.md)). **Fail-loud**: no `default('')`.
 - **Language / links:** English (technical); Slovenian only for `docs/manual/` (family). Relative
   `.md` links. Every doc starts with `> **Role:**` / `> **Linked from:**`.
 - **Planning-phase styling:** substantive, content-level edits only — **no** cosmetic/visual tweaks
@@ -130,7 +132,7 @@ task-specific dispatch. Do **not** bulk-read the repo.
      `git commit -s` (that adds a `Signed-off-by` trailer, it signs nothing), and `%G?` → `N` is the expected
      value, not a failure; CONVENTIONS §6**
 
-> **Live converges run DETACHED (HD-370 live lesson 2026-09-15):** a full `docker_services` converge
+> **Live converges run DETACHED:** a full `docker_services` converge
 > takes **10–30+ min** and must be launched with `nohup … &` + a log file, then polled — a foreground
 > run behind an outer timeout gets killed **mid-restart**, leaving sibling containers `Exited` and the
 > next run's restart guard failing (`cannot join network namespace of a non running container`, live
@@ -140,7 +142,7 @@ task-specific dispatch. Do **not** bulk-read the repo.
 7. if it's a planned / multi-step / multi-host / live-deploy change → use the **orchestrator pattern**: a single parent session co-ordinates subagents/parallel lanes with an explicit lane map (see pi-subagents skill), and records the runbook in the owning `docs/*.md` — no separate `plan/` ceremony required. **Delegation is the default here, not an escalation** (CONVENTIONS §6, [docs/orchestration.md](docs/orchestration.md) §4 O10): the parent launches, reads evidence, merges and validates; the children read, analyse and write.
 8. **the runbook is for what the AI cannot do — everything else belongs to its owning doc.** `deployment-manual.md` carries the steps a human must perform and a from-scratch rebuild cannot recover without: first accounts on devices and services, physical console/reseat/label work, and anything gated on a human-held credential. **If the AI can do it, it does not go in the runbook** — automated behaviour lives in IaC, and repeatable procedure + failure semantics live in the owning `docs/*.md`. A session that *ran* a check writes those lines where they are read, not into the runbook: "this session performed it" is not what makes a step runbook material (HD-450, 2026-09-23: a cert-pull health check the session ran over SSH was briefly added here for exactly that wrong reason). Ownership still follows the action for the human-only steps: the imperative line is written **in the same change, by the session that did it** (the lane briefs assign files to avoid two writers, and that root file was assigned to nobody — which is how owed procedure quietly belongs to everybody). The runbook is procedure, not a diary (CONVENTIONS §6.4)
 
-### Orchestrator + reviewer discipline (lane hygiene, HD-346 lesson)
+### Orchestrator + reviewer discipline (lane hygiene)
 
 > **Two different things, one word.** Everything in this section is about **subagent children inside one session**.
 > Running **independent lane sessions** — one [`prompt-<domain>.md`](prompt.md) brief per session, each with its own
@@ -195,7 +197,7 @@ a verdict — the parent had already verified the final state itself. Rules:
 > oldsrv's management leg) and the three traps: [docs/network-vpn.md](docs/network-vpn.md) §Reaching LAN nodes when away.
 `CONVENTIONS.md` (root) · `docs/index.md` · `IaC/README.md` · [`scripts/README.md`](scripts/README.md) (validators, renderers, vault-seeding utilities) · `todo.md` · archive: `reports/changelog.md`, `reports/deployment-journal.md` (frozen)
 
-**Ansible questions — answer them without bulk-reading the tree (HD-456).** §0 says *do not bulk-read the
+**Ansible questions — answer them without bulk-reading the tree.** §0 says *do not bulk-read the
 repo*; [`scripts/ansible/ansible_query.py`](scripts/ansible/ansible_query.py) is how that is done for Ansible. Read-only,
 bounded digest over `IaC/ansible` (`--root spark` for the other tree), needs `~/ansible-venv`:
 
