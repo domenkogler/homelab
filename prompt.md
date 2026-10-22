@@ -92,6 +92,9 @@ station: its §0 pre-flight (this box's own gate is **green** before you edit an
 spark-served session must not start there (§3), and the rehearse-everything rule for owner windows (§4). It claims **legs, not
 rows**, so it never takes a row out of the brief that owns it.
 
+**Model brief (not a seat):** [prompt-external.md](prompt-external.md) — work gated by *which model serves the session*,
+not by the box: the Rule-0 legs a spark-served session may not run, and the whole-corpus rows a 262k context can't hold.
+
 Ranked by what unblocks the most. Each line is the item + **the domain brief that carries its order of work** —
 the brief, not this list, holds the steps, the file ownership and the converge host. Waves, pairing and the
 host/slot rule that decides what may run together are [docs/orchestration.md](docs/orchestration.md) §4 (O1–O11);
