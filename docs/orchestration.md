@@ -219,6 +219,15 @@ inside one session. The LIVE wave table is
    waits on another host being switched on, and `git status -sb` reading level with `origin/main` is the close-out
    check (an ahead-of count is a step left undone, not a step skipped on request). On `remote: fatal error in
    commit_refs`: re-prove the ACL with `--dry-run`, then retry — GitHub-side, not a key or ACL fault.
+   ⚠ **Gate the exit code, not the last line, before any push.** `bash scripts/validate-all.sh | tail -3` exits **0
+   whatever the gate found** — a pipe reports the last command's status, so `… | tail && git push` pushes straight
+   through a red gate. Measured 2026-10-22: a merged tip went out on a station whose preceding run printed **two**
+   failures — the named `check_secret_leak.py` plus `usable-sampler.sh --self-test`, which then passed solo and passed
+   a full re-run (a pool-starvation flake, recorded as such in HD-1117, not written as fixed) — and the push had
+   already happened. So read the verdict as a value — `bash scripts/validate-all.sh; rc=$?` — and push on `rc=0`.
+   Where a red is already on record the **failure list is the test, not the number**: on the pi-dev seat a live
+   `rc=1` is the *designed* state until the HD-1181 rotation lands, so compare what the run printed against the named
+   set and push only when the two are the same set — then say which named red you shipped.
    ⚠ **A merged branch does not mean a drained worktree — inventory the residue first.** `git merge-base --is-ancestor` proves
    only the *commits*. A lane can be fully merged and still hold uncommitted and untracked files, and `git worktree remove`
    discards them. A merged lane can still be dirty and still hold work that never reached `main`. So before removing: `git -C <wt> status --porcelain` in each, then for every added line decide
