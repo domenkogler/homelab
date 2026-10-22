@@ -420,7 +420,7 @@ these rows are *queued behind a slot*, which is waiting work, not missing work.
 > `observability-alerting` + `storage-backup` pair only host-by-host: HD-450 reads the units HD-191's clients write.
 >
 > **Unbriefed but still open — not lost, just unassigned** (derived from [todo.md](todo.md) at this `HEAD`; §B and
-> §B9 stay the index, this is the honest count: **80** open rows carry no brief (re-derived with the command below at
+> §B9 stay the index, this is the honest count: **82** open rows carry no brief (re-derived with the command below at
 > this commit — nine ids minted after the last §B0 re-derive joined the tail, and one deleted row left it) —
 > every row id `todo.md` carries
 > at this commit minus the ids the §B0 row-lists name, both re-extracted here and never carried over; re-derive it with
