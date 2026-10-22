@@ -2,7 +2,9 @@
 
 > **Role:** dispatch note for **one** lane session on the storage + backup domain. **The rows are the authority** for what is
 > missing and how to do it — this file carries the contract, the order of work and the traps, nothing else:
-> [todo.md](todo.md) **HD-06 · HD-207 · HD-1105 · HD-1106 · HD-1107 · HD-191 · HD-238 · HD-1093 · HD-1129 · HD-1183**
+> [todo.md](todo.md) **HD-06 · HD-207 · HD-1105 · HD-1106 · HD-1107 · HD-191 · HD-238 · HD-1093 · HD-1129 · HD-1183 ·
+> HD-1174** — the last one, in one clause: scrub the `kopia repository connect server` line in the **kopia-agent** leg,
+> then rotate with the agent **re-connected**, because its `repository.config` caches the credential
 > (row ids as of `c13e30f6` — re-derive with `grep -c "^| HD-<id> " todo.md` before quoting one).
 > **Linked from:** [todo-table.md](todo-table.md) §B0 · [todo.md](todo.md)
 
