@@ -193,17 +193,30 @@ FIX
 
   echo "self-test 2: --max-tokens reaches the wire, and changes ONLY that field"
   ACCURACY_GATE_CURL_CMD="$t/bin/fake-curl" DOCKER_LOG="$t/docker2.log" \
+    ACCURACY_GATE_BODY_LOG="$t/raised.bodies" \
     BENCH_DIR="$t/raised" PATH="$t/bin:$PATH" bash "$self" selftest-raised --max-tokens 16384 > "$t/raised/run.log" 2>&1 && rc=0 || rc=$?
   [ "$rc" = 0 ] && ok "the flagged run completes" || bad "flagged run rc=$rc: $(tail -3 "$t/raised/run.log")"
+  # The line-per-request shape is the contract gate6-couple.sh reads the budget back from, so it is
+  # asserted here, where the format is produced — pretty JSON would have looked fine and read wrong.
+  n="$(wc -l < "$t/raised.bodies" 2>/dev/null || echo 0)"
+  [ "${n:-0}" = "${#ORDER[@]}" ] && ok "the body log holds one line per item ($n)" \
+    || bad "the body log holds ${n:-0} lines, want ${#ORDER[@]}"
+  [ "$(cut -f2- "$t/raised.bodies" | jq -r '.max_tokens' | sort -u | tr '\n' ' ')" = "16384 " ] \
+    && ok "every logged request carries 16384" || bad "the logged budgets are not all 16384"
+  local raised_ok=0
   for key in "${ORDER[@]}"; do
-    [ "$(jq -r '.max_tokens' "$t/raised/accuracy/selftest-raised/${key}.body")" = "16384" ] \
-      || bad "$key did not carry 16384"
-    if ! diff <(jq -S 'del(.max_tokens)' "$t/default/accuracy/selftest-default/${key}.body") \
-              <(jq -S 'del(.max_tokens)' "$t/raised/accuracy/selftest-raised/${key}.body") > /dev/null; then
+    if [ "$(jq -r '.max_tokens' "$t/raised/accuracy/selftest-raised/${key}.body")" != "16384" ]; then
+      bad "$key did not carry 16384"
+    elif diff <(jq -S 'del(.max_tokens)' "$t/default/accuracy/selftest-default/${key}.body") \
+                <(jq -S 'del(.max_tokens)' "$t/raised/accuracy/selftest-raised/${key}.body") > /dev/null; then
+      raised_ok=$((raised_ok + 1))
+    else
       bad "$key changed in more than the budget — the battery itself moved"
     fi
   done
-  ok "every item asked for 16384 and nothing else in the body changed"
+  [ "$raised_ok" = "${#ORDER[@]}" ] \
+    && ok "all $raised_ok items asked for 16384 and nothing else in the body changed" \
+    || bad "only $raised_ok/${#ORDER[@]} items differ by the budget alone"
 
   echo "self-test 3: a budget that is not a positive integer is refused before any request"
   for bad_value in 0 1024.5 abc ''; do
@@ -227,7 +240,10 @@ for key in "${ORDER[@]}"; do
   BODY=$(jq -n --arg m "$MODEL" --arg p "$PROMPT" --argjson t "$MAX_TOKENS" \
     '{model:$m, messages:[{role:"user",content:$p}], max_tokens:$t, temperature:0}')
   if [ -n "${ACCURACY_GATE_BODY_LOG:-}" ]; then
-    printf '%s\t%s\n' "$key" "$BODY" >> "$ACCURACY_GATE_BODY_LOG"
+    # COMPACTED, one line per item: the body itself goes out exactly as jq prints it (unchanged
+    # from before --max-tokens existed), while the log stays one record per line so a reader can
+    # ask what budget was on the wire without a JSON parser that survives newlines.
+    printf '%s\t%s\n' "$key" "$(jq -c . <<<"$BODY")" >> "$ACCURACY_GATE_BODY_LOG"
   fi
   # shellcheck disable=SC2086   # word-split is intentional and only for the fixture transport
   if ${ACCURACY_GATE_CURL_CMD:-curl} -sf -X POST "$URL" -H "Content-Type: application/json" \
