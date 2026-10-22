@@ -1,0 +1,13 @@
+# Carried debt for scripts/gate/check_brief_coverage.py — the row→brief differences this repo has
+# DECIDED to keep, and the reason for each. One line per difference, three TAB-separated fields:
+#     <brief file>TAB<row id>TAB<why the repo carries it>
+# The ratchet runs in BOTH directions: a difference this file does not carry reddens, and a line
+# whose difference has been reconciled reddens as STALE — so a carried difference can never quietly
+# become coverage, and a line must not outlive the shape it was written for. Never add a line without
+# its reason, never quote its counts, and re-derive the body with
+# `python3 scripts/gate/check_brief_coverage.py --show-baseline`.
+#
+# A line belongs here only for a difference the repo has DECIDED to keep. A §B0 cell, a brief header
+# and a prompt.md pointer that have simply not been re-derived at the same tip are NOT carried debt:
+# they are one edit away from agreeing, and the fix is the commit that moves the row.
+prompt-laptop-wsl.md	HD-1154	WHY — a seat brief claims legs, not rows: §B0 gives this brief no row on purpose, and its own cell in the view says so, so the header naming the station-registration row can never agree with the index. The reference stays — a seat session must be able to find the row that created the station — and no domain brief should absorb it, or the seat becomes a second claimant on a domain lane's work.
