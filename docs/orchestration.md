@@ -68,6 +68,14 @@ inside one session. The LIVE wave table is
 > **The live lane map (waves) is state, not contract — it lives in [todo-table.md](../todo-table.md) §B0.**
 > Pairing constraints (never two lanes on one converge host, O3) are contract; which brief is
 > live this week is not.
+>
+> **The row→brief map is ONE fact carried in three views, so a change to one is a change to all three, in
+> one commit** (Merge + cleanup step 4). Which brief carries which row is written in the `Rows it carries` cell
+> of [todo-table.md](../todo-table.md) §B0, in the dispatch header of the `prompt-<domain>.md` brief, and in
+> the handoff — `prompt.md` §2's ranked pointers and its parked table's brief column. The three are held
+> equal in both directions by `scripts/gate/check_brief_coverage.py`, so a view left standing at an older tip
+> reddens `validate-all.sh` instead of quietly sending a lane out with work its own brief never names; what
+> that gate checks is its row in [`scripts/README.md`](../scripts/README.md).
 
 
 
