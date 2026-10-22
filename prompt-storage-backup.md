@@ -2,8 +2,8 @@
 
 > **Role:** dispatch note for **one** lane session on the storage + backup domain. **The rows are the authority** for what is
 > missing and how to do it — this file carries the contract, the order of work and the traps, nothing else:
-> [todo.md](todo.md) **HD-06 · HD-207 · HD-1105 · HD-1106 · HD-1107 · HD-191 · HD-238 · HD-1093**
-> (row ids as of `16177f19` — re-derive with `grep -c "^| HD-<id> " todo.md` before quoting one).
+> [todo.md](todo.md) **HD-06 · HD-207 · HD-1105 · HD-1106 · HD-1107 · HD-191 · HD-238 · HD-1093 · HD-1129 · HD-1183**
+> (row ids as of `c13e30f6` — re-derive with `grep -c "^| HD-<id> " todo.md` before quoting one).
 > **Linked from:** [todo-table.md](todo-table.md) §B0 · [todo.md](todo.md)
 
 **Lane contract:** [docs/orchestration.md](docs/orchestration.md) §4 (O1–O11) — read it once; it overrides README §4 and
@@ -34,6 +34,8 @@ show `zfs list`, then act.
 | 6 | **HD-06** | ⏳ Owner-scheduled: the short battery pull re-test → poweroff + WoL wake end-to-end. Park it with the exact action and finish everything else (O4) | ⛔ Never a destructive pull in an unattended run. The drill exists because the notify/shutdown layer failed in three independent places (an ACL that stripped group-execute despite mode 0750, shell-not-Jinja SMTP vars that rendered literal `${…}`, no sudoers entry for `/sbin/shutdown`) — so prove each leg, not the happy path |
 | 7 | **HD-207** | Redistribute the migration landing zone slowly per the storage SSOT (`playbooks/storage.yml`), then destroy it — personal documents to the OpenCloud/live-Box tier, interim `/tank/data/users/<name>/` park, media to `bulk/media/*` | ⛔ Never a recursive bulk move across datasets; copy + verify + delete, and show `zfs list` before destroying. The landing zone must be gone **before** the tree is declared equal to the storage-role SSOT; a rename that is really a personal-vs-media **decision** is an owner leg, not a convenience move |
 | 8 | **HD-238** | ⏳ Owner-scheduled only: run the DR drill and tick it with a dated result; fill the per-service fail-over-vs-accept-loss table | Name the dependency honestly: while the HD-191 VPS-client leg is unlanded the runbook **cannot** promise the VPS's own state, so the drill result must say which restores it actually exercised. Address plane before data plane — a changed public IPv4 moves the DNS primary, the Cloudflare origin, the advertised routes and the conditional forwarder in one commit |
+| 9 | **HD-1129** | The **VPS** leg: move the ~289 MB of Immich originals still on the VPS NVMe onto the live Hetzner Box mount, point the Immich storage path at it, and prove a fresh upload lands on the Box | Assert the Box mount **before** moving anything — a dead CIFS mount is an empty directory. When it lands, `docs/backup.md`'s scope statement needs no exception; the VPS volume inventory (HD-1106) is the same slot, sequence rather than bundle |
+| 10 | **HD-1183** | Fix the boot catch-up in `roles/storage`: give `push-db-dumps-push.service.j2` the ordering its guard assumes (`RequiresMountsFor=/mnt/nas/data`, or `After=` on the `mnt-nas-data.automount` unit) so `findmnt` no longer loses the race with the `x-systemd.automount` trigger | ⛔ **oldsrv, and run it OFF-box** — [docs/deployment-ansible.md](docs/deployment-ansible.md) §Self-converge guardrail refuses a `--tags storage` run whose controller is the target, and a `--check` of this role never reaches the assert. The guard stays: it is the ordering that is wrong, not the check. The unit is storage's; making it **page** (adding it to `monitoring_hygiene_units`) is the observability lane's HD-450 class, and the one `systemctl start` that lands the owed dump is an owner hand |
 
 ## ⛔ Traps that cost a round (re-grounded at this `HEAD`)
 

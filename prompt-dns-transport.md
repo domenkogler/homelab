@@ -3,7 +3,8 @@
 > **Role:** dispatch note for **one** lane session on the DNS / transport plane. **The rows are the authority** for what is
 > missing and how to do it — this file carries the contract, the order of work and the traps, nothing else:
 > [todo.md](todo.md) **HD-436 · HD-435 · HD-480 · HD-481 · HD-482 · HD-483 · HD-477 · HD-487 · HD-461 · HD-460 ·
-> HD-448 · HD-1095 · HD-1097** (row ids as of `9e661845` — re-derive with `grep -c "^| HD-<id> " todo.md` before quoting one).
+> HD-448 · HD-1095 · HD-1097 · HD-1152 · HD-1160 · HD-1131 · HD-1133** (row ids as of `c13e30f6` — re-derive with
+> `grep -c "^| HD-<id> " todo.md` before quoting one).
 > **Linked from:** [todo-table.md](todo-table.md) §B0 · [todo.md](todo.md)
 
 **Lane contract:** [docs/orchestration.md](docs/orchestration.md) §4 (O1–O11) — read it once; it overrides README §4 and
@@ -12,8 +13,10 @@ CONVENTIONS §6 at the items it numbers and this brief deliberately restates non
 **Converge hosts + slots (O3):** **oldsrv** (Technitium seed + the network-manager leg), **VPS** (headscale + traefik + the
 Cloudflare API), the **Pi** tertiary, and the **router** — whose slot is **global**, so holding it blocks every other router
 change in the fleet. ⛔ **Do not share a wave with another oldsrv or VPS lane**, and never bundle a router converge with any
-other host's. The HD-480/481/482/483/488 resolver work is **one writer** on `roles/docker_services/tasks/technitium-seed.yml`
-plus one `group_vars` block, converging `dns-pi` **once**.
+other host's. The **HD-480 · HD-481 · HD-482 · HD-483** resolver work is **one writer** on
+`roles/docker_services/tasks/technitium-seed.yml` plus one `group_vars` block, converging `dns-pi` **once**. An id list is
+written in full here on purpose: slash shorthand is visible to `scripts/gate/check_todo_done.py --refs` only at its head, which
+is how a row deleted in `8e53b327` stayed quoted here for days.
 
 **Read first:** [docs/network-dns.md](docs/network-dns.md) §`zone_kogler_si` + §Per-Subnet DNS Policy + §Host-side resolver
 → [docs/network-vpn.md](docs/network-vpn.md) §Tailnet boundary / §Reaching LAN nodes when away →
@@ -38,6 +41,10 @@ plus one `group_vars` block, converging `dns-pi` **once**.
 | 13 | **HD-460** | **Un-parked (owner 2026-10-12): make the VPS dual-stack.** Measure first — `daemon.json` carries `ip6tables` but no `ipv6`/`fixed-cidr-v6` (`IaC/ansible/roles/vps-hardening/tasks/main.yml:193`), the public traefik publishes `80/443` v4-only, the netns has no v6 route — then choose **ipvlan-l2 on the delegated /64** (real source IPs, real tailscale direct, no on-host parent↔child) vs **docker ipv6 + ULA + NAT66** (no provider address, but source visibility must be proven), converge ONCE on the VPS slot, and prove `[::]:443` + the `--resolve` read + `active; direct [<v6>]:41641` | ⛔ The netcup half is free: SCP shows the **whole `2a0a:4cc0:60:fcc::/64` delegated** and **0** firewall policies — so "waiting on the provider" is not a valid `BLOCKED` here. ⛔ Never share the wave with another VPS lane (`docker_services`/`vps-hardening` restart the edge under a sibling), never `--diff`, run detached. If pin/publish is touched it is **one** change on the netns owner (`traefik-tailnet`, not the `network_mode: service:` dependent), and `Relayed` afterwards means the pin did not take |
 | 14 | **HD-1095** | Close the device acceptance: the Home-VLAN (10) regression and the away path **without** Tailscale, on a real device, for `media` / `seerr` / `seerrng` | If a name fails, read the edge's `/api/http/routers` — the YAML is not the truth. The mechanism already ships; this row is evidence, not new routing |
 | 15 | **HD-1097** | Prove the Wi-Fi side on the laptop: `ipconfig /renew` → the DNS suffix appears, `nas.kogler.si` → the `nas` Home address, and `\\nas\media` mounts **on Wi-Fi**; one family machine on each link | ⚠ Any added name turns `check_zone_kogler_si_parity.py` RED and `capture_zone_kogler_si_golden.py` refuses to re-capture a derived zone: the fixture moves **by hand, in the same commit**, with the reason in the message |
+| 16 | **HD-1152** | The prune leg's first REAL apply across **VPS + oldsrv + Pi** — `nohup bash scripts/ansible/ansible-run.sh playbooks/dns-seed.yml --no-pull > /tmp/leg-hd1152.log 2>&1 &`, polled, **owner-present** (it deletes on all three instances) | ⛔ `--check` proves scoping only and names no candidates: the whole Technitium block ends in `not ansible_check_mode`, so every task under the prune read is **skipped, not empty**. The candidate list appears only in a real run; never `--diff` on `docker_services` |
+| 17 | **HD-1160** | The one item left of the ONE-tier-wide-upstream ruling: the converge template's twin of the retagged `#`-comment in `IaC/router/templates/rb4011_converge.rsc.j2` — render, then `scripts/ansible/routeros-apply-delta.sh` | A `#`-line in a `.j2` IS rendered output, so this moves only inside an owner-present window and rides the **global router slot**. Quote the ruling, never re-litigate it: nothing adds an instance, listener address or `:53` dst-nat target to buy per-VLAN filtering. **HD-480** · **HD-481** · **HD-482** keep only their block-list and `logQueries` halves |
+| 18 | **HD-1131** | Once HD-1152's re-seed has landed, re-take the `sec.kogler.si` read on **all three** instances — VPS primary, oldsrv secondary, Pi tertiary — and require NXDOMAIN from a Home client and over the tailnet chain | No converge of its own; the durable half is HD-1152's prune leg. A `NOERROR` carrying an answer after a seed means the ledger entry did not reach that instance, and one instance answering is not the fix |
+| 19 | **HD-1133** | Prove the Kids-Group filter ANSWERS the per-MAC `:53` traffic on VLAN 10, rather than the query merely reaching it — the mechanism is HD-481's group, the router's dst-nat rows are the subject | ⛔ Its act is a **router** act: it rides the **global router slot** and needs an **owner-present** unsupervised-device verify after any change to the filter or the kids set. A bare `NXDOMAIN` can come from a cache — the verify must name the answering authority |
 
 ## ⛔ Traps that cost a round (re-grounded at this `HEAD`)
 

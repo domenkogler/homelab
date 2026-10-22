@@ -2,8 +2,10 @@
 
 > **Role:** dispatch note for **one** lane session on the VPS identity + published-name surface. **The rows are the
 > authority** for what is missing and how to do it — this file carries the contract, the order of work and the traps,
-> nothing else: [todo.md](todo.md) **HD-147 · HD-457 · HD-458 · HD-459 · HD-112 · HD-47 · HD-357** (the launchpad tiles, promoted onto this brief 2026-10-13)
-> (row ids as of `16177f19` — re-derive with `grep -c "^| HD-<id> " todo.md` before quoting one).
+> nothing else: [todo.md](todo.md) **HD-147 · HD-457 · HD-458 · HD-459 · HD-112 · HD-47 · HD-357** (the launchpad tiles,
+> promoted onto this brief 2026-10-13 — **this brief carries HD-357**: the launchpad-tile brief that owned it died and §B0's
+> cell never took the id up, so derive that cell from this line, not the reverse)
+> (row ids as of `c13e30f6` — re-derive with `grep -c "^| HD-<id> " todo.md` before quoting one).
 > **Linked from:** [todo-table.md](todo-table.md) §B0 · [todo.md](todo.md)
 
 **Lane contract:** [docs/orchestration.md](docs/orchestration.md) §4 (O1–O11) — read it once; it overrides README §4 and
