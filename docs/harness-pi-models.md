@@ -158,31 +158,41 @@ selected, so the successor is an owner call, probed like any other row.
 | Claim | Probe | What a pass looks like |
 |---|---|---|
 | `tool` | one real `tools:` call against a trivial function | `finish_reason: tool_calls` with a well-formed `tool_calls` entry |
-| `image` | a solid-magenta 256×256 PNG plus "name the colour" | names it ("Magenta", "Purple" — a dropped image cannot guess a hue), **and** `prompt_tokens` jumps over the text-only figure for the SAME prompt (126 vs 24, and 200 vs 16 on the two hosted rows) — the token jump is the half that proves the image was read rather than dropped |
+| `image` | a solid-magenta 256×256 PNG plus "name the colour" | names it ("Magenta", "Purple" — a dropped image cannot guess a hue), **and** `prompt_tokens` jumps over the text-only figure for the SAME prompt (126 vs 24, 200 vs 16, 130 vs 64 on the three hosted rows) — the token jump is the half that proves the image was read rather than dropped |
 | `reasoning` | plain completion | `reasoning_content` in the message and non-zero `usage.completion_tokens_details.reasoning_tokens` |
-| thinking **off** | the same prompt with `reasoning_effort: "none"` | `reasoning_tokens` absent/0 **and** an answer. This is where two hosted rows differ (below) |
+| thinking **off** | the same prompt with `reasoning_effort: "none"` | `reasoning_tokens` absent/0 **and** an answer. This is where the hosted rows differ from each other (below) |
 | streaming usage | `stream: true` + `stream_options.include_usage` | a final chunk carrying `usage` — pi's ctx % and compaction trigger depend on it, and it is why neither row needs a `compat:` block |
 
-**Thinking-off is not a capability a provider has; it is a capability each model has.** Measured on the
-fleet's two reasoning rows: one answers `none` with zero reasoning tokens and a direct reply, so its
-`thinkingLevelMap` carries `"off"` and `/thinking off` means what it says; the other accepts `none`
+**Thinking-off is not a capability a provider has; it is a capability each model has.** Measured across
+the fleet's three reasoning rows: two answer `none` with zero reasoning tokens and a direct reply, so
+their `thinkingLevelMap` carries `"off"` and `/thinking off` means what it says; the third accepts `none`
 with a 200, thinks anyway, and spent its whole response budget thinking — 3002 reasoning tokens, empty
 `content`. For that row the honest spec declares **no** `off` key at all: an entry promising a state the
 endpoint cannot produce is a dial that lies, and selecting it buys silence. pi's graded levels
-(`minimal`…`max`) are accepted verbatim by both, so nothing else is mapped — a map that restates
+(`minimal`…`max`) are accepted verbatim by all three, so nothing else is mapped — a map that restates
 pass-through only invites someone to "fix" its numbers.
 
-**Two traps in this shape, both from a live render:**
+**The trap in this shape, found on a live render:**
 
 * A bare `off:` key in a `thinkingLevelMap` is **YAML 1.1 for `false`**, so it renders as the JSON key
   `"false"`, pi finds no `off` entry, sends no `reasoning_effort`, and thinking stays ON — while the
   spec still reads correctly and `--check` reports a match, because the check compares spec against
   target and both sides carry the same wrong key. Quote the key; the renderer now aborts on any level
   name outside pi's own set, since a gate that cannot see the defect cannot fail either.
-* **No `cost:` is declared on the hosted rows, so pi prices them at zero** — `usage.cost.total` reads
-  `0` through a paid external model, and `/usage` under-reports the fleet's only cost-bearing lane.
-  Stating a rate needs a source with a number in it; until someone quotes the provider's own price
-  list, the honest value is *absent*, not invented.
+
+**What the external lane is FOR is settled, and it is not capacity.** A hosted row is *selectable*
+because the contract renders it; it becomes *authorized* only when the owner explicitly asks for an
+external model in the session. It is never the answer to a busy, slow, or down spark — no automatic
+fallback, no queued work that quietly changes provider, no benchmark to justify one (there is no
+external-lane bench and none is wanted). The rule lives in the root `README.md` §3; the reason it is
+written down is that switching provider mid-task moves both money and prompt text off the premises,
+which is a decision and not an optimization.
+
+**The hosted rows carry their published prices (`cost:`, USD per million tokens).** Without it pi
+prices a paid external call at `0` in `/usage` and in the footer, which is worse than an honest unknown
+because it looks measured. `cacheWrite: 0` is a stated fact rather than a gap: the lane caches
+implicitly and publishes a read price and no write tier. Prices are the provider's, not estimates — a
+row whose price nobody can cite should carry no `cost:` at all.
 
 ⏳ **Honest scope note:** the `pi` vendor is proven against a live file (§4). The `continue` vendor is
 *rendered and shape-checked*, not proven against a running Continue instance, because no client is

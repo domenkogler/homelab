@@ -104,6 +104,14 @@ task-specific dispatch. Do **not** bulk-read the repo.
 
 - **Validate before finishing:** run **`bash scripts/validate-all.sh`** — must end green.
   Fail-closed linters (`check_doc_map.py`) break validation on a stale map link.
+- **External models are the owner's call, never the agent's fallback.** A non-`spark` picker row (the
+  hosted `providers.entrim` lane) is used **only when the owner explicitly states it in the session** —
+  not when spark is busy, slow, or down, not to keep a run going, and not to "justify" a benchmark:
+  there is no external-lane bench and none is wanted. Rendering a row makes it *selectable*, never
+  *authorized*; switching provider on your own changes the fleet's cost and data-egress posture
+  without anyone asking. Contract: [`scripts/harness/pi/models-spec.yml`](scripts/harness/pi/models-spec.yml)
+  (the rows and their prices) + [`docs/harness-pi-models.md`](docs/harness-pi-models.md) §4c (why each
+  row claims what it claims).
 - **SSOT direction:** values live in IaC (`group_vars/*.yml`, `host_vars/*.yml`,
   `rack-connections.json`). Generated `*-generated.md` docs are render views — **never hand-edit**
   them, and scripts never parse generated MD.

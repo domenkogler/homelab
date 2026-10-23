@@ -52,6 +52,11 @@ providers:
   # --keep-legacy-credentials needed.
   - id: entrim
     description: hosted Entrim API (external, cost-bearing)
+    # ⚠ SELECTABLE IS NOT AUTHORIZED. These rows exist so an EXTERNAL leg is possible at all; nothing
+    # here authorizes using one. An external model runs only on the owner's explicit word in the
+    # session — never as a fallback when spark is busy, slow, or down, and never to "justify" a bench
+    # number (there is no entrim bench and none is wanted: the external lane is not a spare GPU).
+    # Rule: root README.md §3; rationale: docs/harness-pi-models.md §4c.
     baseUrl: https://api.entrim.ai/v1
     api: openai-completions
     credential:
@@ -83,6 +88,11 @@ providers:
         input: [text, image]
         contextWindow: 1048576
         maxTokens: 393216
+        # Owner-supplied published rates, USD per million tokens — the unit pi's `cost` wants. A row
+        # WITHOUT `cost:` prices a paid external call at zero in `/usage` and in the footer, which is
+        # worse than an honest unknown because it looks measured. `cacheWrite: 0` is a stated fact, not
+        # a guess: this lane caches implicitly and publishes a read price and no write tier.
+        cost: {input: 0.20, output: 0.60, cacheRead: 0.005, cacheWrite: 0}
         # `off` is the ONE level worth mapping: `reasoning_effort: "none"` produced zero reasoning
         # tokens and a direct answer, so the switch is real. The graded levels are accepted verbatim
         # (all 200), so they need no entry — a map that restates pass-through only invites someone to
@@ -101,23 +111,30 @@ providers:
         input: [text, image]
         contextWindow: 1048576
         maxTokens: 131072
+        cost: {input: 0.10, output: 0.35, cacheRead: 0.0175, cacheWrite: 0}
         # NO `off:` key, deliberately: this endpoint accepts `reasoning_effort: "none"` with a 200 and
         # then thinks anyway — measured 3002 reasoning tokens and an EMPTY answer, because the
         # reasoning phase ate the whole response budget. A map entry would advertise a thinking-off
         # state the endpoint cannot produce, and a user who selects it gets silence. Levels
         # minimal…max are all accepted; `off` is not a state here.
         continue: {capabilities: [tool, reasoning]}
-      # Still served (200 on a real completion) although it has left `GET /v1/models`, which now
-      # lists `Qwen/Qwen3.8-27B` (262 144 / 65 536) as the 27B. Deleting a row that answers is not a
-      # cleanup, it is an outage for whoever has it selected, so the row stays and the successor is
-      # an owner call with its own probe — do not "tidy" this into the catalog's list on the strength
-      # of `/v1/models` alone.
-      - id: Qwen/Qwen3.6-27B
-        name: Entrim Qwen3.6-27B
-        contextWindow: 262000
-        maxTokens: 131072
-        input: [text]
-        continue: {capabilities: [tool]}
+      # The catalog's 27B, swapped in on the owner's word for the retired `Qwen/Qwen3.6-27B` (which had
+      # left `GET /v1/models` but still answered 200 — served-and-unlisted is a heads-up, not a
+      # removal trigger; the owner decides, and here decided).
+      - id: Qwen/Qwen3.8-27B
+        name: Entrim Qwen3.8-27B
+        reasoning: true
+        input: [text, image]
+        contextWindow: 262144
+        maxTokens: 65536
+        # Probed like the rows above: tool call ✓, image ✓ (130 vs 64 prompt_tokens, colour named),
+        # streaming usage ✓, and `reasoning_effort: "none"` → zero reasoning tokens with a direct
+        # answer, so the `off` mapping is real here too. Reasoning is ON by default on this row (24
+        # reasoning_tokens on the same probe prompt that the `none` arm answered in 0).
+        thinkingLevelMap:
+          "off": "none"
+        cost: {input: 0.10, output: 0.40, cacheRead: 0.04, cacheWrite: 0}
+        continue: {capabilities: [tool, reasoning]}
 
   - id: spark
     description: self-hosted vLLM on the GB10 workstation, reached through the `llm` router
