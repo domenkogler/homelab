@@ -206,8 +206,7 @@ the row→brief index is [todo-table.md](todo-table.md) §B0. A brief is named f
    [docs/harness-pi-seat-identity.md](docs/harness-pi-seat-identity.md) §5a, and a plane command executes in the SEAT's
    shell, so its python launcher resolves there ([docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1). The
    The OAuth-vs-`api_key` call is **ruled 2026-10-20 (owner): `api_key` is the fleet spelling**, and a seat's OAuth entry
-   is drift — never cured by overwriting a live credential ([docs/harness-pi-models.md](docs/harness-pi-models.md) §4). **HD-1190** ⏳ the two
-   laptop seats owe `render-pi-config.py --check` → render, run FROM each seat (Win11 passes `--host <seat>`). Its sibling
+   is drift — never cured by overwriting a live credential ([docs/harness-pi-models.md](docs/harness-pi-models.md) §4).
    **HD-1161**: `install-pi-wsl.sh`'s pi leg is `curl … https://pi.dev/install.sh | sh` with no version at all while its
    Debian sibling installs from the pin, and `pi-self-update.sh` REFUSES the managed layout that installer creates.
    ⚠ **HD-1180 is the delegation plane the pi 1.3.0 bump took away** — an `async: true` launch dies at start with 0 s of
