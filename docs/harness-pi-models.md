@@ -145,8 +145,7 @@ row stays open until it happens.
 ## 4c. The hosted provider's rows — what the endpoint, not a doc, decides
 
 `providers.entrim` is the fleet's cost-bearing external lane, and its rows are the only part of the
-picker this repo controls but does not serve. What keeps them honest is one rule and three probe
-shapes.
+picker this repo controls but does not serve. What keeps them honest is one rule and a probe per claim.
 
 **The endpoint's own `GET /v1/models` is the authority on which rows exist** and on the two numbers a
 row must carry (`max_input_tokens` → `contextWindow`, `max_output_tokens` → `maxTokens`). It is the
