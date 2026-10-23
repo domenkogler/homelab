@@ -1,29 +1,25 @@
 # =====================================================================
-# Client model contract — ONE spec, rendered per vendor (HD-388).
+# Client model contract — ONE spec, rendered per vendor. This file is the SSOT; the reasoning
+# behind every value is docs/harness-pi-models.md (§4 the pi vendor, §4b the Continue vendor,
+# §4c the hosted rows).
 #
-# Why this file exists: the harness contract used to be a hand-maintained
-# ~/.pi/agent/models.json on one laptop, which `scripts/harness/install-pi-wsl.sh` refuses to sync
-# ("Provider/auth config ... is NOT auto-synced") and which docs/harness-pi-seats.md §1 had to call
-# its own "reference copy" because it carries a bearer key. The moment a second client exists
-# (a second workstation, the cockpit on oldsrv under HD-409, a `spark-lane` profile, a
-# Continue.dev in VS Code) a hand-copied JSON is a drift generator with no gate.
+# Render with:
+#     python3 scripts/harness/render-pi-config.py --check   # drift gate, writes nothing
+#     python3 scripts/harness/render-pi-config.py           # write vendor files, mode 0600
+# A rendered client file is never hand-edited: a hand-copied JSON shared by several clients is a
+# drift generator with no gate, and the render is what turns that drift into a non-zero exit.
 #
-# This is the SSOT. Render with:
-#     python3 scripts/harness/render-pi-config.py --check       # drift gate, writes nothing
-#     python3 scripts/harness/render-pi-config.py                # write vendor files, mode 0600
+# NO CREDENTIAL LIVES HERE. `credential:` names a 1Password item/field and the renderer resolves
+# it at render time (`op`), so the value never enters git, the spec, or a log (CONVENTIONS §6).
+# The rendered file DOES carry the key, so it is 0600 and never committed.
 #
-# NO CREDENTIAL LIVES HERE. `credential:` names a 1Password item/field and the renderer
-# resolves it at render time (`op`), so the value never enters git, the spec, or a log
-# (CONVENTIONS §6). The rendered file DOES carry the key, so it is 0600 and never committed.
-#
-# WHY A CLIENT NEEDS THIS AT ALL (do not "solve" it by pointing clients at the gateway): a client
-# cannot read its own model contract out of LiteLLM — pi has no `model_info` consumer, and
-# decision #26 routes generation harnesses direct to the engine (services-ai.md §9d).
+# WHY A CLIENT NEEDS THIS FILE AT ALL (do not "solve" it by pointing clients at the gateway): a
+# client cannot read its own model contract out of LiteLLM — pi has no `model_info` consumer, and a
+# generation harness reaches the engine directly (docs/services-ai.md §9 decision #26).
 # Distribution is the lever, not the proxy.
 #
-# ORDER IS PART OF THE CONTRACT: spec order == render order, and the order below reproduces the
-# live hand-kept file byte-for-byte, so the first render is provably a no-op. Reordering is a
-# deliberate, diff-visible act, not tidying.
+# ORDER IS PART OF THE CONTRACT: spec order == render order. Reordering is a deliberate,
+# diff-visible act, not tidying.
 # =====================================================================
 version: 1
 
@@ -31,25 +27,23 @@ vendors:
   pi:
     out: ~/.pi/agent/models.json
   pi_auth:
-    # pi's OTHER credential file: auth for the built-in providers (openrouter, opencode-go), which
-    # was pure hand-kept drift with nothing in git describing it. No trailing newline in the render —
-    # that is what pi writes, and byte-identity is what proves taking over a hand-kept credential
-    # file does not disturb a working client.
+    # pi's OTHER credential file: auth for the built-in providers (openrouter, opencode-go).
+    # No trailing newline in the render — that is what pi writes, and byte-identity is what proves
+    # taking over a hand-kept credential file does not disturb a working client.
     out: ~/.pi/agent/auth.json
   continue:
     # A SEPARATE generated file, never merged into a workstation's own config: a generated block
     # written over user-authored keys is a data-loss bug. Wiring it in (@-import or merge) is a
     # per-machine step and is NOT verified by the renderer — docs/harness-pi-models.md §4b.
     # It lives under ~/.continue/, not ~/.pi/agent/: this is not a pi artifact, and a stray
-    # generated file in the agent directory gets read by the agent (learned on the first run).
+    # generated file in the agent directory gets read by the agent.
     out: ~/.continue/homelab-models.generated.yaml
 
 providers:
-  # Credential source exists as of 2026-09-23 (owner minted `entrim_api` in Homelab-ansible) and the
-  # render was proven against the hand-kept file: the vault `credential` and the laptop's live
-  # `providers.entrim.apiKey` hash identically (25 bytes, sha256 prefix bb9d9eb1f6 — see the row in
-  # docs/deployment-secrets.md). So this provider is managed: no `unmanaged:` flag, no
-  # --keep-legacy-credentials needed.
+  # `entrim_api` (Homelab-ansible) is this provider's credential source, so the render is managed:
+  # no `unmanaged:` flag, no `--keep-legacy-credentials`. The vault `credential` and a hand-kept
+  # client's `providers.entrim.apiKey` hash identically (25 bytes, sha256 prefix bb9d9eb1f6 — the
+  # item's row is docs/deployment-secrets.md), which is what makes adopting the render a no-op.
   - id: entrim
     description: hosted Entrim API (external, cost-bearing)
     # ⚠ SELECTABLE IS NOT AUTHORIZED. These rows exist so an EXTERNAL leg is possible at all; nothing
@@ -70,18 +64,15 @@ providers:
       # rendered key (the value never reaches the transcript):
       #     curl -s -H "Authorization: Bearer $(op read op://Homelab-ansible/entrim_api/credential </dev/null)" \
       #          https://api.entrim.ai/v1/models
-      # A row whose id is NOT in that list is a dead pick, not a stale name: the retired
-      # `deepseek-ai/DeepSeek-V4-Flash` answered `400 Invalid model name` while still sitting in this
-      # file, which is the silent-drift class HD-388 exists to kill. So retire on the catalog, in the
-      # same change that lands the successor, and never leave a row that cannot be served.
-      # Everything below `input:`/`reasoning:`/`thinkingLevelMap:` for these rows comes from probes
-      # against the live endpoint, not from a vendor claim: a real function call for the `tool`
-      # capability, a solid-magenta 256×256 PNG for `image` (named correctly, and the prompt_tokens
-      # jump over the same prompt without it — 126 vs 24 on GLM, 200 vs 16 on DeepSeek — is the half
-      # that proves the image was read and not dropped), and
-      # `usage.completion_tokens_details.reasoning_tokens` for whether thinking actually ran. Both
-      # models stream their usage in the final chunk, so pi's ctx % and compaction trigger work with
-      # the default `supportsUsageInStreaming` — no `compat:` block is needed or claimed.
+      # A row whose id is NOT in that list is a dead pick: it stays selectable and answers
+      # `400 Invalid model name`. Retire on the catalog, in the same change that lands the
+      # successor, and never leave a row that cannot be served. A row can also be served but
+      # unlisted — that is a heads-up, not a removal trigger.
+      # `input:`/`reasoning:`/`thinkingLevelMap:` come from probes against the live endpoint, never
+      # from a vendor claim; the probe shapes and their pass criteria are the table in
+      # docs/harness-pi-models.md §4c. Usage arrives in the final stream chunk, so pi's ctx % and
+      # compaction trigger work on the default `supportsUsageInStreaming` — no `compat:` block is
+      # needed or claimed.
       - id: deepseek-ai/DeepSeek-V4.1-Flash
         name: Entrim DeepSeek V4.1 Flash
         reasoning: true
@@ -100,8 +91,8 @@ providers:
         # ⚠ The key is QUOTED, and it is load-bearing: YAML 1.1 resolves bare `off`/`on`/`yes`/`no` to
         # booleans, so an unquoted `off:` reaches the render as the JSON key `"false"` — pi then finds
         # no `off` entry, sends no `reasoning_effort`, and thinking stays on while the map looks
-        # perfectly correct in the spec. Found on this row's own first render (`--check` was green;
-        # only the rendered file showed `{"false": "none"}`).
+        # perfectly correct in the spec — and `--check` stays green, because spec and target then
+        # carry the same wrong key. Quote the key.
         thinkingLevelMap:
           "off": "none"
         continue: {capabilities: [tool, reasoning]}
@@ -112,25 +103,23 @@ providers:
         contextWindow: 1048576
         maxTokens: 131072
         cost: {input: 0.10, output: 0.35, cacheRead: 0.0175, cacheWrite: 0}
-        # NO `off:` key, deliberately: this endpoint accepts `reasoning_effort: "none"` with a 200 and
-        # then thinks anyway — measured 3002 reasoning tokens and an EMPTY answer, because the
-        # reasoning phase ate the whole response budget. A map entry would advertise a thinking-off
-        # state the endpoint cannot produce, and a user who selects it gets silence. Levels
+        # NO `off:` key, deliberately: this endpoint accepts `reasoning_effort: "none"` with a 200
+        # and then thinks anyway — the reasoning phase eats the whole response budget and answers
+        # with empty `content`. A map entry would advertise a thinking-off state the endpoint cannot
+        # produce, and a user who selects it gets silence (docs/harness-pi-models.md §4c). Levels
         # minimal…max are all accepted; `off` is not a state here.
         continue: {capabilities: [tool, reasoning]}
-      # The catalog's 27B, swapped in on the owner's word for the retired `Qwen/Qwen3.6-27B` (which had
-      # left `GET /v1/models` but still answered 200 — served-and-unlisted is a heads-up, not a
-      # removal trigger; the owner decides, and here decided).
+      # The catalog's 27B row. Replacing a row that still answers is an owner call, probed like any
+      # other row (docs/harness-pi-models.md §4c).
       - id: Qwen/Qwen3.8-27B
         name: Entrim Qwen3.8-27B
         reasoning: true
         input: [text, image]
         contextWindow: 262144
         maxTokens: 65536
-        # Probed like the rows above: tool call ✓, image ✓ (130 vs 64 prompt_tokens, colour named),
-        # streaming usage ✓, and `reasoning_effort: "none"` → zero reasoning tokens with a direct
-        # answer, so the `off` mapping is real here too. Reasoning is ON by default on this row (24
-        # reasoning_tokens on the same probe prompt that the `none` arm answered in 0).
+        # Probed like the rows above (docs/harness-pi-models.md §4c): `tool`, `image` and streaming
+        # usage all pass, and `reasoning_effort: "none"` answers with zero reasoning tokens, so the
+        # `off` mapping is real on this row too. Reasoning is ON by default.
         thinkingLevelMap:
           "off": "none"
         cost: {input: 0.10, output: 0.40, cacheRead: 0.04, cacheWrite: 0}
@@ -159,16 +148,15 @@ providers:
         reasoning: true
         input: [text]
         # ⚠ contextWindow here is the ENGINE ceiling and is deliberately NOT the LiteLLM row's
-        # number. 262144 = the servable per-request `max_model_len` measured off the running
-        # engine (HD-376). The gateway row is `max_input_tokens: 245760` = that same window MINUS
-        # a 16 384 reserve, because the proxy adds the reply to the request. A template that
-        # "harmonises" the two breaks one of the two callers. Measured, not tidied: HD-376.
+        # number. 262144 = the servable per-request `max_model_len` of the running engine
+        # (docs/harness-pi-engines.md §3). The gateway row is `max_input_tokens: 245760` = that same
+        # window MINUS a 16 384 reserve, because the proxy adds the reply to the request. A template
+        # that "harmonises" the two breaks one of the two callers.
         contextWindow: 262144
         maxTokens: 16384
         # Binary on purpose: this Qwen template reasons on EVERY turn unless told otherwise
-        # (23–121 hidden reasoning_tokens/turn measured in HD-376) and `reasoning_effort` is
-        # accepted-but-ignored by this engine build, so the graded levels collapse to on/off —
-        # null = off, a value = the budget.
+        # (docs/harness-pi-engines.md §2) and `reasoning_effort` is accepted-but-ignored by this
+        # engine build, so the graded levels collapse to on/off — null = off, a value = the budget.
         thinkingLevelMap:
           minimal: null
           low: null
@@ -185,49 +173,43 @@ providers:
         gateway_row:
           max_input_tokens: 245760
           max_output_tokens: 16384
-          note: 245760 + 16384 = 262144, engine window minus reserve (HD-382 / HD-376)
+          note: 245760 + 16384 = 262144, engine window minus reserve
         continue:
           # What the Continue.dev vendor gets. Keep its knobs in step with `compat` above, or
           # write down why they differ.
           capabilities: [tool, reasoning]
 
-  # The laptop's own LM Studio leg (HD-474). `hosts:` scopes it: the renderer drops any provider
-  # whose host list does not match the machine rendering, because this same spec also renders the
-  # cockpit on oldsrv (HD-409) — where http://127.0.0.1:1234 is THAT machine's own loopback. A dead
-  # provider in the picker is worse than no provider, and a provider rendered onto the wrong box is
-  # exactly the silent-drift class HD-388 exists to kill.
+  # The laptop's own LM Studio leg. `hosts:` scopes it: the renderer drops any provider whose host
+  # list does not match the machine rendering, because this same spec also renders the oldsrv
+  # cockpit — where http://127.0.0.1:1234 is THAT machine's own loopback. A dead provider in the
+  # picker is worse than no provider.
   #
-  # baseUrl is loopback ON PURPOSE. WSL2 runs networkingMode=Nat and that is deliberate (owner
-  # 2026-09-29): 127.0.0.1 inside the Linux guest is the GUEST, so this provider is `native_only`
-  # and serves pi.dev running ON Win11. The alternative — the NAT gateway address — is an IP literal
-  # that moves when the NAT range moves, and a spec holding a moving IP is how a laptop breaks on a
-  # Tuesday. `laptop-llm.py probe-health` fails loudly if the server is not on loopback; it never
-  # guesses an address, and nothing here reconfigures /etc/wsl.conf to make a WSL probe pass.
+  # baseUrl is loopback ON PURPOSE. WSL2 runs networkingMode=Nat and that is deliberate:
+  # 127.0.0.1 inside the Linux guest is the GUEST, so this provider is `native_only` and serves
+  # pi.dev running ON Win11. The alternative — the NAT gateway address — is an IP literal that moves
+  # when the NAT range moves. `scripts/bench/laptop-llm.py probe-health` fails loudly if the server
+  # is not on loopback; it never guesses an address, and nothing here reconfigures /etc/wsl.conf to
+  # make a WSL probe pass.
   #
-  # The engine ceiling, the KV budget and the thinking surface all live in
-  # scripts/bench/laptop/profiles.yml; `laptop-llm.py probe-client` FAILS if this block drifts from
-  # the active profile. What this provider offers, since the owner's 2026-10-09 ruling, is the
-  # laptop's TWO legs — vision and FIM (HD-474/HD-476; the windows below are the ones each leg
-  # actually booted, with the tok/s, TTFT and GiB behind them in reports/hd474-laptop-leg/README.md,
-  # and the FIM row still declared-but-unmeasured). **No agent model lives here any more**: the
-  # runtime's agent leg was retired on a prefill measurement, and a generation harness reaches spark
-  # directly (docs/services-ai.md §9 decisions #26 and #28) — this provider does not proxy it and
-  # does not fall back to it.
+  # The engine ceiling, the KV budget and the thinking surface live in
+  # scripts/bench/laptop/profiles.yml, and `scripts/bench/laptop-llm.py probe-client` FAILS if this
+  # block drifts from the active profile. What this provider offers is the laptop's TWO legs — vision
+  # and FIM — each row carrying the window its leg actually boots; the measurements behind them are
+  # docs/hardware-workstation.md §Served leg. No agent model lives here: a generation harness reaches
+  # spark directly (docs/services-ai.md §9 decisions #26 and #28), so this provider neither proxies
+  # that leg nor falls back to it.
   - id: laptop-lmstudio
     description: local LM Studio server on the admin laptop (iGPU, 32 GiB carve) — loopback, no cost
-    # MEASURED on the seat 2026-09-30: `socket.gethostname()` returns `Domen_P14s`. It is written
-    # `domenp14s` here because host_norm() (render-pi-config.py) ignores case and `_`/`-`/`.` — and
-    # because before that matcher existed, this row's spelling did not match the machine and BOTH
-    # the renderer (provider dropped) and probe-client (SKIP instead of a check) failed silently.
+    # `socket.gethostname()` on this seat answers `Domen_P14s`. It is written `domenp14s` here
+    # because host_norm() (render-pi-config.py) ignores case and `_`/`-`/`.` — one spelling has to
+    # satisfy both the renderer and `probe-client`.
     hosts: [domenp14s]
-    # Native Windows only, and this is the load-bearing line of the whole client contract (owner
-    # decision 2026-09-29, after the first draft assumed WSL): WSL2 on this box stays
-    # networkingMode=Nat because it is configured that way deliberately, so 127.0.0.1 inside the
-    # Linux guest is the GUEST. Local models are therefore served to pi.dev running ON Win11, and
-    # this provider must not render into the WSL picker, where it would be a dead endpoint. Hostname
-    # alone cannot tell the two seats apart — both report `Domen_P14s` (measured 2026-09-30; this
-    # line used to say `DomenP14s`, and that one underscore is why host_norm() exists) — hence a
-    # flag, not a name.
+    # Native Windows only, and this is the load-bearing line of the whole client contract: WSL2 on
+    # this box stays networkingMode=Nat because it is configured that way deliberately, so
+    # 127.0.0.1 inside the Linux guest is the GUEST. Local models are therefore served to pi.dev
+    # running ON Win11, and this provider must not render into the WSL picker, where it would be a
+    # dead endpoint. Hostname alone cannot tell the two seats apart — both report `Domen_P14s` —
+    # hence a flag, not a name.
     native_only: true
     baseUrl: http://127.0.0.1:1234/v1
     api: openai-completions
@@ -279,9 +261,9 @@ providers:
 
 # pi's provider auth file (vendor `pi-auth`). Same rule as everywhere else in this repo: the spec
 # NAMES the item, the renderer resolves the value at render time, no key material in git.
-# Proven 2026-09-23: both vault `credential` values hash-match what the laptop's live auth.json
-# already holds (openrouter 5ceea2ce6c / 73 B, opencode-go 9f31a67976 / 67 B) — so adopting the
-# render is a no-op on a working machine, which is the only safe way to take over a hand-kept file.
+# Both vault `credential` values hash-match what a hand-kept client file carries (openrouter
+# 5ceea2ce6c / 73 B, opencode-go 9f31a67976 / 67 B), so adopting the render is a no-op on a working
+# machine — the only safe way to take over a hand-kept credential file.
 auth:
   - provider: openrouter
     type: api_key

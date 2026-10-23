@@ -39,6 +39,18 @@ import sys
 import tempfile
 from pathlib import Path
 
+# On a Windows seat the locale default is cp1252, so the `→` of a DRIFT line raises
+# UnicodeEncodeError in the middle of the verdict: the drift lines print, the explanation does not,
+# and the process dies with the crash's rc 1 — the same number drift would return, so the run looks
+# correct while the rc comes from the encoder. Pin stdout/stderr to UTF-8 for this process; a no-op
+# where the locale is already UTF-8 (same trap, same fix as scripts/gate/check_doc_path_refs.py).
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+except (AttributeError, ValueError):
+    pass
+
+
 def _need_reexec(sys_executable: str, venv_py: Path, flag: str) -> bool:
     """True = re-exec into the ansible venv is needed AND possible. Verbatim the predicate in
     scripts/ansible/ansible_query.py (whose --self-test section 9 is the witness for both — this file has no

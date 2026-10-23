@@ -13,8 +13,7 @@ tags: [ai, pi, agent-harness, harness, spark, entrim, llm, model-contract]
 > [`../scripts/harness/pi/models-spec.yml`](../scripts/harness/pi/models-spec.yml), rendered by
 > [`../scripts/harness/render-pi-config.py`](../scripts/harness/render-pi-config.py).
 > The block in §4 below is that render's OUTPUT, not its source: CONVENTIONS §8.5 puts the values in the
-> SSOT and the reasoning in the doc, and this doc is the reasoning. (Corrected 2026-10-19: the role read `ssot`,
-> which §4 of this doc contradicted.)
+> SSOT and the reasoning in the doc, and this doc is the reasoning.
 > **Linked from:** [`index.md`](index.md) (Document Map + dispatcher) ·
 > [`harness.md`](harness.md) (the `harness` domain hub — placement map).
 
@@ -138,8 +137,7 @@ Three decisions in that shape, each because the alternative loses something:
 
 ⏳ **Honest scope note:** the `pi` vendor is proven against a live file (§4). The `continue` vendor is
 *rendered and shape-checked*, not proven against a running Continue instance, because no client is
-installed on a machine in this fleet yet. Whoever installs the first one owns that verification; the
-row stays open until it happens.
+installed on a machine in this fleet yet. Whoever installs the first one owns that verification.
 
 ---
 ## 4c. The hosted provider's rows — what the endpoint, not a doc, decides
@@ -149,10 +147,10 @@ picker this repo controls but does not serve. What keeps them honest is one rule
 
 **The endpoint's own `GET /v1/models` is the authority on which rows exist** and on the two numbers a
 row must carry (`max_input_tokens` → `contextWindow`, `max_output_tokens` → `maxTokens`). It is the
-only source that cannot lag the provider, and a row whose id is absent there is a **dead pick**: the
-retired `deepseek-ai/DeepSeek-V4-Flash` sat in the spec answering
-`400 Invalid model name` — a row that cannot be served is worse than no row, because it is chosen in
-good faith and fails mid-task. Retire on the catalog, in the same change that lands the successor.
+only source that cannot lag the provider, and a row whose id is absent there is a **dead pick**: it
+stays selectable and answers `400 Invalid model name`. A row that cannot be served is worse than no
+row, because it is chosen in good faith and fails mid-task. Retire on the catalog, in the same change
+that lands the successor.
 A row can also be **served but unlisted** — a model can leave the catalog and keep answering completions.
 That is a heads-up, not a removal trigger: deleting a row that answers is an outage for whoever has it
 selected, so the successor is an owner call, probed like any other row.
@@ -171,13 +169,13 @@ selected, so the successor is an owner call, probed like any other row.
 row: `deepseek-ai/DeepSeek-V4.1-Flash` and `Qwen/Qwen3.8-27B` answer `none` with zero reasoning tokens
 and a direct reply, so their `thinkingLevelMap` carries `"off"` and `/thinking off` means what it says;
 `zai-org/GLM-5.3-Flash` accepts `none`
-with a 200, thinks anyway, and spent its whole response budget thinking — 3002 reasoning tokens, empty
+with a 200, thinks anyway, and spends its whole response budget thinking — 3002 reasoning tokens, empty
 `content`. For that row the honest spec declares **no** `off` key at all: an entry promising a state the
 endpoint cannot produce is a dial that lies, and selecting it buys silence. pi's graded levels
 (`minimal`…`max`) are accepted verbatim by every hosted row, so nothing else is mapped — a map that restates
 pass-through only invites someone to "fix" its numbers.
 
-**The trap in this shape, found on a live render:**
+**The trap in this shape:**
 
 * A bare `off:` key in a `thinkingLevelMap` is **YAML 1.1 for `false`**, so it renders as the JSON key
   `"false"`, pi finds no `off` entry, sends no `reasoning_effort`, and thinking stays ON — while the
@@ -185,16 +183,17 @@ pass-through only invites someone to "fix" its numbers.
   target and both sides carry the same wrong key. Quote the key; the renderer now aborts on any level
   name outside pi's own set, since a gate that cannot see the defect cannot fail either.
 
-**What the external lane is FOR is settled, and it is not capacity.** A hosted row is *selectable*
+**What the external lane is FOR is not capacity.** A hosted row is *selectable*
 because the contract renders it; it becomes *authorized* only when the owner explicitly asks for an
 external model in the session. It is never the answer to a busy, slow, or down spark — no automatic
 fallback, no queued work that quietly changes provider, no benchmark to justify one (there is no
-external-lane bench and none is wanted). The rule lives in the root `README.md` §3; the reason it is
-written down is that switching provider mid-task moves both money and prompt text off the premises,
-which is a decision and not an optimization.
+external-lane bench and none is wanted). The rule lives in the root `README.md` §3: switching provider
+mid-task moves both money and prompt text off the premises, which is a decision and not an
+optimization.
 
 **The hosted rows carry their published prices (`cost:`, USD per million tokens).** Without it pi
 prices a paid external call at `0` in `/usage` and in the footer, which is worse than an honest unknown
 because it looks measured. `cacheWrite: 0` is a stated fact rather than a gap: the lane caches
 implicitly and publishes a read price and no write tier. Prices are the provider's, not estimates — a
 row whose price nobody can cite should carry no `cost:` at all.
+
