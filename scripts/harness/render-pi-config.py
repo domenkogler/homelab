@@ -94,6 +94,28 @@ META_KEYS = {"description", "credential", "unmanaged", "gateway_row", "continue"
              "native_only"}
 SECRET_RE = re.compile(r"key|token|secret|password|credential", re.I)
 
+# pi's thinking-level names (#/$defs/ThinkingLevelMap in pi.dev/schemas/models.schema.json).
+PI_THINKING_LEVELS = {"off", "minimal", "low", "medium", "high", "xhigh", "max"}
+
+
+def check_thinking_levels(spec: dict) -> None:
+    """Fail loud on a `thinkingLevelMap` key pi cannot name.
+
+    YAML 1.1 resolves a bare `off:`/`on:`/`yes:`/`no:` mapping key to a BOOLEAN, so the entry reaches
+    the render as the JSON key "false" and pi — which looks up `off` — silently sends no
+    `reasoning_effort`: thinking stays ON and the spec still reads correctly. `--check` cannot see
+    this, because it compares spec against target and BOTH sides carry the same wrong key. Measured on
+    a live render, so the check is the fix, not the prose.
+    """
+    bad = [f"{p.get('id')}/{m.get('id')}: {k!r}"
+           for p in spec.get("providers", []) for m in p.get("models", [])
+           for k in (m.get("thinkingLevelMap") or {}) if k not in PI_THINKING_LEVELS]
+    if bad:
+        sys.exit(f"FAIL: thinkingLevelMap key(s) outside pi's levels {sorted(PI_THINKING_LEVELS)} — "
+                 f"{', '.join(bad)}. One that reads 'false'/'true' was an unquoted YAML 1.1 boolean "
+                 "(`off:`/`on:`/`yes:`/`no:`): quote it. An entry pi cannot name is an entry that "
+                 "does nothing — and a thinking level that silently does nothing is thinking left on.")
+
 
 def sa_token() -> None:
     """Same convention as ansible-run.sh / provision-secrets.py: fall back to the 0600 file."""
@@ -359,6 +381,7 @@ def main() -> int:
     spec = yaml.safe_load(Path(args.spec).read_text())
     if spec.get("version") != 1:
         sys.exit(f"FAIL: unsupported spec version {spec.get('version')!r}")
+    check_thinking_levels(spec)
     vendors = spec.get("vendors", {})
     rc = 0
 

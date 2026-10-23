@@ -59,12 +59,59 @@ providers:
       item: entrim_api
       field: credential
     models:
-      - id: deepseek-ai/DeepSeek-V4-Flash
-        name: Entrim DeepSeek v4 Flash
-        contextWindow: 1000000
-        maxTokens: 384000
-        input: [text]
-        continue: {capabilities: [tool]}
+      # WHAT DECIDES THESE ROWS: the endpoint's own `GET /v1/models`, not a doc page and not memory.
+      # It is the only source that cannot lag the provider, and it answers with `max_input_tokens` /
+      # `max_output_tokens` per row — the two numbers this file has to get right. Read it with the
+      # rendered key (the value never reaches the transcript):
+      #     curl -s -H "Authorization: Bearer $(op read op://Homelab-ansible/entrim_api/credential </dev/null)" \
+      #          https://api.entrim.ai/v1/models
+      # A row whose id is NOT in that list is a dead pick, not a stale name: the retired
+      # `deepseek-ai/DeepSeek-V4-Flash` answered `400 Invalid model name` while still sitting in this
+      # file, which is the silent-drift class HD-388 exists to kill. So retire on the catalog, in the
+      # same change that lands the successor, and never leave a row that cannot be served.
+      # Everything below `input:`/`reasoning:`/`thinkingLevelMap:` for these rows comes from probes
+      # against the live endpoint, not from a vendor claim: a real function call for the `tool`
+      # capability, a solid-magenta 256×256 PNG for `image` (named correctly, and the prompt_tokens
+      # jump over the same prompt without it — 126 vs 24 on GLM, 200 vs 16 on DeepSeek — is the half
+      # that proves the image was read and not dropped), and
+      # `usage.completion_tokens_details.reasoning_tokens` for whether thinking actually ran. Both
+      # models stream their usage in the final chunk, so pi's ctx % and compaction trigger work with
+      # the default `supportsUsageInStreaming` — no `compat:` block is needed or claimed.
+      - id: deepseek-ai/DeepSeek-V4.1-Flash
+        name: Entrim DeepSeek V4.1 Flash
+        reasoning: true
+        input: [text, image]
+        contextWindow: 1048576
+        maxTokens: 393216
+        # `off` is the ONE level worth mapping: `reasoning_effort: "none"` produced zero reasoning
+        # tokens and a direct answer, so the switch is real. The graded levels are accepted verbatim
+        # (all 200), so they need no entry — a map that restates pass-through only invites someone to
+        # "fix" the numbers later.
+        # ⚠ The key is QUOTED, and it is load-bearing: YAML 1.1 resolves bare `off`/`on`/`yes`/`no` to
+        # booleans, so an unquoted `off:` reaches the render as the JSON key `"false"` — pi then finds
+        # no `off` entry, sends no `reasoning_effort`, and thinking stays on while the map looks
+        # perfectly correct in the spec. Found on this row's own first render (`--check` was green;
+        # only the rendered file showed `{"false": "none"}`).
+        thinkingLevelMap:
+          "off": "none"
+        continue: {capabilities: [tool, reasoning]}
+      - id: zai-org/GLM-5.3-Flash
+        name: Entrim GLM-5.3-Flash
+        reasoning: true
+        input: [text, image]
+        contextWindow: 1048576
+        maxTokens: 131072
+        # NO `off:` key, deliberately: this endpoint accepts `reasoning_effort: "none"` with a 200 and
+        # then thinks anyway — measured 3002 reasoning tokens and an EMPTY answer, because the
+        # reasoning phase ate the whole response budget. A map entry would advertise a thinking-off
+        # state the endpoint cannot produce, and a user who selects it gets silence. Levels
+        # minimal…max are all accepted; `off` is not a state here.
+        continue: {capabilities: [tool, reasoning]}
+      # Still served (200 on a real completion) although it has left `GET /v1/models`, which now
+      # lists `Qwen/Qwen3.8-27B` (262 144 / 65 536) as the 27B. Deleting a row that answers is not a
+      # cleanup, it is an outage for whoever has it selected, so the row stays and the successor is
+      # an owner call with its own probe — do not "tidy" this into the catalog's list on the strength
+      # of `/v1/models` alone.
       - id: Qwen/Qwen3.6-27B
         name: Entrim Qwen3.6-27B
         contextWindow: 262000

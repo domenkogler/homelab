@@ -972,8 +972,10 @@ so it never sees `~/.profile`: `/proc/<pi-web>/environ` reads
 picker** and the API says so: `GET /api/models` → **HTTP 500**
 `{"error":"pi executable not found: exec: "pi": executable file not found in $PATH"}`, while
 `POST /api/check-update` answers 200 (it reads the registry, never runs pi). With the drop-in,
-`GET /api/models` → 200 with **419 models** and
-`spark | spark/qwen3.8-flash-next | 262144 | 16384 | reasoning true`.
+`GET /api/models` → 200 with the seat's whole model list (the rows `pi --list-models` prints, and
+`spark | spark/qwen3.8-flash-next | 262144 | 16384 | reasoning true` among them — the count is whatever
+that command returns on the seat, so re-derive it rather than restating a number that the hosted
+catalogs change on their own).
 
 Traps, each with the runbook step that prevents it ([../deployment-manual.md](../deployment-manual.md)):
 
@@ -999,8 +1001,13 @@ Traps, each with the runbook step that prevents it ([../deployment-manual.md](..
 timeouts, compaction) with the workstation key `packages` preserved, so a seat session starts on the local
 engine instead of a cloud model. It is hand-written from §5 **by design**: `render-pi-config.py` has no
 settings vendor and `models-spec.yml` states the boundary — the spec renders the *model contract*, never
-settings. What the picker offers is 419 rows (openrouter 386 · opencode-go 30 · entrim 2 · **spark 1**)
-— the defaults decide the first turn, not the list length.
+settings. What the picker offers is whatever `pi --list-models` prints on that seat, one row per model
+(`pi --list-models | tail -n +2 | grep -cE '\S'`) — 435 rows on this cockpit at the bundled pi 1.3.0
+catalog: openrouter 399 · opencode-go 32 · entrim 3 · **spark 1**. Re-derive it, never quote it: the two
+hosted catalogs grow without anyone committing anything, which is what made an earlier count in this
+paragraph false. The rendered providers' rows come from
+[`../scripts/harness/pi/models-spec.yml`](../scripts/harness/pi/models-spec.yml), so `entrim`/`spark` are
+the only part of the list this repo controls — the defaults decide the first turn, not the list length.
 
 **The seat, read from the workstation side:**
 

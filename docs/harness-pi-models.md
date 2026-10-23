@@ -1,9 +1,9 @@
 ---
-title: pi.dev Harness — The rendered models.json (spark provider)
+title: pi.dev Harness — The rendered models.json (the model contract)
 role: detail
 domain: harness
 status: active
-tags: [ai, pi, agent-harness, harness, spark, llm, model-contract]
+tags: [ai, pi, agent-harness, harness, spark, entrim, llm, model-contract]
 ---
 
 # pi.dev Harness — The Model Contract
@@ -131,8 +131,58 @@ Three decisions in that shape, each because the alternative loses something:
   resolving 1Password into a second app's config file would widen the file's blast radius for no gain.
 * **`capabilities` is per-model in the spec (`continue:`), not derived.** `reasoning`/`tool` claims are
   what the harness asks the vendor for; inferring them from `compat` would couple two different
-  protocols and then silently disagree. Unverified claims are worse than empty ones — the entrim rows
-  claim `tool` only, the spark row claims `tool, reasoning`, matching [`harness-pi-engines.md`](harness-pi-engines.md) §2's probe table.
+  protocols and then silently disagree. Unverified claims are worse than empty ones — each row's claim
+  is the probe result for THAT model (§4c), so the two reasoning-capable hosted rows and the spark row
+  claim `tool, reasoning` while a non-reasoning hosted row claims `tool` only; the spark numbers behind
+  its claim are [`harness-pi-engines.md`](harness-pi-engines.md) §2's probe table.
+
+---
+## 4c. The hosted provider's rows — what the endpoint, not a doc, decides
+
+`providers.entrim` is the fleet's cost-bearing external lane, and its rows are the only part of the
+picker this repo controls but does not serve. What keeps them honest is one rule and three probe
+shapes.
+
+**The endpoint's own `GET /v1/models` is the authority on which rows exist** and on the two numbers a
+row must carry (`max_input_tokens` → `contextWindow`, `max_output_tokens` → `maxTokens`). It is the
+only source that cannot lag the provider, and a row whose id is absent there is a **dead pick**: the
+retired `deepseek-ai/DeepSeek-V4-Flash` sat in the spec answering
+`400 Invalid model name` — a row that cannot be served is worse than no row, because it is chosen in
+good faith and fails mid-task. Retire on the catalog, in the same change that lands the successor.
+A row can also be **served but unlisted** — a model can leave the catalog and keep answering completions.
+That is a heads-up, not a removal trigger: deleting a row that answers is an outage for whoever has it
+selected, so the successor is an owner call, probed like any other row.
+
+**Capabilities are probed, per model, never inherited from the provider or copied from a vendor page:**
+
+| Claim | Probe | What a pass looks like |
+|---|---|---|
+| `tool` | one real `tools:` call against a trivial function | `finish_reason: tool_calls` with a well-formed `tool_calls` entry |
+| `image` | a solid-magenta 256×256 PNG plus "name the colour" | names it ("Magenta", "Purple" — a dropped image cannot guess a hue), **and** `prompt_tokens` jumps over the text-only figure for the SAME prompt (126 vs 24, and 200 vs 16 on the two hosted rows) — the token jump is the half that proves the image was read rather than dropped |
+| `reasoning` | plain completion | `reasoning_content` in the message and non-zero `usage.completion_tokens_details.reasoning_tokens` |
+| thinking **off** | the same prompt with `reasoning_effort: "none"` | `reasoning_tokens` absent/0 **and** an answer. This is where two hosted rows differ (below) |
+| streaming usage | `stream: true` + `stream_options.include_usage` | a final chunk carrying `usage` — pi's ctx % and compaction trigger depend on it, and it is why neither row needs a `compat:` block |
+
+**Thinking-off is not a capability a provider has; it is a capability each model has.** Measured on the
+fleet's two reasoning rows: one answers `none` with zero reasoning tokens and a direct reply, so its
+`thinkingLevelMap` carries `"off"` and `/thinking off` means what it says; the other accepts `none`
+with a 200, thinks anyway, and spent its whole response budget thinking — 3002 reasoning tokens, empty
+`content`. For that row the honest spec declares **no** `off` key at all: an entry promising a state the
+endpoint cannot produce is a dial that lies, and selecting it buys silence. pi's graded levels
+(`minimal`…`max`) are accepted verbatim by both, so nothing else is mapped — a map that restates
+pass-through only invites someone to "fix" its numbers.
+
+**Two traps in this shape, both from a live render:**
+
+* A bare `off:` key in a `thinkingLevelMap` is **YAML 1.1 for `false`**, so it renders as the JSON key
+  `"false"`, pi finds no `off` entry, sends no `reasoning_effort`, and thinking stays ON — while the
+  spec still reads correctly and `--check` reports a match, because the check compares spec against
+  target and both sides carry the same wrong key. Quote the key; the renderer now aborts on any level
+  name outside pi's own set, since a gate that cannot see the defect cannot fail either.
+* **No `cost:` is declared on the hosted rows, so pi prices them at zero** — `usage.cost.total` reads
+  `0` through a paid external model, and `/usage` under-reports the fleet's only cost-bearing lane.
+  Stating a rate needs a source with a number in it; until someone quotes the provider's own price
+  list, the honest value is *absent*, not invented.
 
 ⏳ **Honest scope note:** the `pi` vendor is proven against a live file (§4). The `continue` vendor is
 *rendered and shape-checked*, not proven against a running Continue instance, because no client is
