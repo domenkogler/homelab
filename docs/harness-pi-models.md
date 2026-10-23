@@ -136,6 +136,11 @@ Three decisions in that shape, each because the alternative loses something:
   claim `tool, reasoning` while a non-reasoning hosted row claims `tool` only; the spark numbers behind
   its claim are [`harness-pi-engines.md`](harness-pi-engines.md) §2's probe table.
 
+⏳ **Honest scope note:** the `pi` vendor is proven against a live file (§4). The `continue` vendor is
+*rendered and shape-checked*, not proven against a running Continue instance, because no client is
+installed on a machine in this fleet yet. Whoever installs the first one owns that verification; the
+row stays open until it happens.
+
 ---
 ## 4c. The hosted provider's rows — what the endpoint, not a doc, decides
 
@@ -158,18 +163,19 @@ selected, so the successor is an owner call, probed like any other row.
 | Claim | Probe | What a pass looks like |
 |---|---|---|
 | `tool` | one real `tools:` call against a trivial function | `finish_reason: tool_calls` with a well-formed `tool_calls` entry |
-| `image` | a solid-magenta 256×256 PNG plus "name the colour" | names it ("Magenta", "Purple" — a dropped image cannot guess a hue), **and** `prompt_tokens` jumps over the text-only figure for the SAME prompt (126 vs 24, 200 vs 16, 130 vs 64 on the three hosted rows) — the token jump is the half that proves the image was read rather than dropped |
+| `image` | a solid-magenta 256×256 PNG plus "name the colour" | names it ("Magenta", "Purple" — a dropped image cannot guess a hue), **and** `prompt_tokens` jumps over the figure for the SAME prompt with no image (GLM 126 vs 24, DeepSeek 200 vs 16, Qwen 130 vs 64) — the token jump is the half that proves the image was read rather than dropped |
 | `reasoning` | plain completion | `reasoning_content` in the message and non-zero `usage.completion_tokens_details.reasoning_tokens` |
 | thinking **off** | the same prompt with `reasoning_effort: "none"` | `reasoning_tokens` absent/0 **and** an answer. This is where the hosted rows differ from each other (below) |
-| streaming usage | `stream: true` + `stream_options.include_usage` | a final chunk carrying `usage` — pi's ctx % and compaction trigger depend on it, and it is why neither row needs a `compat:` block |
+| streaming usage | `stream: true` + `stream_options.include_usage` | a final chunk carrying `usage` — pi's ctx % and compaction trigger depend on it, and it is why no hosted row needs a `compat:` block |
 
-**Thinking-off is not a capability a provider has; it is a capability each model has.** Measured across
-the fleet's three reasoning rows: two answer `none` with zero reasoning tokens and a direct reply, so
-their `thinkingLevelMap` carries `"off"` and `/thinking off` means what it says; the third accepts `none`
+**Thinking-off is not a capability a provider has; it is a capability each model has.** Measured row by
+row: `deepseek-ai/DeepSeek-V4.1-Flash` and `Qwen/Qwen3.8-27B` answer `none` with zero reasoning tokens
+and a direct reply, so their `thinkingLevelMap` carries `"off"` and `/thinking off` means what it says;
+`zai-org/GLM-5.3-Flash` accepts `none`
 with a 200, thinks anyway, and spent its whole response budget thinking — 3002 reasoning tokens, empty
 `content`. For that row the honest spec declares **no** `off` key at all: an entry promising a state the
 endpoint cannot produce is a dial that lies, and selecting it buys silence. pi's graded levels
-(`minimal`…`max`) are accepted verbatim by all three, so nothing else is mapped — a map that restates
+(`minimal`…`max`) are accepted verbatim by every hosted row, so nothing else is mapped — a map that restates
 pass-through only invites someone to "fix" its numbers.
 
 **The trap in this shape, found on a live render:**
@@ -193,8 +199,3 @@ prices a paid external call at `0` in `/usage` and in the footer, which is worse
 because it looks measured. `cacheWrite: 0` is a stated fact rather than a gap: the lane caches
 implicitly and publishes a read price and no write tier. Prices are the provider's, not estimates — a
 row whose price nobody can cite should carry no `cost:` at all.
-
-⏳ **Honest scope note:** the `pi` vendor is proven against a live file (§4). The `continue` vendor is
-*rendered and shape-checked*, not proven against a running Continue instance, because no client is
-installed on a machine in this fleet yet. Whoever installs the first one owns that verification; the
-row stays open until it happens.

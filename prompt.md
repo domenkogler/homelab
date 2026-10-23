@@ -205,15 +205,14 @@ the row→brief index is [todo-table.md](todo-table.md) §B0. A brief is named f
    oldsrv included** — the matrix and the seat-side rule are
    [docs/harness-pi-seat-identity.md](docs/harness-pi-seat-identity.md) §5a, and a plane command executes in the SEAT's
    shell, so its python launcher resolves there ([docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1). The
-   OAuth-vs-`api_key` call is **ruled 2026-10-20 (owner): `api_key` is the fleet spelling**, an OAuth entry on a seat is
-   drift, and it is never cured by overwriting a live credential: mint through the `pi_auth` vendor lane of
-   [`scripts/harness/render-pi-config.py`](scripts/harness/render-pi-config.py)
-   (§4 of [docs/harness-pi-models.md](docs/harness-pi-models.md)) and report the mismatch instead. Its sibling
+   The OAuth-vs-`api_key` call is **ruled 2026-10-20 (owner): `api_key` is the fleet spelling**, and a seat's OAuth entry
+   is drift — never cured by overwriting a live credential ([docs/harness-pi-models.md](docs/harness-pi-models.md) §4). **HD-1190** ⏳ the two
+   laptop seats owe `render-pi-config.py --check` → render, run FROM each seat (Win11 passes `--host <seat>`). Its sibling
    **HD-1161**: `install-pi-wsl.sh`'s pi leg is `curl … https://pi.dev/install.sh | sh` with no version at all while its
    Debian sibling installs from the pin, and `pi-self-update.sh` REFUSES the managed layout that installer creates.
    ⚠ **HD-1180 is the delegation plane the pi 1.3.0 bump took away** — an `async: true` launch dies at start with 0 s of
    work and no child session file while a FOREGROUND child on the same seat runs normally, and the seat plane still
-   reads `OK`. The AI half (the `pi_host_subagents_npm_version` move) is DONE; a pin reaches no seat by itself.
+   reads `OK`.
    **Per-seat verdict, and a pass on one seat certifies only that seat:** `oldsrv` — **PASSES**, lanes launched from
    here run `async: true`; `win11` and `wsl` — ⏳ **owner, one act each**: the `settings` plane pushed and
    `pi install npm:pi-subagents@0.80.0` run FROM that seat, each accepted by **its own** `async: true` launch that
