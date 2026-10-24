@@ -449,6 +449,24 @@
 #                                     (open / briefed / unbriefed) prints from the run, never from prose.
 #                                     Carried debt lives in `gate/brief_coverage_baseline.txt` keyed on the
 #                                     (brief, id) relation, and it reddens when a carried difference clears.
+#  43. check_doc_sensitivity.py     — CONVENTIONS §8.6's data-sensitivity class, proved on the corpus instead
+#                                     of remembered from a sweep's commit message. The class is the fact a run
+#                                     needs BEFORE it decides where its read list may go (§8.6's egress rule,
+#                                     README §3), and no shape scanner supplies it: they prove no credential
+#                                     TEXT ships, not what a document is ABOUT. Four rules, each with a canary
+#                                     in `--self-test`: every hand-authored doc DECLARES one (the
+#                                     `-generated.md` render views inherit and declare nothing, §8.2); the
+#                                     value is ONE bare lowercase slug, because a quoted or capitalised one
+#                                     parses to a fourth class nothing else reads and drops the doc out of
+#                                     every sibling rule silently (§8.1's `domain-shape` rule, moved to the
+#                                     other axis); the owner's FLOOR is carried inside the gate, so retagging
+#                                     a family or secrets doc down to `infra` reddens a commit while a
+#                                     promotion stays quiet; and a `personal` doc carries no contact payload —
+#                                     an off-domain email, an IBAN, a phone — measured floor 0, with each
+#                                     shape's false-positive class proved quiet instead of merely asserted: a
+#                                     service address on a family subdomain, an apt key fingerprint, and a byte
+#                                     count written in thousands groups. The distribution is DERIVED and
+#                                     printed every run, so the population never moves into this file's prose.
 #   + ansible-playbook --syntax-check across all playbooks (WSL/CI-gated, HD-197) — its stderr is
 #                                     kept and the duplicate-mapping-key warning fails the run, the
 #                                     second witness for HD-1098 (it sees role task files as ansible
@@ -1573,6 +1591,13 @@ item_q "check_doc_size.py --self-test (the shrink half proved live so this is no
 # docs→tree gate. Two reads and a substring scan, so it belongs in quick too.
 item_q "check_role_docs.py (HD-1200: every dir under IaC/ansible/roles/ is named by a hand-authored docs/*.md — the role set is derived from the tree, never listed, and naming is decided by shape rather than by the string)" $PY scripts/gate/check_role_docs.py
 item_q "check_role_docs.py --self-test (a role bred and deleted in a temp tree to prove the set is derived, a prose-only role reddening with its sites printed while one code-font mention clears it, a render view unable to document a role, and an empty corpus / missing role tree / doc-less tree all refusing to print OK)" $PY scripts/gate/check_role_docs.py --self-test
+
+# CONVENTIONS §8.6's `sensitivity:` class had nothing reading it: the shape scanners prove no credential TEXT
+# ships, which is not the same fact as what a document is ABOUT — and §8.6's egress rule needs that fact before
+# a run decides where its read list may go. The class is declared in frontmatter, so the gate is a frontmatter
+# reader plus the owner's floor map, and the payload rule is the one place the family plane can hurt.
+item_q "check_doc_sensitivity.py (every hand-authored doc declares one sensitivity class at or above its floor, and the personal docs carry no contact payload — the distribution is derived, never listed)" $PY scripts/gate/check_doc_sensitivity.py
+item_q "check_doc_sensitivity.py --self-test (each rule seen RED on a mutation and the legal tree GREEN: a missing or mis-spelled class, a downgrade below the floor, one canary per payload shape, and the near-misses — a family-subdomain address, a key fingerprint, a grouped byte count — seen quiet)" $PY scripts/gate/check_doc_sensitivity.py --self-test
 
 # The rsync `--max-delete` fixture. rc 2 is a BOUNDARY, printed and never counted green: the two
 # deletion arms need an rsync binary, which the WSL Debian seat does not carry, while the shape-parity
