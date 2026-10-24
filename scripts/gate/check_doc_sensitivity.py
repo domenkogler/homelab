@@ -313,22 +313,17 @@ def scan(corpus: dict[str, str]):
         if effective != "personal":
             continue
         payload_docs += 1                          # `payload` — only the class a person's data would travel in
-        for line, shape, desc in contact_hits(corpus[rel]):
+        for line, _shape, desc in contact_hits(corpus[rel]):
             payload_hits += 1
             findings.append(
-                f"FAIL: {rel}:{line}: payload — {desc}, in a `personal` doc. The class says this text may not "
-                "leave the house and the payload is the reason it must not: move it to the vault / the owning "
-                "secret-bearing doc and keep the doc ABOUT the person rather than CONTAINING them")
+                f"FAIL: {rel}:{line}: payload — a `personal` doc carries {desc}. The class says this text may "
+                "not leave the house and the payload is the reason it must not: move it to the vault / the "
+                "owning secret-bearing doc and keep the doc ABOUT the person rather than CONTAINING them")
     stats = {"generated": n_generated, "docs": sum(len(v) for v in by_class.values()),
              "by_class": {k: len(v) for k, v in by_class.items()},
              "docs_by_class": by_class, "payload_docs": payload_docs, "payload_hits": payload_hits,
              "floors_seen": floors_seen}
     return findings, stats
-
-
-def floor_entries() -> list[str]:
-    """The map's own entries, for the drift note — plane prefixes expanded to what the corpus matched."""
-    return sorted(FLOOR_EXACT) + [f"{p}* for `{c}`" for p, c in FLOOR_PREFIXES]
 
 
 def distribution(stats: dict) -> None:
