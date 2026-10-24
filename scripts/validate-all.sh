@@ -467,6 +467,25 @@
 #                                     service address on a family subdomain, an apt key fingerprint, and a byte
 #                                     count written in thousands groups. The distribution is DERIVED and
 #                                     printed every run, so the population never moves into this file's prose.
+#  44. check_open_questions.py      — CONVENTIONS §8.3's `Options` grammar, so an open question is an
+#                                     addressable section and the inventory can be LISTED. Before it the only
+#                                     list of open questions was prose, and `rg '^## Options' docs/` answered
+#                                     with nothing. Four rules, one canary each in `--self-test`: SHAPE (the
+#                                     section carries `| Option | For | Against | Cost | Cheap test |` with a
+#                                     separator line, ≥2 rows and a non-empty cheap test in every row — an
+#                                     option without a cheap test is a wish, and one row is a verdict with a
+#                                     table around it), KEY (the section names its `OQ-<n>` id), NO-VERDICT
+#                                     (no recommend / decided / `decision:` wording inside it: an option is
+#                                     never a decision dressed as an option, and the ruling lives in the doc's
+#                                     state or in `<domain>-rejected.md`), and the DERIVED MINT (the id space
+#                                     is read from every tracked `*.md` with the `Options` heading lines
+#                                     EXCLUDED, since a rule reading the number off the line it audits can
+#                                     never fire; next id = max+1, and a number above that was typed — §2's
+#                                     derived-values ban). Two floors refuse a partial walk, the tree-wide
+#                                     mint basis deliberately above the docs-only count. Declared blind spot:
+#                                     the gate shapes what EXISTS, so a choice written as prose or as
+#                                     `## Open Questions` bullets is invisible and the inventory command is a
+#                                     floor, not a census.
 #   + ansible-playbook --syntax-check across all playbooks (WSL/CI-gated, HD-197) — its stderr is
 #                                     kept and the duplicate-mapping-key warning fails the run, the
 #                                     second witness for HD-1098 (it sees role task files as ansible
@@ -1598,6 +1617,12 @@ item_q "check_role_docs.py --self-test (a role bred and deleted in a temp tree t
 # reader plus the owner's floor map, and the payload rule is the one place the family plane can hurt.
 item_q "check_doc_sensitivity.py (every hand-authored doc declares one sensitivity class at or above its floor, and the personal docs carry no contact payload — the distribution is derived, never listed)" $PY scripts/gate/check_doc_sensitivity.py
 item_q "check_doc_sensitivity.py --self-test (each rule seen RED on a mutation and the legal tree GREEN: a missing or mis-spelled class, a downgrade below the floor, one canary per payload shape, and the near-misses — a family-subdomain address, a key fingerprint, a grouped byte count — seen quiet)" $PY scripts/gate/check_doc_sensitivity.py --self-test
+
+# §8.3 made an open question a SECTION so the inventory could be listed; nothing read the shape, so "the table
+# is shaped to the grammar" stayed a row's word. This gate is also the only reader of the OQ id space: it prints
+# max + the sorted list so the next id is derived at the moment of minting instead of typed from memory.
+item_q "check_open_questions.py (every Options section is shaped, keyed by its OQ id, and verdict-free; the id space is derived and printed with the inventory command it mirrors)" $PY scripts/gate/check_open_questions.py
+item_q "check_open_questions.py --self-test (each rule seen RED on a shaped section and quiet on its legal twin: no table, a near-miss header, one row, an empty cheap test, a shifted row, no id, each verdict wording, a typed id above max+1, and both corpus floors at their boundary)" $PY scripts/gate/check_open_questions.py --self-test
 
 # The rsync `--max-delete` fixture. rc 2 is a BOUNDARY, printed and never counted green: the two
 # deletion arms need an rsync binary, which the WSL Debian seat does not carry, while the shape-parity
