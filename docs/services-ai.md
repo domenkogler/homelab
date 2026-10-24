@@ -860,14 +860,14 @@ research plane (OWUI/Docling/Qdrant/Mem0). It runs on **oldsrv**, managed from t
     (8/12) at ≈2× recall latency (0.195 s vs 0.100 s)** — an upgrade that is real, which is why that half is a
     park and not a no. **That floor stands and is unmet:** recall at or above hit@5 7/10 on the real corpus
     keeps keyless BM25 the answer, and re-asking *that* half without a recall number taken against the floor is
-    not a re-open.
+    not a re-open. The shapes on offer, what each costs and the cheap test that re-opens each one are keyed in
+    §Options — OQ-14; this bullet keeps the measurements those rows cite.
     * **What moved is a different axis, not a new number.** Every probe arm embedded with `bge-m3` — a 2024
       multilingual generalist whose code head was never measured here — while the candidate generation is not
       flat on code: the `EmbeddingGemma 2` text tower posts **78.68 on MTEB code v1 against its own 68.76**,
       in 270M parameters at ~0.3 GB of weights. So the leg is funded **as a measurement, not as an install**:
-      [services-ai-bench.md](services-ai-bench.md) §3d carries the candidates, the two gates and the probe
-      commands — **`Qwen3-Embedding-0.6B` first** (native **1024**, so a win there costs no re-ingest at all),
-      the Gemma tower **second and only for the code slice**.
+      [services-ai-bench.md](services-ai-bench.md) §3d carries the candidates, the two gates, the probe commands
+      and the order they are taken in; §Options — OQ-14 is where the choice itself is keyed.
     * ⚠ **The re-open does not extend to the RAG leg.** That call is closed: the same candidate's multilingual
       movement is **+0.21 across a generation**, one third-party 203-query test put it *behind* `bge-m3` on
       non-English and cross-lingual queries at ~3× the CPU cost per doc, its native 768 dims would buy a full
@@ -892,6 +892,21 @@ research plane (OWUI/Docling/Qdrant/Mem0). It runs on **oldsrv**, managed from t
   when the homelab is finished; kill criterion = a 2-week vertical slice or abandon. **Parked, not now** — no
   pilot, no spike, no compose; the re-open trigger is one real multi-agent epic
   that a single lane demonstrably mishandles.
+
+### Options — OQ-14 (memory vector leg, open on the code axis)
+
+The memory server's retrieval leg — **open on the code-retrieval axis, parked on the docs/multilingual
+axis**. The retrieval numbers below are measured on this corpus
+([`../reports/probe-agentmemory-20260921.md`](../reports/probe-agentmemory-20260921.md)); the MTEB figures are
+a candidate's own record, unverified here. Nothing in these rows is installed — no `agentmemory` pin exists,
+the memory plane is declared nowhere in the IaC, and no compose exists. What re-opens an axis is a recall
+number, not a re-ask.
+
+| Option | For | Against | Cost | Cheap test |
+|---|---|---|---|---|
+| Stay keyless — BM25 only in the memory server | cleared **every** gate the probe set: hit@5 **7/10** against a ≥7/10 gate, determinism **10/10** (same query ×5 → identical ranking), **455 tok/query** injected, no LLM and no embedder in the hot path, ≈2× faster recall (**0.100 s** vs 0.195 s) | the hybrid arm measured **+2 hit@5 (9/10)** and **+2 exact-identifier recall (8/12 vs 6/12)** above it, on the same corpus | nothing — this option is the absence of a component: no pin, no embedder call, no re-ingest | one recall number on the real corpus against the recorded floor (**hit@5 7/10**): at or above it keyless is the answer, and asking again without that number is not a re-open — measurement point [services-ai-bench.md](services-ai-bench.md) §3d |
+| Hybrid on the live `bge-m3` @1024 leg | **+2 hit@5 (9/10 vs 7/10)** and **+2 exact-identifier recall (8/12 vs 6/12)** measured here, at 398 vs 455 tok/query; the embedder it calls is already live for the RAG pipeline (§3a) | ≈2× recall latency (**0.195 s** vs **0.100 s**), and memory recall then depends on a running embedder — no memory server is wired to that leg today. `OPENAI_EMBEDDING_DIMENSIONS=1024` must be set explicitly, because upstream `resolveDimensions()` falls back to **1536**, and this product's embedding call takes the model name **bare** (a provider prefix returns 400) | one env var plus the memory-server pin, in a plane the IaC declares nowhere; no new hardware, no new model | the probe's own query set, hybrid arm against the keyless arm on the same corpus — one hit@5 delta, no bench and no re-ingest |
+| Vector leg on an embedder measured for code | every probe arm embedded with `bge-m3`, a multilingual generalist whose code head was never measured here, while the candidate generation is not flat on code: the `EmbeddingGemma 2` text tower posts **78.68 on MTEB code v1 against its own 68.76**, in 270M parameters at ~0.3 GB of weights | its multilingual movement is **+0.21 across a generation**; one third-party 203-query test (English/Arabic, not reproducible on this box) put it *behind* `bge-m3` on non-English and cross-lingual queries at ~3× the CPU cost per doc, and native **768** ≠ **1024** buys a full re-ingest + backtest before it buys anything else | the bench's first act is a `server-vulkan` image-pin bump (§9c), and that bump recreates the **reranker** leg with it — one image, two legs | [services-ai-bench.md](services-ai-bench.md) §3d: `Qwen3-Embedding-0.6B` first (native **1024**, so a win costs no re-ingest at all), the Gemma tower second and for the code slice only — priced by the two measurements that bench names, not on a leaderboard |
 
 ### 9b-1. Coding-seat surfaces on oldsrv — the placement decision (`pi-web`, Paseo)
 
