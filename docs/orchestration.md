@@ -24,6 +24,7 @@ inside one session. The LIVE wave table is
 5. **Lifecycle:** fully-done HD row → **deleted** from todo.md (record in owning doc + git). IaC-done-but-deploy-gated row stays with a ⏳ tail. Decisions written once to the owning doc + `<domain>-rejected.md`.
 6. **Close-out:** record the outcome + runbook in the owning doc; commit (plain `git commit` — commit signing is retired); merge/push per the session branch policy (unmerged `session/*` branches are the norm until the deploy-gate flips).
 7. **Orchestrator discipline:** for multi-step/multi-host/live-deploy changes, one parent co-ordinates bounded single-deliverable subagent lanes (pi-subagents); the parent holds final acceptance + runs validate-all. **Delegation is the default, not an escalation** (O10), and a child's silence is a compaction pause, not a hang — the run budget is 2 h per child, so steer on a *needs-attention* notice or the deadline, never on quiet (O11).
+8. **Escalation ladder — a stalled task has three rungs, in this order, and no fourth.** The ban on reaching for a hosted model is [README.md](../README.md) §3's; what to do INSTEAD is stated here, once. **Rung 1 — retry with a narrower read list:** the same task and the same acceptance, with fewer files opened; when the context is what failed, re-reading the same corpus is not an attempt. **Rung 2 — split the task:** two bounded children where one could not hold the whole thing. **Rung 3 — ask the owner,** who may authorize an external model **for that task only**; an answer naming one task authorizes that task, never the session, and it never makes the hosted lane selectable by the agent. **A task is never run identically a third time** — a third launch with the same read list and the same acceptance is the rung being skipped, so escalate one rung instead of re-launching. A task that flips **done→open twice** is not a task any more, it is an unknown: it becomes an owner question, not a third attempt.
 
 **Ask-if-unsure:** planned/multi-host/deploy-gated/irreversible → orchestrator pattern; re-deciding → check owning doc + rejected log first; unsure of the owning doc → `docs/index.md` map.
 
@@ -107,6 +108,10 @@ inside one session. The LIVE wave table is
   into a child is precisely the KV act [harness-pi-engines.md](harness-pi-engines.md) §6 exists to warn about. (The
   lane-profile alias in that section is a paper artifact and is NOT in the model spec; if it is ever landed,
   widening the scope is a deliberate change, not a side effect.)
+- **Escalation is a launch-visible act, not a mood.** A stalled child is not re-launched as it stood: §3's ladder is the
+  only permitted next move — narrower read list, then a split, then an owner ask for an external model authorized for
+  that task alone. Name the rung in the report; a third identical launch is a lane hiding that it has no new idea, and
+  a row that flipped done→open twice arrives as an owner question instead of another attempt.
 - **Async always, and silence is not a hang.** Launch with `async: true`, then yield and let the wake bring
   the parent back — `bg_wait` is for work with no native completion notice, not for every child. A child served
   by a local engine goes quiet for **minutes** while it compacts (pi compacts at `contextWindow −

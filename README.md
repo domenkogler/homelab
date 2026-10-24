@@ -109,7 +109,8 @@ task-specific dispatch. Do **not** bulk-read the repo.
   not when spark is busy, slow, or down, not to keep a run going, and not to "justify" a benchmark:
   there is no external-lane bench and none is wanted. Rendering a row makes it *selectable*, never
   *authorized*; switching provider on your own changes the fleet's cost and data-egress posture
-  without anyone asking. Contract: [`scripts/harness/pi/models-spec.yml`](scripts/harness/pi/models-spec.yml)
+  without anyone asking — a stalled task works the escalation ladder
+  ([docs/orchestration.md](docs/orchestration.md) §3) instead of reaching for this lane. Contract: [`scripts/harness/pi/models-spec.yml`](scripts/harness/pi/models-spec.yml)
   (the rows and their prices) + [`docs/harness-pi-models.md`](docs/harness-pi-models.md) §4c (why each
   row claims what it claims).
 - **SSOT direction:** values live in IaC (`group_vars/*.yml`, `host_vars/*.yml`,
