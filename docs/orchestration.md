@@ -143,6 +143,42 @@ inside one session. The LIVE wave table is
   station never becomes a second claimant on a domain lane's work.
 
 
+### Work packages — the execution state of a run that outgrows the rows
+
+> **This is not the retired `plan/` folder, and [README.md](../README.md) §4 item 7 still holds:** an
+> orchestrator run needs no planning ceremony. What changed is narrower than it looks — a run big enough to
+> outlive one context had been keeping its execution state nowhere, so it ended up either in `todo.md`
+> (whose rows must stay a queue) or in nobody's head. A **work package** is that place: **execution state for
+> rows that already exist in [todo.md](../todo.md)**, never a second backlog and never a plan of new
+> subjects. A package that names a task `todo.md` does not carry is a defect, not a draft.
+
+- **Threshold.** A package opens a `tasks-<slug>.md` **only** when the run spans more than one session or
+  more than ten HD rows. Below that the launch text plus the rows are the whole state, and a file would be a
+  second place to keep one fact — so a package is opened by that arithmetic, never by a taste for plan files.
+- **One writer: the orchestrator.** A lane never edits a package. It is the parent's view of the run, in the
+  O2 sense — children report, the parent writes, and two writers on a view is the O2 failure in a new file.
+- **Per-task fields**, beside the row id the task is:
+  - `reads` — the only files a child may open. This is the mechanism behind "a child gets paths and an
+    acceptance format, never a pasted corpus": the read list IS the scope, and a child that needs a file
+    outside it says so instead of widening itself.
+  - `writes` — the files the task may edit, **disjoint** from every other live task's. This is what makes two
+    children in one worktree safe, and it names a merge conflict before it happens.
+  - `evidence` — what proves the task done, in the shape required below; never a summary of the work.
+  - `state` — lane + worktree + sha, so a resumed session finds the checkout instead of re-deriving it.
+  - `resume` — the sha to diff after a `[!]`. What a stalled child leaves behind is a tree, and a sha is the
+    only pointer that survives the loss of its context.
+- **States.** `[ ]` open · `[~]` in progress · `[!]` partial, with a `resume` sha · `[?]` awaiting the owner
+  (a lane's park, O4, seen from the parent's side) · `[=]` absorbed, its work landed inside another task's
+  commit · `[X]` done. `[=]` exists so absorbed work never reads as unstarted.
+- **Closing takes evidence, never prose.** A `[X]` requires one of: a **green command** (the command and its
+  verdict), **`file:line` rows** a reader can open, or an **options table plus its decision row** — the shape
+  [CONVENTIONS.md](../CONVENTIONS.md) §8.3 gives an open question. "Refactored", "cleaned up", "verified" is
+  not a state; it is the prose this rule exists to refuse, for the same reason a lane's report is not
+  evidence and only `git log` is.
+- **Death.** The package is **deleted in the commit that closes its last row**, and its clues — the command,
+  the trap, the measurement — are deleted as soon as the knowledge lands in the owning doc. A package that
+  outlives its rows is a record with no owner, which is the only thing this section can become.
+
 ### Launch procedure (the parent)
 
 1. Primary = merge station: `git fetch`, `git status` clean, `git checkout main`, `bash scripts/validate-all.sh` green (clean-main is the exempt form under O5).
