@@ -274,6 +274,16 @@ that answer is harder to write.
 | [`apply-converge.yml`](../IaC/ansible/playbooks/apply-converge.yml) | **Ansible-path RouterOS apply** — the playbook twin of [`routeros-apply-delta.sh`](ansible/routeros-apply-delta.sh): uploads a rendered `*_converge.rsc` (or any delta) to a device via SCP (ansible SSH identity), then `/import`s it over the RouterOS API. Pulls the `ansible-admin_ssh` private key via the `onepassword` lookup (direct field value — no shell wrapper), writes it to a `0600` temp file, **verifies it loads with `ssh-keygen -y` before SCP** (same fail-loud guard as the `.sh`: a mangled vault field surfaces as `error in libcrypto` at SCP otherwise), pins the device host key (TOFU), and reports the import. Compatible with `ansible-run.sh`: `bash scripts/ansible/ansible-run.sh playbooks/apply-converge.yml -e converge_rsc=rb4011_converge.rsc` (or `-e target=switch`). Note: the final API `/import` step requires `librouteros` in the runner interpreter — if that is missing use the SSH-import path (`routeros-apply-delta.sh`). | `docs/network-ops.md` §Apply workflow |
 ## Notes & conventions
 
+- **A cross-platform leg asks the same question on every seat, because a different question reads as a verdict, not an error.**
+  A two-word launcher (`py -3`) stays an argv array — quoted as one word it is a program called `py -3`, and rc 127 arrives
+  where an invariant was supposed to be tested. A path is resolved only through a shell that can read it:
+  [`lib/repo_root.py`](lib/repo_root.py) `hl_bash()` probes which `bash` sees the target, because a WSL bash cannot see
+  `D:\…` and a Git bash cannot see `/home/…`, and a blind one reports the contents it could not see as absent. Interpreters
+  are probed, not named: [`lib/python.sh`](lib/python.sh) `hl_python` refuses a Microsoft Store alias stub and a candidate
+  that cannot import what the leg needs. A machine-readable pipe pins LF, since a Windows text-mode stream appends a
+  carriage return to the last field — the one a bash comparison reads. And the gate exports `PYTHONUTF8=1` on a Windows
+  seat: git answers in UTF-8 while a native interpreter decodes `text=True` with the ANSI codepage, so a dead reader thread
+  returns `stdout = None` and a gate's own crash reads as a finding about the tree.
 - **Never edit a `-generated` doc directly** — change the SSOT (`group_vars/*.yml`, `rack-connections.json`) and re-render, then `git diff --exit-code` to confirm.
 - **A script must not derive the repo root from its own depth — and a probe that cannot see the files must not be able to say OK.** Every script resolves the root by walking UP to the two structural markers (`IaC/ansible` + `docs/index.md`) via `lib/repo-root.sh` / `lib/repo_root.py`, and fails loud when nothing matches; every tree-walking checker asserts a non-empty corpus through `require_corpus()` (a walk that found nothing is a broken root, not a clean tree). `gate/check_script_layout.py` is the ratchet that keeps the fixed-depth derivations from regrowing.
 - **`validate-all.sh` judges what is TRACKED — so `git add` a new file before believing a green run.** The path/secret/table walkers list files with `git ls-files`, so an untracked file is invisible to them. For a **new validator** the same trap is worse — a green run in which the new check never executed.
