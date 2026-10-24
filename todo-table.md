@@ -767,6 +767,7 @@ truncated on purpose. The ROW stays the authority; `⏳` shown here is the row's
 | HD-1198 | 2 | AI + gate | 2.3 Platform & Deploy | `## Options` has no shape, so an open question is prose and the inventory cannot be listed | ⏳ **Land `scripts/gate/check_open_questions.py`** for the convention CONVENTIONS §8.3 defines: (a) `s | - |
 | HD-1199 | 2 | AI + gate | 2.3 Platform & Deploy | Nothing bounds a doc's size, and the corpus average is already 296 lines | ⏳ **Land `scripts/gate/check_doc_size.py` as a ratchet, never a cap**: a committed baseline of per-fi | - |
 | HD-1200 | 2 | AI + gate | 2.3 Platform & Deploy | A new Ansible role can land with no owning doc and nothing notices | ⏳ **Land `scripts/gate/check_role_docs.py`**: every directory under `IaC/ansible/roles/` is named by | - |
+| HD-1201 | 2 | AI + gate | 2.3 Platform & Deploy | the two docs gates walk only docs/*.md — nested docs are outside the seal and the role corpus | ⏳ widen the walk to docs/**/*.md, extend --self-test, amend the registry rows; station re-seals | - |
 
 ## C. Standing rules that gate all of the above
 
