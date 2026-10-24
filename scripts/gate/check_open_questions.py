@@ -202,8 +202,9 @@ def check_section(where: str, lineno: int, heading: str, body: str, mint_max: in
                                 "than to argue; without it the row is a wish (CONVENTIONS §8.3)")
     ids = [int(m.group(1)) for m in OQ_RE.finditer(body)]
     if not ids:
-        findings.append(f"FAIL: {where}:{lineno}: key — the section names no `OQ-<n>` id, so it is a heading "
-                        "and not an addressable open question — `§Options — OQ-<n> (the question as asked)`")
+        findings.append(f"FAIL: {where}:{lineno}: key — `{heading}` names no `OQ-<n>` id, so it is a heading "
+                        "and not an addressable open question — the shape is "
+                        "`### Options — OQ-<n> (the question as asked)` (CONVENTIONS §8.3)")
     for oid in sorted(set(ids)):
         if oid > mint_max + 1:
             findings.append(f"FAIL: {where}:{lineno}: mint — the section names OQ-{oid}, and the derived space "
