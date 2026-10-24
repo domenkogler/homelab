@@ -62,8 +62,15 @@ tags: [ai, pi, agent-harness, harness, spark, llm, settings]
   through a bash that can read it (`lib/repo_root.py` → `hl_bash()`, because a WSL bash cannot see `D:\…` and a Git bash
   cannot see `/home/…`); interpreters are probed, not named (`lib/python.sh` → `hl_python`, which refuses a Store alias stub
   and a candidate that cannot import what the leg needs); a machine-readable pipe pins LF, since a Windows text stream
-  appends a carriage return to the field a bash comparison reads last; and git output is decoded as UTF-8, because
-  `text=True` with no encoding uses the ANSI codepage and a gate's dead reader thread looks exactly like a finding.
+  appends a carriage return to the field a bash comparison reads last; and the gate exports `PYTHONUTF8=1` on a Windows
+  seat, because git answers in UTF-8 while a Windows-native interpreter decodes `text=True` output with the ANSI codepage —
+  there the dead reader thread returns `stdout = None`, so a gate's own crash reads as a finding about the tree. One switch
+  for the run is the mechanism rather than a per-call `encoding=` kwarg: the exposed call sites outnumber any sweep and new
+  ones are written faster than they can be fixed. A leg whose external tool is missing says `SKIP` and names what was not
+  proven — the bench legs that build request bodies with `jq` never send a body they did not build.
+- **A PARTIAL run on this seat is a merge precondition, and the merge may be executed here.** The rule and the steps are
+  [orchestration.md](orchestration.md) §4; what this seat contributes is that its `SKIP` list must be read, not waved
+  through: the classes it did not judge are the ones a Debian seat has to be green on first.
 - **Where the pi BINARY lives — two layouts, one PATH.** `npm -g` installs it as a symlink at `<pi-node prefix>/bin/pi` next to the pinned node (what
   [`../scripts/harness/install-pi-debian.sh`](../scripts/harness/install-pi-debian.sh) does); pi's own installer writes a
   launcher at `~/.pi/agent/bin/pi` over `~/.pi/agent/install/releases/<ver>/` (`layout: releases-v1`).

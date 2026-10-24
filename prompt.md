@@ -16,7 +16,9 @@
 **Seat and merge station.** The pi-dev seat is `oldsrv`, and its clone `domen@oldsrv:~/source/homelab` is the merging
 station: merges land there, `scripts/validate-all.sh` runs there, and `git worktree list` on that host is the fleet's live
 set (harness state in [docs/harness-pi-engines.md](docs/harness-pi-engines.md)). Owner/cleanup sessions also run from the
-**Win11 Git-Bash** seat. The laptop's **WSL Debian** clone is retained and has a job: it is the designated runner station
+**Win11 Git-Bash** seat, and that seat is a merge station too: its gate ends `PARTIAL` by construction, so a merge from
+there rides on the same tip being green in the WSL Debian clone ([docs/orchestration.md](docs/orchestration.md) §4,
+[docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1). The laptop's **WSL Debian** clone is retained and has a job: it is the designated runner station
 for externally-served runs — off-box for every converge target, never the engine host, owner of no converge slot (the
 rule is [todo-table.md](todo-table.md) §C rule 9, the state is
 [docs/harness-pi-seat-identity.md](docs/harness-pi-seat-identity.md) §5a, and the legs only that box may drive are

@@ -670,8 +670,11 @@ def check(corpus, tree, notes=None):
 # ---------------------------------------------------------------- driver
 
 def git_files():
+    # ls-files -z answers in UTF-8 with NUL separators. Without an explicit encoding a Windows host decodes it with the
+    # ANSI codepage, the reader thread dies on a non-ASCII byte, and stdout arrives as None — the gate would then report
+    # its own crash as a finding. The gate exports PYTHONUTF8=1 for the same reason; this is the same rule for a direct run.
     r = subprocess.run(["git", "-C", str(ROOT), "ls-files", "-z"],
-                       capture_output=True, text=True)
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
     if r.returncode != 0:
         print("ERROR: git ls-files failed: %s" % r.stderr.strip(), file=sys.stderr)
         sys.exit(2)

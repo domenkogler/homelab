@@ -182,7 +182,7 @@ inside one session. The LIVE wave table is
 
 ### Launch procedure (the parent)
 
-1. Primary = merge station: `git fetch`, `git status` clean, `git checkout main`, `bash scripts/validate-all.sh` green (clean-main is the exempt form under O5).
+1. Primary = merge station: `git fetch`, `git status` clean, `git checkout main`, `bash scripts/validate-all.sh` green (clean-main is the exempt form under O5). **Green means green on a Debian seat:** on the Win11 seat the run ends `PARTIAL` by construction ([harness-pi-seats.md](harness-pi-seats.md) §1), so there a PARTIAL run whose skips are every one named is an acceptable precondition **when the same tip is green in the WSL Debian clone** — and the merge itself may be executed from the Win11 seat on that basis, since that seat is the only one that reaches all three seats.
 2. One worktree + branch per lane, created **by the parent** so the naming is never improvised:
    `git worktree add -b session/<lane>-$(date +%Y%m%d-%H%M) ../homelab-wt-$(date +%Y%m%d-%H%M) main`
 3. Hand each lane exactly four things: its brief path, the sibling brief path, this §4, and the standing

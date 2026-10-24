@@ -740,6 +740,15 @@ _now; GATE_T0_US="$NOW"   # HD-1137: the wall clock for --time starts here, not 
 IS_MSYS=0
 case "${OSTYPE,,}" in msys*|cygwin*|mingw*) IS_MSYS=1 ;;
   *) case "$(uname -s 2>/dev/null)" in MINGW*|MSYS*|CYGWIN*) IS_MSYS=1 ;; esac ;; esac
+if [ "$IS_MSYS" = 1 ]; then
+  # Pin the interpreter's text encoding for every leg. The tree is UTF-8 (CONVENTIONS §6) and git answers in
+  # UTF-8, but a Windows-native python decodes `text=True` output with the ANSI codepage unless told otherwise:
+  # the reader thread dies on a NUL or a non-ASCII byte, `stdout` arrives as None, and a gate reports
+  # `'NoneType' object has no attribute 'split'` as if it were a finding about the tree. Dozens of call sites
+  # across the fleet are exposed to that and new ones are written every week, so the switch is set once for the
+  # run rather than per call site — a per-file kwarg fixes one file and leaves the class free to regrow.
+  export PYTHONUTF8=1
+fi
 MAXPAR=4
 command -v nproc >/dev/null 2>&1 && MAXPAR="$(nproc)"
 [ "$SERIAL" = 1 ] && MAXPAR=1
