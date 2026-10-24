@@ -389,6 +389,43 @@ A new service must clear this path (each step's owning doc is the anchor; violat
   drift check above permanently red, so "when was this generated?" stays out of the compared bytes and
   in git, which already keeps it (`git log -1 --format=%ci -- <generated file>`).
 
+### 8.6 Data-sensitivity class (`sensitivity:`)
+
+> **Why this exists:** the external-model rule ([README.md](README.md) §3) decides where a run's *context* may
+> go, and the shape scanners (`scripts/gate/check_secrets.py`, `scripts/gate/check_secret_leak.py`) prove that
+> no credential **text** ships. Neither can say what a document is **about**, which is the fact a run needs
+> before it decides where its read list may be sent. The class is that fact, declared where the run can read it.
+
+- **Three classes, one per hand-authored doc:**
+  - `infra` — **the default.** Build, topology, service mechanics: how a thing is deployed and how it fails.
+  - `secret-bearing` — the doc enumerates vault **item/field names** or credential mechanics: the secrets
+    master list, the 1Password notes, the OIDC glue, the AI-stack secret catalog. Names are not values, so
+    these docs are safe to read; they are not neutral to hand over.
+  - `personal` — the doc's subject is a **person**: the family plane `docs/manual/**`, the household-finance
+    stack.
+- **Highest class wins** where subjects overlap — a doc that documents someone's accounts *and* their vault
+  items is `personal`. It has to be a `max`, not a judgement call, or the class is an opinion about privacy
+  rather than a field.
+- **Field placement:** `sensitivity:` is a key in the doc's **leading `---` frontmatter block**, sitting
+  **after `status:`**, holding exactly one bare lowercase slug — `sensitivity: secret-bearing`, no quotes, not
+  a list. The slot is fixed because the field is read mechanically, by a run deciding where its context may
+  go: a key that may sit anywhere is a key a scanner has to guess at, and a second spelling of the same value
+  is a second source.
+- **A `-generated.md` render view inherits its source doc's class and declares nothing** — the canonical
+  managed header (§8.2) is line 1 of a generated file, so there is no frontmatter block to put the field in,
+  and a second declaration would be a second source. Therefore **a renderer that would emit a personal value
+  into a render view is a defect at the source, not a filter at the output** — that argument already lives in
+  §8.5 and adds nothing here; fix the renderer or the SSOT it reads.
+- **The egress rule, stated once in this repo:** a run whose read list names a `personal` or a
+  `secret-bearing` doc is **not** an external-lane run, whatever the owner's general preference. The read list
+  is the promise, not the prompt — quoting one field into an external session is the same egress with extra
+  steps. What an external lane may be, and that switching is the owner's call, stays [README.md](README.md) §3's.
+- **Which doc sits at which floor is the field's own content — derive it, never re-type it** (§2): a list of
+  filenames in prose is exactly the copy that drifts when a doc is retagged. Read the declarations instead,
+  e.g. `rg -l '^sensitivity: personal' docs/` and the same for `secret-bearing`; what matches neither is
+  `infra`. A doc carrying no `sensitivity:` line is therefore `infra` — unprotected rather than protected by
+  accident, which is why a missing field is a gap to close and never a silent exemption.
+
 ---
 
 *This file states current conventions only — its own change history is `git log`. The owning docs above remain authoritative.*

@@ -112,7 +112,8 @@ task-specific dispatch. Do **not** bulk-read the repo.
   without anyone asking — a stalled task works the escalation ladder
   ([docs/orchestration.md](docs/orchestration.md) §3) instead of reaching for this lane. Contract: [`scripts/harness/pi/models-spec.yml`](scripts/harness/pi/models-spec.yml)
   (the rows and their prices) + [`docs/harness-pi-models.md`](docs/harness-pi-models.md) §4c (why each
-  row claims what it claims).
+  row claims what it claims). The data-egress half of this rule reads a document's `sensitivity:` class —
+  [CONVENTIONS.md](CONVENTIONS.md) §8.6.
 - **SSOT direction:** values live in IaC (`group_vars/*.yml`, `host_vars/*.yml`,
   `rack-connections.json`). Generated `*-generated.md` docs are render views — **never hand-edit**
   them, and scripts never parse generated MD.
