@@ -624,15 +624,20 @@ if [ -f "$HOME/ansible-venv/bin/activate" ]; then
   . "$HOME/ansible-venv/bin/activate"
   echo "launcher: ~/ansible-venv activated — python3=$(command -v python3 || echo absent) ansible-playbook=$(command -v ansible-playbook || echo absent)" >&2
 fi
-PY=""
+# The launcher is carried TWO ways, and both are load-bearing. `PY_CMD` is the argv ARRAY every leg is
+# launched with, quoted (`"${PY_CMD[@]}"`) — CONVENTIONS §6 requires the interpreter to be quoted, and a
+# Windows seat's `py -3` is TWO words: kept in a scalar and quoted, `"$PY" scripts/x.py` execs one program
+# literally named `py -3` and the leg dies rc 127 without ever starting an interpreter. `PY` stays the
+# human-readable form, printed by the launcher line because a verdict has to say what produced it.
+PY=""; PY_CMD=()
 for _cand in python3 "py -3" python; do
   # shellcheck disable=SC2086
-  if $_cand -c "import jinja2, yaml" >/dev/null 2>&1; then PY="$_cand"; break; fi
+  if $_cand -c "import jinja2, yaml" >/dev/null 2>&1; then PY="$_cand"; read -r -a PY_CMD <<<"$_cand"; break; fi
 done
 # Preflight, before 20 validators can fail one at a time: the interpreter chosen above must carry what the
 # validators import at module scope. Without this the first signal is a traceback fifteen steps deep, which
 # reads like a broken validator rather than a missing venv (that is how the 2026-10-06 incident got misread).
-if [ -z "$PY" ]; then
+if [ "${#PY_CMD[@]}" -eq 0 ]; then
   echo "FAIL: no interpreter on PATH imports jinja2 + PyYAML (tried: python3, py -3, python) — the Python validators cannot run." >&2
   echo "      ⚠ A Microsoft Store alias STUB counts as present on PATH but is not an interpreter; if" >&2
   echo "        'python3' resolves to one here, install a real Python or run the gate where ~/ansible-venv exists." >&2
@@ -642,8 +647,7 @@ if [ -z "$PY" ]; then
   echo "      Refusing to continue: a gate that cannot import is not a gate." >&2
   exit 1
 fi
-# shellcheck disable=SC2086
-echo "launcher: $PY ($($PY -c 'import sys; print(sys.version.split()[0])' 2>/dev/null || echo '?'))" >&2
+echo "launcher: $PY ($("${PY_CMD[@]}" -c 'import sys; print(sys.version.split()[0])' 2>/dev/null || echo '?'))" >&2
 
 
 # --- CLI: --list (print the items and stop), --only SUBSTR (run a subset),          #
@@ -736,6 +740,15 @@ _now; GATE_T0_US="$NOW"   # HD-1137: the wall clock for --time starts here, not 
 IS_MSYS=0
 case "${OSTYPE,,}" in msys*|cygwin*|mingw*) IS_MSYS=1 ;;
   *) case "$(uname -s 2>/dev/null)" in MINGW*|MSYS*|CYGWIN*) IS_MSYS=1 ;; esac ;; esac
+if [ "$IS_MSYS" = 1 ]; then
+  # Pin the interpreter's text encoding for every leg. The tree is UTF-8 (CONVENTIONS §6) and git answers in
+  # UTF-8, but a Windows-native python decodes `text=True` output with the ANSI codepage unless told otherwise:
+  # the reader thread dies on a NUL or a non-ASCII byte, `stdout` arrives as None, and a gate reports
+  # `'NoneType' object has no attribute 'split'` as if it were a finding about the tree. Dozens of call sites
+  # across the fleet are exposed to that and new ones are written every week, so the switch is set once for the
+  # run rather than per call site — a per-file kwarg fixes one file and leaves the class free to regrow.
+  export PYTHONUTF8=1
+fi
 MAXPAR=4
 command -v nproc >/dev/null 2>&1 && MAXPAR="$(nproc)"
 [ "$SERIAL" = 1 ] && MAXPAR=1
@@ -999,11 +1012,11 @@ _diagnose_fails() {
     local _f=0; [ "$(_rc_of "$i")" != "0" ] && _f=1
     rows+="${starts[$i]:-0}"$'\t'"${ends[$i]:-0}"$'\t'"${walls[$i]:-0}"$'\t'"$_f"$'\t'"${labels[$i]}"$'\n'
   done
-  printf '%s' "$rows" | awk -F'\t' -v par="$MAXPAR" -v npar="$GATE_NPAR" -v cores="$cores" -v load="$load" '
+  printf '%s' "$rows" | awk -F'\t' -v par="$MAXPAR" -v npar="$GATE_NPAR" -v cores="$cores" -v lavg="$load" '
     { s[NR] = $1 + 0; e[NR] = $2 + 0; w[NR] = $3 + 0; bad[NR] = $4 + 0; nm[NR] = $5; n = NR }
     END {
       printf "\nPOOL DIAGNOSTIC (HD-1117) — the pool was %s wide (GATE_NPAR %s) on %s core(s); load 1/5/15: %s\n",
-             par, npar, cores, load
+             par, npar, cores, lavg
       for (i = 1; i <= n; i++) {
         if (!bad[i]) continue
         infl = 0
@@ -1225,22 +1238,22 @@ blk_py_compile_sweep() {
   # every file print `py_compile FAIL` on that seat, which is a misleading RED, not a gate; CONVENTIONS §6
   # requires an environment boundary to print SKIP naming the reason. $PY (probed above) carries the sweep
   # when python3 is unusable, so the portability claim still runs — under a named interpreter.
-  local _pc="$PY" f py_fail=0
-  if python3 -c "import sys" >/dev/null 2>&1; then _pc="python3"; fi
+  local -a _pc=(${PY_CMD[@]:-python3}); local f py_fail=0
+  if python3 -c "import sys" >/dev/null 2>&1; then _pc=(python3); fi
   # ONE interpreter start for the whole sweep, not one per file: py_compile takes a LIST of files, and
   # an interpreter start here costs 0.2-0.35 s, so the per-file loop was ~57 starts for ~1 s of work
   # (measured: this leg cost 10.8 s solo on the Win11 seat, 0.7 s on the Debian one).
   # The per-file loop is kept as the FAIL PATH, so a broken file is still NAMED, not just counted.
   local -a pys=()
   for f in scripts/*.py; do [ -f "$f" ] && pys+=("$f"); done
-  if [ "${#pys[@]}" -gt 0 ] && ! $_pc -m py_compile "${pys[@]}" >/dev/null 2>&1; then
+  if [ "${#pys[@]}" -gt 0 ] && ! "${_pc[@]}" -m py_compile "${pys[@]}" >/dev/null 2>&1; then
     for f in "${pys[@]}"; do
       # shellcheck disable=SC2086
-      $_pc -m py_compile "$f" >/dev/null 2>&1 || { echo "py_compile FAIL ($f) under $_pc" >&2; py_fail=$((py_fail+1)); }
+      "${_pc[@]}" -m py_compile "$f" >/dev/null 2>&1 || { echo "py_compile FAIL ($f) under ${_pc[*]}" >&2; py_fail=$((py_fail+1)); }
     done
   fi
   [ "$py_fail" -eq 0 ] || exit 1
-  echo "OK: all scripts/*.py compile under $_pc (${#pys[@]} files, one interpreter start)"
+  echo "OK: all scripts/*.py compile under ${_pc[*]} (${#pys[@]} files, one interpreter start)"
 }
 
 # The seat/host-state gates: each SKIPs where the thing it checks is absent, so a
@@ -1274,7 +1287,7 @@ blk_tmux_check() {
 # a clean provenance read — the same shape as the leak eye below and the rsync cap above.
 blk_bench_provenance() {
   local rc_prov=0
-  "$PY" scripts/gate/check_bench_provenance.py || rc_prov=$?
+  "${PY_CMD[@]}" scripts/gate/check_bench_provenance.py || rc_prov=$?
   case "$rc_prov" in
     0) return 0 ;;
     2) echo "SKIP: no results CSV was read — the legs this item would judge are not in this tree. A provenance"; echo "      read that read no stamp is not a pass: run it with --csv <results-v2.csv> where the legs landed."; return 0 ;;
@@ -1289,7 +1302,7 @@ blk_bench_provenance() {
 # to read less says which class it did NOT look at instead of reading as a full green.
 blk_secret_leak() {
   local rc_leak=0
-  "$PY" scripts/gate/check_secret_leak.py "$@" || rc_leak=$?
+  "${PY_CMD[@]}" scripts/gate/check_secret_leak.py "$@" || rc_leak=$?
   case "$rc_leak" in
     0) return 0 ;;
     2) echo "SKIP: the vault is not readable here — reason above; a leak check without current values cannot judge, and a SKIP is not a pass"; return 0 ;;
@@ -1397,54 +1410,54 @@ item_blk_x "ansible is absent or dies WinError 87 on the Windows seat, so this S
 # The corpus walkers.
 # The corpus walkers. Longest leg first, per the pool note in the header.
 item_x "reads the vault to know what a leak is: 141 item reads at the documented 6-wide fan-out budget, then a content search over the seat's run captures (~560 MB) and the working tree, then the git-history leg (11 942 blobs reachable from refs, ~525 MB — ~9 s cold, and ~0.2 s once the cache in the object store is warm, which the run prints either way). About 23 s on this seat, which is the whole pre-commit budget and more; it also only means something where a vault token exists" "check_secret_leak.py (current vault values vs the run-capture class, the working tree, and every blob a ref still reaches)" blk_secret_leak
-item_q "check_secret_leak.py --self-test (the shapes that leaked must each redden, the finding text must disclose nothing, the vault boundary must SKIP, the ledger must mute only what it names, a published-then-deleted value must still redden through the history leg, a partial sweep must say PARTIAL, and --update-ledger must not delete a line it cannot prove — and every mutant of the scanner must be caught, the count is printed by the run)" $PY scripts/gate/check_secret_leak.py --self-test
-item_x "walks the whole tracked tip, 99 MB with archive members included — the leg HD-1117 measured at 5 s, which is the whole budget of a pre-commit loop" "check_secrets.py (secret shapes in the tracked tip, archive members included)" $PY scripts/gate/check_secrets.py
-item_x "re-execs itself per archive/casefold arm: a shape-grammar self-test, not a tree check — rerun it when the scanner changes, not per commit" "check_secrets.py --self-test (the speed prefilter must not have narrowed a shape)" $PY scripts/gate/check_secrets.py --self-test
-item_q "check_yaml_dup_keys.py (HD-1098: a duplicate YAML key is a silent no-op)" $PY scripts/gate/check_yaml_dup_keys.py
-item_q "check_yaml_dup_keys.py --self-test (HD-1098 canaries + corpus probe)" $PY scripts/gate/check_yaml_dup_keys.py --self-test
-item_q "check_zone_kogler_si_parity.py (derived zone answers what the hand-authored sources did, HD-436)" $PY scripts/gate/check_zone_kogler_si_parity.py
-item_q "check_zone_kogler_si_parity.py --self-test" $PY scripts/gate/check_zone_kogler_si_parity.py --self-test
-item_q "check_dns_seed_drift.py (Technitium split-horizon seed contract, HD-341 parity)" $PY scripts/gate/check_dns_seed_drift.py
-item_q "check_dns_policy_drift.py (the DNS policy SSOT, its one writer, and its asserted read-back)" $PY scripts/gate/check_dns_policy_drift.py
-item_q "check_dns_seed_prune_guard.py (the seed delete leg cannot delete a listed record)" $PY scripts/gate/check_dns_seed_prune_guard.py
-item_q "check_dns_seed_prune_guard.py --self-test (the refusal must be seen to fail three ways)" $PY scripts/gate/check_dns_seed_prune_guard.py --self-test
-item_q "check_self_converge_guard.py (HD-413 guardrail completeness, static)" $PY scripts/gate/check_self_converge_guard.py
-item_q "check_hd_mint_space.py (the backlog id space: no fixture id outside the reserved block, no row inside it)" $PY scripts/gate/check_hd_mint_space.py
-item_q "check_hd_mint_space.py --self-test (each rule bred on a throwaway repo; the legal shapes must stay green)" $PY scripts/gate/check_hd_mint_space.py --self-test
-item_q "check_net_manager.py (per-host config-manager declaration: no implied manager, no implied render leg)" $PY scripts/gate/check_net_manager.py
-item_q "check_net_manager.py --self-test (each rule bred on a tree copy: canaries must redden, the legal shapes must stay green)" $PY scripts/gate/check_net_manager.py --self-test
+item_q "check_secret_leak.py --self-test (the shapes that leaked must each redden, the finding text must disclose nothing, the vault boundary must SKIP, the ledger must mute only what it names, a published-then-deleted value must still redden through the history leg, a partial sweep must say PARTIAL, and --update-ledger must not delete a line it cannot prove — and every mutant of the scanner must be caught, the count is printed by the run)" "${PY_CMD[@]}" scripts/gate/check_secret_leak.py --self-test
+item_x "walks the whole tracked tip, 99 MB with archive members included — the leg HD-1117 measured at 5 s, which is the whole budget of a pre-commit loop" "check_secrets.py (secret shapes in the tracked tip, archive members included)" "${PY_CMD[@]}" scripts/gate/check_secrets.py
+item_x "re-execs itself per archive/casefold arm: a shape-grammar self-test, not a tree check — rerun it when the scanner changes, not per commit" "check_secrets.py --self-test (the speed prefilter must not have narrowed a shape)" "${PY_CMD[@]}" scripts/gate/check_secrets.py --self-test
+item_q "check_yaml_dup_keys.py (HD-1098: a duplicate YAML key is a silent no-op)" "${PY_CMD[@]}" scripts/gate/check_yaml_dup_keys.py
+item_q "check_yaml_dup_keys.py --self-test (HD-1098 canaries + corpus probe)" "${PY_CMD[@]}" scripts/gate/check_yaml_dup_keys.py --self-test
+item_q "check_zone_kogler_si_parity.py (derived zone answers what the hand-authored sources did, HD-436)" "${PY_CMD[@]}" scripts/gate/check_zone_kogler_si_parity.py
+item_q "check_zone_kogler_si_parity.py --self-test" "${PY_CMD[@]}" scripts/gate/check_zone_kogler_si_parity.py --self-test
+item_q "check_dns_seed_drift.py (Technitium split-horizon seed contract, HD-341 parity)" "${PY_CMD[@]}" scripts/gate/check_dns_seed_drift.py
+item_q "check_dns_policy_drift.py (the DNS policy SSOT, its one writer, and its asserted read-back)" "${PY_CMD[@]}" scripts/gate/check_dns_policy_drift.py
+item_q "check_dns_seed_prune_guard.py (the seed delete leg cannot delete a listed record)" "${PY_CMD[@]}" scripts/gate/check_dns_seed_prune_guard.py
+item_q "check_dns_seed_prune_guard.py --self-test (the refusal must be seen to fail three ways)" "${PY_CMD[@]}" scripts/gate/check_dns_seed_prune_guard.py --self-test
+item_q "check_self_converge_guard.py (HD-413 guardrail completeness, static)" "${PY_CMD[@]}" scripts/gate/check_self_converge_guard.py
+item_q "check_hd_mint_space.py (the backlog id space: no fixture id outside the reserved block, no row inside it)" "${PY_CMD[@]}" scripts/gate/check_hd_mint_space.py
+item_q "check_hd_mint_space.py --self-test (each rule bred on a throwaway repo; the legal shapes must stay green)" "${PY_CMD[@]}" scripts/gate/check_hd_mint_space.py --self-test
+item_q "check_net_manager.py (per-host config-manager declaration: no implied manager, no implied render leg)" "${PY_CMD[@]}" scripts/gate/check_net_manager.py
+item_q "check_net_manager.py --self-test (each rule bred on a tree copy: canaries must redden, the legal shapes must stay green)" "${PY_CMD[@]}" scripts/gate/check_net_manager.py --self-test
 item_q "probe-net-manager.sh --self-test (the config-manager verdict still separates the states it names)" bash scripts/ansible/probe-net-manager.sh --self-test
 # The live half of the next item is deliberately NOT registered: a read tool must never fail a commit
 # (the same reason `ansible_query.py` gates only its fixture). What IS gated is the offline proof that
 # the verdict can still redden — a dark monitoring host emits NO series, so no metric rule can see it
 # and the only instrument is the inventory's expected set compared against one live query.
-item_q "check_host_reporting.py --self-test (the expected-set verdict: a dark host, an undeclared reporter and the two stale shapes must each redden)" $PY scripts/gate/check_host_reporting.py --self-test
-item_x "walks every byte under IaC/ for twin groups and its self-test re-derives a 2,300-group baseline — minutes on this host, and a pre-commit edit does not rename a twin" "check_string_twins.py (a string two files shipped byte-equal at the wave baseline may not be renamed on one side)" $PY scripts/gate/check_string_twins.py
+item_q "check_host_reporting.py --self-test (the expected-set verdict: a dark host, an undeclared reporter and the two stale shapes must each redden)" "${PY_CMD[@]}" scripts/gate/check_host_reporting.py --self-test
+item_x "walks every byte under IaC/ for twin groups and its self-test re-derives a 2,300-group baseline — minutes on this host, and a pre-commit edit does not rename a twin" "check_string_twins.py (a string two files shipped byte-equal at the wave baseline may not be renamed on one side)" "${PY_CMD[@]}" scripts/gate/check_string_twins.py
 # The plain run above cannot tell a gate that has lost its teeth from a gate that passed: on a
 # green tree both print one OK line, and the cases that prove the verdict (a sever inside a long
 # change run, a twin renamed on every side, an agreed value in the wrong kind of literal) never
 # ran in the suite. Every other check here registers its self-test too; this one did not.
-item_x "its positive control re-populates a real git tree to prove the verdict: the most expensive leg in the gate, and the wave-boundary act owns when it is owed" "check_string_twins.py --self-test (the verdict cases: planted severs, the 8b28edd3 control, presence-proven renames)" $PY scripts/gate/check_string_twins.py --self-test
-item_q "validate-docker-services.py" $PY scripts/gate/validate-docker-services.py
-item_x "renders 16 arms of the spark compose template: a profile-matrix check, not a tree check — buy it when a profile changes" "spark-llm-render-matrix.py (HD-489: every profile must RENDER, not just validate)" $PY scripts/bench/spark-llm-render-matrix.py
-item_q "check_doc_path_refs.py (HD-490: a path a doc cites must exist)" $PY scripts/gate/check_doc_path_refs.py
-item_q "check_doc_path_refs.py --self-test (HD-490 canary)" $PY scripts/gate/check_doc_path_refs.py --self-test
-item_q "check_doc_headings.py (the ANCHOR half: a § pointer must name a heading that exists; the committed ledger makes it growth-only)" $PY scripts/gate/check_doc_headings.py
-item_q "check_doc_headings.py --self-test (anchor canaries + both halves of the ledger ratchet)" $PY scripts/gate/check_doc_headings.py --self-test
-item_q "check_handoff_size.py (the standing handoff may not regrow: size ceiling, answered-item history, typed counts — all against the frozen seal)" $PY scripts/gate/check_handoff_size.py
-item_q "check_handoff_size.py --self-test (both ceiling halves, the marker exemptions, each count shape, and both halves of the seal ratchet)" $PY scripts/gate/check_handoff_size.py --self-test
-item_q "check_registry_prose.py (CONVENTIONS §6 on this file: registry states facts + owning spec, no ids/dates/narrative/glyphs/pipe-in-code/dup-paragraph)" $PY scripts/gate/check_registry_prose.py
-item_q "check_registry_prose.py --self-test (each prose rule bred + every exemption kept quiet + the empty-corpus refusal)" $PY scripts/gate/check_registry_prose.py --self-test
-item_q "validate_doc_templates.py" $PY scripts/gate/validate_doc_templates.py
-item_q "render_all.py --self-test (HD-1117: the generated-doc drift check reads green twice, and an SSOT change still reddens it)" $PY scripts/render_all.py --self-test
+item_x "its positive control re-populates a real git tree to prove the verdict: the most expensive leg in the gate, and the wave-boundary act owns when it is owed" "check_string_twins.py --self-test (the verdict cases: planted severs, the 8b28edd3 control, presence-proven renames)" "${PY_CMD[@]}" scripts/gate/check_string_twins.py --self-test
+item_q "validate-docker-services.py" "${PY_CMD[@]}" scripts/gate/validate-docker-services.py
+item_x "renders 16 arms of the spark compose template: a profile-matrix check, not a tree check — buy it when a profile changes" "spark-llm-render-matrix.py (HD-489: every profile must RENDER, not just validate)" "${PY_CMD[@]}" scripts/bench/spark-llm-render-matrix.py
+item_q "check_doc_path_refs.py (HD-490: a path a doc cites must exist)" "${PY_CMD[@]}" scripts/gate/check_doc_path_refs.py
+item_q "check_doc_path_refs.py --self-test (HD-490 canary)" "${PY_CMD[@]}" scripts/gate/check_doc_path_refs.py --self-test
+item_q "check_doc_headings.py (the ANCHOR half: a § pointer must name a heading that exists; the committed ledger makes it growth-only)" "${PY_CMD[@]}" scripts/gate/check_doc_headings.py
+item_q "check_doc_headings.py --self-test (anchor canaries + both halves of the ledger ratchet)" "${PY_CMD[@]}" scripts/gate/check_doc_headings.py --self-test
+item_q "check_handoff_size.py (the standing handoff may not regrow: size ceiling, answered-item history, typed counts — all against the frozen seal)" "${PY_CMD[@]}" scripts/gate/check_handoff_size.py
+item_q "check_handoff_size.py --self-test (both ceiling halves, the marker exemptions, each count shape, and both halves of the seal ratchet)" "${PY_CMD[@]}" scripts/gate/check_handoff_size.py --self-test
+item_q "check_registry_prose.py (CONVENTIONS §6 on this file: registry states facts + owning spec, no ids/dates/narrative/glyphs/pipe-in-code/dup-paragraph)" "${PY_CMD[@]}" scripts/gate/check_registry_prose.py
+item_q "check_registry_prose.py --self-test (each prose rule bred + every exemption kept quiet + the empty-corpus refusal)" "${PY_CMD[@]}" scripts/gate/check_registry_prose.py --self-test
+item_q "validate_doc_templates.py" "${PY_CMD[@]}" scripts/gate/validate_doc_templates.py
+item_q "render_all.py --self-test (HD-1117: the generated-doc drift check reads green twice, and an SSOT change still reddens it)" "${PY_CMD[@]}" scripts/render_all.py --self-test
 # The fixture first, then the tree it judges: the arms above prove the checker can read green AND
 # can still redden, so a red from the real-tree leg below is a drift finding, not a broken checker.
 # `--no-write` is what makes the real-tree leg legal in a POOL — it renders into a temp dir, so no
 # item beside it can ever read a generated doc that is mid-write (an in-place `--check` measured
 # 2,383 zero-length or partial reads out of 6.67 M for a concurrent reader in this tree).
-item_q "render_all.py --check --no-write (HD-1117: every *-generated.md must equal the render of its SSOT; rendered in a temp dir, so docs/ is never the target)" $PY scripts/render_all.py --check --no-write
-item_q "check_vault_name.py" $PY scripts/gate/check_vault_name.py
-item_q "check_placeholders.py" $PY scripts/gate/check_placeholders.py
+item_q "render_all.py --check --no-write (HD-1117: every *-generated.md must equal the render of its SSOT; rendered in a temp dir, so docs/ is never the target)" "${PY_CMD[@]}" scripts/render_all.py --check --no-write
+item_q "check_vault_name.py" "${PY_CMD[@]}" scripts/gate/check_vault_name.py
+item_q "check_placeholders.py" "${PY_CMD[@]}" scripts/gate/check_placeholders.py
 item_q "bash -n sweep (HD-256 portability, all scripts/*.sh)" blk_bash_n_sweep
 item_q "python3 -m py_compile sweep (HD-256 portability, all scripts/*.py)" blk_py_compile_sweep
 
@@ -1481,7 +1494,7 @@ item_x "seat deploy state, not a tree check: repo pi-agent/extensions against th
 # still counts `..` passes the shallow arm and fails the deep one — that is the canary, and it is
 # what makes Stage 3's folder moves a mechanical sweep instead of a gamble.
 item_q "lib/repo-root.sh --self-test (HD-1118: the bash root resolves at TWO depths, loud when absent)" bash scripts/lib/repo-root.sh --self-test
-item_q "lib/repo_root.py --self-test (HD-1118: the python twin + require_corpus + script_path)" $PY scripts/lib/repo_root.py --self-test
+item_q "lib/repo_root.py --self-test (HD-1118: the python twin + require_corpus + script_path)" "${PY_CMD[@]}" scripts/lib/repo_root.py --self-test
 item_x "its pin() half resolves every real plane with grep|head|sed|tr PER pin — the fork tail HD-1135 still bills as open, so the fork diet owns this leg, not a pre-commit loop" "lib/pi-seat.sh --self-test (HD-1118: a missing pin STOPS the caller; no subshell pin call site may return)" bash scripts/lib/pi-seat.sh --self-test
 
 # Everything else — cheap, but they add up, so they are in the pool too.
@@ -1489,38 +1502,38 @@ item_q "guard-session.sh --self-test (sandboxed guard fixture, HD-253)" bash scr
 item_q "guarded-converge.sh --self-test (post-converge liveness verdict, HD-436)" bash scripts/ansible/guarded-converge.sh --self-test
 item_x "drives every 1Password refusal state through a fake op binary in a sandbox: a CLI-contract self-test, not a tree check — rerun it when the bootstrap script changes" "git-bootstrap.sh --self-test (each 1Password refusal state says the right thing)" bash scripts/git/git-bootstrap.sh --self-test
 item_x "runs the real check-vault-items.sh over a synthetic tree per case: the *_item registry-key parse is only honest if the CLI runs, which is exactly the waiting a fast loop is not buying" "testdata/check-vault-items/run.sh (scanner self-test, HD-244/245)" bash scripts/testdata/check-vault-items/run.sh
-item_q "validate_blueprints.py" $PY scripts/gate/validate_blueprints.py
-item_q "check_doc_ips.py" $PY scripts/gate/check_doc_ips.py
-item_q "check_traefik_host_rules.py" $PY scripts/gate/check_traefik_host_rules.py
-item_q "validate-secrets.py" $PY scripts/gate/validate-secrets.py
-item_q "check_doc_map.py" $PY scripts/gate/check_doc_map.py
+item_q "validate_blueprints.py" "${PY_CMD[@]}" scripts/gate/validate_blueprints.py
+item_q "check_doc_ips.py" "${PY_CMD[@]}" scripts/gate/check_doc_ips.py
+item_q "check_traefik_host_rules.py" "${PY_CMD[@]}" scripts/gate/check_traefik_host_rules.py
+item_q "validate-secrets.py" "${PY_CMD[@]}" scripts/gate/validate-secrets.py
+item_q "check_doc_map.py" "${PY_CMD[@]}" scripts/gate/check_doc_map.py
 # The map above proves a doc is REACHABLE; nothing proved a doc CLAIMS a domain, or that a domain has
 # exactly one entry point. HD-1119(b): the domain set is DERIVED from the docs' own frontmatter, so a
 # retag moves the rule and this file never has to.
-item_q "check_doc_domain.py (every doc claims a domain, every domain has one entry point; the set is derived, never listed)" $PY scripts/gate/check_doc_domain.py
-item_q "check_doc_domain.py --self-test (each rule seen RED on a fixture mutation, the legal fixture GREEN, an empty walk refused)" $PY scripts/gate/check_doc_domain.py --self-test
-item_q "check_generated_suffix.py" $PY scripts/gate/check_generated_suffix.py
-item_q "check_ledger_state.py (ledger = checkboxes, open rows only, ticks dated)" $PY scripts/gate/check_ledger_state.py
-item_q "check_runbook_purity.py (runbook = imperative procedure only)" $PY scripts/gate/check_runbook_purity.py
-item_q "check_runbook_purity.py --self-test (phase-alignment arms seen RED then GREEN; every single-letter phase suffix proved compared; a blind walk or a missing input refused, never OK: 0 phases)" $PY scripts/gate/check_runbook_purity.py --self-test
-item_q "check_vault_docs.py (every IaC-read vault item is documented)" $PY scripts/gate/check_vault_docs.py
-item_q "check_todo_done.py (CONVENTIONS §4(a) done-row sweep)" $PY scripts/gate/check_todo_done.py
-item_q "check_view_registry_sync.py (todo-table.md §B9 holds exactly todo.md's row ids, in both directions — the dispatch view cannot silently lose a row, and cannot invent one)" $PY scripts/gate/check_view_registry_sync.py
-item_q "check_view_registry_sync.py --self-test (a row missing from §B9 must redden AND an id §B9 carries that the registry lacks must redden; the ratchet line whose difference cleared must go STALE)" $PY scripts/gate/check_view_registry_sync.py --self-test
-item_q "check_brief_coverage.py (the row→brief map is ONE map, not three — todo-table.md §B0's cells, every root brief's dispatch header and prompt.md's pointers name the same rows, in every id spelling)" $PY scripts/gate/check_brief_coverage.py
-item_q "check_brief_coverage.py --self-test (one canary per rule plus its reconciled twin; a vanished §B0, an empty §B0, a brief with no dispatch header and a link carried only by cluster shorthand must all be loud)" $PY scripts/gate/check_brief_coverage.py --self-test
-item_q "check_todo_done.py --refs (an HD id named by any root prompt brief must still be a row)" $PY scripts/gate/check_todo_done.py --refs
-item_x "breeds both directions of the marker grammar and the reference rule in a synthetic tree: a checker self-test, not a tree check — and HD-1117 names this leg as a pool flake" "check_todo_done.py --self-test (marker grammar + reference-existence canaries, both directions)" $PY scripts/gate/check_todo_done.py --self-test
-item_q "check_merge_markers.py (HD-453: no conflict markers in tracked files)" $PY scripts/gate/check_merge_markers.py
-item_q "check_merge_markers.py --self-test (HD-453 canary)" $PY scripts/gate/check_merge_markers.py --self-test
-item_q "check_md_tables.py (HD-417 width rule + 2026-10-06 duplicate-key rule)" $PY scripts/gate/check_md_tables.py
-item_q "check_md_tables.py --self-test (HD-417 cell-count canary + duplicate-key canary)" $PY scripts/gate/check_md_tables.py --self-test
-item_q "check_iac_backend_strings.py (HD-404: retired-backend mentions may not regrow)" $PY scripts/gate/check_iac_backend_strings.py
-item_q "check_iac_backend_strings.py --self-test (HD-404 ratchet canary)" $PY scripts/gate/check_iac_backend_strings.py --self-test
-item_q "check_script_layout.py (HD-1118 Stage 4: registry ≡ tree, depth ratchet, one-of-each, clean root)" $PY scripts/gate/check_script_layout.py
-item_q "check_script_layout.py --self-test (HD-1118: each rule seen to fail, corpus floor included)" $PY scripts/gate/check_script_layout.py --self-test
-item_q "check_iac_identifiers.py (no changelog identifier may live in IaC/)" $PY scripts/gate/check_iac_identifiers.py
-item_q "check_iac_identifiers.py --self-test (canary)" $PY scripts/gate/check_iac_identifiers.py --self-test
+item_q "check_doc_domain.py (every doc claims a domain, every domain has one entry point; the set is derived, never listed)" "${PY_CMD[@]}" scripts/gate/check_doc_domain.py
+item_q "check_doc_domain.py --self-test (each rule seen RED on a fixture mutation, the legal fixture GREEN, an empty walk refused)" "${PY_CMD[@]}" scripts/gate/check_doc_domain.py --self-test
+item_q "check_generated_suffix.py" "${PY_CMD[@]}" scripts/gate/check_generated_suffix.py
+item_q "check_ledger_state.py (ledger = checkboxes, open rows only, ticks dated)" "${PY_CMD[@]}" scripts/gate/check_ledger_state.py
+item_q "check_runbook_purity.py (runbook = imperative procedure only)" "${PY_CMD[@]}" scripts/gate/check_runbook_purity.py
+item_q "check_runbook_purity.py --self-test (phase-alignment arms seen RED then GREEN; every single-letter phase suffix proved compared; a blind walk or a missing input refused, never OK: 0 phases)" "${PY_CMD[@]}" scripts/gate/check_runbook_purity.py --self-test
+item_q "check_vault_docs.py (every IaC-read vault item is documented)" "${PY_CMD[@]}" scripts/gate/check_vault_docs.py
+item_q "check_todo_done.py (CONVENTIONS §4(a) done-row sweep)" "${PY_CMD[@]}" scripts/gate/check_todo_done.py
+item_q "check_view_registry_sync.py (todo-table.md §B9 holds exactly todo.md's row ids, in both directions — the dispatch view cannot silently lose a row, and cannot invent one)" "${PY_CMD[@]}" scripts/gate/check_view_registry_sync.py
+item_q "check_view_registry_sync.py --self-test (a row missing from §B9 must redden AND an id §B9 carries that the registry lacks must redden; the ratchet line whose difference cleared must go STALE)" "${PY_CMD[@]}" scripts/gate/check_view_registry_sync.py --self-test
+item_q "check_brief_coverage.py (the row→brief map is ONE map, not three — todo-table.md §B0's cells, every root brief's dispatch header and prompt.md's pointers name the same rows, in every id spelling)" "${PY_CMD[@]}" scripts/gate/check_brief_coverage.py
+item_q "check_brief_coverage.py --self-test (one canary per rule plus its reconciled twin; a vanished §B0, an empty §B0, a brief with no dispatch header and a link carried only by cluster shorthand must all be loud)" "${PY_CMD[@]}" scripts/gate/check_brief_coverage.py --self-test
+item_q "check_todo_done.py --refs (an HD id named by any root prompt brief must still be a row)" "${PY_CMD[@]}" scripts/gate/check_todo_done.py --refs
+item_x "breeds both directions of the marker grammar and the reference rule in a synthetic tree: a checker self-test, not a tree check — and HD-1117 names this leg as a pool flake" "check_todo_done.py --self-test (marker grammar + reference-existence canaries, both directions)" "${PY_CMD[@]}" scripts/gate/check_todo_done.py --self-test
+item_q "check_merge_markers.py (HD-453: no conflict markers in tracked files)" "${PY_CMD[@]}" scripts/gate/check_merge_markers.py
+item_q "check_merge_markers.py --self-test (HD-453 canary)" "${PY_CMD[@]}" scripts/gate/check_merge_markers.py --self-test
+item_q "check_md_tables.py (HD-417 width rule + 2026-10-06 duplicate-key rule)" "${PY_CMD[@]}" scripts/gate/check_md_tables.py
+item_q "check_md_tables.py --self-test (HD-417 cell-count canary + duplicate-key canary)" "${PY_CMD[@]}" scripts/gate/check_md_tables.py --self-test
+item_q "check_iac_backend_strings.py (HD-404: retired-backend mentions may not regrow)" "${PY_CMD[@]}" scripts/gate/check_iac_backend_strings.py
+item_q "check_iac_backend_strings.py --self-test (HD-404 ratchet canary)" "${PY_CMD[@]}" scripts/gate/check_iac_backend_strings.py --self-test
+item_q "check_script_layout.py (HD-1118 Stage 4: registry ≡ tree, depth ratchet, one-of-each, clean root)" "${PY_CMD[@]}" scripts/gate/check_script_layout.py
+item_q "check_script_layout.py --self-test (HD-1118: each rule seen to fail, corpus floor included)" "${PY_CMD[@]}" scripts/gate/check_script_layout.py --self-test
+item_q "check_iac_identifiers.py (no changelog identifier may live in IaC/)" "${PY_CMD[@]}" scripts/gate/check_iac_identifiers.py
+item_q "check_iac_identifiers.py --self-test (canary)" "${PY_CMD[@]}" scripts/gate/check_iac_identifiers.py --self-test
 # A filtered converge can execute a fraction of a role and still recap `failed=0`: a tag on a playbook
 # `roles:` entry cascades into every task of the role, a tag on the `include_tasks` LINE decides only
 # whether the FILE loads (its children are then filtered on their own tags), and an untagged dynamic
@@ -1529,19 +1542,19 @@ item_q "check_iac_identifiers.py --self-test (canary)" $PY scripts/gate/check_ia
 # the tree, name the include line and the task, and cost half a second. The lab after them asks
 # ansible-playbook the same four questions about itself (debug-only legs, the literal `localhost`
 # inventory), which is why it is NOT in the quick profile.
-item_q "check_tag_coverage.py (a task below a dynamic include must be selectable by some tag)" $PY scripts/gate/check_tag_coverage.py
-item_q "check_tag_coverage.py --self-test (each cascade rule planted in a temp tree; a missing tree exits 2)" $PY scripts/gate/check_tag_coverage.py --self-test
+item_q "check_tag_coverage.py (a task below a dynamic include must be selectable by some tag)" "${PY_CMD[@]}" scripts/gate/check_tag_coverage.py
+item_q "check_tag_coverage.py --self-test (each cascade rule planted in a temp tree; a missing tree exits 2)" "${PY_CMD[@]}" scripts/gate/check_tag_coverage.py --self-test
 item_x "every leg executes real ansible-playbook against the literal localhost inventory: it needs ~/ansible-venv, and the static walk above already judges THIS tree — the lab proves the rules the walk reasons with, so buy it when a tag or an include line changes, not per keystroke" "testdata/check_tag_coverage/run.sh (the four cascade rules, asked of ansible itself)" bash scripts/testdata/check_tag_coverage/run.sh
 # The child-lane contract (delegation default, ≤2 children, inherit-only model, 2 h deadline) lives in
 # four files at once; this is the only thing that keeps those four agreeing. Run + canaries.
-item_q "check_subagent_contract.py (the subagent contract agrees across settings SSOT + the three rule docs)" $PY scripts/gate/check_subagent_contract.py
-item_q "check_subagent_contract.py --self-test (each rule bred, plus the silence canaries)" $PY scripts/gate/check_subagent_contract.py --self-test
+item_q "check_subagent_contract.py (the subagent contract agrees across settings SSOT + the three rule docs)" "${PY_CMD[@]}" scripts/gate/check_subagent_contract.py
+item_q "check_subagent_contract.py --self-test (each rule bred, plus the silence canaries)" "${PY_CMD[@]}" scripts/gate/check_subagent_contract.py --self-test
 # The spark bench's provenance half: it reads a results CSV and touches no host, so a spark-served seat
 # runs it safely (it is the check that would have named a Rule 0 violation instead of prose hoping).
 # The rc 2 half is NOT JUDGED — no CSV here, a CSV with no `client` column, an unreadable ledger — printed
 # as a SKIP and never counted as a pass, because a seat with no bench rows has proved nothing about them.
 item_q "check_bench_provenance.py (a timed leg's client stamp must name an allowed runner: Rule 0 + the designated station)" blk_bench_provenance
-item_q "check_bench_provenance.py --self-test (each verdict on fixtures, then a mutation of its own parser — including the leg a ledger line must NOT excuse)" $PY scripts/gate/check_bench_provenance.py --self-test
+item_q "check_bench_provenance.py --self-test (each verdict on fixtures, then a mutation of its own parser — including the leg a ledger line must NOT excuse)" "${PY_CMD[@]}" scripts/gate/check_bench_provenance.py --self-test
 # corpus_diff.py --gate IS in the pool, and what made that possible is the token anchor on the
 # add/drop-line rule. Its verdict is a pure function of the two revisions pinned in
 # gate/corpus_baseline.txt, so it reads identically at every commit until the staleness cap trips it
@@ -1561,17 +1574,17 @@ item_q "check_bench_provenance.py --self-test (each verdict on fixtures, then a 
 # as REJECT "not in base ref" and redden a window that is otherwise clean. The self-test item below
 # stays registered too: its arms build their own throwaway repo, baseline and accepts list, so the
 # proof that the audit can still fail does not depend on the pinned window's contents.
-item_q "corpus_diff.py --gate (replays the pinned purge window: every change confined to rendered text, or signed by name)" $PY scripts/gate/corpus_diff.py --gate
-item_q "corpus_diff.py --self-test (classifier cases + both halves of the accepts/baseline canary)" $PY scripts/gate/corpus_diff.py --self-test
+item_q "corpus_diff.py --gate (replays the pinned purge window: every change confined to rendered text, or signed by name)" "${PY_CMD[@]}" scripts/gate/corpus_diff.py --gate
+item_q "corpus_diff.py --self-test (classifier cases + both halves of the accepts/baseline canary)" "${PY_CMD[@]}" scripts/gate/corpus_diff.py --self-test
 # homelab-llm.json is GENERATED: a hand-edit that diverges from the generator is silent otherwise.
 # `--check` only compares, it writes nothing — the write-half (adapt-vllm-dashboards.py --inplace) is
 # deliberately NOT gated: a suite that mutates the tree is worse than the drift it would catch.
-item_q "build-llm-dashboard.py --check (the generated dashboard may not drift from its generator)" $PY scripts/ansible/build-llm-dashboard.py --check
-item_q "check_spark_llm_gate.py (HD-469: spark LLM profile matrix + gate canaries)" $PY scripts/gate/check_spark_llm_gate.py
-item_q "knx-hass-gen.py --self-test (HD-439: emitted addresses must exist in the ETS project)" $PY scripts/ansible/knx-hass-gen.py --self-test
-item_q "laptop-llm.py gate --self-test (HD-474: laptop serving-leg gate must be PROVEN OFFLINE)" $PY scripts/bench/laptop-llm.py gate --self-test
-item_q "laptop-llm.py probe-client (HD-474: client contract may not drift ahead of the engine)" $PY scripts/bench/laptop-llm.py probe-client
-item_q "gate7-read.py --self-test (HD-489 gate-7 bucketing: mixed-pid artifact, bounded fill, leak)" $PY scripts/bench/spark/gate7-read.py --self-test
+item_q "build-llm-dashboard.py --check (the generated dashboard may not drift from its generator)" "${PY_CMD[@]}" scripts/ansible/build-llm-dashboard.py --check
+item_q "check_spark_llm_gate.py (HD-469: spark LLM profile matrix + gate canaries)" "${PY_CMD[@]}" scripts/gate/check_spark_llm_gate.py
+item_q "knx-hass-gen.py --self-test (HD-439: emitted addresses must exist in the ETS project)" "${PY_CMD[@]}" scripts/ansible/knx-hass-gen.py --self-test
+item_q "laptop-llm.py gate --self-test (HD-474: laptop serving-leg gate must be PROVEN OFFLINE)" "${PY_CMD[@]}" scripts/bench/laptop-llm.py gate --self-test
+item_q "laptop-llm.py probe-client (HD-474: client contract may not drift ahead of the engine)" "${PY_CMD[@]}" scripts/bench/laptop-llm.py probe-client
+item_q "gate7-read.py --self-test (HD-489 gate-7 bucketing: mixed-pid artifact, bounded fill, leak)" "${PY_CMD[@]}" scripts/bench/spark/gate7-read.py --self-test
 # The spark instruments' own verdicts. Each of these seven SHIPPED a --self-test and none of them
 # was registered, so the arms ran only when a human remembered them — the defect this registers.
 # The criterion for being here is HOST-FREE, not "has a test": a gate item runs on the seat whose
@@ -1601,28 +1614,28 @@ item_q "text-only-preflight.sh --self-test (the HD-400 pre-flight verdicts on fi
 # verdict, and it is the witness for the venv-guard predicate render-pi-config.py copies verbatim.
 item_q "testdata/rsync-max-delete/run.sh --self-test (--max-delete is a CAP: exactly N/2 deleted + rc 25, asserted as numbers; every weakening reddens a canary)" bash scripts/testdata/rsync-max-delete/run.sh --self-test
 item_q "testdata/rsync-max-delete/run.sh (the shape-parity arm + the two real rsync fires over N=100 files)" blk_rsync_max_delete
-item_q "ansible_query.py --self-test (HD-456 fixtures + the venv re-exec guard both seat planes depend on)" $PY scripts/ansible/ansible_query.py --self-test
+item_q "ansible_query.py --self-test (HD-456 fixtures + the venv re-exec guard both seat planes depend on)" "${PY_CMD[@]}" scripts/ansible/ansible_query.py --self-test
 # HD-1199: the doc corpus had no size bound at all — this is the ratchet, cheap enough for the quick
 # profile because it reads 75 docs' line counts and nothing else.
-item_q "check_doc_size.py (HD-1199: a hand-authored docs/*.md may shrink and may not exceed its sealed line count; the seal fails in both directions, so deleting a baseline line launders nothing)" $PY scripts/gate/check_doc_size.py
-item_q "check_doc_size.py --self-test (the shrink half proved live so this is no silent cap, the new-doc ceiling proved separate from the seal rule, a render view invisible to every rule and refused from inside the seal, and a missing baseline / malformed body / empty corpus all refusing to print OK)" $PY scripts/gate/check_doc_size.py --self-test
+item_q "check_doc_size.py (HD-1199: a hand-authored docs/*.md may shrink and may not exceed its sealed line count; the seal fails in both directions, so deleting a baseline line launders nothing)" "${PY_CMD[@]}" scripts/gate/check_doc_size.py
+item_q "check_doc_size.py --self-test (the shrink half proved live so this is no silent cap, the new-doc ceiling proved separate from the seal rule, a render view invisible to every rule and refused from inside the seal, and a missing baseline / malformed body / empty corpus all refusing to print OK)" "${PY_CMD[@]}" scripts/gate/check_doc_size.py --self-test
 # HD-1200: the other direction of the docs seam — a role directory with no doc is invisible to every
 # docs→tree gate. Two reads and a substring scan, so it belongs in quick too.
-item_q "check_role_docs.py (HD-1200: every dir under IaC/ansible/roles/ is named by a hand-authored docs/*.md — the role set is derived from the tree, never listed, and naming is decided by shape rather than by the string)" $PY scripts/gate/check_role_docs.py
-item_q "check_role_docs.py --self-test (a role bred and deleted in a temp tree to prove the set is derived, a prose-only role reddening with its sites printed while one code-font mention clears it, a render view unable to document a role, and an empty corpus / missing role tree / doc-less tree all refusing to print OK)" $PY scripts/gate/check_role_docs.py --self-test
+item_q "check_role_docs.py (HD-1200: every dir under IaC/ansible/roles/ is named by a hand-authored docs/*.md — the role set is derived from the tree, never listed, and naming is decided by shape rather than by the string)" "${PY_CMD[@]}" scripts/gate/check_role_docs.py
+item_q "check_role_docs.py --self-test (a role bred and deleted in a temp tree to prove the set is derived, a prose-only role reddening with its sites printed while one code-font mention clears it, a render view unable to document a role, and an empty corpus / missing role tree / doc-less tree all refusing to print OK)" "${PY_CMD[@]}" scripts/gate/check_role_docs.py --self-test
 
 # CONVENTIONS §8.6's `sensitivity:` class had nothing reading it: the shape scanners prove no credential TEXT
 # ships, which is not the same fact as what a document is ABOUT — and §8.6's egress rule needs that fact before
 # a run decides where its read list may go. The class is declared in frontmatter, so the gate is a frontmatter
 # reader plus the owner's floor map, and the payload rule is the one place the family plane can hurt.
-item_q "check_doc_sensitivity.py (every hand-authored doc declares one sensitivity class at or above its floor, and the personal docs carry no contact payload — the distribution is derived, never listed)" $PY scripts/gate/check_doc_sensitivity.py
-item_q "check_doc_sensitivity.py --self-test (each rule seen RED on a mutation and the legal tree GREEN: a missing or mis-spelled class, a downgrade below the floor, one canary per payload shape, and the near-misses — a family-subdomain address, a key fingerprint, a grouped byte count — seen quiet)" $PY scripts/gate/check_doc_sensitivity.py --self-test
+item_q "check_doc_sensitivity.py (every hand-authored doc declares one sensitivity class at or above its floor, and the personal docs carry no contact payload — the distribution is derived, never listed)" "${PY_CMD[@]}" scripts/gate/check_doc_sensitivity.py
+item_q "check_doc_sensitivity.py --self-test (each rule seen RED on a mutation and the legal tree GREEN: a missing or mis-spelled class, a downgrade below the floor, one canary per payload shape, and the near-misses — a family-subdomain address, a key fingerprint, a grouped byte count — seen quiet)" "${PY_CMD[@]}" scripts/gate/check_doc_sensitivity.py --self-test
 
 # §8.3 made an open question a SECTION so the inventory could be listed; nothing read the shape, so "the table
 # is shaped to the grammar" stayed a row's word. This gate is also the only reader of the OQ id space: it prints
 # max + the sorted list so the next id is derived at the moment of minting instead of typed from memory.
-item_q "check_open_questions.py (every Options section is shaped, keyed by its OQ id, and verdict-free; the id space is derived and printed with the inventory command it mirrors)" $PY scripts/gate/check_open_questions.py
-item_q "check_open_questions.py --self-test (each rule seen RED on a shaped section and quiet on its legal twin: no table, a near-miss header, one row, an empty cheap test, a shifted row, no id, each verdict wording, a typed id above max+1, and both corpus floors at their boundary)" $PY scripts/gate/check_open_questions.py --self-test
+item_q "check_open_questions.py (every Options section is shaped, keyed by its OQ id, and verdict-free; the id space is derived and printed with the inventory command it mirrors)" "${PY_CMD[@]}" scripts/gate/check_open_questions.py
+item_q "check_open_questions.py --self-test (each rule seen RED on a shaped section and quiet on its legal twin: no table, a near-miss header, one row, an empty cheap test, a shifted row, no id, each verdict wording, a typed id above max+1, and both corpus floors at their boundary)" "${PY_CMD[@]}" scripts/gate/check_open_questions.py --self-test
 
 # The rsync `--max-delete` fixture. rc 2 is a BOUNDARY, printed and never counted green: the two
 # deletion arms need an rsync binary, which the WSL Debian seat does not carry, while the shape-parity

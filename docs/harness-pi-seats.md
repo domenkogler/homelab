@@ -51,8 +51,27 @@ tags: [ai, pi, agent-harness, harness, spark, llm, settings]
   have one bash and cannot reach this, and **cmd.exe is not covered** — a profile cannot reach it, so run the
   harness from Git-Bash or pwsh there. Changing the WSL default distro is not the repair: it would make a
   stray WSL bash report another seat's verdict under the `win11` label, and a false green is worse than a red.
-- **Where the pi BINARY lives — two layouts, one PATH.** `npm -g`
-  installs it as a symlink at `<pi-node prefix>/bin/pi` next to the pinned node (what
+- **The gate on the Win11 seat answers a different question, and `OK` here would be the false result.** The seat exists to
+  reach all three seats — converge `oldsrv`, fan out the settings and git identity — not to certify the tree: a third of
+  `scripts/validate-all.sh`'s items shell into a target, call WSL-only tooling, or need an `ansible-playbook` that cannot
+  make a pty natively (`WinError 87`). Those print `SKIP` naming what was not proven, so the run's last line is **`PARTIAL`**;
+  the WSL Debian clone or `oldsrv` is the authority on the legs that skip here. Wall clock is not comparable across the two
+  OSes either — ~10 ms per leg here against ~0.7 ms there, which is `fork()` emulation, not a difference in what is checked.
+- **A leg that asks a different question on this seat returns a wrong verdict, not an error, so the shape is fixed:** a
+  two-word launcher stays an argv array (`py -3` quoted as one word is a program called `py -3`); a path is resolved only
+  through a bash that can read it (`lib/repo_root.py` → `hl_bash()`, because a WSL bash cannot see `D:\…` and a Git bash
+  cannot see `/home/…`); interpreters are probed, not named (`lib/python.sh` → `hl_python`, which refuses a Store alias stub
+  and a candidate that cannot import what the leg needs); a machine-readable pipe pins LF, since a Windows text stream
+  appends a carriage return to the field a bash comparison reads last; and the gate exports `PYTHONUTF8=1` on a Windows
+  seat, because git answers in UTF-8 while a Windows-native interpreter decodes `text=True` output with the ANSI codepage —
+  there the dead reader thread returns `stdout = None`, so a gate's own crash reads as a finding about the tree. One switch
+  for the run is the mechanism rather than a per-call `encoding=` kwarg: the exposed call sites outnumber any sweep and new
+  ones are written faster than they can be fixed. A leg whose external tool is missing says `SKIP` and names what was not
+  proven — the bench legs that build request bodies with `jq` never send a body they did not build.
+- **A PARTIAL run on this seat is a merge precondition, and the merge may be executed here.** The rule and the steps are
+  [orchestration.md](orchestration.md) §4; what this seat contributes is that its `SKIP` list must be read, not waved
+  through: the classes it did not judge are the ones a Debian seat has to be green on first.
+- **Where the pi BINARY lives — two layouts, one PATH.** `npm -g` installs it as a symlink at `<pi-node prefix>/bin/pi` next to the pinned node (what
   [`../scripts/harness/install-pi-debian.sh`](../scripts/harness/install-pi-debian.sh) does); pi's own installer writes a
   launcher at `~/.pi/agent/bin/pi` over `~/.pi/agent/install/releases/<ver>/` (`layout: releases-v1`).
   **`pi update` run inside a session migrates the first layout into the second and deletes the

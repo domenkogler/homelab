@@ -16,7 +16,9 @@
 **Seat and merge station.** The pi-dev seat is `oldsrv`, and its clone `domen@oldsrv:~/source/homelab` is the merging
 station: merges land there, `scripts/validate-all.sh` runs there, and `git worktree list` on that host is the fleet's live
 set (harness state in [docs/harness-pi-engines.md](docs/harness-pi-engines.md)). Owner/cleanup sessions also run from the
-**Win11 Git-Bash** seat. The laptop's **WSL Debian** clone is retained and has a job: it is the designated runner station
+**Win11 Git-Bash** seat, and that seat is a merge station too: its gate ends `PARTIAL` by construction, so a merge from
+there rides on the same tip being green in the WSL Debian clone ([docs/orchestration.md](docs/orchestration.md) §4,
+[docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1). The laptop's **WSL Debian** clone is retained and has a job: it is the designated runner station
 for externally-served runs — off-box for every converge target, never the engine host, owner of no converge slot (the
 rule is [todo-table.md](todo-table.md) §C rule 9, the state is
 [docs/harness-pi-seat-identity.md](docs/harness-pi-seat-identity.md) §5a, and the legs only that box may drive are
@@ -398,19 +400,14 @@ the row→brief index is [todo-table.md](todo-table.md) §B0. A brief is named f
       `ok`/unchanged and every service's new reachability check green — the leg that proves IaC and the hosts agree.
       (Owning: [docs/deployment-compose.md](docs/deployment-compose.md) §Boot auto-start (docker-compose@))
 
-15. ⏳ **The gate's own speed and trustworthiness on a Windows seat** — **HD-1135** landed the fork diet and gave
-    `sync-skills.sh` the `--self-test` its encoding guard was waiting on; ⏳ what is left is that **the win11 side of
-    that change has never been re-run on that seat**, so its per-`pin()` cost figures still stand for it. The timings are
-    the row's and the registry's business, not this file's: [scripts/README.md](scripts/README.md) `validate-all.sh` +
-    `sync-skills.sh`. **That seat cannot be trusted to grade itself (**HD-1177**)**: gate items there read red or blind
-    while the same commit is green in WSL, so two clones of one commit reach opposite verdicts — **grade from the WSL
-    Debian clone, and a Win11 green is a *partial* result that must be reported as one**, never as the gate.
-    ⏳ **In order from there:** the gawk rename (one variable, prove the block prints on a forced red run), the UTF-8 pin
-    in `check_secret_leak.py`, then the fix-or-`SKIP` call on the converge-guard fixture and the ledger-or-rescope call
-    on the generated-path citations. **HD-1176**'s mechanism is in place on the seat and the row stays **open** for what
-    it still owes: the four seat artifacts have **no repo owner** (the `wsl` seat plane in `scripts/harness/`), the
-    headscale-side call on MagicDNS `SERVFAIL`ing most of `zone_kogler_si`, and the suspend/resume + away-from-home
-    re-measure. Record: [scripts/README.md](scripts/README.md) `validate-all.sh` + `sync-skills.sh` rows ·
+15. ⏳ **The gate's own trustworthiness on a Windows seat** — **HD-1202**. The seat cannot grade itself
+    (**HD-1177**): items there read red or blind while the same commit is green in WSL, so grade from the WSL Debian clone
+    and report a Win11 `OK` as the *partial* result it is — the contract, and why this seat's honest verdict is `PARTIAL`, is
+    [docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1. What the row still owes is its own list; do not re-derive it
+    here. **HD-1176**'s mechanism is in place on the seat and its row stays **open** for what it still owes: the four seat
+    artifacts have **no repo owner** (the `wsl` seat plane in `scripts/harness/`), the headscale-side call on MagicDNS
+    `SERVFAIL`ing most of `zone_kogler_si`, and the suspend/resume + away-from-home re-measure. Record:
+    [scripts/README.md](scripts/README.md) `validate-all.sh` + `lib/python.sh` + `lib/repo_root.py` ·
     [docs/network-dns.md](docs/network-dns.md) §Host-side resolver.
 **Parked on an owner-present window** — authored work with exactly one blocked action in front of it, named with that
 action so no lane re-derives it. **The 2026-10-20 owner round is applied throughout: an entry marked RULED is AI work,

@@ -62,6 +62,9 @@ _hl_d="$SELF_DIR"
 while [ ! -f "$_hl_d/lib/repo-root.sh" ] && [ "$_hl_d" != / ]; do _hl_d="$(dirname "$_hl_d")"; done
 # shellcheck source=/dev/null
 . "$_hl_d/lib/repo-root.sh"        # sets REPO; FATAL when no root is found
+# The probe leg is RUN with the interpreter lib/python.sh probes: `python3` on the Win11 seat is the
+# Microsoft Store alias STUB (on PATH, rc 49, not an interpreter), so a name here is a red on one seat.
+hl_source_lib "${BASH_SOURCE[0]}" python.sh
 
 PROFILE="reasoning"
 HOST="spark"
@@ -234,8 +237,8 @@ run_main() {
     printf '>>> probe: %s\n' "$HD469_PROBE_CMD"
     $HD469_PROBE_CMD > "$probe" 2>&1 && probe_rc=0 || probe_rc=$?
   else
-    printf '>>> probe: python3 scripts/bench/spark-llm-probe.py --base-url %s all --profile %s\n' "$BASE_URL" "$PROFILE"
-    python3 "$REPO/scripts/bench/spark-llm-probe.py" --base-url "$BASE_URL" all --profile "$PROFILE" \
+    printf '>>> probe: %s scripts/bench/spark-llm-probe.py --base-url %s all --profile %s\n' "${HL_PYTHON[*]}" "$BASE_URL" "$PROFILE"
+    "${HL_PYTHON[@]}" "$REPO/scripts/bench/spark-llm-probe.py" --base-url "$BASE_URL" all --profile "$PROFILE" \
       > "$probe" 2>&1 && probe_rc=0 || probe_rc=$?
   fi
   printf '>>> probe exit %s — recorded, not repaired (a FAIL here IS the under-cap baseline)\n' "$probe_rc"

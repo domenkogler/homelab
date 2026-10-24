@@ -107,8 +107,12 @@ def is_self(rel: str) -> bool:
 
 
 def tracked() -> list[str]:
-    out = subprocess.run(["git", "-C", str(ROOT), "ls-files", "-z"],
-                         capture_output=True, text=True, check=True).stdout
+    # `ls-files -z` answers in UTF-8 with NUL separators; without an explicit encoding a Windows host decodes
+    # it with the ANSI codepage, the reader thread dies on a non-ASCII byte, and `stdout` arrives as None —
+    # this function then raises AttributeError and the gate reports its own crash instead of a finding.
+    # Same explicit-decode rule as every other git call in this tree.
+    out = subprocess.run(["git", "-C", str(ROOT), "ls-files", "-z"], capture_output=True,
+                         text=True, encoding="utf-8", errors="replace", check=True).stdout
     return [p for p in out.split("\0") if p]
 
 
