@@ -456,6 +456,27 @@
 #                                     PARALLEL since 2026-10-09 (8.4 s -> 3.0 s on 8 cores): the cost
 #                                     was 17 × interpreter startup, not work; each leg keeps its own
 #                                     stderr file, so the duplicate-key witness is unchanged.
+#  41. check_doc_size.py             — HD-1199: nothing in this repo bounded a doc's length, so the
+#                                     corpus average drifted past 300 lines while the README tells every
+#                                     session not to bulk-read the repo. A RATCHET, not a cap: the
+#                                     hand-authored docs/*.md are sealed at their current sizes in
+#                                     `gate/doc_size_baseline.txt` (one `<path><TAB><line count>` line,
+#                                     derived whole by --reseal, no wall clock in it — CONVENTIONS §8.5),
+#                                     a doc may shrink freely and may not exceed its sealed count, a doc
+#                                     NOT yet sealed must be born under the new-doc ceiling, and the
+#                                     seal fails in BOTH directions (an in-scope doc the seal omits
+#                                     reddens, so deleting a line launders nothing; a line whose doc is
+#                                     gone reddens, because a line matching nothing is the next doc's free
+#                                     pass). The four `docs/*-generated.md` render views are out of the
+#                                     walk, the seal and the rule — their length is an IaC-render property
+#                                     and a docs gate must not redden on a render (§8.2, §8.5); the mirror
+#                                     holds from inside the seal, where such a line is a parse error.
+#                                     `--reseal` belongs to the merge station only: a growth red there
+#                                     means a doc GREW, and the fix is the doc, never the number.
+#                                     `--self-test` breeds every rule in a temp tree, proves the shrink
+#                                     half is live (so this cannot be a silent cap), proves the ceiling
+#                                     and the seal are separate checks, and refuses an empty corpus, a
+#                                     missing baseline and a malformed body at rc 2.
 #
 # HOW THIS RUNS (2026-10-09, HD-1117): the items above are QUEUED and run CONCURRENTLY,
 #   8 in flight on an 8-core runner — 32 s -> 12 s. They are independent: every check is
@@ -1521,6 +1542,10 @@ item_q "text-only-preflight.sh --self-test (the HD-400 pre-flight verdicts on fi
 item_q "testdata/rsync-max-delete/run.sh --self-test (--max-delete is a CAP: exactly N/2 deleted + rc 25, asserted as numbers; every weakening reddens a canary)" bash scripts/testdata/rsync-max-delete/run.sh --self-test
 item_q "testdata/rsync-max-delete/run.sh (the shape-parity arm + the two real rsync fires over N=100 files)" blk_rsync_max_delete
 item_q "ansible_query.py --self-test (HD-456 fixtures + the venv re-exec guard both seat planes depend on)" $PY scripts/ansible/ansible_query.py --self-test
+# HD-1199: the doc corpus had no size bound at all — this is the ratchet, cheap enough for the quick
+# profile because it reads 75 docs' line counts and nothing else.
+item_q "check_doc_size.py (HD-1199: a hand-authored docs/*.md may shrink and may not exceed its sealed line count; the seal fails in both directions, so deleting a baseline line launders nothing)" $PY scripts/gate/check_doc_size.py
+item_q "check_doc_size.py --self-test (the shrink half proved live so this is no silent cap, the new-doc ceiling proved separate from the seal rule, a render view invisible to every rule and refused from inside the seal, and a missing baseline / malformed body / empty corpus all refusing to print OK)" $PY scripts/gate/check_doc_size.py --self-test
 
 # The rsync `--max-delete` fixture. rc 2 is a BOUNDARY, printed and never counted green: the two
 # deletion arms need an rsync binary, which the WSL Debian seat does not carry, while the shape-parity
