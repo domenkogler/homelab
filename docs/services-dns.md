@@ -3,6 +3,7 @@ title: DNS Services — Technitium (& retired Pi-hole)
 role: detail
 domain: services
 status: active
+sensitivity: infra
 tags: [services, dns, technitium, pihole]
 ---
 # DNS Services — Technitium

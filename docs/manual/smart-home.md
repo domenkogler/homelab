@@ -3,6 +3,7 @@ title: Kako upravljati pametno hišo
 role: reference
 domain: manual
 status: wip
+sensitivity: personal
 tags: [manual, smart-home]
 ---
 # Kako upravljati pametno hišo

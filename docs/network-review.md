@@ -3,6 +3,7 @@ title: Network — Review Queue
 role: queue
 domain: network
 status: active
+sensitivity: infra
 tags: [network, review, queue]
 ---
 # Network Review Queue

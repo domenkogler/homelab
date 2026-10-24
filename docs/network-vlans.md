@@ -3,6 +3,7 @@ title: VLAN Plan
 role: detail
 domain: network
 status: active
+sensitivity: infra
 tags: [network, vlan, firewall]
 ---
 # VLAN Plan

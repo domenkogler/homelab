@@ -3,6 +3,7 @@ title: Personal Finance Stack
 role: ssot
 domain: services
 status: active
+sensitivity: personal
 tags: [services, finance, budget, banking, investing]
 ---
 # Personal Finance Stack

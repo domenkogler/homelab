@@ -3,6 +3,7 @@ title: Deployment — Rejected / Dropped Decision Log
 role: log
 domain: deployment
 status: active
+sensitivity: infra
 tags: [deployment, rejected, decision-log]
 ---
 # Deployment — Rejected / Dropped

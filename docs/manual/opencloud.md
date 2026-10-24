@@ -3,6 +3,7 @@ title: Kako deliti datoteke (OpenCloud)
 role: reference
 domain: manual
 status: wip
+sensitivity: personal
 tags: [manual, opencloud, files]
 ---
 # Kako deliti datoteke (OpenCloud)

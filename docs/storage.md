@@ -4,6 +4,7 @@ role: ssot
 domain: deployment
 cross_cutting: true
 status: active
+sensitivity: infra
 tags: [storage, zfs, datasets, backup, media, nfs]
 ---
 # ZFS Storage Layout & Properties

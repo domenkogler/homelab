@@ -3,6 +3,7 @@ title: Docker Compose Specification
 role: design-spec
 domain: deployment
 status: active
+sensitivity: infra
 tags: [deployment, docker, compose]
 ---
 # Docker Compose Specification

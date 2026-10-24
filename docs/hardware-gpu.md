@@ -4,6 +4,7 @@ role: cross-cutting
 domain: hardware
 cross_cutting: true
 status: active
+sensitivity: infra
 tags: [hardware, gpu, rocm, cross-cutting]
 ---
 # Shared GPU Resource

@@ -3,6 +3,7 @@ title: Deployment — Review Queue
 role: queue
 domain: deployment
 status: active
+sensitivity: infra
 tags: [deployment, review, queue]
 ---
 # Deployment Review Queue

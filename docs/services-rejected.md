@@ -3,6 +3,7 @@ title: Services — Rejected / Dropped Decision Log
 role: log
 domain: services
 status: active
+sensitivity: infra
 tags: [services, rejected, decision-log]
 ---
 # Services — Rejected / Dropped

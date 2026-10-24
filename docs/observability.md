@@ -3,6 +3,7 @@ title: Observability
 domain: observability
 role: ssot
 status: active
+sensitivity: infra
 tags: [observability, grafana, prometheus, monitoring]
 ---
 # Observability

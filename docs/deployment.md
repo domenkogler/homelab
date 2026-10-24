@@ -3,6 +3,7 @@ title: GitOps Deployment
 role: broad
 domain: deployment
 status: active
+sensitivity: infra
 tags: [deployment, gitops, ansible, renovate, forgejo-actions]
 ---
 # GitOps Deployment

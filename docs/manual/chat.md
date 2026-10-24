@@ -3,6 +3,7 @@ title: Klepet (Matrix)
 role: reference
 domain: manual
 status: wip
+sensitivity: personal
 tags: [manual, chat, matrix]
 ---
 # Klepet (Matrix)

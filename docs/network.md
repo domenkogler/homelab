@@ -3,6 +3,7 @@ title: Network Architecture
 role: index
 domain: network
 status: active
+sensitivity: infra
 tags: [network, topology]
 ---
 # Network Architecture

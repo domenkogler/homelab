@@ -3,6 +3,7 @@ title: pi.dev Harness — The rendered models.json (the model contract)
 role: detail
 domain: harness
 status: active
+sensitivity: infra
 tags: [ai, pi, agent-harness, harness, spark, entrim, llm, model-contract]
 ---
 

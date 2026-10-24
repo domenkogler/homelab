@@ -3,6 +3,7 @@ title: Observability — Rejected / Dropped Decision Log
 role: log
 domain: observability
 status: active
+sensitivity: infra
 tags: [observability, alerting, rejected, decision-log]
 ---
 # Observability — Rejected / Dropped

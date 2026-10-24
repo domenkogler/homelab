@@ -3,6 +3,7 @@ title: Harness — Coding-Agent Seats (domain hub)
 role: index
 domain: harness
 status: active
+sensitivity: infra
 tags: [harness, pi, agent-harness, seats, tmux, llm]
 ---
 # Harness — Coding-Agent Seats

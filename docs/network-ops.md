@@ -3,6 +3,7 @@ title: Network Operations — Router Config Storage
 role: detail
 domain: network
 status: active
+sensitivity: infra
 tags: [network, routeros, ops]
 ---
 # Network Operations — Router Config Storage

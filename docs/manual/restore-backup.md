@@ -3,6 +3,7 @@ title: Kako obnoviti iz varnostne kopije
 role: reference
 domain: manual
 status: wip
+sensitivity: personal
 tags: [manual, backup, restore]
 ---
 # Kako obnoviti iz varnostne kopije

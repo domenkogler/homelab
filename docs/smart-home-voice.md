@@ -3,6 +3,7 @@ title: Voice Pipeline
 role: detail
 domain: smart-home
 status: active
+sensitivity: infra
 tags: [smart-home, voice, whisper, piper]
 ---
 # Voice Pipeline

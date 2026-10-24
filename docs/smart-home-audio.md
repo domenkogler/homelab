@@ -3,6 +3,7 @@ title: Audio System
 role: detail
 domain: smart-home
 status: active
+sensitivity: infra
 tags: [smart-home, audio]
 ---
 # Audio System

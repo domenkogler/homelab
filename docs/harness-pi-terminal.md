@@ -3,6 +3,7 @@ title: pi.dev Harness — The seat terminal (tmux mouse + OSC 52 clipboard)
 role: detail
 domain: harness
 status: active
+sensitivity: infra
 tags: [ai, pi, agent-harness, harness, spark, llm, terminal]
 ---
 

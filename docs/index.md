@@ -3,6 +3,7 @@ title: Homelab Documentation Index
 role: index
 domain: meta
 status: active
+sensitivity: infra
 tags: [index, dispatcher, ai]
 ---
 # Homelab Documentation Index

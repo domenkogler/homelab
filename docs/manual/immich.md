@@ -3,6 +3,7 @@ title: Kako dostopati do slik (Immich)
 role: reference
 domain: manual
 status: wip
+sensitivity: personal
 tags: [manual, immich, photos]
 ---
 # Kako dostopati do slik (Immich)

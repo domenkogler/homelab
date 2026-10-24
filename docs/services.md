@@ -3,6 +3,7 @@ title: Service Catalog — Central Stack Index
 role: index
 domain: services
 status: active
+sensitivity: infra
 tags: [services, catalog, index]
 ---
 # Service Catalog — Central Stack Index

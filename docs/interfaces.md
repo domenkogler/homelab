@@ -4,6 +4,7 @@ role: detail
 domain: services
 cross_cutting: true
 status: active
+sensitivity: infra
 tags: [services, interfaces, dashboards]
 ---
 # Interface Matrix — Dashboards & Management

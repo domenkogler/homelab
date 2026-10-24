@@ -3,6 +3,7 @@ title: Kako uporabljati VPN (Tailscale)
 role: reference
 domain: manual
 status: wip
+sensitivity: personal
 tags: [manual, vpn, tailscale]
 ---
 # Kako uporabljati VPN (Tailscale)

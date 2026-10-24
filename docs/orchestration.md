@@ -4,6 +4,7 @@ role: reference
 domain: meta
 cross_cutting: true
 status: active
+sensitivity: infra
 tags: [meta, process, orchestration, sessions]
 ---
 > **Role:** the PERMANENT process contract for repo sessions (cross-cutting) — the working contract (§3) and the

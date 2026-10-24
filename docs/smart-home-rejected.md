@@ -3,6 +3,7 @@ title: Smart Home — Rejected / Dropped Decision Log
 role: log
 domain: smart-home
 status: active
+sensitivity: infra
 tags: [smart-home, rejected, decision-log]
 ---
 # Smart Home — Rejected / Dropped

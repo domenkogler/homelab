@@ -3,6 +3,7 @@ title: Workstation — admin laptop (AMD Strix Point, Radeon 890M) as the client
 role: detail
 domain: hardware
 status: active
+sensitivity: infra
 tags: [hardware, ai, workstation, strix-point, fim, vision, gpu]
 ---
 # Workstation — admin laptop (AMD Strix Point)

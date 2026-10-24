@@ -3,6 +3,7 @@ title: Kontakti za pomoč
 role: reference
 domain: manual
 status: wip
+sensitivity: personal
 tags: [manual, contacts]
 ---
 # Kontakti za pomoč

@@ -3,6 +3,7 @@ title: LLM serving profiles — one-var config switching
 role: design-spec
 domain: hardware
 status: active
+sensitivity: infra
 tags: [hardware, spark, llm, vllm, profile]
 ---
 ## LLM serving profiles — one-var config switching

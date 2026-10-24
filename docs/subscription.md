@@ -3,6 +3,7 @@ title: Service Subscriptions & Costs
 role: reference
 domain: governance
 status: active
+sensitivity: infra
 tags: [governance, subscriptions, costs]
 ---
 # Service Subscriptions & Costs

@@ -3,6 +3,7 @@ title: Dokumentacija za družino
 role: index
 domain: manual
 status: wip
+sensitivity: personal
 tags: [manual, index, slovenian]
 ---
 # Dokumentacija za družino

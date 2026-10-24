@@ -3,6 +3,7 @@ title: Network — Rejected / Dropped Decision Log
 role: log
 domain: network
 status: active
+sensitivity: infra
 tags: [network, rejected, decision-log]
 ---
 # Network — Rejected / Dropped

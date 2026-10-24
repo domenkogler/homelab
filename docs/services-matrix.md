@@ -3,6 +3,7 @@ title: Matrix — Messaging
 role: ssot
 domain: services
 status: active
+sensitivity: infra
 tags: [services, matrix, chat, messaging]
 ---
 # Matrix — Messaging

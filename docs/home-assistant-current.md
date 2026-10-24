@@ -3,6 +3,7 @@ title: Current Home Assistant Instance — Live Inventory
 role: detail
 domain: smart-home
 status: active
+sensitivity: infra
 tags: [smart-home, homeassistant, haos, hacs, addons, audit, docker, failover]
 ---
 # Current Home Assistant Instance — Live Inventory

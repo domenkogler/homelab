@@ -3,6 +3,7 @@ title: AI Platform — Rejected / Dropped Decision Log
 role: log
 domain: services
 status: active
+sensitivity: infra
 tags: [services, ai, rejected, decision-log, rag, memory]
 ---
 # AI Platform — Rejected / Dropped

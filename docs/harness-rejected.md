@@ -3,6 +3,7 @@ title: Harness — Rejected / Dropped Decision Log
 role: log
 domain: harness
 status: active
+sensitivity: infra
 tags: [harness, pi, agent-harness, seats, rejected, decision-log]
 ---
 # Harness — Rejected / Dropped

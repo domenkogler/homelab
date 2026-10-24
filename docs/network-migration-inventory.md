@@ -3,6 +3,7 @@ title: Network Migration Inventory — flat LAN → VLAN cutover (Phase 1.5)
 role: reference
 domain: network
 status: active
+sensitivity: infra
 tags: [network, vlan, migration]
 ---
 # Network Migration Inventory

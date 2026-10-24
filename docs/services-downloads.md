@@ -3,6 +3,7 @@ title: Downloads Stack — Usenet, Torrents & VPN Ingress
 role: detail
 domain: services
 status: active
+sensitivity: infra
 tags: [services, downloads, usenet, torrents, vpn]
 ---
 # Downloads Stack — Usenet, Torrents & VPN Ingress

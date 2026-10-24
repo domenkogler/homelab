@@ -3,6 +3,7 @@ title: Rack Layout
 role: detail
 domain: network
 status: active
+sensitivity: infra
 tags: [network, rack]
 ---
 # Rack Layout

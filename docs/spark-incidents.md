@@ -3,6 +3,7 @@ title: spark — OOM / engine-restart incident log
 role: incident-log
 domain: hardware
 status: active
+sensitivity: infra
 tags: [hardware, spark, gb10, oom, incidents, append-only]
 ---
 # spark — OOM / engine-restart incident log

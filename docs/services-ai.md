@@ -3,6 +3,7 @@ title: AI Platform — Chat, RAG & Agents (LiteLLM / Open WebUI / OpenClaw / Doc
 role: detail
 domain: services
 status: active
+sensitivity: infra
 tags: [services, ai, llm, llm-gateway, rag, agents, okf, vector]
 ---
 # AI Platform — Family Web AI Layer

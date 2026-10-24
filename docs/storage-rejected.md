@@ -3,6 +3,7 @@ title: Storage — Rejected / Dropped Decision Log
 role: log
 domain: deployment
 status: active
+sensitivity: infra
 tags: [storage, rejected, decision-log]
 ---
 # Storage — Rejected / Dropped

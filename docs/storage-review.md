@@ -3,6 +3,7 @@ title: Storage — Review Queue
 role: queue
 domain: deployment
 status: active
+sensitivity: infra
 tags: [storage, review, queue]
 ---
 # Storage Review Queue

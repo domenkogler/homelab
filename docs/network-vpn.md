@@ -3,6 +3,7 @@ title: VPN & Remote Access
 role: detail
 domain: network
 status: active
+sensitivity: infra
 tags: [network, vpn, wireguard, headscale]
 ---
 # VPN & Remote Access

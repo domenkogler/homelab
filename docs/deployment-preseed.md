@@ -3,6 +3,7 @@ title: Preseed & Post-Install Specification
 role: design-spec
 domain: deployment
 status: active
+sensitivity: infra
 tags: [deployment, preseed, debian]
 ---
 # Preseed & Post-Install Specification

@@ -3,6 +3,7 @@ title: 1Password CLI & SSH Agent — runner setup
 role: reference
 domain: deployment
 status: active
+sensitivity: secret-bearing
 tags: [deployment, secrets, 1password, ssh]
 ---
 # 1Password CLI & SSH Agent — WSL runner setup

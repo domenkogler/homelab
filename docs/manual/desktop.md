@@ -3,6 +3,7 @@ title: Kako uporabljati namizni računalnik
 role: reference
 domain: manual
 status: wip
+sensitivity: personal
 tags: [manual, desktop]
 ---
 # Kako uporabljati namizni računalnik

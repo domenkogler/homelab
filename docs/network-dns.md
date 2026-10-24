@@ -3,6 +3,7 @@ title: DNS Architecture
 role: detail
 domain: network
 status: active
+sensitivity: infra
 tags: [network, dns, technitium]
 ---
 # DNS Architecture

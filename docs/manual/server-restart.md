@@ -3,6 +3,7 @@ title: Kako znova zagnati strežnik
 role: reference
 domain: manual
 status: wip
+sensitivity: personal
 tags: [manual, server, restart]
 ---
 # Kako znova zagnati strežnik

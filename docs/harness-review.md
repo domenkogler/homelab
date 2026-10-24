@@ -3,6 +3,7 @@ title: Harness — Review Queue
 role: queue
 domain: harness
 status: active
+sensitivity: infra
 tags: [harness, review, queue, agent-harness]
 ---
 # Harness Review Queue

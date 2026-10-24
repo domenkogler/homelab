@@ -3,6 +3,7 @@ title: Smart Home & Voice Assistant
 role: index
 domain: smart-home
 status: active
+sensitivity: infra
 tags: [smart-home, homeassistant]
 ---
 # Smart Home & Voice Assistant

@@ -3,6 +3,7 @@ title: Film, serije in glasba
 role: reference
 domain: manual
 status: wip
+sensitivity: personal
 tags: [manual, slovenian, media]
 ---
 # Film, serije in glasba

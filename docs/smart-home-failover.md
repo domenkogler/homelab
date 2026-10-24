@@ -3,6 +3,7 @@ title: Home Assistant Failover & High Availability
 role: detail
 domain: smart-home
 status: active
+sensitivity: infra
 tags: [smart-home, homeassistant, failover, ha, vip, standby]
 ---
 # Home Assistant Failover & High Availability

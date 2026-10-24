@@ -3,6 +3,7 @@ title: oldsrv — i7-7700K Docker Host
 role: detail
 domain: hardware
 status: active
+sensitivity: infra
 tags: [hardware, oldsrv, docker]
 ---
 # oldsrv — i7-7700K Docker Host

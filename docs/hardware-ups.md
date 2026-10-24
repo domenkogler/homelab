@@ -3,6 +3,7 @@ title: PowerWalker VFI ICT/ICR IoT 3000 (UPS)
 role: detail
 domain: hardware
 status: active
+sensitivity: infra
 tags: [hardware, ups, power, modbus, nut]
 ---
 # PowerWalker VFI ICT/ICR IoT 3000 (UPS)

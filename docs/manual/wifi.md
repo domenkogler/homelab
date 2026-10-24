@@ -3,6 +3,7 @@ title: Kako uporabljati Wi-Fi
 role: reference
 domain: manual
 status: wip
+sensitivity: personal
 tags: [manual, wifi]
 ---
 # Kako uporabljati Wi-Fi

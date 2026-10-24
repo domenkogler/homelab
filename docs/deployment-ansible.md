@@ -3,6 +3,7 @@ title: Ansible Specification
 role: design-spec
 domain: deployment
 status: active
+sensitivity: infra
 tags: [deployment, ansible, iac]
 ---
 # Ansible Specification

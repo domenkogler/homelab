@@ -3,6 +3,7 @@ title: Traefik — Reverse Proxy & Edge
 role: detail
 domain: services
 status: active
+sensitivity: infra
 tags: [services, traefik, proxy, ssl]
 ---
 # Traefik — Reverse Proxy & Edge

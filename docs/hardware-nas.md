@@ -3,6 +3,7 @@ title: HP MicroServer Gen8
 role: detail
 domain: hardware
 status: active
+sensitivity: infra
 tags: [hardware, nas, zfs]
 ---
 # HP MicroServer Gen8

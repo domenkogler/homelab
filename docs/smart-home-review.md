@@ -3,6 +3,7 @@ title: Smart Home — Review Queue
 role: queue
 domain: smart-home
 status: active
+sensitivity: infra
 tags: [smart-home, review, queue]
 ---
 # Smart Home Review Queue

@@ -3,6 +3,7 @@ title: Renovate Bot — Update Lifecycle
 role: detail
 domain: deployment
 status: active
+sensitivity: infra
 tags: [deployment, renovate, updates]
 ---
 # Renovate Bot — Update Lifecycle

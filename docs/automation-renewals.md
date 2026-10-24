@@ -3,6 +3,7 @@ title: Subscription Renewal Reminder Workflow (n8n)
 domain: services
 role: detail
 status: active
+sensitivity: infra
 tags: [services, n8n, subscriptions, automation]
 ---
 # n8n — Subscription Renewal Reminder Workflow (infrastructure)

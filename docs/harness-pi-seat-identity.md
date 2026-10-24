@@ -3,6 +3,7 @@ title: pi.dev Harness — Seat identity (which box the footer names)
 role: detail
 domain: harness
 status: active
+sensitivity: infra
 tags: [ai, pi, agent-harness, harness, spark, llm, seat-identity]
 ---
 

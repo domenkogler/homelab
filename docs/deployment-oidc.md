@@ -3,6 +3,7 @@ title: Authentik OIDC Provisioning
 role: design-spec
 domain: deployment
 status: active
+sensitivity: infra
 tags: [deployment, authentik, oidc, blueprint]
 ---
 # Authentik OIDC Provisioning — Blueprint + Secret-Egress Glue

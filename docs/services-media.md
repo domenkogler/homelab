@@ -3,6 +3,7 @@ title: Media Stack — Photos, *arr & Streaming
 role: detail
 domain: services
 status: active
+sensitivity: infra
 tags: [services, media, arr, photos, streaming]
 ---
 # Media Stack — Photos, *arr & Streaming

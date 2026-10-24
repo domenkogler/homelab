@@ -3,6 +3,7 @@ title: Authentik — Identity & SSO
 role: detail
 domain: services
 status: active
+sensitivity: secret-bearing
 tags: [services, authentik, sso, oidc]
 ---
 # Authentik — Identity & SSO

@@ -3,6 +3,7 @@ title: Hardware — Rejected / Dropped Decision Log
 role: log
 domain: hardware
 status: active
+sensitivity: infra
 tags: [hardware, rejected, decision-log]
 ---
 # Hardware — Rejected / Dropped

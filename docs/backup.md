@@ -4,6 +4,7 @@ role: detail
 domain: deployment
 cross_cutting: true
 status: active
+sensitivity: infra
 tags: [deployment, backup, zfs, kopia]
 ---
 # Backup & Disaster Recovery

@@ -3,6 +3,7 @@ title: Admin — Ops, GitOps, Security & Backup
 role: detail
 domain: services
 status: active
+sensitivity: infra
 tags: [services, admin, ops, gitops, security, backup]
 ---
 # Admin — Ops, GitOps, Security & Backup

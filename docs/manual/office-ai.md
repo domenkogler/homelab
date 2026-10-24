@@ -3,6 +3,7 @@ title: AI pomočnik in Office (Word / Excel / PowerPoint)
 role: reference
 domain: manual
 status: wip
+sensitivity: personal
 tags: [manual, office, ai, openwebui]
 ---
 # AI pomočnik in Office (Word / Excel / PowerPoint)

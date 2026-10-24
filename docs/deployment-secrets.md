@@ -3,6 +3,7 @@ title: Secrets Management & Passwordless Philosophy
 role: detail
 domain: deployment
 status: active
+sensitivity: secret-bearing
 tags: [deployment, secrets, 1password]
 ---
 # Secrets Management & Passwordless Philosophy

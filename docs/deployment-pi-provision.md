@@ -3,6 +3,7 @@ title: Pi Provision Runbook — Phase 4 (HA primary on pi.kogler.si)
 role: detail
 domain: deployment
 status: active
+sensitivity: infra
 tags: [deployment, raspberry-pi, homeassistant, knx, phase4, runbook, provision]
 ---
 # Pi Provision Runbook — Phase 4 (`pi.kogler.si` HA primary)

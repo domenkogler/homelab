@@ -4,6 +4,7 @@ role: detail
 domain: services
 cross_cutting: true
 status: active
+sensitivity: infra
 tags: [services, llm, ollama, office]
 ---
 # Office Stack — Local LLM, Documents & Office Automation

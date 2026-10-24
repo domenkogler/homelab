@@ -3,6 +3,7 @@ title: AI Stack — 1Password Items & OIDC Wiring
 role: runbook
 domain: deployment
 status: active
+sensitivity: secret-bearing
 tags: [deployment, secrets, ai, litellm, open-webui, qdrant, openclaw, docling]
 ---
 # AI Stack — 1Password Items & OIDC Wiring

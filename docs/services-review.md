@@ -3,6 +3,7 @@ title: Services — Review Queue
 role: queue
 domain: services
 status: active
+sensitivity: infra
 tags: [services, review, queue]
 ---
 # Services Review Queue

@@ -3,6 +3,7 @@ title: Utilities — Productivity Sidekicks
 role: detail
 domain: services
 status: active
+sensitivity: infra
 tags: [services, utilities, tools, automation]
 ---
 # Utilities — Productivity Sidekicks

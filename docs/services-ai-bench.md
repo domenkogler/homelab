@@ -3,6 +3,7 @@ title: Measured AI inference benchmarks on oldsrv (STT + rerank device sweep)
 role: evidence
 domain: services
 status: active
+sensitivity: infra
 tags: [services, ai, gpu, benchmark, stt, rerank, embed, vram, whisper, vulkan]
 ---
 # AI Inference Benchmarks — oldsrv RX 7600 / HD 630 / CPU

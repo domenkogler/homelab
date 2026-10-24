@@ -3,6 +3,7 @@ title: Deferred VPS Infrastructure
 role: reference
 domain: services
 status: active
+sensitivity: infra
 tags: [services, vps, netcup]
 ---
 # Deferred VPS Infrastructure

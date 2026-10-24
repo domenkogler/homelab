@@ -3,6 +3,7 @@ title: Hardware Overview
 role: index
 domain: hardware
 status: active
+sensitivity: infra
 tags: [hardware]
 ---
 # Hardware Overview

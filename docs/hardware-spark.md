@@ -3,6 +3,7 @@ title: spark — Lenovo ThinkStation PGX (NVIDIA GB10 Grace Blackwell)
 role: detail
 domain: hardware
 status: active
+sensitivity: infra
 tags: [hardware, gpu, spark, gb10, grace-blackwell, ai]
 ---
 # spark — Lenovo ThinkStation PGX (NVIDIA GB10 Grace Blackwell)
