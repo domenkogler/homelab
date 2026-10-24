@@ -477,6 +477,29 @@
 #                                     half is live (so this cannot be a silent cap), proves the ceiling
 #                                     and the seal are separate checks, and refuses an empty corpus, a
 #                                     missing baseline and a malformed body at rc 2.
+#  42. check_role_docs.py            — HD-1200: the tree→docs half of the docs seam. A role directory
+#                                     could land with no doc of its own and nothing noticed —
+#                                     check_doc_path_refs.py proves the paths a doc cites exist and
+#                                     check_doc_map.py proves a doc is reachable from docs/index.md, both
+#                                     docs→tree; check_view_registry_sync.py diffs two hand-written views
+#                                     of one id set. This one derives its role set from the IaC/ansible/
+#                                     roles/ DIRECTORY listing (no role name is written in the script, so
+#                                     adding or renaming a role moves the rule, not the file) and matches
+#                                     it against the TEXT of the hand-authored docs/*.md, so it holds a
+#                                     coverage floor rather than a view equality, and its floor sits at 0
+#                                     findings: every role is already named, and the gate's whole value is
+#                                     prospective — an undocumented role cannot ship. Naming is decided by
+#                                     shape (a roles/<name> path, a code span, a table cell, an ansible
+#                                     roles: entry) rather than by the string, because for common,
+#                                     network, storage, switch and seat the bare word in prose is the
+#                                     English word; a prose-only role is a finding that PRINTS its sites,
+#                                     so the reader sees whether the fix is "write the doc" or "name it
+#                                     where you meant it". A docs/*-generated.md render view cannot
+#                                     document a role (§8.2, §8.5), and the corpus definition is imported
+#                                     from check_doc_size.py rather than re-spelled (§2). --self-test
+#                                     breeds and deletes a role dir in a temp tree to prove the set is
+#                                     derived, proves the shape test from both sides, and refuses an empty
+#                                     corpus, a missing role tree and a doc-less tree at rc 2.
 #
 # HOW THIS RUNS (2026-10-09, HD-1117): the items above are QUEUED and run CONCURRENTLY,
 #   8 in flight on an 8-core runner — 32 s -> 12 s. They are independent: every check is
@@ -1546,6 +1569,10 @@ item_q "ansible_query.py --self-test (HD-456 fixtures + the venv re-exec guard b
 # profile because it reads 75 docs' line counts and nothing else.
 item_q "check_doc_size.py (HD-1199: a hand-authored docs/*.md may shrink and may not exceed its sealed line count; the seal fails in both directions, so deleting a baseline line launders nothing)" $PY scripts/gate/check_doc_size.py
 item_q "check_doc_size.py --self-test (the shrink half proved live so this is no silent cap, the new-doc ceiling proved separate from the seal rule, a render view invisible to every rule and refused from inside the seal, and a missing baseline / malformed body / empty corpus all refusing to print OK)" $PY scripts/gate/check_doc_size.py --self-test
+# HD-1200: the other direction of the docs seam — a role directory with no doc is invisible to every
+# docs→tree gate. Two reads and a substring scan, so it belongs in quick too.
+item_q "check_role_docs.py (HD-1200: every dir under IaC/ansible/roles/ is named by a hand-authored docs/*.md — the role set is derived from the tree, never listed, and naming is decided by shape rather than by the string)" $PY scripts/gate/check_role_docs.py
+item_q "check_role_docs.py --self-test (a role bred and deleted in a temp tree to prove the set is derived, a prose-only role reddening with its sites printed while one code-font mention clears it, a render view unable to document a role, and an empty corpus / missing role tree / doc-less tree all refusing to print OK)" $PY scripts/gate/check_role_docs.py --self-test
 
 # The rsync `--max-delete` fixture. rc 2 is a BOUNDARY, printed and never counted green: the two
 # deletion arms need an rsync binary, which the WSL Debian seat does not carry, while the shape-parity
