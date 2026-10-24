@@ -312,6 +312,31 @@ A new service must clear this path (each step's owning doc is the anchor; violat
   evidence link, no prose paragraph** (the reasoning trail is git and the owning doc). When a
   decision changes, the old entry is left unchanged and a new one is appended (do **not** strike the
   old one).
+- **An open question is an `Options` section in its OWNING doc, keyed by its `OQ-<n>` id** — the counterpart
+  of the log above, and its open half. Shape, all of it mechanically checkable: a heading at level 2 or 3 whose
+  text begins `Options` and names the id (`### Options (OQ-<n>): <the question as asked>`), carrying a table
+  with the header exactly `| Option | For | Against | Cost | Cheap test |`, **two or more** option rows, every
+  `Cheap test` cell non-empty — the cheapest experiment that would settle it, which is what makes the section
+  cheaper to answer than to argue — and **no recommend/decided/decision wording inside it**: an option is never
+  a recommendation dressed as a decision. The recommendation is the owner's act, and when it lands it lands as
+  state prose elsewhere in the doc.
+  - **Inventory:** `rg -n '^#{2,3} Options' docs/` is the whole list of open questions — that fixed heading
+    shape is exactly what a prose heading like "Open questions" cannot give, since the same phrase also appears
+    in prose.
+  - **An answered question leaves no `Options` section behind.** The answer becomes state in the doc, plus a
+    `<domain>-rejected.md` row where the outcome is a rejection. A section whose question is answered is a
+    changelog wearing a table.
+  - **`<domain>-rejected.md` keeps NO `open` status.** The log is one row per subject and append-only, so an
+    open→decided pair on one subject would break the subject-keyed sort that makes it greppable — the row is
+    the fact that an alternative was rejected, and a row that is still waiting says nothing about any
+    alternative. The doc's `Options` section IS the open state, the log is the decided state; one subject is
+    therefore in one of the two, never in both.
+  - **`OQ-<n>` ids are derived, never typed** — the next id is max+1 over every `OQ-<n>` already in the tracked
+    `*.md` (`git grep -hoE 'OQ-[0-9]+' -- '*.md' | sed 's/OQ-//' | sort -n | tail -1`), the same argument as the
+    backlog ids (§2): a hand-typed number goes stale the moment two docs grow at once.
+  - **The citation direction is row→doc, never doc→row** (§6 state-only): a `todo.md` row may name the `OQ` id
+    and its doc section; the doc names no row. A doc that cites a queue row has made a standing question depend
+    on a line that moves.
 - The **services** domain seeds the pattern: `docs/services-review.md` +
   `docs/services-rejected.md`. Other big domains (network, hardware, smart-home) opt in with their own
   `<domain>-{review,rejected}.md` when they have enough volume. A domain **cut out of an existing one**
