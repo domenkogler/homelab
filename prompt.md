@@ -70,7 +70,7 @@ BOTH `~/.ssh/config` files). In one line: behind-NAT hosts (`pi`/`nas`/`oldsrv`/
 onto their **Home leg**; the **Mgmt plane (VLAN 99) is same-site only** (`router`/`switch`/`ap-*`/`pi99`/`oldsrv99`/`nas99` —
 never a `ProxyJump`). `ssh oldsrv` = the Home address. `python3`/bash/LF/UTF-8 no-BOM everywhere
 (`.gitattributes` pins `eol=lf`, so a checkout is LF on Windows too).
-
+**Class, size and open questions are gated:** [`CONVENTIONS.md`](CONVENTIONS.md) §8.6 (`sensitivity:` + the egress rule) and §8.3 (an open question is an `Options` section keyed `OQ-<n>`), held by the `check_doc_sensitivity` / `check_open_questions` / `check_doc_size` / `check_role_docs` gates. Surprise to know: a **size-ratchet growth red is the station's `--reseal`, never a doc to trim mid-lane**.
 ## 2. Next tasks (the rows are the authority; this is only the ranked pointer list)
 
 > **Dispatch, for a session running as the orchestrator.** Delegate the work instead of performing it (O10):
