@@ -18,7 +18,7 @@ carries resolve — docs→tree, over documents. `check_view_registry_sync.py` d
 views of one id set (`todo.md` rows against `todo-table.md` §B9), so both of its sides are prose lists
 that can drift from each other. This gate runs the opposite direction over two DIFFERENT substrates:
 one set is derived from a directory listing (`IaC/ansible/roles/`), the other from the text of the
-hand-authored `docs/*.md`. There is therefore no second view to keep in step and no baseline to
+hand-authored `docs/**/*.md`. There is therefore no second view to keep in step and no baseline to
 freeze — the rule is a COVERAGE FLOOR (no role may be undocumented), not a set equality, and its floor
 value is 0 findings: the day it was written every role was already named, so its whole value is
 prospective. An undocumented role cannot ship.
@@ -45,11 +45,12 @@ are incidental is a finding, and the finding LISTS those sites, because the two 
 zero sites means "write the doc", incidental-only sites mean "the corpus talks around this role
 already — name it where you meant it".
 
-A `docs/*-generated.md` render view is not an author. The corpus is the hand-authored `docs/*.md`, and
-the derivation is IMPORTED from `check_doc_size.py` rather than re-spelled here, so the two gates
-cannot hold two opinions about what "hand-authored" means (CONVENTIONS §2). A role whose only mention
-lives in a render view is undocumented, and the finding says so, because a renderer's output is a
-property of the IaC — the thing whose doc is in question (CONVENTIONS §8.2, §8.5).
+A `docs/**/*-generated.md` render view is not an author. The corpus is every hand-authored markdown
+under `docs/`, at any depth, and the derivation is IMPORTED from `check_doc_size.py` rather than
+re-spelled here, so the two gates cannot hold two opinions about what "hand-authored" means and how far
+down it goes (CONVENTIONS §2). A role whose only mention lives in a render view is undocumented, and the
+finding says so, because a renderer's output is a property of the IaC — the thing whose doc is in
+question (CONVENTIONS §8.2, §8.5).
 
 WHAT THIS DOES NOT PROVE, stated rather than left to be discovered:
   * Not one mention is the RIGHT mention. Code font proves a token is an identifier, not that the
@@ -59,9 +60,12 @@ WHAT THIS DOES NOT PROVE, stated rather than left to be discovered:
   * A name written with the wrong separator (`docker-services` for `docker_services`) is not this
     role's name and reads as a gap. The failure goes the honest way: a gap the gate shows you, not one
     it hides.
-  * The corpus is `docs/*.md` one level deep. A role named only in `docs/manual/**` (or only in a root
-    doc) reads as undocumented here — the family plane names services, not roles, and the doc that
-    owns a role lives with the agent-facing corpus.
+  * The corpus is the docs tree at ANY depth — a nested guide counts as an author. That is a deliberate
+    widening: the flat `docs/*.md` walk this gate shipped with read a role named only under
+    `docs/manual/**` as undocumented, which hid the gap rather than closing it.
+  * A role named ONLY outside `docs/` — in a root doc, in a playbook comment, in `scripts/` — still
+    reads as a gap here, because the corpus this rule reads is the docs tree and the doc that owns a
+    role lives in it.
   * A role directory that exists but is referenced by no playbook is NOT this gate's finding;
     reachability of a role from a playbook is IaC's own question, and a dead role with a doc passes
     here, which is correct — the rule is about documentation, not about use.
@@ -90,9 +94,9 @@ from repo_root import require_corpus, root as _hl_root, script_path  # noqa: E40
 
 ROOT = _hl_root(__file__)
 ROLES_REL = "IaC/ansible/roles"
-# Floors, not measurements: 27 role dirs and 75 hand-authored docs/*.md in the tree when this was
-# written. Both sit far below the tree on purpose — they fire on a broken root or a blind walk, never
-# on an ordinary commit that adds one role.
+# Floors, not measurements: the role floor sits far below the role tree and the doc floor far below the
+# doc corpus, and the run prints both derived counts, so nothing that belongs to the tree is typed here
+# (§2). They fire on a broken root or a blind walk, never on an ordinary commit that adds one role.
 ROLE_FLOOR = 8
 DOC_FLOOR = 40
 FENCE_RE = re.compile(r"^[ \t]*(?:```|~~~)")
@@ -104,17 +108,20 @@ class ToolError(Exception):
 
 
 def load_doc_walk():
-    """`(walk_docs, GENERATED_SUFFIX, origin)` — the ONE hand-authored-docs derivation, imported.
+    """`(walk_docs, flat_walk_docs, GENERATED_SUFFIX, origin)` — the ONE hand-authored-docs derivation.
 
     Spelled a second time here it would be a second source: two gates disagreeing about which docs are
     hand-authored is the CONVENTIONS §2 defect, and it would show up as one gate reddening a corpus the
-    other one has never seen. A failed import is a boundary, never a local fallback."""
+    other one has never seen. `flat_walk_docs` is the shape this walk REPLACED — no verdict reads it,
+    it is imported so the self-test can prove a nested doc is seen now and was invisible then. A failed
+    import is a boundary, never a local fallback."""
     path = script_path("check_doc_size.py", __file__)
     spec = importlib.util.spec_from_file_location("check_doc_size_for_role_docs", path)
     mod = importlib.util.module_from_spec(spec)
     try:
         spec.loader.exec_module(mod)
-        return mod.walk_docs, mod.GENERATED_SUFFIX, str(path.relative_to(ROOT))
+        return (mod.walk_docs, mod.flat_walk_docs, mod.GENERATED_SUFFIX,
+                str(path.relative_to(ROOT)))
     except Exception as exc:                        # a sibling that will not load is not a corpus
         raise ToolError("cannot load the hand-authored-docs derivation from %s (%s) — refusing to "
                         "invent a second definition of the same corpus"
@@ -136,7 +143,7 @@ def discover_roles(root: Path) -> list[str]:
 
 def read_docs(root: Path) -> tuple[dict, dict]:
     """({relpath: text}, {relpath: why it did not read}) for the hand-authored docs."""
-    walk, _suffix, _origin = load_doc_walk()
+    walk, _flat, _suffix, _origin = load_doc_walk()
     texts: dict[str, str] = {}
     unreadable: dict[str, str] = {}
     try:
@@ -232,8 +239,8 @@ def scan(roles: list[str], docs: dict, unreadable=()) -> tuple[list, dict]:
                 % (role, len(inc), len(inc_docs), "; ".join(inc[:MAX_PRINTED]), more, role))
         else:
             findings.append(
-                "FAIL: role %s: undocumented — the name occurs in NO hand-authored docs/*.md, so this "
-                "role ships with nothing that says why it exists, what it must never do, or how it "
+                "FAIL: role %s: undocumented — the name occurs in NO hand-authored docs/**/*.md, so "
+                "this role ships with nothing that says why it exists, what it must never do, or how it "
                 "fails. Write or link the owning doc (`docs/index.md` is the map); the role set is "
                 "derived from %s/, so this finding disappears when a doc names it"
                 % (role, ROLES_REL))
@@ -258,15 +265,15 @@ def report(roles: list[str], docs: dict, unreadable=(), verbose: bool = False,
               % ROLES_REL)
         return 2
     if not docs and not unreadable:
-        print("CANNOT RUN: no hand-authored docs/*.md were read, so nothing could count as a mention "
+        print("CANNOT RUN: no hand-authored docs/**/*.md were read, so nothing could count as a mention "
               "and every role would be reported undocumented by a broken walk rather than by a real "
               "gap.")
         return 2
     require_corpus(len(roles), role_floor, "check_role_docs walked %s/" % ROLES_REL)
     require_corpus(len(docs) + len(unreadable), doc_floor,
-                   "check_role_docs read hand-authored docs/*.md")
+                   "check_role_docs read hand-authored docs/**/*.md")
     findings, stats = scan(roles, docs, unreadable)
-    print("corpus: %d role dir(s) under %s%s, %d hand-authored docs/*.md"
+    print("corpus: %d role dir(s) under %s%s, %d hand-authored docs/**/*.md"
           % (stats["roles"], ROLES_REL, (" (derived from this tree)" if origin else ""), stats["docs"]))
     for line in findings:
         print(line)
@@ -284,7 +291,7 @@ def report(roles: list[str], docs: dict, unreadable=(), verbose: bool = False,
                 print("      %s" % site)
             if p["inc"] and not p["own"]:
                 print("      incidental only: %d site(s)" % len(p["inc"]))
-    print("OK: %d role dir(s) under %s, each named by >=1 hand-authored docs/*.md — %d owning "
+    print("OK: %d role dir(s) under %s, each named by >=1 hand-authored docs/**/*.md — %d owning "
           "mention(s), %d incidental, %d gap(s)"
           % (stats["roles"], ROLES_REL, stats["owning"], stats["incidental"], stats["gaps"]))
     return 0
@@ -398,7 +405,7 @@ def self_test() -> int:
                 (rc == 0 if want_gaps == 0 else rc == 1 and out.count("FAIL: role") == want_gaps),
                 "rc %d: %s" % (rc, out[-160:]))
 
-        # (d) A render view is not an author.
+        # (d) A render view is not an author, and DEPTH does not make one either way.
         other = "# Other\n\nA hand-authored doc that says nothing about the delta role.\n"
         t = _tree(tmp / "d-gen", ["delta"], {"docs/view-generated.md": "roles/delta\n`delta`\n",
                                             "docs/other.md": other})
@@ -415,7 +422,31 @@ def self_test() -> int:
                                               "docs/other.md": other})
         rc, out = run(t)
         arm("(d) the render view never enters the corpus the run counts — the OK/cannot-run line reads "
-            "1 hand-authored doc, not 2", "1 hand-authored docs/*.md" in out, out[:160])
+            "1 hand-authored doc, not 2", "1 hand-authored docs/**/*.md" in out, out[:160])
+
+        # The corpus has DEPTH: the walk this gate shipped with read `docs/*.md` one level deep, so a
+        # role whose only mention sat under a subdirectory was invisible to it — the gap HD-1201 was
+        # minted for. Each arm below is paired with the old flat walk, imported from the sibling that
+        # owns the derivation, so the canary shows the difference it claims (CONVENTIONS §6).
+        t = _tree(tmp / "d-nest", ["nested_only"],
+                  {"docs/prose.md": "# Notes\n\nA doc that names nothing relevant.\n",
+                   "docs/sub/x.md": "# Nested guide\n\nThe role lives at `roles/nested_only` and "
+                                    "`nested_only` is applied by the playbook.\n"})
+        rc, out = run(t)
+        arm("(d) a role whose ONLY namer is a NESTED doc is DOCUMENTED, and the corpus line counts that "
+            "nested guide — the walk is depth-free",
+            rc == 0 and "2 hand-authored docs/**/*.md" in out and "0 gap(s)" in out,
+            "rc %d: %s" % (rc, out[-240:]))
+        wide_walk, flat_walk, _suffix, _origin = load_doc_walk()
+        arm("(d) and under the flat walk this gate shipped with the same tree was RED: the nested doc "
+            "is in one listing and in no part of the other",
+            "docs/sub/x.md" in wide_walk(t) and "docs/sub/x.md" not in flat_walk(t),
+            "wide %s / flat %s" % (wide_walk(t), flat_walk(t)))
+        t = _tree(tmp / "d-nestgen", ["delta"], {"docs/sub/view-generated.md": "roles/delta\n`delta`\n",
+                                                 "docs/other.md": other})
+        rc, out = run(t)
+        arm("(d) a NESTED render view is still not an author — widening the walk did not widen the "
+            "exclusion's depth (§8.2, §8.5)", rc == 1 and "delta" in out, "rc %d: %s" % (rc, out[-200:]))
 
         # (e) Fail-closed boundaries: none of these may print OK.
         empty = tmp / "e-empty"
@@ -454,6 +485,13 @@ def self_test() -> int:
             "holds, never a list in this file",
             not re.search(r"^[A-Z_]+\s*=\s*\[\s*[\"']", Path(__file__).read_text(encoding="utf-8"),
                           re.M), "a role list appeared in the source")
+        wide_here, flat_here, _suf, _org = load_doc_walk()
+        arm("(f) on THIS checkout the corpus the run reads is strictly larger than the flat walk's — "
+            "the nested guides are in the mention corpus, and the number printed is the one the walk "
+            "derived (%d docs against the flat walk's %d)" % (len(wide_here(ROOT)), len(flat_here(ROOT))),
+            len(wide_here(ROOT)) > len(flat_here(ROOT))
+            and ("%d hand-authored docs/**/*.md" % len(wide_here(ROOT))) in out,
+            "wide %d, flat %d, out: %s" % (len(wide_here(ROOT)), len(flat_here(ROOT)), out[:160]))
 
     if fails:
         print("FAIL: self-test — %d arm(s) did not behave" % fails)
@@ -461,8 +499,9 @@ def self_test() -> int:
     print("OK: self-test — the role set is proved derived in both directions by touching only the "
           "tree, an undocumented role reddens, a prose-only mention reddens with its sites named while "
           "one code-font mention clears it, the token boundary refuses a neighbour role's name and a "
-          "file name, a render view cannot document a role its own bytes describe, and an empty corpus, "
-          "a missing role tree, a doc-less tree and a below-floor walk all refuse to print OK")
+          "file name, a render view cannot document a role its own bytes describe at any depth while a "
+          "nested HAND-AUTHORED doc can, and an empty corpus, a missing role tree, a doc-less tree and "
+          "a below-floor walk all refuse to print OK")
     return 0
 
 
@@ -472,7 +511,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(
         prog="check_role_docs.py",
         description="Every directory under IaC/ansible/roles/ must be named by at least one "
-                    "hand-authored docs/*.md. The role set is derived from the tree; the doc set is "
+                    "hand-authored docs/**/*.md. The role set is derived from the tree; the doc set is "
                     "derived from the corpus check_doc_size.py seals. Read-only.",
         epilog="exit 0 every role named · 1 undocumented role(s) · 2 could not run")
     ap.add_argument("--verbose", action="store_true",

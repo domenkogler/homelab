@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """check_doc_size.py — a hand-authored doc may shrink freely and may not exceed its sealed count (HD-1199).
 
-> **Role:** ratchet over the size of the hand-authored `docs/*.md`. Read-only; `--reseal` is the one
+> **Role:** ratchet over the size of the hand-authored `docs/**/*.md`. Read-only; `--reseal` is the one
 > write, and it belongs to the merge station, never to a lane.
 > **Linked from:** `scripts/README.md` (the validation gate), `CONVENTIONS.md` §6 (the ratchet lesson),
 > §8.5 (no wall clock in a derived file)
@@ -29,14 +29,17 @@ THE THREE RULES, each with its verdict word:
             is the next site's free pass (`check_doc_headings.py` and `check_handoff_size.py` state
             the same rule for their own ledgers).
 
-SCOPE, and the one class deliberately outside it. The rule reads the hand-authored `docs/*.md` — the
-set is DERIVED by globbing that one directory, never by a list in this file. The four
-`docs/*-generated.md` render views are out of the baseline AND out of the rule: their length is a
-property of what the IaC renders, so a docs gate must never be able to redden on a render
-(CONVENTIONS §8.2, §8.5). That exclusion is enforced from both sides — the walk skips the suffix, and
-a `-generated.md` line IN the baseline is a parse error, because a sealed render view would be a
-number this gate can neither re-derive nor clear. `docs/manual/**` is out of scope too: this rule
-speaks about the docs an agent reads to plan work, and the family plane is a different corpus.
+SCOPE, and the one class deliberately outside it. The rule reads every hand-authored markdown under
+`docs/`, at ANY depth — the set is DERIVED by walking that directory tree, never by a list in this
+file. The walk is depth-free on purpose: the one-level glob this gate shipped with left the nested
+guides (`docs/manual/**`) outside the seal, where a doc could outgrow any ceiling while the run still
+printed a green corpus line. The `docs/**/*-generated.md` render views stay out of the baseline AND
+out of the rule: their length is a property of what the IaC renders, so a docs gate must never be able
+to redden on a render (CONVENTIONS §8.2, §8.5). That exclusion is enforced from both sides — the walk
+skips the suffix at every depth, and a `-generated.md` line IN the baseline is a parse error, because a
+sealed render view would be a number this gate can neither re-derive nor clear. A seal path that
+escapes `docs/` is a parse error for the same reason: the body names docs inside the corpus, nowhere
+else.
 
 `--reseal` rewrites the whole body from the tree and prints what it froze — docs covered, total lines,
 the largest file, and the delta against the previous seal with its direction. It is the only write
@@ -88,13 +91,17 @@ GENERATED_SUFFIX = "-generated.md"
 # seal already carries docs under this number, so the ceiling only bites a doc written TODAY, and it
 # is low enough that a new doc cannot be born at the size of the largest existing one.
 NEW_DOC_CEILING = 200
-# Floor, not measurement: 75 hand-authored docs/*.md in the tree when this gate was written. A walk
-# that yields a handful of docs is a broken repo root, and a ratchet measured against a broken walk
-# would freeze a stub baseline — which is worse than red, because the next run would be green.
+# Floor, not measurement — it sits far below the corpus this walk derives, and the run prints that
+# count (§2 is why no number for it is typed here). A walk that yields a handful of docs is a broken
+# repo root, and a ratchet measured against a broken walk would freeze a stub baseline — which is
+# worse than red, because the next run would be green.
 DOC_FLOOR = 40
-# `<path><TAB><line count>` and nothing else. One directory level, relative, LF: no timestamp, no
-# absolute path, no wall clock anywhere — CONVENTIONS §8.5 is why.
-SEAL_LINE = re.compile(r"^(docs/[^/\t]+\.md)\t(\d+)$")
+# `<path><TAB><line count>` and nothing else. Repo-relative, LF, and NESTED paths are legal: the walk
+# is depth-free, so the body is one line per doc at any depth under docs/. No timestamp, no absolute
+# path, no wall clock anywhere — CONVENTIONS §8.5 is why. Because `[^/\t]+` no longer bounds the path,
+# the escape half is guarded on its own by ESCAPE_RE in parse_seal.
+SEAL_LINE = re.compile(r"^(docs/[^\t]+\.md)\t(\d+)$")
+ESCAPE_RE = re.compile(r"(?:^|/)\.\.(?:/|$)")
 CLOCK_RE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}:\d{2}:\d{2}\b|\b\d{9,11}\b")
 MAX_PRINTED = 12
 
@@ -105,10 +112,10 @@ DEFAULT_HEADER = """\
 #
 # One line per in-scope doc, two TAB-separated fields, sorted by path, LF only:
 #     <path>TAB<line count>
-# In scope: the hand-authored docs/*.md, a set the gate DERIVES by globbing that directory. A
-# docs/*-generated.md render view is out of this file and out of the rule — its length is an
-# IaC-render property, so a docs gate must not be able to redden on a render (§8.2, §8.5). A line
-# carrying that suffix is a parse error, not an exemption.
+# In scope: every hand-authored docs/**/*.md at any depth, a set the gate DERIVES by walking that
+# directory tree. A docs/**/*-generated.md render view is out of this file and out of the rule — its
+# length is an IaC-render property, so a docs gate must not be able to redden on a render (§8.2,
+# §8.5). A line carrying that suffix, or a path that escapes docs/, is a parse error, not an exemption.
 #
 # Both directions fail, and that is the point: an in-scope doc this file omits reddens, and a line
 # whose doc is gone reddens. A line that matches nothing is the next site's free pass.
@@ -127,16 +134,29 @@ class ToolError(Exception):
 # ---------------------------------------------------------------- the tree
 
 def walk_docs(root: Path) -> list[str]:
-    """The in-scope set, DERIVED from the tree: one directory level, hand-authored only.
+    """The in-scope set, DERIVED from the tree: every hand-authored markdown under docs/, at any depth.
 
     A `-generated.md` render view is skipped here rather than filtered later, so there is exactly one
     place in this file where the exclusion lives (and its mirror in parse_seal, which refuses the same
-    suffix from the other side). The glob is one level deep on purpose: `docs/manual/**` is the family
-    corpus, a different rule's subject (declared in the docstring)."""
+    suffix from the other side). The walk is DEPTH-FREE: the one-level glob this gate shipped with
+    could not see a nested doc at all, so every guide under `docs/manual/**` sat outside the seal —
+    free to grow past any ceiling while the corpus line still read green. A path component beginning
+    with `.` is skipped, the same exclusion `check_role_docs.discover_roles` applies to role dirs: a
+    hidden directory is not part of the doc corpus."""
     docs = root / DOCS_DIR
     if not docs.is_dir():
         raise ToolError("%s/ is not a directory — the corpus this gate ratchets is gone, and an empty "
                         "walk would read as a clean tree" % DOCS_DIR)
+    return sorted(p.relative_to(root).as_posix() for p in docs.rglob("*.md")
+                  if p.is_file() and not p.name.endswith(GENERATED_SUFFIX)
+                  and not any(part.startswith(".") for part in p.relative_to(root).parts))
+
+
+def flat_walk_docs(root: Path) -> list[str]:
+    """The walk this gate shipped with: `docs/*.md`, one directory level. Kept only so `--self-test`
+    can PROVE the widened walk sees a nested doc the old one could not (CONVENTIONS §6: a canary has
+    to be able to show the difference it claims). Not used by any verdict."""
+    docs = root / DOCS_DIR
     return sorted("%s/%s" % (DOCS_DIR, p.name) for p in docs.glob("*.md")
                   if p.is_file() and not p.name.endswith(GENERATED_SUFFIX))
 
@@ -158,7 +178,7 @@ def measure(root: Path) -> tuple[dict, dict]:
 
 
 def require_docs(count: int, floor: int) -> int:
-    return require_corpus(count, floor, "check_doc_size globbed hand-authored %s/*.md" % DOCS_DIR)
+    return require_corpus(count, floor, "check_doc_size walked hand-authored %s/**/*.md" % DOCS_DIR)
 
 
 # ---------------------------------------------------------------- the seal
@@ -185,6 +205,11 @@ def parse_seal(text: str) -> tuple[dict, list[str]]:
             bad.append("%s:%d — %s is a render view: it is out of this rule entirely, and a sealed "
                        "render view is a number no docs gate can re-derive" % (BASELINE, n, path))
             continue
+        if ESCAPE_RE.search(path):
+            bad.append("%s:%d — %s walks out of %s/: the body names docs inside the corpus with "
+                       "repo-relative paths, and a sealed line pointing elsewhere holds a count no "
+                       "walk of this tree will ever produce" % (BASELINE, n, path, DOCS_DIR))
+            continue
         if path in seal:
             bad.append("%s:%d — %s is sealed twice, so the two lines disagree about one doc"
                        % (BASELINE, n, path))
@@ -208,8 +233,8 @@ def _why_bad(line: str) -> str:
     if low.startswith(("/", "c:", "\\\\", "..")):
         return " — an absolute or escaping path: the body cites repo-relative paths only"
     path = low.split("\t", 1)[0]
-    if "/" in path[len(DOCS_DIR) + 1:]:
-        return " — a nested path: the rule reads docs/*.md one level deep"
+    if ESCAPE_RE.search(path):
+        return " — a path that escapes docs/: the body names docs inside the corpus, nowhere else"
     if path.endswith(GENERATED_SUFFIX):
         return " — a render view is out of scope (§8.2, §8.5)"
     return ""
@@ -270,12 +295,12 @@ def summary(counts: dict) -> str:
 def report(tree: dict, seal: dict, unreadable=(), verbose: bool = False,
            floor: int = DOC_FLOOR) -> int:
     if not tree and not unreadable:
-        print("CANNOT RUN: no hand-authored %s/*.md were read. Either the walk is broken or this is "
+        print("CANNOT RUN: no hand-authored %s/**/*.md were read. Either the walk is broken or this is "
               "not the repo root — and a ratchet measured against nothing would freeze an empty "
               "baseline, which reads green forever (HD-1118 Stage 1)." % DOCS_DIR)
         return 2
     growth, unsealed, newdoc, stale = diff(tree, seal, unreadable)
-    print("scope %s/*.md hand-authored: %s" % (DOCS_DIR, summary(tree)))
+    print("scope %s/**/*.md hand-authored: %s" % (DOCS_DIR, summary(tree)))
     print("seal  %s: %s; a doc the seal omits must be <= %d lines"
           % (BASELINE, summary(seal), NEW_DOC_CEILING))
     for rel, sealed, now in growth:
@@ -547,7 +572,7 @@ def self_test() -> int:
         t_ok = _tree(tmp / "d-ok", base)
         for label, body in (
                 ("an absolute path", "/home/you/homelab/docs/alpha.md\t120\n"),
-                ("a nested path", "docs/sub/alpha.md\t120\n"),
+                ("a path that escapes docs/", "docs/../outside.md\t120\n"),
                 ("a field line, where a timestamp would live", "sealed_at 0123456789abcdef\n"),
                 ("a bare word", "everything-is-fine\n"),
                 ("a non-numeric count", "docs/alpha.md\tmany\n"),
@@ -594,13 +619,79 @@ def self_test() -> int:
         real_seal, real_bad = parse_seal(real_text)
         body_lines = [ln for ln in real_text.split("\n")
                       if ln.strip() and not ln.lstrip().startswith("#")]
-        arm("(e) this repo's baseline exists, parses, is sorted by path, and seals exactly the "
-            "in-scope set",
-            bool(real_text) and not real_bad and body_lines == sorted(body_lines)
-            and set(real_seal) == set(walk_docs(ROOT)), "missing or malformed: %s" % str(real_bad)[:140])
+        in_tree = set(walk_docs(ROOT))
+        arm("(e) this repo's baseline exists, parses, is sorted by path, and carries no line for a doc "
+            "this tree no longer holds", bool(real_text) and not real_bad
+            and body_lines == sorted(body_lines) and set(real_seal) <= in_tree,
+            "missing/malformed: %s; stale line(s): %s"
+            % (str(real_bad)[:120], sorted(set(real_seal) - in_tree)[:6]))
+        # Completeness is NOT asserted against the live corpus here: a seal the merge station has not
+        # re-derived yet is a transient package state, and a red that is legitimate-but-temporary is the
+        # noise that gets a gate muted (and on this seat a red run loses its summary block to HD-1135's
+        # gawk bug, so nobody could read why). The rule keeps its teeth where it can be bred in BOTH
+        # directions — arms (c) and (f) above: an in-scope doc with no seal line reddens UNSEALED, its
+        # twin with a seal line stays green. What is left is a derived NOTE, so the lag is never hidden.
+        lag = sorted(in_tree - set(real_seal))
+        if lag:
+            print("  note  this checkout's seal LAGS the walk: %d in-scope doc(s) carry no seal line yet"
+                  " — %s%s. The solo run prints the same finding as UNSEALED; it is a package state, not"
+                  " a blind checker. The merge station re-derives the body"
+                  " (python3 scripts/gate/check_doc_size.py --reseal); a lane never does."
+                  % (len(lag), ", ".join(lag[:4]), ", …" if len(lag) > 4 else ""))
         arm("(e) this repo's baseline carries no wall clock, no CR and no absolute path anywhere in it",
             bool(real_text) and not CLOCK_RE.search(real_text) and "\r" not in real_text
             and "\t/" not in real_text, "a clock, a CR or an absolute path leaked in")
+
+        # (f) The WIDENED walk: a NESTED doc is part of the corpus. Each red here is paired with the
+        # walk this gate shipped with, so the arm proves the difference it claims (CONVENTIONS §6) —
+        # the one-level glob could not see `docs/sub/` at all, so nothing below could ever redden on a
+        # nested doc, which is the gap HD-1201 was minted for.
+        nest = dict(base, **{"docs/sub/x.md": 201})
+        t = _tree(tmp / "f-nest", nest)
+        rc, out = run(t, _seal(tmp / "f-nest", base))
+        arm("(f) a NESTED doc the seal omits at 201 lines REDDENS as UNSEALED + NEWDOC, and the corpus "
+            "line counts 4 docs where the flat walk counted 3",
+            rc == 1 and "docs/sub/x.md" in out and "UNSEALED" in out and "NEWDOC" in out
+            and "4 doc(s)" in out, "rc %d: %s" % (rc, out[-300:]))
+        t = _tree(tmp / "f-nest-ok", nest)
+        rc, out = run(t, _seal(tmp / "f-nest-ok", nest))
+        arm("(f) its twin — the SAME nested doc with a seal line, at the same 201 lines, is GREEN: it is "
+            "the seal's population that reddens, not the ceiling",
+            rc == 0 and "4 doc(s)" in out, "rc %d: %s" % (rc, out[-240:]))
+        arm("(f) and that red cannot come from the old shape: the nested path is in the widened walk "
+            "and in no listing of the flat one — the same tree, walked two ways",
+            "docs/sub/x.md" in walk_docs(t) and "docs/sub/x.md" not in flat_walk_docs(t)
+            and len(flat_walk_docs(t)) == 3,
+            "wide %s / flat %s" % (walk_docs(t), flat_walk_docs(t)))
+        nest_seal = dict(nest, **{"docs/sub/x.md": 120})
+        t = _tree(tmp / "f-grow", dict(nest_seal, **{"docs/sub/x.md": 121}))
+        rc, out = run(t, _seal(tmp / "f-grow", nest_seal))
+        arm("(f) a NESTED doc one line OVER its sealed count REDDENS as GROWTH — the ratchet holds at "
+            "depth, it was never a rule about one directory",
+            rc == 1 and "GROWTH" in out and "docs/sub/x.md" in out and "1 over its sealed 120" in out,
+            "rc %d: %s" % (rc, out[-300:]))
+        t = _tree(tmp / "f-gen", nest_seal)
+        (t / "docs" / "sub" / "view-generated.md").write_text("".join("x\n" for _ in range(5000)),
+                                                              encoding="utf-8")
+        rc, out = run(t, _seal(tmp / "f-gen", nest_seal))
+        arm("(f) a NESTED `*-generated.md` render view stays invisible — widening the walk did not widen "
+            "the exclusion's depth (§8.2, §8.5)",
+            rc == 0 and "-generated" not in out and "4 doc(s)" in out, "rc %d: %s" % (rc, out[-300:]))
+        t = _tree(tmp / "f-reseal", nest)
+        f_seal = _seal(tmp / "f-reseal", base)
+        with redirect_stdout(StringIO()):
+            rc_seal = reseal(t, f_seal, floor=0)
+        f_body = [ln for ln in f_seal.read_text(encoding="utf-8").split("\n")
+                  if ln.strip() and not ln.lstrip().startswith("#")]
+        rc2, out2 = run(t, f_seal)
+        arm("(f) --reseal books the nested doc on an ordinary `<path><TAB><count>` line, sorted with the "
+            "rest, and the tree then reads GREEN: the seal's SHAPE is unchanged, only its population",
+            rc_seal == 0 and rc2 == 0 and "docs/sub/x.md\t201" in f_body and f_body == sorted(f_body),
+            "seal %d, rerun %d: %s" % (rc_seal, rc2, f_body))
+        wide, flat_here = walk_docs(ROOT), flat_walk_docs(ROOT)
+        arm("(f) on THIS checkout the widened walk yields strictly more hand-authored docs than the "
+            "flat glob did — the nested guides are inside the seal's scope now",
+            len(wide) > len(flat_here), "wide %d, flat %d" % (len(wide), len(flat_here)))
 
     if fails:
         print("FAIL: self-test — %d arm(s) did not behave" % fails)
@@ -609,7 +700,8 @@ def self_test() -> int:
           "new-doc ceiling is proved separate from the seal rule, the seal fails in both directions "
           "so deleting a line launders nothing, the render views are invisible to all three rules and "
           "refused from inside the seal, a malformed or missing seal and an empty corpus all refuse to "
-          "print OK, and --reseal writes the seal and nothing else")
+          "print OK, a NESTED doc is proved in scope against the flat walk that could not see it, and "
+          "--reseal writes the seal and nothing else")
     return 0
 
 
@@ -618,7 +710,7 @@ def self_test() -> int:
 def main() -> int:
     ap = argparse.ArgumentParser(
         prog="check_doc_size.py",
-        description="Ratchet the hand-authored docs/*.md against their sealed line counts: shrink is "
+        description="Ratchet the hand-authored docs/**/*.md against their sealed line counts: shrink is "
                     "free, growth is a finding, a doc the seal omits is a finding, and a seal line "
                     "whose doc is gone is a finding. Read-only; --reseal writes only the baseline.",
         epilog="exit 0 inside the seal · 1 finding(s) · 2 could not run")
