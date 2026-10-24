@@ -51,8 +51,27 @@ tags: [ai, pi, agent-harness, harness, spark, llm, settings]
   have one bash and cannot reach this, and **cmd.exe is not covered** — a profile cannot reach it, so run the
   harness from Git-Bash or pwsh there. Changing the WSL default distro is not the repair: it would make a
   stray WSL bash report another seat's verdict under the `win11` label, and a false green is worse than a red.
-- **Where the pi BINARY lives — two layouts, one PATH.** `npm -g`
-  installs it as a symlink at `<pi-node prefix>/bin/pi` next to the pinned node (what
+- **The gate on the Win11 seat answers a different question than the gate on a Debian seat.** The seat exists to reach
+  all three seats — it converges `oldsrv` and fans out the pi settings and git identity — not to certify the tree. About
+  a third of `scripts/validate-all.sh`'s items cannot run there by construction: legs that shell into a target, legs that
+  call WSL-only tooling, and the Ansible syntax leg (a native-Windows `ansible-playbook` fails `WinError 87` creating a
+  pty). Those legs print `SKIP` naming what was not proven, and the run's final line is therefore **`PARTIAL`, never a
+  green** — `OK` on this seat would be the false result. `wsl -d Debian` or `ssh oldsrv` is the authority on the legs
+  that skip here, and the wall clock is not comparable across the two OSes: the same set costs ~10 ms per leg here and
+  ~0.7 ms per leg on Debian, which is process-spawn cost on `fork()` emulation and says nothing about what is checked
+  (`--time` prints both, and the `GATE_WIN_PAR` pool default is for this host's core count).
+- **Cross-OS contract the legs follow, because a leg that asks a different question here reports a wrong verdict rather
+  than an error.** Run a script with the OS's own launcher and keep a two-word launcher (`py -3`) an argv **array**, never
+  one quoted word; resolve a path only through a shell that can read it — `lib/repo_root.py`'s `hl_bash()` probes which
+  `bash` sees the target before choosing one, because a WSL bash cannot see `D:\...` and a Git bash cannot see
+  `/home/...`; resolve interpreters by probing them — `lib/python.sh`'s `hl_python` refuses a Microsoft Store alias stub
+  and a candidate that cannot import what the leg needs, the same way the gate's preflight refuses `python3` — and pin
+  line endings to LF on any machine-readable pipe a bash caller parses, since a text-mode stream on Windows appends a
+  carriage return to the field the comparison reads last. Git output is UTF-8 and is decoded as UTF-8: on a Windows-native
+  interpreter `text=True` without an explicit encoding decodes with the ANSI codepage, and a gate's reader thread dying on
+  one byte looks exactly like a finding. A leg whose external tool is missing says `SKIP` and names what was not proven —
+  the bench legs that build request bodies with `jq` never send a body they did not build.
+- **Where the pi BINARY lives — two layouts, one PATH.** `npm -g` installs it as a symlink at `<pi-node prefix>/bin/pi` next to the pinned node (what
   [`../scripts/harness/install-pi-debian.sh`](../scripts/harness/install-pi-debian.sh) does); pi's own installer writes a
   launcher at `~/.pi/agent/bin/pi` over `~/.pi/agent/install/releases/<ver>/` (`layout: releases-v1`).
   **`pi update` run inside a session migrates the first layout into the second and deletes the
