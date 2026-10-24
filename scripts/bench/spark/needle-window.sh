@@ -139,7 +139,19 @@ KV_SLOTS_QUOTE='273k'          # the number the row keeps quoting — a slot pro
 CORRUPTION_TRAP='sglang#36806 / sglang#36845 (QSA decode via XQA on sm_12x, answers HTTP 200)'
 PROBE="${NEEDLE_PROBE:-$SELF_DIR/../spark-llm-probe.py}"
 # The legs' probe invocation. The fixture replaces it; a real run gets the probe beside here.
-if [ -n "${NEEDLE_PROBE_CMD:-}" ]; then PROBE_CMD="$NEEDLE_PROBE_CMD"; else PROBE_CMD="python3 $PROBE"; fi
+# The interpreter is the one lib/python.sh PROBES, never a name typed here: on the Win11 seat
+# `python3` is the Microsoft Store alias STUB — present on PATH, rc 49, not an interpreter — which read
+# here as `the plan could not be derived from the catalogue`, a red on one seat only while the same
+# commit was green on the two Debian ones (CONVENTIONS §6: a script is run by its own interpreter).
+hl_source_lib "${BASH_SOURCE[0]}" python.sh
+if [ -n "${NEEDLE_PROBE_CMD:-}" ]; then PROBE_CMD="$NEEDLE_PROBE_CMD"
+elif hl_python; then PROBE_CMD="${HL_PYTHON[*]} $PROBE"
+else PROBE_CMD=""; fi
+# A fixture replaces the LEGS' command and may run where no interpreter is needed for them; the PLAN
+# leg still needs one, so plan_tsv resolves it where it is used rather than inheriting this branch — an
+# empty HL_PYTHON there is an empty argv, which reads as `-: command not found` and then as `the plan
+# could not be derived`: a wrong verdict, not a missing binary.
+
 
 PROFILE_FILTER=""              # accumulated --profile values, newline separated
 DEPTH_OVERRIDE=""
@@ -303,7 +315,20 @@ probe_cmd() {
 # in the plan with no edit here, and no depth in this file is a number a human wrote.
 # ---------------------------------------------------------------------------
 plan_tsv() {
-  python3 - "$PROBE" <<'PY'
+  # Resolve the interpreter WHERE IT IS USED: a fixture replaces the legs' command (NEEDLE_PROBE_CMD),
+  # and an empty HL_PYTHON here is an empty argv — `-: command not found`, then `the plan could not be
+  # derived`. A wrong verdict is worse than a missing binary, so the leg refuses instead of guessing.
+  hl_python || { echo "ERROR: no Python interpreter for the plan leg" >&2; return 1; }
+  # `sys.stdout` on Windows is a TEXT stream that ends a line with os.linesep, so every field this
+  # function prints LAST arrives at bash with a \r on the Win11 seat — and the field it prints last is
+  # `live`, which the driver compares with `[ "$active" != "yes" ]`. That read `small` as a profile the
+  # box was not serving, refused attribution for a run whose own --dry-run printed live=yes, and it was
+  # a red on this seat only. A pipe's line endings are pinned here rather than in each caller because
+  # the TSV is the contract of THIS function.
+  "${HL_PYTHON[@]}" - "$PROBE" <<'PY' | tr -d '\r'
+import importlib.util, sys
+
+sys.stdout.reconfigure(newline="\n")   # belt and braces: the contract is LF, whatever the seat
 import importlib.util, sys
 
 path = importlib.util.spec_from_file_location("spark_llm_probe", sys.argv[1])

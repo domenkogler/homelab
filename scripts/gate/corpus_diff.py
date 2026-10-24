@@ -1379,23 +1379,41 @@ def _one_case(name, base, new, want, rel, want_keys):
     return ok, line
 
 
-def self_test(guard=False):
-    """Each case is announced on stderr and then runs in its own child under a hard wall-clock
-    deadline. A case that blocks is a named FAIL with a non-zero exit, never a silent hang: a
-    verdict that cannot be attributed to a case is what costs a lane its run (wave 2, case m).
-    `guard=True` (--guard-self-test) also runs the two GUARD_CANARIES, which FAIL by design
-    under a shortened deadline -- the ordinary --self-test never runs them and stays green."""
-    global CASE_DEADLINE
-    cases = CASES
-    if guard:
-        CASE_DEADLINE, cases = 2.0, dict(CASES, **GUARD_CANARIES)
-    bad = 0
-    for name, (base, new, want, rel, want_keys) in sorted(cases.items()):
-        print(f"-- case {name}", file=sys.stderr, flush=True)     # name it BEFORE running it
+def _run_one_case(name):
+    """The child half of --self-test: run ONE named case and exit 0 (pass) / 1 (fail) / 3 (crash).
+    Exists so the deadline holds on a host with no os.fork; the parent reads only the exit code."""
+    case = dict(CASES, **GUARD_CANARIES).get(name)
+    if case is None:
+        print(f"CANNOT RUN: no self-test case named {name!r}", file=sys.stderr)
+        return 2
+    try:
+        ok, line = _one_case(name, *case)
+    except BaseException:                        # rc 3 = CRASH, what the parent prints verbatim
+        traceback.print_exc(file=sys.stderr)
+        return 3
+    print(line)
+    return 0 if ok else 1
+
+
+def _child_case(name, base, new, want, rel, want_keys):
+    """Run ONE case in a child under a hard wall-clock deadline. -> (hung, rc, signal_note).
+
+    TWO transports, ONE semantic, because `os.fork` is a POSIX syscall and a Windows seat has no
+    `os.fork` at all — the old code raised `AttributeError: module 'os' has no attribute 'fork'`
+    and the whole self-test died on one seat while being green on the other two. Where the kernel
+    offers a clone this forks (cheap, and the forked child shares the already-imported module); where
+    it does not, the case re-execs THIS file with `--case <name>` and the parent enforces the same
+    deadline with the subprocess timeout. A case that blocks is a FAIL on either transport, which is
+    the property the hang canary below asserts — it is not a property of fork.
+    """
+    if hasattr(os, "fork"):
         sys.stdout.flush()                     # nothing may sit in the buffer across the fork
         pid = os.fork()
         if pid == 0:
-            signal.alarm(int(CASE_DEADLINE) + 1)                  # child-side second layer
+            try:
+                signal.alarm(int(CASE_DEADLINE) + 1)              # child-side second layer
+            except (AttributeError, ValueError):
+                pass                           # no alarm on this platform; the parent's clock rules
             try:
                 ok, line = _one_case(name, base, new, want, rel, want_keys)
                 print(line, flush=True)
@@ -1417,17 +1435,55 @@ def self_test(guard=False):
                 break
             time.sleep(0.02)
         if hung:
+            return True, None, "no answer"
+        if not os.WIFEXITED(st):
+            return False, None, f"killed by signal {os.WTERMSIG(st)}"
+        return False, os.WEXITSTATUS(st), None
+
+    # No fork on this platform: re-exec this file for one case and let the subprocess timeout BE
+    # the deadline. encoding/errors are pinned (CONVENTIONS §6: a text-mode pipe inherits the ANSI
+    # codepage on Windows, which empties stdout and turns a verdict into a crash).
+    try:
+        proc = subprocess.run([sys.executable, os.path.abspath(__file__), "--case", name],
+                              capture_output=True, text=True, encoding="utf-8", errors="replace",
+                              timeout=CASE_DEADLINE + 2)
+    except subprocess.TimeoutExpired:
+        return True, None, "no answer"
+    except OSError as exc:                       # cannot exec its own file — a refusal, never a pass
+        raise SystemExit(f"CANNOT RUN: cannot re-exec {__file__} for case '{name}': {exc}") from exc
+    if proc.stdout:
+        sys.stdout.write(proc.stdout)
+    if proc.stderr:
+        sys.stderr.write(proc.stderr)
+    return False, proc.returncode, None
+
+
+def self_test(guard=False):
+    """Each case is announced on stderr and then runs in its own child under a hard wall-clock
+    deadline. A case that blocks is a named FAIL with a non-zero exit, never a silent hang: a
+    verdict that cannot be attributed to a case is what costs a lane its run (wave 2, case m).
+    `guard=True` (--guard-self-test) also runs the two GUARD_CANARIES, which FAIL by design
+    under a shortened deadline -- the ordinary --self-test never runs them and stays green."""
+    global CASE_DEADLINE
+    cases = CASES
+    if guard:
+        CASE_DEADLINE, cases = 2.0, dict(CASES, **GUARD_CANARIES)
+    bad = 0
+    for name, (base, new, want, rel, want_keys) in sorted(cases.items()):
+        print(f"-- case {name}", file=sys.stderr, flush=True)     # name it BEFORE running it
+        hung, rc, note = _child_case(name, base, new, want, rel, want_keys)
+        if hung:
             print(f"FAIL {name:19s} HANG <{name}>: no answer in {CASE_DEADLINE:g}s -- killed; "
                   "a case that blocks is a FAIL, never a pass", flush=True)
             bad += 1
-        elif not os.WIFEXITED(st):
-            print(f"FAIL {name:19s} HANG <{name}>: killed by signal {os.WTERMSIG(st)}; "
+        elif note:
+            print(f"FAIL {name:19s} HANG <{name}>: {note}; "
                   "a case that does not answer is a FAIL", flush=True)
             bad += 1
-        elif os.WEXITSTATUS(st) == 3:
+        elif rc == 3:
             print(f"FAIL {name:19s} CRASH in this case (traceback above)", flush=True)
             bad += 1
-        elif os.WEXITSTATUS(st):
+        elif rc:
             bad += 1                              # the child already printed its FAIL line
     bad += _gate_cases()
     print("SELF-TEST: " + ("OK" if not bad else f"{bad} case(s) misjudged"))
@@ -1627,7 +1683,11 @@ def main():
     ap.add_argument("--accept", metavar="FILE",
                     help="signed exceptions file (<path>\\t<line>\\t<reason>); exact path+line "
                          "only, and a stale entry fails the run")
+    # internal: the child half of --self-test on a host with no os.fork (see _run_one_case)
+    ap.add_argument("--case", metavar="NAME", help=argparse.SUPPRESS)
     a = ap.parse_args()
+    if a.case:
+        return _run_one_case(a.case)
     if a.self_test or a.guard_self_test:
         return self_test(guard=a.guard_self_test)
     try:

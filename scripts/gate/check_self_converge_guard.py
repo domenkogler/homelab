@@ -297,7 +297,12 @@ def classify_check_mode_sites(role_dir: Path, rel_base: Path | None = None) -> t
         for i, line in enumerate(lines):
             if not CHECK_MODE_FALSE.match(line):
                 continue
-            where = f"{f.relative_to(rel_base or role_dir.parent)}:{i + 1}"
+            # as_posix, not str(): on a Windows seat relative_to yields `wrote\tasks\main.yml`, and every
+            # reader of this string compares a FORWARD-slash prefix (the self-test below asks
+            # `startswith("wrote/")`, a caller greps `roles/x/tasks/main.yml`). A backslash answer is
+            # therefore invisible rather than wrong — the five canaries read INVISIBLE and the checker
+            # reports a detector that sees nothing, which is the one verdict a gate must never print.
+            where = f"{f.relative_to(rel_base or role_dir.parent).as_posix()}:{i + 1}"
             key_indent = _indent(line)
             # The task that carries this line: the nearest list item ABOVE it at a shallower indent.
             start = next((j for j in sorted(starts, reverse=True) if j < i and _indent(lines[j]) < key_indent), None)

@@ -133,6 +133,17 @@ fi
 # ---------------------------------------------------------------------------
 run_self_test() {
   local t fails=0 rc self got want_ref n checked
+  # An environment boundary prints SKIP and says what was NOT proven (CONVENTIONS §6) — a jq-less seat
+  # must not read as a green, and must not read as a broken invariant either. This is not a hypothetical:
+  # jq is absent on the Win11 Git-Bash seat and was absent on the WSL seat too, so the identical leg was
+  # red on two seats for want of a binary while the battery it guards stayed untested either way.
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "SKIP: jq is not on PATH — every arm of this self-test builds and compares a JSON request body"
+    echo "      with jq, so NOTHING was judged here. NOT PROVEN (a SKIP is not a pass)."
+    echo "      Install it and re-run:  Debian/WSL  sudo apt-get install -y jq"
+    echo "                              Git-Bash     pacman -S jq   (from the Git bash prompt)"
+    return 0
+  fi
   t="$(mktemp -d)"
   self="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
   mkdir -p "$t/bin" "$t/default" "$t/raised"
@@ -233,6 +244,14 @@ FIX
 }
 
 if [ "$SELFTEST" = 1 ]; then run_self_test; exit $?; fi
+
+# The runtime half needs jq for something load-bearing: the request BODY. Without it $BODY is empty,
+# curl would be handed nothing (or the shell's idea of nothing), and the run would report answers from
+# a request that was never built. Refuse instead — CONVENTIONS §7's fail-loud rule, applied to a binary
+# rather than to a variable.
+command -v jq >/dev/null 2>&1 || { echo "FATAL: jq is not on PATH — the request body cannot be built,"
+  echo "       so no request is sent. Install jq (Debian/WSL: apt-get install -y jq; Git-Bash: pacman -S jq)." >&2
+  exit 2; }
 
 for key in "${ORDER[@]}"; do
   echo ">>> [$key]"

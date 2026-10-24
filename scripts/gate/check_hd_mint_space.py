@@ -54,7 +54,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(next(p for p in Path(__file__).resolve().parents
                             if p.name == "scripts") / "lib"))
-from repo_root import require_corpus, root as _hl_root, script_path  # noqa: E402
+from repo_root import (hl_bash, require_corpus, root as _hl_root,  # noqa: E402
+                      script_path, RepoRootError)
 
 ROOT = _hl_root(__file__)
 MINTER = "scripts/next-hd.sh"
@@ -182,7 +183,7 @@ def run_minter(root: Path, mode: str = "--raw", *, history: bool = True,
     tool under test is the real script, not a copy of its logic written here.
     """
     ranges, ids = declared_block(root)
-    env = {**os.environ, "REPO": str(root),
+    env = {**os.environ, "REPO": root.as_posix(),
            "RESERVED_RANGES": ",".join(f"{lo}-{hi}" for lo, hi in ranges),
            "RESERVED_IDS": " ".join(str(i) for i in sorted(ids))}
     if not history:
@@ -190,10 +191,15 @@ def run_minter(root: Path, mode: str = "--raw", *, history: bool = True,
     if window is not None:
         env["CANDIDATE_WINDOW"] = str(window)
     try:
-        proc = subprocess.run(["bash", str(MINTER_PATH), mode], cwd=str(root), env=env,
+        # Which bash runs the minter is a PROBE, not a name (lib/repo_root.hl_bash): on a Windows seat
+        # with WSL installed the bare name resolves to the WSL launcher, which cannot see this path at
+        # all — the leg died rc 1 with `No such file or directory` about a script that exists, green on
+        # the two Debian seats. The path form travels with the answer for the same reason.
+        argv, script_form = hl_bash(MINTER_PATH)
+        proc = subprocess.run([*argv, script_form, mode], cwd=str(root), env=env,
                               capture_output=True, text=True, encoding="utf-8", errors="replace")
-    except OSError as exc:                      # no bash on this host — a refusal, never a silent pass
-        raise SystemExit(f"CANNOT RUN: cannot exec bash {MINTER_PATH}: {exc}") from exc
+    except (OSError, RepoRootError) as exc:      # no readable bash — a refusal, never a silent pass
+        raise SystemExit(f"CANNOT RUN: cannot exec bash {MINTER_PATH.as_posix()}: {exc}") from exc
     out = proc.stdout.strip()
     num = int(out) if out.isdigit() else None
     return proc.returncode, num, proc.stderr.strip()
@@ -207,6 +213,40 @@ def check_reuse(root: Path, proposal: int) -> list[str]:
     return [f"{tok(proposal)} is not free: {len(written)} commit(s) already wrote it "
             f"({', '.join(written)}) — minting it again cross-links two rows and makes "
             f"`git log -S {tok(proposal)}`, the prior-art sweep §0 leans on, match the older row"]
+
+
+def row_history(root: Path) -> set[int]:
+    """Every id a commit ever ADDED as a `todo.md` row — the retired ids, read from the commits.
+
+    WHY this exists: a closed row is deleted (§4: a row whose ⏳ list empties is deleted), and when
+    any citation of it survives in script or doc text, rule 2 saw an id above the registry ceiling and
+    called it SYNTHETIC TEXT. Four ids were accused that way on one day (the docs-hygiene package),
+    all four of them rows that had really lived and been closed. A gate that reports a retired id as
+    poison trains the reader to dismiss the poison rule — and the reserved-list it sends you to edit
+    is documented as the fixture/mis-mint book, so the "fix" would have made that file lie.
+    A row that existed is a different fact from a number someone typed, and only the commits can say
+    which one you are looking at.
+
+    LAZY on purpose: the caller asks only when something is already above the ceiling, so a clean tree
+    pays nothing (this pass costs ~2.5 s on the slow seat, and it must not be a tax on a green run).
+    """
+    proc = subprocess.Popen(["git", "-C", str(root), "log", "--all", "--no-color", "--format=",
+                             "-p", "-U0", "--diff-merges=first-parent", "--", "todo.md"],
+                            stdout=subprocess.PIPE, text=True, encoding="utf-8", errors="replace")
+    ids: set[int] = set()
+    added = 0
+    for line in proc.stdout or "":
+        if line.startswith("+") and not line.startswith("+++"):
+            added += 1
+            m = ROW.match(line[1:])
+            if m:
+                ids.add(int(m.group(1)))
+    if proc.wait() != 0:
+        raise RuntimeError("git log over todo.md failed — the retired-id half of rule 2 cannot judge")
+    # A pass that read no added line saw nothing, and "no retired ids" would be indistinguishable from
+    # the poison this function exists to excuse. Fail loud instead (HD-1118's corpus-floor argument).
+    require_corpus(added, 0, "check_hd_mint_space retired-id pass over todo.md")
+    return ids
 
 
 def check(root: Path, floor: int = CORPUS_FLOOR) -> tuple[list[str], dict[str, object]]:
@@ -245,20 +285,33 @@ def check(root: Path, floor: int = CORPUS_FLOOR) -> tuple[list[str], dict[str, o
                      default=registry_max)
     info = {"ranges": ranges, "registry_max": registry_max, "minter_max": minter_max,
             "tokens": len(toks), "block_span": sum(hi - lo + 1 for lo, hi in ranges),
-            "proposal": None}
+            "retired": [], "proposal": None}
 
-    # rule 2: poison — synthetic id text outside the reserved block
+    # rule 2: poison — synthetic id text outside the reserved block. An id above the ceiling is judged
+    # in two halves: ask the commits first, because a CLOSED row also sits above the ceiling and is not
+    # poison. The retired set is printed, never merely subtracted — a visible exemption is a rule, an
+    # invisible one is a mute button.
+    above = sorted({n for _, _, n in toks if not in_block(n) and n > registry_max
+                    and n not in reserved_ids and n <= block_end})
+    retired: set[int] = set()
+    if above:
+        try:
+            retired = {n for n in above if n in row_history(root)}
+        except (RuntimeError, SystemExit) as exc:
+            raise SystemExit(f"CANNOT RUN: cannot read the retired ids: {exc}") from exc
+    info["retired"] = sorted(retired)
     for path, line, n in sorted(set((p, l, n) for p, l, n in toks)):
-        if in_block(n) or n <= registry_max or n in reserved_ids:
+        if in_block(n) or n <= registry_max or n in reserved_ids or n in retired:
             continue
         if n > block_end:
             bad.append(f"{path}:{line}: HD-{n} is above the reserved block (ends {block_end}) — "
                        "an id in a namespace nobody declared")
         else:
             bad.append(f"{path}:{line}: HD-{n} sits above the registry ceiling ({registry_max}) and "
-                       "outside the reserved block — synthetic id text that will poison the next "
-                       f"mint. Move it into the block ({ranges[0][0]}-{block_end}), or if it IS a real "
-                       f"closed id, record it in RESERVED_IDS in {MINTER}")
+                       "outside the reserved block, and no commit ever wrote it as a todo.md row — "
+                       f"synthetic id text that will poison the next mint. Move it into the block "
+                       f"({ranges[0][0]}-{block_end}), or if it IS a real closed id, record it in "
+                       f"RESERVED_IDS in {MINTER}")
 
     # rule 3: exclusivity — no registry row inside the block
     for n in sorted(set(rows)):
@@ -389,6 +442,30 @@ def self_test() -> int:
         expect("rule 4: prose disagrees with the tool", True, run())
         patch(repo / "CONVENTIONS.md", "8000-8999", "9000-9999")
 
+        # rule 2c: a token above the ceiling whose ROW existed in the commits is RETIRED, not poison.
+        # Four ids were accused by rule 2 in one day on exactly this tree, all four rows that had
+        # lived and been closed — and the reserved-list the finding sends you to edit is the
+        # fixture/mis-mint book, so following it would have made that file lie. Both halves are bred:
+        # a number that was never a row still reddens (2a), a closed row does not, and the retired
+        # set must NAME it so the exemption stays visible instead of becoming a silent hole.
+        closed = SEED_TOP + 3
+        retired_repo = seed("retired")
+        (retired_repo / "todo.md").write_text(
+            (retired_repo / "todo.md").read_text(encoding="utf-8")
+            + f"| {tok(closed)} | a row that will be closed |\n", encoding="utf-8")
+        commit(retired_repo, f"mint {tok(closed)}")
+        patch(retired_repo / "todo.md", f"| {tok(closed)} | a row that will be closed |\n", "")
+        patch(retired_repo / "scripts" / "gate" / "fixture_tool.py",
+              f"Y = '{tok(SEED_TOP)} is cited here'",
+              f"Y = '{tok(SEED_TOP)} and {tok(closed)} are cited here'")
+        commit(retired_repo, f"close {tok(closed)}: the row goes, the citation stays")
+        r_bad = check(retired_repo, floor=0)[0]
+        r_info = check(retired_repo, floor=0)[1]
+        expect("rule 2: a closed row cited above the ceiling stays green", False, r_bad)
+        expect_true("rule 2: the retired set names the closed id",
+                    list(r_info.get("retired") or []) == [closed],
+                    f"retired={r_info.get('retired')}")
+
         # rule 1: the minter loses its default — not a finding, a refusal to judge (exit 2).
         patch(repo / MINTER, '${RESERVED_RANGES-9000-9999}', '"${RESERVED_RANGES-}"')
         try:
@@ -479,7 +556,9 @@ def main() -> int:
         f"none minted: {info.get('refused', 'the minter printed no id')}"
     if args.show:
         print(f"mint space: block={block} registry_max={real_max} minter_max={info['minter_max']} "
-              f"tokens={info['tokens']} ids set aside={info['block_span']} next_free={free}")
+              f"tokens={info['tokens']} ids set aside={info['block_span']} next_free={free}"
+              + (f" retired-cited={','.join(str(n) for n in info['retired'])}"               # type: ignore[index]
+                 if info["retired"] else ""))                                              # type: ignore[index]
     for f in bad:
         print(f"FINDING: {f}", file=sys.stderr)
     if bad:
@@ -488,7 +567,9 @@ def main() -> int:
         return 1
     print(f"OK: mint space reserved — block {block}, registry ceiling {real_max}, "
           "no synthetic id outside the block, no registry row inside it, "
-          f"the minter's id is written by no commit (next free: {free})")
+          f"the minter's id is written by no commit (next free: {free})"
+          + (f"; {len(info['retired'])} retired id(s) cited above the ceiling, read from the commits"
+             f" ({', '.join(str(n) for n in info['retired'])})" if info["retired"] else ""))
     return 0
 
 

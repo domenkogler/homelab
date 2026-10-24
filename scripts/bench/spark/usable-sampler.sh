@@ -74,6 +74,10 @@ _hl_d="$SELF_DIR"
 while [ ! -f "$_hl_d/lib/repo-root.sh" ] && [ "$_hl_d" != / ]; do _hl_d="$(dirname "$_hl_d")"; done
 # shellcheck source=/dev/null
 . "$_hl_d/lib/repo-root.sh"        # sets REPO; FATAL when no root is found
+# The probe legs are RUN with the interpreter lib/python.sh probes — `python3` is the Microsoft Store
+# alias STUB on the Win11 seat (on PATH, rc 49, not an interpreter), which reads as a broken profile
+# leg there and as nothing at all on the Debian seats.
+hl_source_lib "${BASH_SOURCE[0]}" python.sh
 
 PROFILE="fast"                                  # the current regime; --profile names the arm measured
 HOST="spark"
@@ -165,7 +169,7 @@ SAMPLE_SNIPPET='END=$(( $(date +%s) + @DUR@ )); while :; do T=$(date +%s); [ "$T
 # profile_leg — the probe's LOCAL leg: repo only, no bearer, no HTTP, no network.
 profile_leg() {
   if [ -n "${HD494_PROFILE_LEG_FILE:-}" ]; then cat "$HD494_PROFILE_LEG_FILE"
-  else python3 "$REPO/scripts/bench/spark-llm-probe.py" profile "$PROFILE"; fi
+  elif hl_python; then "${HL_PYTHON[@]}" "$REPO/scripts/bench/spark-llm-probe.py" profile "$PROFILE"; fi
 }
 
 leg_max_len() { printf '%s\n' "$1" | awk '$1 == "max_model_len" { print $3; exit }'; }   # `  max_model_len  = 262144`
@@ -258,8 +262,8 @@ run_main() {
     printf '>>> prefill: %s\n' "$HD494_PREFILL_CMD"
     $HD494_PREFILL_CMD > "$prefile" 2>&1 && pre_rc=0 || pre_rc=$?
   else
-    printf '>>> prefill: python3 scripts/bench/spark-llm-probe.py --base-url %s ctx %s\n' "$BASE_URL" "$tokens"
-    python3 "$REPO/scripts/bench/spark-llm-probe.py" --base-url "$BASE_URL" ctx "$tokens" \
+    printf '>>> prefill: %s scripts/bench/spark-llm-probe.py --base-url %s ctx %s\n' "${HL_PYTHON[*]}" "$BASE_URL" "$tokens"
+    "${HL_PYTHON[@]}" "$REPO/scripts/bench/spark-llm-probe.py" --base-url "$BASE_URL" ctx "$tokens" \
       > "$prefile" 2>&1 && pre_rc=0 || pre_rc=$?
   fi
   end_e="$(date +%s)"

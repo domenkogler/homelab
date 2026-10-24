@@ -33,6 +33,7 @@ Self-test:  python3 scripts/lib/repo_root.py --self-test
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -100,6 +101,73 @@ def script_path(name, caller_file=None) -> Path:
     if len(hits) > 1:
         raise RepoRootError(f"ambiguous scripts/{name}: {[str(p.relative_to(base)) for p in hits]}")
     return hits[0]
+
+
+# --- which bash execs a repo script: PROBE, not name -------------------------------------------
+# WHY: on a Windows seat that has WSL installed, `subprocess.run(["bash", script, …])` does NOT get
+# the bash the session is in. Windows resolves the bare name through the App Execution Aliases, so the
+# child is born in the WSL kernel: it answers `uname -s` = Linux, `pwd` = /mnt/d/…, and the Windows
+# path of the script it was handed is simply not a file there. The symptom is a `No such file or
+# directory` about a script that is sitting on disk — on ONE seat only, while the same commit is green
+# on the two Debian seats. Same class as the gate's Python launcher: a NAME is never the answer, and
+# the probe is the one question that cannot lie — can you read the file you are about to run?
+# CACHED per process: a probe costs one exec, and an exec is what is expensive on this host (HD-1135).
+_BASH_SEEN: dict = {}
+
+
+def _bash_candidates() -> list:
+    """Candidate bash executables, best-informed first. Each is a PROPOSAL the probe confirms."""
+    cands = [v for v in (os.environ.get("HL_BASH"), os.environ.get("BASH")) if v]
+    if os.name == "nt":
+        # The bash belonging to the git this checkout uses — derived from git's own location, so a
+        # portable install (winget, D:\, PortableGit) resolves and no drive letter is hardcoded.
+        git = shutil.which("git")
+        if git:
+            for p in Path(git).resolve().parents:
+                if p.name.lower() == "git":
+                    cands.append(str(p / "usr" / "bin" / "bash.exe"))
+                    break
+    cands.append("bash")                        # the POSIX answer; last, because on Windows it may lie
+    out = []
+    for c in cands:
+        if c not in out:
+            out.append(c)
+    return out
+
+
+def hl_bash(script):
+    """-> (argv, path_string): a bash that can READ `script`, and the path form IT understands.
+
+    Raises RepoRootError when no candidate can see the file — a refusal naming what was tried, never
+    an exec that dies with a misleading `No such file or directory`, and never a silent pass.
+    """
+    sp = Path(script)
+    key = (str(sp), os.environ.get("HL_BASH", ""), os.environ.get("BASH", ""))
+    if key in _BASH_SEEN:
+        return _BASH_SEEN[key]
+    forms = [sp.as_posix(), str(sp)]
+    if os.name == "nt":                         # /mnt/<drive>/… is how a WSL-born child reads it
+        forms.append(re.sub(r"^([A-Za-z]):", lambda m: "/mnt/" + m.group(1).lower(), sp.as_posix()))
+    tried = []
+    for cand in _bash_candidates():
+        for form in forms:
+            try:
+                got = subprocess.run([cand, "-c", 'test -f "$1" && echo CANARY_OK', "x", form],
+                                     capture_output=True, text=True, encoding="utf-8",
+                                     errors="replace", timeout=15)
+            except (OSError, subprocess.SubprocessError) as exc:
+                tried.append(f"{cand} [{form}]: {type(exc).__name__}")
+                continue
+            if got.stdout.strip() == "CANARY_OK":
+                _BASH_SEEN[key] = ([cand], form)
+                return [cand], form
+            tried.append(f"{cand} [{form}]: cannot read the script")
+    raise RepoRootError(
+        "CANNOT RUN: no bash on this host can read " + sp.as_posix() + " — tried: " + "; ".join(tried)
+        + ". A Windows seat with WSL resolves the bare name `bash` to the WSL launcher, which sees no "
+        "Windows paths at all; set HL_BASH to the bash that owns this session — in Git bash, "
+        "HL_BASH=$(cygpath -w $BASH). A leg that cannot exec is a refusal, never a pass."
+    )
 
 
 def require_corpus(count: int, floor: int, what: str) -> int:
@@ -197,6 +265,47 @@ def self_test() -> int:
             fails += 1
         except RepoRootError:
             print("ok: script_path is loud on a missing name")
+
+        # hl_bash: which bash execs a repo script. Three arms, because the defect it prevents is a
+        # child born in the WRONG SUBSYSTEM (a Windows seat with WSL resolves the bare name `bash` to
+        # the WSL launcher, which cannot see a Windows path at all) — a leg that dies with "No such
+        # file or directory" about a file that exists, on one seat only.
+        _BASH_SEEN.clear()
+        blind = tmp / "blind-bash.sh"
+        # A fixture that answers every `test -f` as NOT FOUND: the wrong-subsystem bash, bred rather
+        # than described. Without this arm the resolver could pass by never probing at all.
+        blind.write_text("#!/usr/bin/env bash\nexit 1\n", encoding="utf-8", newline="\n")
+        os.chmod(blind, 0o755)
+        real = Path(__file__).resolve().parent / "repo_root.py"
+        os.environ["HL_BASH"] = str(blind)
+        try:
+            argv, form = hl_bash(real)
+            got = subprocess.run([*argv, "-c", 'test -f "$1" && echo CANARY_OK', "x", form],
+                                 capture_output=True, text=True, encoding="utf-8", errors="replace")
+            if got.stdout.strip() == "CANARY_OK" and argv != [str(blind)]:
+                print(f"ok: hl_bash skipped a bash that could not read the script ({argv[0]})")
+            else:
+                print(f"NOT CAUGHT: hl_bash returned {argv} and the answer does not read the script")
+                fails += 1
+        except RepoRootError as exc:
+            print(f"NOT CAUGHT: hl_bash refused when a working bash exists ({exc})")
+            fails += 1
+        # Arm 2: when NOTHING can see the file, the answer is a refusal that names what was tried —
+        # never an exec that will print a misleading error, and never a silent pass.
+        _BASH_SEEN.clear()
+        keep_cands = _bash_candidates
+        globals()["_bash_candidates"] = lambda: [str(blind)]
+        try:
+            hl_bash(real)
+            print("NOT CAUGHT: hl_bash answered with a bash that cannot read the script")
+            fails += 1
+        except RepoRootError as exc:
+            print("ok: hl_bash refuses loud when no bash can read the script" if "tried" in str(exc)
+                  else f"NOT CAUGHT: hl_bash refused without naming what it tried: {exc}")
+            fails += 0 if "tried" in str(exc) else 1
+        globals()["_bash_candidates"] = keep_cands
+        _BASH_SEEN.clear()
+        os.environ.pop("HL_BASH", None)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
     return fails
