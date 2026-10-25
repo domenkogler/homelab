@@ -24,13 +24,32 @@
 # how a fixture injects a stub to prove this probe is load-bearing.
 #
 # SELF-TEST: bash scripts/lib/python.sh --self-test
-#   Three arms, each breedable: a Store-stub-shaped candidate must NOT be chosen, a candidate that
-#   cannot import the named module must not be chosen either, and when nothing works the answer is
-#   rc 1 with the candidate list printed — never an empty argv that the caller would exec as `""`.
+#   Five arms, each breedable: a Store-stub-shaped candidate must NOT be chosen, a candidate that
+#   cannot import the named module must not be chosen either, when nothing works the answer is rc 1
+#   with the candidate list printed — never an empty argv that the caller would exec as `""`, a
+#   two-word launcher arrives as two argv entries, and the UTF-8 pin is scoped to the seat class that
+#   needs it.
 # =====================================================================
 
 HL_PYTHON=()
 _HL_PYTHON_DONE=0
+
+# hl_python_env [uname-string] — the UTF-8 pin's fleet-wide home, next to the launcher it governs.
+# `validate-all.sh` exported PYTHONUTF8 for its own children, so a gate leg answered one question when
+# the pool ran it and another when a person ran the same file straight from a Win11 prompt — the tree is
+# UTF-8 and git answers in UTF-8, while a Windows-native interpreter decodes a pipe with the ANSI
+# codepage unless told otherwise (a non-decodable byte leaves stdout None, and the checker reports
+# `'NoneType' object has no attribute 'split'` as if it were a finding about the tree). The launcher and
+# the encoding are one decision about the same child process, so they live in one file, and the pin is
+# scoped to the seats that need it: on POSIX the interpreter already reads UTF-8 and this changes
+# nothing. Python 3.15 makes UTF-8 the default; the pin is what makes the OLDER interpreters on this
+# fleet answer the same way.
+hl_python_env() {
+  case "${1:-$(uname -s 2>/dev/null)}" in
+    MINGW*|MSYS*|CYGWIN*) export PYTHONUTF8=1 ;;
+  esac
+}
+hl_python_env
 
 _hl_python_try() {  # _hl_python_try <candidate-string> <modules…> — rc 0 when it really runs
   local _cand="$1"; shift
@@ -141,6 +160,26 @@ exit 0
 ' "${#HL_PYTHON[@]}"; _st=$((_st+1))
   fi
   HL_PYTHON_OVERRIDE=""
+
+  # Arm 5: the encoding pin is scoped to the seats that need it, and is proved with a uname STRING
+  # rather than the host's, because the rule is about the CLASS. A POSIX seat gains nothing (its
+  # interpreter already reads UTF-8); a Windows-shaped seat leaves the pin exported for every child,
+  # which is the half of the class a gate's own export could never reach — a leg run straight from a
+  # prompt is the one that used to answer a different question than the same leg run by the pool.
+  if (unset PYTHONUTF8; hl_python_env Linux; [ -z "${PYTHONUTF8:-}" ]); then
+    printf '  ok: a POSIX-shaped seat gains no PYTHONUTF8 pin
+'
+  else
+    printf 'SELFTEST FAIL: hl_python_env pinned a POSIX seat
+'; _st=$((_st+1))
+  fi
+  if (unset PYTHONUTF8; hl_python_env "MINGW64_NT-10.0-26300"; [ "${PYTHONUTF8:-}" = 1 ]); then
+    printf '  ok: a Windows-shaped seat exports PYTHONUTF8=1 for every child
+'
+  else
+    printf 'SELFTEST FAIL: hl_python_env did not pin a Windows-shaped seat
+'; _st=$((_st+1))
+  fi
 
   # Control: on a normal seat the probe finds the interpreter the gate would have found anyway.
   _HL_PYTHON_DONE=0; HL_PYTHON=()

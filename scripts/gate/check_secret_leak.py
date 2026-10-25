@@ -154,9 +154,30 @@ class Boundary(Exception):
 
 
 # --------------------------------------------------------------------------- vault read
-def _op(args: list[str], timeout: int = 60) -> subprocess.CompletedProcess:
-    return subprocess.run(["op", *args], capture_output=True, text=True,
-                          stdin=subprocess.DEVNULL, timeout=timeout)
+# The ceilings are SEAT-SHAPED and measured, not guessed. On the Win11 Git-Bash seat `op item list`
+# answers in ~11 s WARM (measured 2026-10-25, two runs) against a couple of seconds on the Debian
+# seats, and it crossed a flat 60 s ceiling under the pool's 49 in-flight legs — where the only
+# output was a TimeoutExpired traceback. A vault that answers slowly is not a vault that is absent;
+# a vault that never answers is a Boundary, printed as a named SKIP, never a stack trace.
+# Override with LEAK_GATE_OP_TIMEOUT / LEAK_GATE_OP_GET_TIMEOUT for a one-off probe.
+_OP_COLD = 4 if os.name == "nt" else 1
+OP_LIST_TIMEOUT = int(os.environ.get("LEAK_GATE_OP_TIMEOUT", 60 * _OP_COLD))
+OP_GET_TIMEOUT = int(os.environ.get("LEAK_GATE_OP_GET_TIMEOUT", 90 * _OP_COLD))
+
+
+def _op(args: list[str], timeout: int = OP_LIST_TIMEOUT) -> subprocess.CompletedProcess:
+    # `text=True` decodes with the LOCALE default, which on the Win11 seat is cp1252: one
+    # non-decodable byte leaves stdout None and every JSON leg below dies on NoneType (HD-1177).
+    # Bytes in, one explicit UTF-8 decode out — the form that asks the same question on any seat.
+    try:
+        r = subprocess.run(["op", *args], capture_output=True,
+                           stdin=subprocess.DEVNULL, timeout=timeout)
+    except subprocess.TimeoutExpired as exc:
+        raise Boundary(f"`op {args[0]}` did not answer within {timeout}s on a {os.name} seat "
+                       f"— a slow vault is an environment boundary, not a crash of this checker") from exc
+    return subprocess.CompletedProcess(r.args, r.returncode,
+                                       (r.stdout or b"").decode("utf-8", "replace"),
+                                       (r.stderr or b"").decode("utf-8", "replace"))
 
 
 def _secret_fields(raw: dict) -> list[str]:
@@ -185,7 +206,8 @@ def load_values(parallel: int) -> tuple[dict[bytes, list[str]], dict[str, str], 
     titles = {row["id"]: row.get("title", "?") for row in rows}
 
     def one(row: dict) -> tuple[str, list[str], str]:
-        g = _op(["item", "get", row["id"], "--vault", VAULT, "--format", "json"], timeout=90)
+        g = _op(["item", "get", row["id"], "--vault", VAULT, "--format", "json"],
+                timeout=OP_GET_TIMEOUT)
         if g.returncode != 0:
             return row["id"], [], (g.stderr or "").strip()[:100]
         try:
@@ -219,11 +241,13 @@ def load_values(parallel: int) -> tuple[dict[bytes, list[str]], dict[str, str], 
 # --------------------------------------------------------------------------- scan set
 def repo_tree_files() -> list[str]:
     r = subprocess.run(["git", "-C", str(ROOT), "ls-files", "--cached", "--others",
-                        "--exclude-standard", "-z"], capture_output=True, text=True,
+                        "--exclude-standard", "-z"], capture_output=True,
                        stdin=subprocess.DEVNULL)
     if r.returncode != 0:
         return []
-    out = [str(ROOT / p) for p in r.stdout.split("\0") if p]
+    # git emits UTF-8 filenames; decoding them with the locale default (cp1252 on the Win11 seat)
+    # turns a non-decodable byte into stdout=None and this line into an AttributeError (HD-1177).
+    out = [str(ROOT / p) for p in (r.stdout or b"").decode("utf-8", "replace").split("\0") if p]
     out += [str(p) for p in (ROOT / "logs").glob("*.log")]
     return out
 

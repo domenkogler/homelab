@@ -212,8 +212,15 @@ FIX
   n="$(wc -l < "$t/raised.bodies" 2>/dev/null || echo 0)"
   [ "${n:-0}" = "${#ORDER[@]}" ] && ok "the body log holds one line per item ($n)" \
     || bad "the body log holds ${n:-0} lines, want ${#ORDER[@]}"
-  [ "$(cut -f2- "$t/raised.bodies" | jq -r '.max_tokens' | sort -u | tr '\n' ' ')" = "16384 " ] \
-    && ok "every logged request carries 16384" || bad "the logged budgets are not all 16384"
+  # `tr -d '\r'` is not decoration. On the Win11 Git-Bash seat every external command that WRITES A
+  # LINE TO A PIPE emits CRLF (measured 2026-10-25: `jq -r x | od -c` answers `x\r\n`, while the same
+  # value through `$(…)` looks clean because the CR sits at the end and command substitution eats it).
+  # This assertion is the one place that moves the CR off the end — `tr '\n' ' '` — so it was the one
+  # arm that read red here while the Debian seats read green (HD-1202/HD-1177: one question, every
+  # seat). Compare the VALUE, not the line ending of the pipe that carried it.
+  [ "$(cut -f2- "$t/raised.bodies" | jq -r '.max_tokens' | tr -d '\r' | sort -u | tr '\n' ' ')" = "16384 " ] \
+    && ok "every logged request carries 16384" \
+    || bad "the logged budgets are not all 16384 (got: $(cut -f2- "$t/raised.bodies" | jq -r '.max_tokens' | tr -d '\r' | sort -u | tr '\n' ' '))"
   local raised_ok=0
   for key in "${ORDER[@]}"; do
     if [ "$(jq -r '.max_tokens' "$t/raised/accuracy/selftest-raised/${key}.body")" != "16384" ]; then
