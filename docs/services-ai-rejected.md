@@ -8,9 +8,7 @@ tags: [services, ai, rejected, decision-log, rag, memory]
 ---
 # AI Platform — Rejected / Dropped
 
-> **Role:** Decision log for the **AI platform plane** (gateway / RAG / memory / agent harnesses) — the
-> candidates the `services-ai` domain evaluated and declined, with the measured result that closed each one.
-> This log is that plane's decision-log SSOT (`CONVENTIONS.md` §8.3).
+> **Role:** Decision log for the **AI platform plane** (gateway / RAG / memory / agent harnesses) — the candidates the `services-ai` domain evaluated and declined, with the measured result that closed each one. This log is that plane's decision-log SSOT (`CONVENTIONS.md` §8.3).
 > **Links to:** [`services-ai.md`](services-ai.md), [`../reports/probe-ov-20260921.md`](../reports/probe-ov-20260921.md), [`../reports/probe-agentmemory-20260921.md`](../reports/probe-agentmemory-20260921.md), [`CONVENTIONS.md`](../CONVENTIONS.md) §8.3
 > **Linked from:** [`index.md`](index.md), [`services-ai.md`](services-ai.md)
 
@@ -104,6 +102,7 @@ tags: [services, ai, rejected, decision-log, rag, memory]
 | Vision on spark | rejected | spark runs a text-only engine (#28) |
 | `whisper.cpp` HIP/ROCm image for STT | rejected | No published ROCm artifact; self-build, no digest trail |
 | Workload discipline on sessions served by spark | rejected | The memory budget is the lever, not session policing |
+| `wyoming-faster-whisper-rocm` (ROCm faster-whisper) | rejected | Host ROCm + `/dev/kfd`; private CT2 fork; new model channel |
 | ZeroClaw on the VPS | rejected | Fleet credentials on an internet-facing host |
 
 ## What would reopen OV
