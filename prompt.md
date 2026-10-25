@@ -42,12 +42,11 @@ contract.
 ⛔ Never by npm-installing chord under a managed seat tree. Mechanism and legs: **HD-1180** in [todo.md](todo.md) and
 [prompt-seat-cockpit-grants.md](prompt-seat-cockpit-grants.md).
 
-**Grade from the WSL Debian clone, not the Win11 shell** — a Win11 `OK` is a *partial* result, never "the gate" (**HD-1117**,
-**HD-1177**; that seat's whole-set verdict is measured now, in [docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1).
+**Grade from the WSL Debian clone, not the Win11 shell** — a Win11 `OK` is a *partial* result, never "the gate"
+(**HD-1202**; what that seat proves, and what it names as unproven, is [docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1).
 Three reasons from that seat still bind a probe: MSYS `grep` misses the CR of a CRLF pair (`grep -U` is mandatory in encoding
 guards, and the same CR reaches a bash comparison through a pipe), `git` lives in `/mingw64/bin` not `/usr/bin`, and a case
-that cannot run there must print SKIP, not a verdict (CONVENTIONS §6) — the member of that class still open is the two
-`pi-*-config.sh --self-test` arms, which FAIL on a node-less seat whose `--check` form of the same case SKIPs.
+that cannot run there prints SKIP, not a verdict (CONVENTIONS §6).
 
 **Push after you merge** — the station that merged is the station that pushes; an unpushed `main` is one disk between the
 work and the fleet. That rule and the transient-failure note (a `remote: fatal error in commit_refs` reject is
@@ -401,23 +400,18 @@ the row→brief index is [todo-table.md](todo-table.md) §B0. A brief is named f
       `ok`/unchanged and every service's new reachability check green — the leg that proves IaC and the hosts agree.
       (Owning: [docs/deployment-compose.md](docs/deployment-compose.md) §Boot auto-start (docker-compose@))
 
-15. ⏳ **The gate's own trustworthiness on a seat** — **HD-1202** / **HD-1177**. The Win11 seat's whole-set verdict is
-    measured now, and its three reds were all this seat asking a different question: the ignore probe handed `git
-    check-ignore` platform separators (renderer output read as dangling citations — green in a clone that had rendered, red
-    in a fresh worktree), one assertion let a pipe's CRLF into a comparison, and the vault read crossed a flat ceiling and
-    printed a traceback where a boundary belonged. Fixed, fenced by arms, and the UTF-8 pin moved to the launcher in
-    `lib/python.sh`; the set re-run at the merged tip passes every item there. Numbers and contract:
-    [docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1, and the rule stands — grade from WSL Debian, report a Win11 `OK`
-    as partial, and read the named SKIPs it still prints. ⏳ In **HD-1177**: the `pi-*-config.sh --self-test` node probe that
-    makes a node-less seat SKIP rather than redden — the `oldsrv` clone's 2 reds. **HD-1179** keeps its WSL-Debian
-    `--self-test` legs and names the `session/selftest` branch
-    in the primary (fixture commits, no work, and a `git branch -d` refusal that is the fixture's fingerprint). ⏳
-    `GATE_WIN_PAR` is untested with a measurement attached to it, and `deployment-manual.md` still lacks the `jq` step for
-    the Win11 seat and the WSL clone. **HD-1176**'s mechanism is in place on the seat and its row stays **open** for what it
+15. ⏳ **Gate legs must ask the same question on the Win11 Git-Bash seat as on the Debian seats** — **HD-1202**. The seat's
+    verdict, its timings and the classes that were fixed are [docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1; the
+    row keeps only what is missing: ⏳ the `jq` seat-software step in `deployment-manual.md` (this seat and the WSL clone
+    each needed it by hand), ⏳ `GATE_WIN_PAR` (still the untested 16; §1 carries the timings to weigh), and ⏳ the 0-byte
+    junk file a full set leaves in a lane root — a mangled `>` redirect target, writer unfound. Grade from WSL Debian and
+    report a Win11 `OK` as partial: that seat prints named SKIPs (tmux, the font plane, `ansible-playbook`, `rsync`, the
+    symlink-requiring venv arms).
+    **HD-1176**'s mechanism is in place on the seat and its row stays **open** for what it
     still owes: the four seat artifacts have **no repo owner** (the `wsl` seat plane in `scripts/harness/`), the
     headscale-side call on MagicDNS `SERVFAIL`ing most of `zone_kogler_si`, and the suspend/resume + away-from-home
     re-measure. Record: [scripts/README.md](scripts/README.md) `validate-all.sh` + `lib/python.sh` + `lib/repo_root.py` ·
-    [docs/network-dns.md](docs/network-dns.md) §Host-side resolver.
+    [docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1.
 **Parked on an owner-present window** — authored work with exactly one blocked action in front of it, named with that
 action so no lane re-derives it. **The 2026-10-20 owner round is applied throughout: an entry marked RULED is AI work,
 not an owner act** — the rulings are the rows' and [todo-table.md](todo-table.md) §A1's, and this file restates none.

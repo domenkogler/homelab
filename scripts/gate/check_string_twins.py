@@ -873,7 +873,7 @@ def _fixture(base_files: dict[str, str], now_files: dict[str, str],
 
     ⛔ **The fixture env carries no git location.** `GIT_DIR` / `GIT_WORK_TREE` / `GIT_INDEX_FILE`
     outrank `-C` and the working directory, so a fixture that inherits them from the seat runs its
-    `init`/`add`/`commit` against the CALLER's tree (HD-1179: one seat exported `GIT_DIR` to get past
+    `init`/`add`/`commit` against the CALLER's tree (the fixture-scrub rule, scripts/README.md: one seat exported `GIT_DIR` to get past
     the session guard, and this fixture's `baseline` commits landed on the session branch). Scrub, then
     prove containment with `_assert_local_git` — the guard, not the scrub, is what makes it a fixture."""
     d = Path(tempfile.mkdtemp(prefix="string-twins-"))

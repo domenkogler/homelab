@@ -167,7 +167,7 @@ OP_GET_TIMEOUT = int(os.environ.get("LEAK_GATE_OP_GET_TIMEOUT", 90 * _OP_COLD))
 
 def _op(args: list[str], timeout: int = OP_LIST_TIMEOUT) -> subprocess.CompletedProcess:
     # `text=True` decodes with the LOCALE default, which on the Win11 seat is cp1252: one
-    # non-decodable byte leaves stdout None and every JSON leg below dies on NoneType (HD-1177).
+    # non-decodable byte leaves stdout None and every JSON leg below dies on NoneType (docs/harness-pi-seats.md §1).
     # Bytes in, one explicit UTF-8 decode out — the form that asks the same question on any seat.
     try:
         r = subprocess.run(["op", *args], capture_output=True,
@@ -246,7 +246,7 @@ def repo_tree_files() -> list[str]:
     if r.returncode != 0:
         return []
     # git emits UTF-8 filenames; decoding them with the locale default (cp1252 on the Win11 seat)
-    # turns a non-decodable byte into stdout=None and this line into an AttributeError (HD-1177).
+    # turns a non-decodable byte into stdout=None and this line into an AttributeError (docs/harness-pi-seats.md §1).
     out = [str(ROOT / p) for p in (r.stdout or b"").decode("utf-8", "replace").split("\0") if p]
     out += [str(p) for p in (ROOT / "logs").glob("*.log")]
     return out

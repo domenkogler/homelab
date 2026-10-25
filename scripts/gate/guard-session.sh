@@ -120,7 +120,7 @@ check_mode() {
 # --- self-test ---------------------------------------------------------------
 self_test() {
   local rc fails=0 out
-  # HD-1179: this fixture builds throwaway repos and registers worktrees. `git -C <dir>` does NOT
+  # The fixture-scrub rule (scripts/README.md): this fixture builds throwaway repos and registers worktrees. `git -C <dir>` does NOT
   # override an inherited GIT_DIR/GIT_WORK_TREE/GIT_INDEX_FILE, so with the pool's documented
   # `GIT_DIR=… bash scripts/validate-all.sh` override this self-test would register its temp worktree
   # in the REPOSITORY IT IS VALIDATING (a `…/guard-selftest.XXXX/wt [session/selftest]` entry left

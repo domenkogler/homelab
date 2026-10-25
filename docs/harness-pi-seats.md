@@ -74,9 +74,9 @@ tags: [ai, pi, agent-harness, harness, spark, llm, settings]
   SKIPs (tmux, the font plane, `ansible-playbook`, `rsync`, the symlink-requiring venv arms) and a Debian seat stays the
   authority on those classes.
 - **A seat with no `node` on PATH returns a verdict where it should return a boundary.** On the `oldsrv` runner clone the
-  same tip reads 2 items red — `pi-settings-config.sh --self-test`, `pi-tui-config.sh --self-test` — while their `--check`
-  forms print `SKIP: no usable node … a SKIP is not a pass`. The self-test arms never ask whether the interpreter exists, so
-  a seat that cannot run the case reports a failure — CONVENTIONS §6's rule for the tmux and ansible probes, same repair.
+  same tip read 2 items red — `pi-settings-config.sh --self-test`, `pi-tui-config.sh --self-test` — while their `--check`
+  forms printed `SKIP: no usable node`. The repair is the same probe before the same case (CONVENTIONS §6, as for the tmux
+  and ansible probes) and it is in place: a seat that cannot run an item answers rc 2 with that SKIP, never a verdict.
 - **A leg that asks a different question here returns a wrong verdict, not an error** — the shapes that fix it are written
   into [`../scripts/README.md`](../scripts/README.md), each fenced by a self-test that reddens when it regrows.
 - **Where the pi BINARY lives — two layouts, one PATH.** `npm -g` installs it as a symlink at `<pi-node prefix>/bin/pi` next to the pinned node (what

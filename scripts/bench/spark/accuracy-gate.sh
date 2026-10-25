@@ -216,7 +216,7 @@ FIX
   # LINE TO A PIPE emits CRLF (measured 2026-10-25: `jq -r x | od -c` answers `x\r\n`, while the same
   # value through `$(…)` looks clean because the CR sits at the end and command substitution eats it).
   # This assertion is the one place that moves the CR off the end — `tr '\n' ' '` — so it was the one
-  # arm that read red here while the Debian seats read green (HD-1202/HD-1177: one question, every
+  # arm that read red here while the Debian seats read green (one question, every
   # seat). Compare the VALUE, not the line ending of the pipe that carried it.
   [ "$(cut -f2- "$t/raised.bodies" | jq -r '.max_tokens' | tr -d '\r' | sort -u | tr '\n' ' ')" = "16384 " ] \
     && ok "every logged request carries 16384" \

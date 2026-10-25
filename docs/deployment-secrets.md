@@ -326,7 +326,7 @@ from a runner, these rules are what make it safe *and correct*:
   transcript.** Deleting the store removes evidence and not exposure: the value stays live in the vault and in
   every other copy the session wrote, and the run after the deletion prints *greener while knowing less*.
   ⚠ **A green is a statement about the seat it was taken on.** The `run-capture` class reads the seat's own
-  stores, so two checkouts of one commit do not reach the same verdict (the HD-1177 class, with a sharper edge).
+  stores, so two checkouts of one commit do not reach the same verdict (the Win11-seat class, [harness-pi-seats.md](harness-pi-seats.md) §1, with a sharper edge).
   Measured 2026-10-21 against one vault at one commit: on the seat that has the store, **1,858 paths / 233 MB**
   scanned and the item failed with 24 hits; with `$HOME` pointed at an empty directory the same commit scanned
   **1,559 paths / 22 MB**, still listed `classes judged: [… run-capture]`, printed 24 real ledger debts as STALE
