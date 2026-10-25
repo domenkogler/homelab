@@ -366,6 +366,9 @@ not this list, holds the steps, the file ownership and the converge host. Waves,
     headscale-side call on MagicDNS `SERVFAIL`ing most of `zone_kogler_si`, and the suspend/resume + away-from-home
     re-measure. Record: [scripts/README.md](scripts/README.md) `validate-all.sh` + `lib/python.sh` + `lib/repo_root.py` ·
     [docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1.
+    ⏳ the 0-byte artifact a full set leaves in the tree root, now with a clue: its name is the doc header line
+    `**Role:**` run through Git-Bash's MSYS byte-round-trip (`*`→`U+F0AA`, `:`→`U+F03A`), so the writer is a **python**
+    leg handed a doc's first line where a path belonged — start where a leg builds an output name from a header.
 
     **Hybrid route — landed on a branch, not yet merged** (2026-10-25, `feat/gate-wsl-offload` @ `18bbf66d`, worktree
     `D:/source/domenkogler/homelab-wt-20261025-1211`): the win11 seat now runs the fork-heavy legs on the Debian engine
