@@ -231,7 +231,7 @@ not this list, holds the steps, the file ownership and the converge host. Waves,
    host that owns the unit. **HD-1101** — the fail-loud resolver guard is keyed on `host_resolver_dns` alone with a
    per-host `set_fact`, and it is fixed and applied on both hosts. ⚠ On a keyfile host the write leg is **`nm-pi`**;
    `--tags nm-resolver` there selects the guard and proves the check, and writes nothing.
-   Plus **HD-04 · 434 · 438 · 439 · 319 · 17 · 1204**. → [prompt-smart-home.md](prompt-smart-home.md)
+   Plus **HD-04 · 434 · 438 · 439 · 319 · 17 · 1205**. → [prompt-smart-home.md](prompt-smart-home.md)
 8. ⏳ **Edge and identity** — **HD-147**'s browser-login tail, **HD-457** (the SSO seat owns the family library —
    ruled; what is left is the per-user/shared-album shape, read at implementation time), **HD-458 · 459** (zipline, the
    published names), **HD-112**, and **HD-357** — the launchpad tiles. ⏸ **HD-47** stays an owner act: the
