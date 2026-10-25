@@ -18,9 +18,9 @@
 #     python3 scripts/gate/check_doc_size.py --show-baseline
 docs/1password.md	283
 docs/automation-renewals.md	73
-docs/backup.md	565
+docs/backup.md	575
 docs/deployment-ai-stack-secrets.md	212
-docs/deployment-ansible.md	1523
+docs/deployment-ansible.md	1528
 docs/deployment-compose.md	491
 docs/deployment-oidc.md	219
 docs/deployment-pi-provision.md	174
@@ -75,7 +75,7 @@ docs/observability-rejected.md	61
 docs/observability.md	2057
 docs/orchestration.md	346
 docs/security.md	310
-docs/services-admin.md	353
+docs/services-admin.md	362
 docs/services-ai-bench.md	378
 docs/services-ai-rejected.md	131
 docs/services-ai.md	1152
@@ -84,7 +84,7 @@ docs/services-dns.md	89
 docs/services-downloads.md	738
 docs/services-finance.md	325
 docs/services-matrix.md	197
-docs/services-media.md	422
+docs/services-media.md	426
 docs/services-office.md	214
 docs/services-rejected.md	155
 docs/services-review.md	30
