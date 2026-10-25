@@ -426,9 +426,13 @@ def show_baseline(root: Path, floors=(ROW_FLOOR, BRIEF_FLOOR)) -> int:
 
 def _fixture(tmp: Path, todo_rows: list[str], briefs: dict) -> Path:
     tmp.mkdir(parents=True, exist_ok=True)
-    (tmp / TODO).write_text("# header\n" + "\n".join(todo_rows) + "\n", encoding="utf-8")
+    # newline="\n" everywhere, and that is not decoration: a text-mode write on the Windows seat
+    # translates every \n it writes into \r\n, so a fixture seal arrives with CR bytes and the parser
+    # refuses the whole body — which is how 14 arms went red on that seat at a commit that was green on
+    # the Debian ones (HD-1202 class 3, the same CRLF story the NOTE above prints).
+    (tmp / TODO).write_text("# header\n" + "\n".join(todo_rows) + "\n", encoding="utf-8", newline="\n")
     for name, body in briefs.items():
-        (tmp / name).write_text(body, encoding="utf-8")
+        (tmp / name).write_text(body, encoding="utf-8", newline="\n")
     return tmp
 
 
@@ -461,7 +465,7 @@ def self_test() -> int:
     def seal_for(root: Path, name="baseline.txt") -> Path:
         p = root / name
         find, rows, briefs, _ = measure(root)
-        p.write_text("# fixture seal\n" + render_seal(find, rows, briefs), encoding="utf-8")
+        p.write_text("# fixture seal\n" + render_seal(find, rows, briefs), encoding="utf-8", newline="\n")
         return p
 
     base_rows = [ROW_A, "| HD-102 | 2 | AI | 2 | **Second row** — states the gap. ⏳ pending. |"]
@@ -477,7 +481,7 @@ def self_test() -> int:
             rc == 0 and "2 row(s)" in out and "1 brief(s)" in out, "rc %d: %s" % (rc, out[-200:]))
         t = _fixture(tmp / "a-row-grow", base_rows, base_briefs)
         grown = ROW_A.replace("⏳ converge", "⏳ converge, and here is a new clause that grew the row")
-        (t / TODO).write_text("# header\n" + grown + "\n" + base_rows[1] + "\n", encoding="utf-8")
+        (t / TODO).write_text("# header\n" + grown + "\n" + base_rows[1] + "\n", encoding="utf-8", newline="\n")
         rc, out = run(t, seal_for(_fixture(tmp / "a-sealsrc", base_rows, base_briefs)))
         arm("(a) a row grown by even one clause REDDENS as GROWTH naming the bytes",
             rc == 1 and "HD-100: GROWTH" in out, "rc %d: %s" % (rc, out[-200:]))
@@ -546,7 +550,7 @@ def self_test() -> int:
         rc, out = run(t, tmp / "e-none" / "absent.txt")
         arm("(e) a missing baseline exits 2 — never a silent pass", rc == 2, "rc %d: %s" % (rc, out[:140]))
         (tmp / "e-bad" / "baseline.txt").parent.mkdir(parents=True, exist_ok=True)
-        (tmp / "e-bad" / "baseline.txt").write_text("GARBAGE LINE\n", encoding="utf-8")
+        (tmp / "e-bad" / "baseline.txt").write_text("GARBAGE LINE\n", encoding="utf-8", newline="\n")
         rc, out = run(_fixture(tmp / "e-bad-tree", base_rows, base_briefs),
                       tmp / "e-bad" / "baseline.txt")
         arm("(e) a malformed baseline line is refused at rc 2, never silently skipped",
@@ -561,7 +565,7 @@ def self_test() -> int:
         sp = seal_for(_fixture(tmp / "f-sealsrc", base_rows, base_briefs), name="bl.txt")
         # copy the seal next to the fat tree, then reseal there
         sp2 = t / "bl.txt"
-        sp2.write_text(sp.read_text(encoding="utf-8"), encoding="utf-8")
+        sp2.write_text(sp.read_text(encoding="utf-8"), encoding="utf-8", newline="\n")
         buf = StringIO()
         with redirect_stdout(buf):
             rc_seal = reseal(t, sp2, floors=(0, 0))
