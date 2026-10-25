@@ -537,6 +537,18 @@
 #                                     breeds and deletes a role dir in a temp tree to prove the set is
 #                                     derived, proves the shape test from both sides, and refuses an empty
 #                                     corpus, a missing role tree and a doc-less tree at rc 2.
+#  45. lib/wsl-route.sh --self-test — the win11 seat runs part of THIS gate on the Debian engine of the
+#                                     same laptop, because a fork+exec costs 16-44 ms here against
+#                                     0.66 ms there and the fork-heavy legs are minutes against seconds
+#                                     at the same tip. Which legs cross, and what a crossing leg may
+#                                     not do (no git of this checkout, no network/vault, no seat-local
+#                                     state, no seat self-classification), is decided in
+#                                     scripts/lib/wsl-route.sh — seat class, the /mnt path, the probed
+#                                     launcher, the far rc — and each leg says so at its own
+#                                     registration line. This self-test grades the ROUTER through a
+#                                     stub launcher, so an arm fails when the decision changes and not
+#                                     when the host does; the leg it fences never becomes a SKIP on a
+#                                     seat with no door, it runs at home.
 #
 # HOW THIS RUNS (2026-10-09, HD-1117): the items above are QUEUED and run CONCURRENTLY,
 #   8 in flight on an 8-core runner — 32 s -> 12 s. They are independent: every check is
@@ -652,8 +664,9 @@ echo "launcher: $PY ($("${PY_CMD[@]}" -c 'import sys; print(sys.version.split()[
 
 # --- CLI: --list (print the items and stop), --only SUBSTR (run a subset),          #
 #     --serial (one at a time, the pre-parallel behaviour, for bisecting an issue),   #
-#     --time (per-item accounting, HD-1137), --profile full|quick (a subset, HD-1137).#
-ONLY=""; LIST=0; SERIAL=0; PROFILE=full; TIME=0
+#     --time (per-item accounting, HD-1137), --profile full|quick (a subset, HD-1137), #
+#     --wsl auto|on|off (whether the legs that cross the door really do, HD-1202).     #
+ONLY=""; LIST=0; SERIAL=0; PROFILE=full; TIME=0; WSLMODE="${HL_WSL-auto}"
 while [ $# -gt 0 ]; do
   case "$1" in
     --list)   LIST=1 ;;
@@ -663,11 +676,18 @@ while [ $# -gt 0 ]; do
     --only=*) ONLY="${1#--only=}" ;;
     --profile) shift; [ $# -gt 0 ] || { echo "error: --profile needs a name (full | quick)" >&2; exit 2; }; PROFILE="$1" ;;
     --profile=*) PROFILE="${1#--profile=}" ;;
-    -h|--help) echo "usage: bash scripts/validate-all.sh [--list] [--only SUBSTRING] [--serial] [--time] [--profile full|quick]"; exit 0 ;;
+    --wsl)    shift; [ $# -gt 0 ] || { echo "error: --wsl needs auto | on | off" >&2; exit 2; }; WSLMODE="$1" ;;
+    --wsl=*)  WSLMODE="${1#--wsl=}" ;;
+    -h|--help) echo "usage: bash scripts/validate-all.sh [--list] [--only SUBSTRING] [--serial] [--time] [--profile full|quick] [--wsl auto|on|off]"; exit 0 ;;
     *) echo "note: ignoring unknown argument '$1'" >&2 ;;
   esac
   shift
 done
+case "$WSLMODE" in
+  auto|on|off) ;;
+  *) echo "FAIL: --wsl wants auto | on | off, not '$WSLMODE'. Refusing to guess which seat you meant to run." >&2; exit 2 ;;
+esac
+export HL_WSL="$WSLMODE"
 # An unknown profile must stop here, not quietly run the full set: a flag that is misspelled and
 # obeyed-as-another-flag is the mute-the-gate class, and this one has an opposite to confuse it with.
 case "$PROFILE" in
@@ -763,6 +783,27 @@ command -v nproc >/dev/null 2>&1 && GATE_NPAR="$(( $(nproc) / 2 > 2 ? $(nproc) /
 export GATE_NPAR
 echo "gate: $MAXPAR items in flight (GATE_NPAR=$GATE_NPAR for the ansible legs)" >&2
 
+# WHICH ENGINE RUNS A LEG, decided once, here, by lib/wsl-route.sh — the win11 seat's fork+exec costs
+# 16-44 ms quiet and 0.66 ms on the Debian engine of the same laptop, so the fork-heavy legs of this
+# gate take minutes here and seconds there, and the same commit is green on both. The legs that cross
+# are wrapped at their registration line (`hl_wsl_route`), they read only the tree or a sandbox they
+# build, and they run against THIS checkout at /mnt/<drive>/… — not a Debian clone — so the verdict
+# stays about the bytes that are being graded. A leg that cannot cross runs here unchanged: the route
+# never turns a check into a SKIP, and it never prints a green a leg did not earn. `--wsl off` (or
+# HL_WSL=off) runs everything native, which is the engine-independent form of the same verdict.
+# shellcheck source=/dev/null
+hl_source_lib "${BASH_SOURCE[0]}" wsl-route.sh
+# $PWD, not $REPO: this file unsets REPO on purpose (lib/repo-root.sh honours an inherited one, and a
+# gate that leaves it set overrides every self-test that builds its own fixture repo). The gate has
+# already `cd`-ed to the root, so $PWD IS the checkout being graded.
+hl_wsl_probe "$PWD"
+if [ "$HL_WSL" = on ] && [ "$HL_WSL_ON" = 0 ] && [ "$(hl_wsl_class)" != wsl ]; then
+  echo "FAIL: --wsl on was asked for and the Debian engine said no: $HL_WSL_WHY" >&2
+  echo "      Refusing to run: an operator who asked for the hybrid verdict should not be handed the native one." >&2
+  exit 1
+fi
+[ "$LIST" = 1 ] || echo "route: $HL_WSL_WHY" >&2
+
 # SLOT CONTROL without a FORK per POLL, measured 2026-10-10: the old gate checked the pool with
 # `[ "$(jobs -rp | wc -l)" -ge "$MAXPAR" ]`, and `wc` is an EXEC — so a saturated pool spawned two
 # processes (wc + sleep) every 50 ms purely to ask "is anything free?", which is a process per poll
@@ -822,7 +863,7 @@ item_blk_x() { local _why="$1"; shift; _set_excluded "$_why"; _reg "$1" "$2"; }
 
 # Launch everything still pending, in registration order, with the slot control unchanged.
 _launch_all() {
-  local i pid
+  local i pid _eng
   for i in "${!labels[@]}"; do
     [ "${states[$i]}" = pending ] || continue
     states[$i]=run
@@ -834,7 +875,9 @@ _launch_all() {
     pid=$!
     pids[$i]=$pid
     n_run=$((n_run+1))
-    printf '  -> %2d  %s\n' "$i" "${labels[$i]}" >&2
+    # The engine is named IN the launch line, so a reader never has to guess which seat answered a leg.
+    if [ "${cmds[${cstart[$i]}]}" = hl_wsl_route ] && [ "$HL_WSL_ON" = 1 ]; then _eng='  [debian engine]'; else _eng=''; fi
+    printf '  -> %2d  %s%s\n' "$i" "${labels[$i]}" "$_eng" >&2
     if [ "$MAXPAR" -le 1 ]; then
       wait "$pid" >/dev/null 2>&1 || true     # --serial: block here, no polling in the loop
       n_run=$((n_run-1))
@@ -1496,8 +1539,8 @@ item_x "installs into a fixture HOME through stub installers across a dozen CLI 
 # meaningful half IS gated: the --check --strict item below.
 item_x "~25 CLI launches against a fixture settings.json: HD-1135 measured 97 s on this seat even after the fork diet — a self-test for the settings harness, not a tree check" "pi-settings-config.sh --self-test (HD-1110: the harness keys of ~/.pi/agent/settings.json)" st_pi_settings_selftest
 item_q "pi-tui-config.sh --self-test (HD-1110: the pi-open-tui footer hostname key)" st_pi_tui_selftest
-item_x "drives every seat plane through stubbed seats in a temp HOME: HD-1135 measured 46 s on this seat — the fan-out driver's own harness, not a tree check" "pi-seat-sync.sh --self-test (HD-1110: the fan-out driver verdicts, on stubbed seats)" bash scripts/harness/pi-seat-sync.sh --self-test
-item_x "arms sandboxed installers and a canary package name across every probe layout — an installer harness, and it must never touch a real registry" "pi-self-update.sh --self-test (HD-1115: BEHIND and AHEAD are both drift)" bash scripts/harness/pi-self-update.sh --self-test
+item_x "drives every seat plane through stubbed seats in a temp HOME: HD-1135 measured 46 s on this seat — the fan-out driver's own harness, not a tree check" "pi-seat-sync.sh --self-test (HD-1110: the fan-out driver verdicts, on stubbed seats)" hl_wsl_route bash scripts/harness/pi-seat-sync.sh --self-test
+item_x "arms sandboxed installers and a canary package name across every probe layout — an installer harness, and it must never touch a real registry" "pi-self-update.sh --self-test (HD-1115: BEHIND and AHEAD are both drift)" hl_wsl_route bash scripts/harness/pi-self-update.sh --self-test
 item_x "spawns a real tmux per canary to prove the config TAKES EFFECT: where tmux is absent it can print no verdict at all (CONVENTIONS §6), so a pre-commit loop buys only waiting here" "install-tmux-conf.sh --self-test (HD-1085: config == repo AND actually takes effect)" bash scripts/harness/install-tmux-conf.sh --self-test
 item_x "seat deploy state, not a tree check: it converges this host's ~/.tmux.conf, and where tmux is absent it prints SKIP either way" "install-tmux-conf.sh --check --strict (seat tmux drift)" blk_tmux_check
 item_x "seat deploy state, not a tree check: it asks a profile-loaded PowerShell on THIS seat which ssh binary answers (win11 only)" "seat-ssh-build.sh --check --strict (HD-1128: which ssh build a seat shell resolves)" blk_seat_ssh_check
@@ -1506,9 +1549,9 @@ item_x "seat deploy state, not a tree check: the pi build against pi_host_npm_ve
 item_x "seat deploy state, not a tree check: it reads and can rewrite ~/.pi/agent/settings.json on this host" "pi-settings-config.sh --check --strict (settings.json vs settings-ssot.json)" blk_pi_settings_check
 item_x "seat deploy state, not a tree check: the pi-open-tui footer key in this host's ~/.pi/agent/open-tui.json" "pi-tui-config.sh --check --strict (open-tui.json footer key)" blk_pi_tui_check
 item_x "seat deploy state, not a tree check: the font plane is host state, and on the Windows seat the leg that matters is the .ps1 this item cannot run" "install-nerd-font.sh --check --strict (font dir vs pin)" blk_font_check
-item_x "sixteen end-to-end CLI launches in a temp HOME (the HD-1135 record says so): it re-runs the per-assertion legs for its exit-code contract — a harness self-test, not a tree check" "sync-skills.sh --self-test (HD-254: drift, untracked, artifacts, CRLF/BOM/binary guard)" bash scripts/harness/sync-skills.sh --self-test
+item_x "sixteen end-to-end CLI launches in a temp HOME (the HD-1135 record says so): it re-runs the per-assertion legs for its exit-code contract — a harness self-test, not a tree check" "sync-skills.sh --self-test (HD-254: drift, untracked, artifacts, CRLF/BOM/binary guard)" hl_wsl_route bash scripts/harness/sync-skills.sh --self-test
 item_x "seat deploy state, not a tree check: repo skills/ against this host's ~/.pi/agent/skills, deployed by sync-skills.sh --push" "sync-skills.sh --check --strict (skill drift gate, HD-254)" blk_skills_drift
-item_x "a sandboxed fixture over the same 16 arms as its sibling: an extension-harness self-test, not a tree check" "sync-extensions.sh --self-test (HD-254 family: missing fails, extra kept, retired removed)" bash scripts/harness/sync-extensions.sh --self-test
+item_x "a sandboxed fixture over the same 16 arms as its sibling: an extension-harness self-test, not a tree check" "sync-extensions.sh --self-test (HD-254 family: missing fails, extra kept, retired removed)" hl_wsl_route bash scripts/harness/sync-extensions.sh --self-test
 item_x "seat deploy state, not a tree check: repo pi-agent/extensions against this host's deployed extensions" "sync-extensions.sh --check --strict (repo pi-agent/extensions == deployed)" blk_extensions_check
 
 # lib/ helpers — the root resolvers are the ONE thing every other item silently depends on, so
@@ -1519,12 +1562,16 @@ item_x "seat deploy state, not a tree check: repo pi-agent/extensions against th
 item_q "lib/repo-root.sh --self-test (HD-1118: the bash root resolves at TWO depths, loud when absent)" bash scripts/lib/repo-root.sh --self-test
 item_q "lib/repo_root.py --self-test (HD-1118: the python twin + require_corpus + script_path)" "${PY_CMD[@]}" scripts/lib/repo_root.py --self-test
 item_x "its pin() half resolves every real plane with grep|head|sed|tr PER pin — the fork tail HD-1135 still bills as open, so the fork diet owns this leg, not a pre-commit loop" "lib/pi-seat.sh --self-test (HD-1118: a missing pin STOPS the caller; no subshell pin call site may return)" bash scripts/lib/pi-seat.sh --self-test
+# The hybrid route's own witness: it drives a STUB engine, so it grades this seat's decisions rather
+# than the distro installed on it, and it runs in a tenth of a second. It is excluded from quick
+# because it tests the router, not the tree — rerun it when the routing or the seat classes change.
+item_x "a router self-test over a stub engine, not a tree check: rerun it when the routing, the seat classes, or the eligibility rule changes" "lib/wsl-route.sh --self-test (the win11 seat's hybrid route: which legs cross to the Debian engine, and what makes a leg ineligible)" bash scripts/lib/wsl-route.sh --self-test
 
 # Everything else — cheap, but they add up, so they are in the pool too.
-item_q "guard-session.sh --self-test (sandboxed guard fixture, HD-253)" bash scripts/gate/guard-session.sh --self-test
+item_q "guard-session.sh --self-test (sandboxed guard fixture, HD-253)" hl_wsl_route bash scripts/gate/guard-session.sh --self-test
 item_q "guarded-converge.sh --self-test (post-converge liveness verdict, HD-436)" bash scripts/ansible/guarded-converge.sh --self-test
-item_x "drives every 1Password refusal state through a fake op binary in a sandbox: a CLI-contract self-test, not a tree check — rerun it when the bootstrap script changes" "git-bootstrap.sh --self-test (each 1Password refusal state says the right thing)" bash scripts/git/git-bootstrap.sh --self-test
-item_x "runs the real check-vault-items.sh over a synthetic tree per case: the *_item registry-key parse is only honest if the CLI runs, which is exactly the waiting a fast loop is not buying" "testdata/check-vault-items/run.sh (scanner self-test, HD-244/245)" bash scripts/testdata/check-vault-items/run.sh
+item_x "drives every 1Password refusal state through a fake op binary in a sandbox: a CLI-contract self-test, not a tree check — rerun it when the bootstrap script changes" "git-bootstrap.sh --self-test (each 1Password refusal state says the right thing)" hl_wsl_route bash scripts/git/git-bootstrap.sh --self-test
+item_x "runs the real check-vault-items.sh over a synthetic tree per case: the *_item registry-key parse is only honest if the CLI runs, which is exactly the waiting a fast loop is not buying" "testdata/check-vault-items/run.sh (scanner self-test, HD-244/245)" hl_wsl_route bash scripts/testdata/check-vault-items/run.sh
 item_q "validate_blueprints.py" "${PY_CMD[@]}" scripts/gate/validate_blueprints.py
 item_q "check_doc_ips.py" "${PY_CMD[@]}" scripts/gate/check_doc_ips.py
 item_q "check_traefik_host_rules.py" "${PY_CMD[@]}" scripts/gate/check_traefik_host_rules.py
@@ -1626,16 +1673,16 @@ item_q "gate7-read.py --self-test (HD-489 gate-7 bucketing: mixed-pid artifact, 
 # from. The READER half is already gated above (check_bench_provenance.py and its --self-test, both
 # in the quick profile); what stays unproven is run-scenario.sh's row shape, and it stays unproven
 # honestly: no stub can stand in for a row a timed leg is the only thing that writes.
-item_q "accuracy-gate.sh --self-test (the un-flagged battery body is byte-identical to the pre-change one, --max-tokens reaches the wire and changes nothing else, a bad budget is refused before any request)" bash scripts/bench/spark/accuracy-gate.sh --self-test
-item_q "gate6-couple.sh --self-test (Rule 0 refused before anything is read, the pairing guard seen from both sides, no mutate verb on the transport)" bash scripts/bench/spark/gate6-couple.sh --self-test
-item_q "hd469-baseline.sh --self-test (the KV/capacity verdicts on hand-valued fixtures + every command the driver sends is a read)" bash scripts/bench/spark/hd469-baseline.sh --self-test
-item_q "usable-sampler.sh --self-test (the MemAvailable−CmaFree verdict on fixtures, the transport path, and no mutate verb)" bash scripts/bench/spark/usable-sampler.sh --self-test
-item_q "metrics-window.sh --self-test (the /metrics parser, the hit-rate arithmetic, append-not-truncate, and the sampler pid file — including the two-sampler case that must not delete a file it does not own)" bash scripts/bench/spark/metrics-window.sh --self-test
-item_q "needle-window.sh --self-test (the depth floor with teeth, a FAIL-DEPTH recorded as a result, the run's own commands on fixtures)" bash scripts/bench/spark/needle-window.sh --self-test
-item_q "text-only-preflight.sh --self-test (the HD-400 pre-flight verdicts on fixtures, with an ssh tripwire that must never have been fired)" bash scripts/bench/spark/text-only-preflight.sh --self-test
+item_q "accuracy-gate.sh --self-test (the un-flagged battery body is byte-identical to the pre-change one, --max-tokens reaches the wire and changes nothing else, a bad budget is refused before any request)" hl_wsl_route bash scripts/bench/spark/accuracy-gate.sh --self-test
+item_q "gate6-couple.sh --self-test (Rule 0 refused before anything is read, the pairing guard seen from both sides, no mutate verb on the transport)" hl_wsl_route bash scripts/bench/spark/gate6-couple.sh --self-test
+item_q "hd469-baseline.sh --self-test (the KV/capacity verdicts on hand-valued fixtures + every command the driver sends is a read)" hl_wsl_route bash scripts/bench/spark/hd469-baseline.sh --self-test
+item_q "usable-sampler.sh --self-test (the MemAvailable−CmaFree verdict on fixtures, the transport path, and no mutate verb)" hl_wsl_route bash scripts/bench/spark/usable-sampler.sh --self-test
+item_q "metrics-window.sh --self-test (the /metrics parser, the hit-rate arithmetic, append-not-truncate, and the sampler pid file — including the two-sampler case that must not delete a file it does not own)" hl_wsl_route bash scripts/bench/spark/metrics-window.sh --self-test
+item_q "needle-window.sh --self-test (the depth floor with teeth, a FAIL-DEPTH recorded as a result, the run's own commands on fixtures)" hl_wsl_route bash scripts/bench/spark/needle-window.sh --self-test
+item_q "text-only-preflight.sh --self-test (the HD-400 pre-flight verdicts on fixtures, with an ssh tripwire that must never have been fired)" hl_wsl_route bash scripts/bench/spark/text-only-preflight.sh --self-test
 # Not the query itself — a read tool must never fail a commit — but its offline fixture is a real
 # verdict, and it is the witness for the venv-guard predicate render-pi-config.py copies verbatim.
-item_q "testdata/rsync-max-delete/run.sh --self-test (--max-delete is a CAP: exactly N/2 deleted + rc 25, asserted as numbers; every weakening reddens a canary)" bash scripts/testdata/rsync-max-delete/run.sh --self-test
+item_q "testdata/rsync-max-delete/run.sh --self-test (--max-delete is a CAP: exactly N/2 deleted + rc 25, asserted as numbers; every weakening reddens a canary)" hl_wsl_route bash scripts/testdata/rsync-max-delete/run.sh --self-test
 item_q "testdata/rsync-max-delete/run.sh (the shape-parity arm + the two real rsync fires over N=100 files)" blk_rsync_max_delete
 item_q "ansible_query.py --self-test (HD-456 fixtures + the venv re-exec guard both seat planes depend on)" "${PY_CMD[@]}" scripts/ansible/ansible_query.py --self-test
 # HD-1199: the doc corpus had no size bound at all — this is the ratchet, cheap enough for the quick
