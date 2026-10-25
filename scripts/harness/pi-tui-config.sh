@@ -213,7 +213,13 @@ self_test() {
   run_at() { local f="$1"; shift
     PI_TUI_CONFIG="$f" bash "$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")" "$@" >/dev/null 2>&1; }
 
-  require_node || { err "self-test needs node — it cannot prove anything without it"; return 1; }
+  # No usable node means this case cannot run here, which is the rc 2 boundary --check / --push
+  # already answer with (a runner account with no node read this leg RED because this line returned 1 — a seat
+  # with no node has no way to cure a red, and a standing red is how a gate gets ignored).
+  require_node >/dev/null 2>&1 || {
+    info "SKIP: node is unusable on this seat (PATH and the pinned prefix both missed); the pi-open-tui footer self-test ran nothing and proves nothing"
+    return 2
+  }
 
   # 1. rest state -> GREEN, and --push is a byte-exact no-op (idempotence).
   printf '{\n  "inlineFooter": false,\n  "footerSegments": { "cwd": true, "hostname": true, "gitBranch": true },\n  "telemetry": { "enabled": true }\n}\n' > "$tmp/rest.json"

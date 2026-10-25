@@ -35,7 +35,9 @@
 #   --check --strict   exit 1 on a drift too (gate use; validate-all.sh item 31).
 #   --push             write the owned keys + the composed packages, keep every other key,
 #                      keep a timestamped backup. An UNPARSEABLE file is a REFUSAL.
-#   --self-test        sandboxed canaries; asserts both halves of every rule above.
+#   --self-test        sandboxed canaries; asserts both halves of every rule above. On a seat with
+#                      no usable node the case cannot run at all, and it answers 2 like the rest —
+#                      a printed SKIP, never the rc 1 that read as a broken harness.
 #   --with-package S   add one package source to the owned set for THIS seat (repeatable) —
 #                      seat placement (e.g. the cockpit's pi-web), not a fleet key.
 #
@@ -375,7 +377,15 @@ self_test() {
     F="${_rec%%$'\t'*}"; }
   poke()     { "$NODE" -e 'const fs=require("fs");const c=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));eval(process.argv[3]);fs.writeFileSync(process.argv[1],JSON.stringify(c,null,2)+"\n")' "$1" "" "$2"; }
 
-  require_node || { err "self-test needs node — it cannot prove anything without it"; return 1; }
+  # A seat with no usable node cannot run THIS case at all, and that is the same environment
+  # boundary --check / --push answer with rc 2 — so it is answered the same way. A red that one seat could not cure found the
+  # oldsrv seat reading this leg RED for the line this replaces: rc 1 accused the harness of being
+  # broken on a seat whose only missing part was node, and a red a seat cannot cure is how a gate
+  # gets ignored. The arms still run in full wherever node exists, which is every Debian seat.
+  require_node >/dev/null 2>&1 || {
+    info "SKIP: no usable node here, so the settings-plane self-test ran no canary at all and judges nothing on this seat (rc 2 is a SKIP, not a pass)"
+    return 2
+  }
   SEAT_EXTRA="npm:@ygncode/pi-web"
 
   # A compliant seat file: every SSOT key + workstation keys + a seat-local package. The owned

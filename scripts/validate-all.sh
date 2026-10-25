@@ -1462,6 +1462,29 @@ item_q "bash -n sweep (HD-256 portability, all scripts/*.sh)" blk_bash_n_sweep
 item_q "python3 -m py_compile sweep (HD-256 portability, all scripts/*.py)" blk_py_compile_sweep
 
 # Seat planes — self-tests run everywhere (sandboxed), the --check half SKIPs per host.
+# A seat with no node is the one exception the sentence never held: a seat with NO usable node cannot run a
+# node-driven self-test at all, and the script answers that with rc 2 + a printed SKIP, the shape its
+# --check half uses. rc 2 is a boundary, not a verdict about the harness, so it is printed and NOT
+# counted — the same mapping blk_pi_self and the seat-*-build checks apply to that rc. Deleting the
+# mapping reddens `oldsrv`, which is the seat that proved the need for it.
+st_pi_settings_selftest() {
+  local rc=0
+  bash scripts/harness/pi-settings-config.sh --self-test || rc=$?
+  case "$rc" in
+    0) return 0 ;;
+    2) echo "SKIP: no usable node on this seat — the settings-plane self-test ran NOTHING (the harness is not broken, the seat has no node; a SKIP is not a pass)"; return 0 ;;
+    *) return "$rc" ;;
+  esac
+}
+st_pi_tui_selftest() {
+  local rc=0
+  bash scripts/harness/pi-tui-config.sh --self-test || rc=$?
+  case "$rc" in
+    0) return 0 ;;
+    2) echo "SKIP: no usable node on this seat — the pi-open-tui footer self-test ran NOTHING (the harness is not broken, the seat has no node; a SKIP is not a pass)"; return 0 ;;
+    *) return "$rc" ;;
+  esac
+}
 # HD-1137: a seat DEPLOY half (--check --strict on a real ~/.pi) is deliberately NOT in quick: it
 # reads and can converge THIS host's seat state, which is not what a pre-commit sanity read claims.
 # The sandboxed --self-test halves stay in quick; the expensive ones carry their cost as the reason.
@@ -1471,8 +1494,8 @@ item_x "installs into a fixture HOME through stub installers across a dozen CLI 
 # the pool that starves sibling self-tests (measured: pi-seat-sync.sh --self-test printed 5 canaries NOT
 # caught in the concurrent run and passed standalone, the documented pool-flake class). The cheap and
 # meaningful half IS gated: the --check --strict item below.
-item_x "~25 CLI launches against a fixture settings.json: HD-1135 measured 97 s on this seat even after the fork diet — a self-test for the settings harness, not a tree check" "pi-settings-config.sh --self-test (HD-1110: the harness keys of ~/.pi/agent/settings.json)" bash scripts/harness/pi-settings-config.sh --self-test
-item_q "pi-tui-config.sh --self-test (HD-1110: the pi-open-tui footer hostname key)" bash scripts/harness/pi-tui-config.sh --self-test
+item_x "~25 CLI launches against a fixture settings.json: HD-1135 measured 97 s on this seat even after the fork diet — a self-test for the settings harness, not a tree check" "pi-settings-config.sh --self-test (HD-1110: the harness keys of ~/.pi/agent/settings.json)" st_pi_settings_selftest
+item_q "pi-tui-config.sh --self-test (HD-1110: the pi-open-tui footer hostname key)" st_pi_tui_selftest
 item_x "drives every seat plane through stubbed seats in a temp HOME: HD-1135 measured 46 s on this seat — the fan-out driver's own harness, not a tree check" "pi-seat-sync.sh --self-test (HD-1110: the fan-out driver verdicts, on stubbed seats)" bash scripts/harness/pi-seat-sync.sh --self-test
 item_x "arms sandboxed installers and a canary package name across every probe layout — an installer harness, and it must never touch a real registry" "pi-self-update.sh --self-test (HD-1115: BEHIND and AHEAD are both drift)" bash scripts/harness/pi-self-update.sh --self-test
 item_x "spawns a real tmux per canary to prove the config TAKES EFFECT: where tmux is absent it can print no verdict at all (CONVENTIONS §6), so a pre-commit loop buys only waiting here" "install-tmux-conf.sh --self-test (HD-1085: config == repo AND actually takes effect)" bash scripts/harness/install-tmux-conf.sh --self-test
