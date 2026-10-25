@@ -300,8 +300,8 @@ Why the payload is included **last**, why the program key must be *absent* rathe
 8.3-short-path trap, and what this says about the "keys never on disk" rule:
 [docs/deployment-secrets.md](docs/deployment-secrets.md) §What actually raises a 1Password prompt.
 
-The Windows desktop side differs from the WSL runner: the 1Password **desktop** app owns the GitHub keys
-(`GitHub sign`, `GitHub auth`) over the Windows named-pipe agent, and on that route signing resolves by
+The Windows desktop side differs from the WSL runner: the 1Password **desktop** app owns the transport key
+(`GitHub auth`; `GitHub sign` is deleted) over the Windows named-pipe agent, and on that route signing resolves by
 the **public-key string**, not a file path. Why each config line in the script is what it is — and the
 two failure modes (`invalid ssh public key`, WSL networking wedges) — is in
 [deployment-ansible.md](docs/deployment-ansible.md) §Windows/WSL runner host facts.

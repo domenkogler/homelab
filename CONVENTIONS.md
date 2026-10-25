@@ -158,7 +158,7 @@ A new service must clear this path (each step's owning doc is the anchor; violat
   agent for a key that can never validate, in the shells nobody watches (cron, a converge, a pi bash call).
   **`git log -1 --format='%G?'` returning `N` is the expected value on every commit now and is not a
   failure** — there is nothing to verify; `gpg.ssh.allowedSignersFile` stays only so the signed history
-  still verifies. The mechanism (the `GitHub sign` / `GitHub auth` SSH_KEY items in `Homelab-ansible`, the
+  still verifies. The mechanism (the `GitHub auth` SSH_KEY item in `Homelab-ansible` — `GitHub sign` is DELETED, the
   key-**file-path** vs `key::<pub>` form and why the file path was chosen, the
   `ssh-add ~/.ssh/github_signing ~/.ssh/github_auth` recovery for a shell that still has a key to find) is
   documented in [docs/deployment-secrets.md](docs/deployment-secrets.md) §6 (the seat
