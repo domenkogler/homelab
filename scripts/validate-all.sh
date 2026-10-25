@@ -1660,6 +1660,14 @@ item_q "check_doc_sensitivity.py --self-test (each rule seen RED on a mutation a
 item_q "check_open_questions.py (every Options section is shaped, keyed by its OQ id, and verdict-free; the id space is derived and printed with the inventory command it mirrors)" "${PY_CMD[@]}" scripts/gate/check_open_questions.py
 item_q "check_open_questions.py --self-test (each rule seen RED on a shaped section and quiet on its legal twin: no table, a near-miss header, one row, an empty cheap test, a shifted row, no id, each verdict wording, a typed id above max+1, and both corpus floors at their boundary)" "${PY_CMD[@]}" scripts/gate/check_open_questions.py --self-test
 
+# The state-only rule for the work-tracking surfaces had no checker — the earlier sweep trimmed
+# the retrospective prose, and without a gate the next session refills the space. The narrative rules are
+# marker-based (a marker grammar is checkable; "is this sentence a story?" is not), and the size half is
+# the doc-size ratchet applied where the growth actually happens. Cheap (two file reads), so it belongs
+# in quick too.
+item_q "check_backlog_prose.py (todo.md rows and the prompt-*.md briefs stay state-only — narrative finding counts, row bytes and brief line counts are sealed and may shrink but not grow; a row born over the 2000 B ceiling reddens; the grammar targets the verb, not the date, because ISO decision dates stay legal in the queue)" "${PY_CMD[@]}" scripts/gate/check_backlog_prose.py
+item_q "check_backlog_prose.py --self-test (all four narrative rules catch their canary while a state date stays legal, both ratchets proved from the shrink side, the ceilings redden a born-fat row and brief, a deleted row and a dead brief are NOTEs and never findings — closing a row must never redden the gate — and a missing/malformed baseline and an empty corpus refuse to print OK)" "${PY_CMD[@]}" scripts/gate/check_backlog_prose.py --self-test
+
 # The rsync `--max-delete` fixture. rc 2 is a BOUNDARY, printed and never counted green: the two
 # deletion arms need an rsync binary, which the WSL Debian seat does not carry, while the shape-parity
 # arm and every canary run there (the self-test beside this item is what is gated for real).
