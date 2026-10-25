@@ -73,6 +73,7 @@ sys.path.insert(0, str(next(p for p in Path(__file__).resolve().parents
                             if p.name == "scripts") / "lib"))
 from repo_root import root as _hl_root  # noqa: E402
 from vault_env import ensure as _vault_ensure  # noqa: E402
+from vault_env import item_ref as _vault_item_ref  # noqa: E402
 
 ROOT = _hl_root(__file__)
 INVENTORY = "IaC/ansible/inventory.ini"
@@ -163,8 +164,13 @@ def creds() -> tuple[str, str]:
     if not shutil.which("op"):
         raise RuntimeError("no op CLI and VM_USERNAME/VM_PASSWORD unset")
     got = {}
+    # The op:// reference carries IDs for the same quota reason — 1 read instead of 3 (see
+    # lib/vault_env.py `item_ref`); the name form stays as the fallback so a renamed item still reads.
+    v_arg, i_arg, form = _vault_item_ref("Homelab-ansible", "victoria-metrics_api")
+    if form.startswith("names"):
+        print(f"NOTE: victoria-metrics_api resolved by name — {form}", file=sys.stderr)
     for field in ("username", "password"):
-        r = subprocess.run(["op", "read", f"op://Homelab-ansible/victoria-metrics_api/{field}"],
+        r = subprocess.run(["op", "read", f"op://{v_arg}/{i_arg}/{field}"],
                            capture_output=True, text=True)
         if r.returncode != 0 or not r.stdout.strip():
             raise RuntimeError(f"victoria-metrics_api/{field} unreadable: {r.stderr.strip()[:120]}")

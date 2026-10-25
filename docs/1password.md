@@ -87,6 +87,30 @@ python scripts/lib/vault_env.py                      # the python face, same ans
 `HL_WSL=off` disables step 3 exactly as it disables the leg-routing engine, and a seat that is not the
 win11 one never tries it.
 
+### What a gate run costs the vault, and why legs pass IDs
+
+Two ceilings apply to every service-account request AT ONCE, and `op service-account ratelimit` prints
+both: the token's own 1000 reads/hour, and — the one that binds a lab like this — **1000 requests per
+24 h for the whole 1Password account, shared by every service account on it** (Families/Personal;
+Teams 5 000, Business 50 000). Waiting for the hourly reset does not help an exhausted daily bucket,
+and a second service account does not either: the daily bucket is per account, not per token.
+
+A **name** is not a free address. `op item get` and `op read` resolve the name first and 1Password bills
+the resolving — 3 requests for a name-addressed read, 1 for an ID-addressed one (CLI docs, "Commands
+that make multiple requests"). So the leak gate's 143 items were ~429 of those 1000: **three gate runs
+empty the day** for every other automation on the account, and the failure looks like
+`Too many requests. Your client has been rate-limited. Try again in  seconds` — with the seconds blank,
+because the CLI has no retry-after for this class. The legs therefore address by **ID**: the vault ID comes
+out of the `op item list` answer the run already paid for, and titles come from the map
+[`../scripts/lib/vault-env.sh`](../scripts/lib/vault-env.sh) keeps in the seat's state dir. A title the map
+does not know keeps the NAME and prints a NOTE — a guessed ID is a wrong answer, not a cheap one — and one
+miss costs two reads, after which it is right forever.
+
+```bash
+op service-account ratelimit            # both buckets, used/remaining/reset — ask this before debugging transport
+bash scripts/lib/vault-env.sh --map Homelab-ansible    # how many titles the seat knows, and the vault ID
+```
+
 ### Proving which service account an install holds
 
 `op vault list` **cannot distinguish the two scopes** — both service accounts list the one

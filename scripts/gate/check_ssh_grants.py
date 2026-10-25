@@ -59,6 +59,7 @@ sys.path.insert(0, str(next(p for p in Path(__file__).resolve().parents
                             if p.name == "scripts") / "lib"))
 from repo_root import root as _hl_root  # noqa: E402
 from vault_env import ensure as _vault_ensure  # noqa: E402
+from vault_env import item_ref as _vault_item_ref  # noqa: E402
 REPO = _hl_root(__file__)
 DOC = REPO / "docs" / "deployment-secrets.md"
 SECTION = "Who is authorized where"
@@ -107,7 +108,12 @@ def vault_named() -> list[dict]:
     _vault_ensure()
     out = []
     for item in VAULT_SSH_ITEMS:
-        r = subprocess.run(["op", "item", "get", item, "--vault", VAULT, "--format", "json"],
+        # IDs, not names: a name-addressed `op item get` costs 3 of an ACCOUNT ceiling of 1000
+        # requests/24 h shared by every service account on the account (lib/vault_env.py `item_ref`).
+        v_arg, i_arg, form = _vault_item_ref(VAULT, item)
+        if form.startswith("names"):
+            print(f"NOTE: {item} resolved by name — {form}", file=sys.stderr)
+        r = subprocess.run(["op", "item", "get", i_arg, "--vault", v_arg, "--format", "json"],
                            capture_output=True, text=True)
         if r.returncode != 0:
             print(f"WARN: op could not read {item} ({r.stderr.strip().splitlines()[-1] if r.stderr.strip() else 'op failed'})"

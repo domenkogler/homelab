@@ -18,7 +18,8 @@
 # fixture-driven scripts still work, e.g. `REPO=…/testdata/… gate/check-vault-items.sh`):
 #
 #   _hl_d="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-#   while [ ! -f "$_hl_d/lib/repo-root.sh" ] && [ "$_hl_d" != / ]; do _hl_d="$(dirname "$_hl_d")"; done
+#   while [ -n "$_hl_d" ] && [ "$_hl_d" != / ] && [ ! -f "$_hl_d/lib/repo-root.sh" ]; do
+#     _n="${_hl_d%/*}"; [ "$_n" = "$_hl_d" ] && _n="/"; _hl_d="$_n"; done   # expansion, not dirname:
 #   . "$_hl_d/lib/repo-root.sh"        # sets REPO; FATAL when no root is found
 #
 # A root that cannot be found is a FATAL, never an empty string. The `exit 1`
@@ -84,7 +85,7 @@ hl_repo_root_selftest() {
   # shellcheck disable=SC2016
   printf '%s\n' '#!/usr/bin/env bash' \
     '_x="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"' \
-    'while [ ! -f "$_x/lib/repo-root.sh" ] && [ "$_x" != / ]; do _x="$(dirname "$_x")"; done' \
+    'while [ -n "$_x" ] && [ "$_x" != / ] && [ ! -f "$_x/lib/repo-root.sh" ]; do _n="${_x%/*}"; [ "$_n" = "$_x" ] && _n="/"; _x="$_n"; done' \
     '. "$_x/lib/repo-root.sh"' \
     'printf "%s\n" "$REPO"' >"$_t/caller.template"
   for _d in scripts scripts/gate; do

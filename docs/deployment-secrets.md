@@ -743,6 +743,7 @@ credential the machine already holds answers in under a second. Measured on `Dom
 | `git commit` on the seat default (`--git-identity`: `commit.gpgsign=false`, `gpg.ssh.program` absent) | git never reaches a signer | no — 0 s, `%G?` = `N` |
 | `git ls-remote` through `C:/Program Files/Git/usr/bin/ssh.exe -i ~/.ssh/github_auth -o IdentityAgent=none -o BatchMode=yes` | the bundled OpenSSH 10.5p1 | no — 1 s, authenticates |
 | the gate's vault legs (`check_secret_leak.py`, `check_host_reporting.py`, `check_ssh_grants.py`, `check-vault-items.sh`) | the credential rule in [`../scripts/lib/vault-env.sh`](../scripts/lib/vault-env.sh): env → this seat's 0600 install → the Debian engine's install across the WSL door | no — 1.2 s for `op item list`, and a seat with none of those three answers is a named **SKIP**, never a dialog |
+| ANY service-account read, once the account's 24 h request budget is spent | 1000 requests/24 h shared by **every** service account on the account (`op service-account ratelimit`), and a leg that addresses an item by NAME pays 3 of them where the ID form pays 1 | no — `Too many requests … Try again in  seconds` (the seconds blank: no retry-after for this class), which a leg reports as a boundary **SKIP** |
 
 Why it is per-process: 1Password authorises a key *against a requesting process*, and a harness that
 starts a fresh shell per command (an agent, a scheduled task) is a new process every time. Same

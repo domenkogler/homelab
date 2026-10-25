@@ -192,6 +192,23 @@ def _secret_fields(raw: dict) -> list[str]:
     return out
 
 
+def _vault_id_of(rows: list[dict]) -> str:
+    """The vault's ID, from the answer the list already gave — no extra request to learn it.
+
+    It matters because `op item get` is billed for resolving a NAME: 1 request when the item and the
+    vault are both IDs, more when either is a name. The account shares 1000 requests across every
+    service account on it for 24 h, so an unreadable-to-us name is not a style choice (HD-1204).
+    """
+    return next((str((row.get("vault") or {}).get("id")) for row in rows
+                 if (row.get("vault") or {}).get("id")), "")
+
+
+def _get_argv(item_id: str, vault_arg: str) -> list[str]:
+    """One item read, addressed the cheap-but-still-correct way. Kept as a function so the self-test can
+    ASK the shape rather than trust a comment: the vault slot carrying a NAME is the 3-read path."""
+    return ["item", "get", item_id, "--vault", vault_arg, "--format", "json"]
+
+
 def load_values(parallel: int) -> tuple[dict[bytes, list[str]], dict[str, str], list[str], list[str], str]:
     """The fleet's CURRENT secret values.
     Returns (needles, id→title, short-value item ids, read errors, vault version key)."""
@@ -213,10 +230,14 @@ def load_values(parallel: int) -> tuple[dict[bytes, list[str]], dict[str, str], 
     if not rows:
         raise Boundary("`op item list` answered ZERO items — an empty vault answer is not an empty fleet")
     titles = {row["id"]: row.get("title", "?") for row in rows}
+    # Address the ITEMS by ID and the VAULT by ID: `op item get` costs 1 request when both are IDs, and
+    # 3 when either is a name (1Password bills the name resolution). The vault's own ID is already in the
+    # list answer, so this costs nothing to know — and the account ceiling is 1000 requests per 24 h
+    # SHARED BY EVERY service account on it, which is what `op service-account ratelimit` shows.
+    vvid = _vault_id_of(rows)
 
     def one(row: dict) -> tuple[str, list[str], str]:
-        g = _op(["item", "get", row["id"], "--vault", VAULT, "--format", "json"],
-                timeout=OP_GET_TIMEOUT)
+        g = _op(_get_argv(row["id"], vvid or VAULT), timeout=OP_GET_TIMEOUT)
         if g.returncode != 0:
             return row["id"], [], (g.stderr or "").strip()[:100]
         try:
@@ -236,6 +257,11 @@ def load_values(parallel: int) -> tuple[dict[bytes, list[str]], dict[str, str], 
                     short.append(iid)
                     continue
                 needles.setdefault(v.encode("utf-8", "surrogateescape"), []).append(iid)
+    reads = 2 + len(rows) * (1 if vvid else 2)
+    print(f"vault reads this run: ~{reads} — {len(rows)} items at "
+          f"{'1 each (item + vault ID)' if vvid else '2 each (vault answered by NAME: 3 per item if the item were named too)'}"
+          f" + 2 for the list; the account ceiling is 1000 requests/24 h across ALL its service accounts"
+          f" (`op service-account ratelimit`)")
     if not needles:
         raise Boundary("the vault read produced ZERO secret values — a vault that answers nothing "
                        "is an environment boundary, not a clean fleet")
@@ -1008,6 +1034,19 @@ def self_test() -> int:
         rc, out = rewrite(led, [], {"repo-tree", "run-capture"}, ["run-capture", "git-history"])
         check("a run without the history leg cannot clear a git-history line",
               rc == 1 and led.read_text() == book, f"rc {rc}: {led.read_text()[-80:]}")
+
+    # (24) the read-budget half, asked of the code rather than of a comment: an ID-addressed get is 1
+    # request where a name-addressed one is 3, against an ACCOUNT ceiling of 1000 requests/24 h.
+    check("item gets are addressed by item ID",
+          _get_argv("aaaaaaaaaaaaaaaaaaaaaaaaaa", "xvh7vv7aaaaaaaaaaaaaaaaaaaaaaaaaa")[2]
+          == "aaaaaaaaaaaaaaaaaaaaaaaaaa")
+    check("the vault slot carries the vault ID when the list answered one",
+          _get_argv("x", "xvh7vv7aaaaaaaaaaaaaaaaaaaaaaaaaa")[4] == "xvh7vv7aaaaaaaaaaaaaaaaaaaaaaaaaa")
+    check("a list answer with no vault ID falls back to the NAME, and says so by costing more",
+          _vault_id_of([{"id": "a", "title": "t"}]) == "")
+    check("the vault ID is read from the list answer the run already paid for",
+          _vault_id_of([{"id": "a", "title": "t", "vault": {"id": "xvh7vv7aaaaaaaaaaaaaaaaaaaaaaaaaa"}}])
+          == "xvh7vv7aaaaaaaaaaaaaaaaaaaaaaaaaa")
 
     print(f"check_secret_leak.py --self-test: {fails} failing arm(s)")
     if fails:
