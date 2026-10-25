@@ -71,7 +71,7 @@ Measured with an 11 s WAV:
 **Wire contract — no thin wrapper is required.** `--inference-path /v1/audio/transcriptions`
 relocates the inference route: `POST /v1/audio/transcriptions` → `200 {"text": … }`, `POST /inference` → **404**,
 `/health` stays at the request root, and the extra OpenAI-style multipart fields (`model`, `language`,
-`response_format`) are accepted rather than rejected. Home Assistant Assist therefore needs **no wrapper**.
+`response_format`) are accepted — enough for an **OpenAI-shaped client** (the gateway's `local-stt` row), **not** for Home Assistant: its `whisper` integration is a Wyoming-only stub on the pin.
 
 **GPU-first / CPU-fallback is native**: with no DRI node present the server logs
 `ggml_vulkan: No devices found` → `no GPU found` → **serves on CPU and stays up**; `-ng` forces the same path.

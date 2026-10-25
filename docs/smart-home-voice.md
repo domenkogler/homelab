@@ -24,8 +24,7 @@ tags: [smart-home, voice, whisper, piper]
 > | config entry | `litellm` domain, `entry_id 01M4GR0Y3WZTVFPX5DCCYMF235`, title `llitellm.kogler.si`, state `loaded`, source `user` |
 > | entry data | `url = https://llitellm.kogler.si/v1` (the integration appends `/v1` itself) + the scoped `home-assistant_api` virtual key — in `.storage/core.config_entries`, **no template involved** |
 > | conversation agent | subentry `spark/qwen3.8-flash-next` → entity **`conversation.spark_qwen3_8_flash_next`**, `llm_hass_api: [assist]`, prompt asks for one short Slovenian sentence |
-> | Assist wire | the default pipeline `01m1k4tamb53mwh074jt2n9sfg` carries `conversation_engine: conversation.spark_qwen3_8_flash_next` |
-> | pipeline language | `language`/`conversation_language` are **`en`**; the STT/TTS legs read the pipeline language, so changing it belongs to the voice-hardware work |
+> | Assist wire | the default pipeline `01m1k4tamb53mwh074jt2n9sfg` carries `conversation_engine: conversation.spark_qwen3_8_flash_next`, and **`stt_engine: null` + `tts_engine: null`** — measured over the websocket (`assist_pipeline/pipeline/list`); an `assist_pipeline/run` from `start_stage: stt` answers `the pipeline does not support speech-to-text`, which is exactly what a satellite's mic hits today |
 > | reachability | the HA container resolves `llitellm.kogler.si` to the oldsrv home-leg address (see [network-addresses-generated.md](network-addresses-generated.md)) and TLS-validates it (`ssl_verify_result=0`, `401` without a key), so **no `extra_hosts` entry is needed** |
 > | replication | the standby copy on oldsrv carries the entry within one sync cycle — the plaintext-replication ruling in [deployment-secrets.md](deployment-secrets.md) §Runtime plaintext that leaves the vault is in effect on a live file |
 >
@@ -78,8 +77,7 @@ tags: [smart-home, voice, whisper, piper]
 > [deployment-secrets.md](deployment-secrets.md) §Runtime plaintext that leaves the vault (with its reopen trigger).
 >
 > **Engine = `whisper.cpp` `main-vulkan`, digest-pinned** (decision #27) — RADV, native RDNA3, no ROCm
-> userspace. The chain
-> and its sources live in [services-ai.md](services-ai.md) §9 and
+> userspace. The chain and its sources live in [services-ai.md](services-ai.md) §9 and
 > [services-rejected.md](services-rejected.md). Two consequences worth carrying: **a build recipe nobody
 > publishes is not an option**, and with Vulkan the weight lives on the card, so container RSS (~34 MiB) is
 > **not** "VRAM used".
@@ -93,9 +91,12 @@ tags: [smart-home, voice, whisper, piper]
 ## Pipeline Flow
 
 ```
-Microphone → Wake Word Detection → Whisper STT → LLM → Piper TTS → Speaker
-   (ESP32)      (microWakeWord)      (RX 7600)   (spark)    (CPU)      (WiiM Bar)
+Microphone → Wake Word Detection → STT over Wyoming → LLM → TTS over Wyoming → Speaker
+ (phone / ESP32)  (microWakeWord)      (RX 7600)     (spark)      (CPU)         (WiiM Bar)
 ```
+
+> **The Wyoming hop is the design, not an add-on:** Wyoming is the only protocol HA's Assist pipeline
+> speaks to a local STT/TTS engine (§Components), so every engine leg terminates in a Wyoming server.
 
 ---
 
@@ -120,9 +121,9 @@ Microphone → Wake Word Detection → Whisper STT → LLM → Piper TTS → Spe
 | Stage | Software | Hardware | Notes |
 |-------|----------|----------|-------|
 | **Wake Word** | microWakeWord / HA Assist | ESP32-S3 / Android | "Hey, assistant" |
-| **STT** | **`whisper.cpp` `main-vulkan`** (`whisper-server`, digest-pinned) — **not** faster-whisper (CTranslate2 is CUDA-only) | **oldsrv RX 7600** (Vulkan/RADV — no `/dev/kfd`, no `HSA_*`) | **Slovenian** + English → text (multilingual GGML, measured `n_langs = 100`). **No OpenAI-compat wrapper needed**: `--inference-path /v1/audio/transcriptions` — measured, see [services-ai-bench.md](services-ai-bench.md) §2 |
+| **STT** | **`whisper.cpp` `main-vulkan`** (`whisper-server`, digest-pinned) — **not** faster-whisper (CTranslate2 is CUDA-only) | **oldsrv RX 7600** (Vulkan/RADV — no `/dev/kfd`, no `HSA_*`) | **Slovenian** + English → text (multilingual GGML, measured `n_langs = 100`). Serves `--inference-path /v1/audio/transcriptions`, measured ([services-ai-bench.md](services-ai-bench.md) §2) — that answers the gateway's `local-stt` row, **not** HA: Assist reaches an STT engine only through **Wyoming** (`whisper` is a `supported_by: wyoming` stub on the pin) |
 | **LLM** | Gateway model via LiteLLM — `openai/spark/qwen3.8-flash-next` (fast) or `openai/spark/qwen3.6-27b` (reasoning) | **spark GB10**, through the gateway | Intent parsing, response generation |
-| **TTS** | Piper TTS | **CPU** (decision #24 — CPU-only engine) | Text → Slovenian speech |
+| **TTS** | Piper TTS — **authored nowhere** (`grep -ri piper IaC/` = 0 files) | **CPU** (decision #24 — CPU-only engine) | Text → Slovenian speech; also Wyoming-only in HA, and no Slovenian voice has been chosen — the one TTS entity that exists is `tts.google_translate_en_com`, **cloud + English** |
 
 ---
 
@@ -139,7 +140,8 @@ When voice is active, GPU runs in **Pinned-AI** mode (decision #24):
 | Piper TTS | **CPU** (~0.5 GB RAM, instant) |
 | LLM (intent/response) | **spark GB10** (big-model tier) |
 
-> **The Vulkan runtime needs** only `/dev/dri/renderD128` + `video`/`render` group membership. Decision
+> **The Vulkan runtime needs** only the dGPU render node (`gpu_vulkan_render_node` — `renderD129` on
+> oldsrv, `renderD128` is the iGPU and is slower than CPU here) + `video`/`render` group membership. Decision
 > chain + evidence: [services-ai.md](services-ai.md) §9 · [hardware-gpu.md](hardware-gpu.md) ·
 > [services-rejected.md](services-rejected.md).
 
@@ -153,18 +155,16 @@ See [`hardware-gpu.md`](hardware-gpu.md) for the full VRAM management table.
 
 ## Language Pipeline
 
-- **Wake word:** English (2 words — wider tool support)
-- **STT:** English (Whisper supports multilingual, but English best accuracy)
-- **LLM:** Slovenian response generation (spark big-model — Qwen3-Coder-Next-80B / Nemotron support Slovenian)
-- **TTS:** Slovenian output (Piper has Slovenian voice models)
+- Measured pipeline `language`/`conversation_language`: **`en`**. The engine runs `-l auto`, so Slovenian
+  audio transcribes regardless; what the pipeline value governs is the STT/TTS legs' own language choice.
+- **LLM/TTS: Slovenian output** (decision #24: Piper on CPU; the spark model answers in Slovenian).
 
 ---
 
 ## Not Yet Implemented
 
-Depends on:
-1. oldsrv with GPU operational (RX 7600, pinned-AI mode)
-2. Whisper (`whisper.cpp` `main-vulkan`) + bge-m3/bge-reranker containers on oldsrv (decision #24)
-3. Piper TTS on CPU
-4. ESP32-S3 flashed with ESPHome + microWakeWord
-5. HA Assist configured on family phones
+1. **A Wyoming front for both legs** — HA 2026.x ships `whisper` and `piper` as `supported_by: wyoming`
+   stubs, so an engine leg HA cannot address over Wyoming is a leg with no consumer.
+2. **Piper TTS** — decided (CPU, decision #24), authored nowhere; no Slovenian voice chosen.
+3. **A satellite** — the ESP32-S3 is unflashed and no phone Assist entry is configured; a Companion app
+   mic is a satellite already, and hits `the pipeline does not support speech-to-text` today.
