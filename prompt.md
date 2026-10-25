@@ -366,9 +366,9 @@ not this list, holds the steps, the file ownership and the converge host. Waves,
     headscale-side call on MagicDNS `SERVFAIL`ing most of `zone_kogler_si`, and the suspend/resume + away-from-home
     re-measure. Record: [scripts/README.md](scripts/README.md) `validate-all.sh` + `lib/python.sh` + `lib/repo_root.py` ·
     [docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1.
-    ⏳ the hybrid route (branch `feat/gate-wsl-offload` @ `18bbf66d`): grade it on a clean main checkout, re-take the A/B
-    wall quietly, set `GATE_WIN_PAR` from a re-derived number, and rule each seat-tool-bound leg — mechanism,
-    eligibility and timings: [`scripts/lib/wsl-route.sh`](scripts/lib/wsl-route.sh) · [docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1.
+    ⏳ the hybrid route (merged): re-take the A/B wall on both engines on a quiet box, set `GATE_WIN_PAR` from a
+    re-derived number, rule each seat-tool-bound leg, and watch the WSL seat's starvation flake (HD-1117) ·
+    [`scripts/lib/wsl-route.sh`](scripts/lib/wsl-route.sh) · [docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1.
 
 **Parked on an owner-present window** — authored work with exactly one blocked action in front of it, named with that
 action so no lane re-derives it. An entry marked RULED is AI work, not an owner act — the rulings are the rows' and
