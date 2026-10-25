@@ -29,13 +29,24 @@
 # =====================================================================
 set -euo pipefail
 
-[ -f "$HOME/.config/op/homelab-sa-token" ] || {
-    echo "FAIL: SA token file missing — run scripts/ansible/bootstrap-runner.sh first" >&2
+# The credential comes from the ONE rule (lib/vault-env.sh) rather than from a sourced file: this leg
+# WRITES a vault value, so it must know which credential answered — an env token left over from an
+# earlier window is the write-scoped one, and a silent file fallback would not say which it used.
+# Sourced by name, upward, bounded — this script never sources repo-root.sh (it has its own root
+# semantics), and vault-env.sh brings the rest of the lib with it. Parameter expansion rather than
+# `dirname` so a trimmed PATH cannot spin the walk (CONVENTIONS §6).
+_hl_d="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+while [ -n "$_hl_d" ] && [ "$_hl_d" != / ] && [ ! -f "$_hl_d/lib/vault-env.sh" ]; do
+  _hl_n="${_hl_d%/*}"; [ "$_hl_n" = "$_hl_d" ] && _hl_n="/"; _hl_d="$_hl_n"
+done
+# shellcheck source=/dev/null
+. "$_hl_d/lib/vault-env.sh"
+hl_vault_env || {
+    echo "FAIL: no vault credential reachable on this seat — $(hl_vault_verdict)." >&2
+    echo "      run scripts/ansible/bootstrap-runner.sh first." >&2
     exit 1
 }
-chmod 700 "$HOME/.config/op"   # op refuses world-accessible config dirs
-# shellcheck disable=SC1091
-source "$HOME/.config/op/homelab-sa-token"
+[ -d "$HOME/.config/op" ] && chmod 700 "$HOME/.config/op"   # op refuses world-accessible config dirs
 
 FORCE=0
 case "${1:-}" in

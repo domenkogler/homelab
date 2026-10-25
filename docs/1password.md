@@ -54,8 +54,9 @@ The Windows seat holds no vault credential of its own and keeps holding none —
 compare vault values still have to run there, and a seat that reaches `op` with nothing exported does
 not fail: it asks the **desktop app**, which authorises a key against a requesting process and so
 raises a consent dialog *per read*, in a harness that starts a fresh shell per command. The rule that
-prevents that is one file: [`../scripts/lib/vault-env.sh`](../scripts/lib/vault-env.sh), with
-[`../scripts/lib/vault_env.py`](../scripts/lib/vault_env.py) as its python face.
+prevents that is one file — [`../scripts/lib/vault-env.sh`](../scripts/lib/vault-env.sh), with
+[`../scripts/lib/vault_env.py`](../scripts/lib/vault_env.py) as its python face — and every leg calls it: the
+Debian-side entry points that used to `source` the file are folded in, so it is read in one file and written in one.
 
 | order | source | `route=` |
 |---|---|---|

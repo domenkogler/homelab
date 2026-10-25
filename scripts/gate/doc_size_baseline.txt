@@ -16,7 +16,7 @@
 # this file (§2):
 #     python3 scripts/gate/check_doc_size.py --reseal
 #     python3 scripts/gate/check_doc_size.py --show-baseline
-docs/1password.md	346
+docs/1password.md	347
 docs/automation-renewals.md	73
 docs/backup.md	575
 docs/deployment-ai-stack-secrets.md	212

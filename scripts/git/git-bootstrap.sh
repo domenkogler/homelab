@@ -521,11 +521,35 @@ if [ "$MODE" = "update" ] || [ "$MODE" = "pull" ]; then
 fi
 
 # --- Phase-0 sanity helper (venv + op SA token) — informational, not a gate --
-if [ ! -d "$HOME/ansible-venv" ] || [ ! -f "$HOME/.config/op/homelab-sa-token" ]; then
-  echo "==> Phase-0 not detected here; run scripts/ansible/bootstrap-runner.sh first"
-  echo "    (installs ansible venv, op CLI, SA token, SSH key)."
+# `hl_vault_env` asks whether a credential ANSWERS, not whether one file exists: the Win11 seat holds no
+# token of its own by design and resolves the same read across the WSL door, so the file probe below used
+# to print "Phase-0 not detected" about a seat that was fine. This script may run before a clone exists,
+# so the lib is found by an upward walk that is BOUNDED and NON-FATAL — with no lib, the old probe says
+# what it can and names itself as the degraded route.
+_hl_d="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+while [ -n "$_hl_d" ] && [ "$_hl_d" != / ] && [ ! -f "$_hl_d/lib/vault-env.sh" ]; do
+  _hl_n="${_hl_d%/*}"; [ "$_hl_n" = "$_hl_d" ] && _hl_n="/"; _hl_d="$_hl_n"
+done
+if [ -n "${_hl_d:-}" ] && [ -f "$_hl_d/lib/vault-env.sh" ]; then
+  # shellcheck disable=SC1091
+  . "$_hl_d/lib/vault-env.sh"
+  if hl_vault_env; then
+    echo "==> op SA credential reachable ($(hl_vault_verdict))$([ -d "$HOME/ansible-venv" ] && echo ", venv present")."
+  else
+    echo "==> no vault credential reachable here — $(hl_vault_verdict); run scripts/ansible/bootstrap-runner.sh"
+    echo "    (installs ansible venv, op CLI, SA token, SSH key)."
+    [ -d "$HOME/ansible-venv" ] && echo "    (the venv IS present — only the credential is missing)."
+  fi
 else
-  echo "==> Phase-0 present (venv + op SA token)."
+  # No lib above a pre-clone script: report the venv, and say the credential question went UNASKED
+  # rather than guessing at a path — a probe that names a file it hopes to find is how this seat got
+  # falsely reported as "Phase-0 not detected".
+  if [ -d "$HOME/ansible-venv" ]; then
+    echo "==> ansible venv present; credential NOT probed (no scripts/lib/vault-env.sh above this script)."
+  else
+    echo "==> Phase-0 not detected here; run scripts/ansible/bootstrap-runner.sh first"
+    echo "    (installs ansible venv, op CLI, SA token, SSH key) — credential NOT probed, no lib found."
+  fi
 fi
 
 echo "==> Done. Next:"

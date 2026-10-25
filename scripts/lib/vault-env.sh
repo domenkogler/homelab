@@ -39,6 +39,10 @@
 # list` cannot tell the read-scoped and write-scoped accounts apart and a seat seeded from the wrong
 # item reads green anyway.
 #
+# The same rule answers for the entry points that are not gate legs at all — `ansible/ansible-run.sh`,
+# `ansible/restore-runner-key.sh`, `git/git-bootstrap.sh` and `secrets/rotate-spark-llm-key.sh` (the last
+# one INVERTS the order on purpose: there the ambient env is the suspect, so it is dropped and re-resolved).
+#
 # USE — bash, sourced:
 #   hl_source_lib "${BASH_SOURCE[0]}" repo-root.sh     # or the repo-root bootstrap; sets REPO
 #   hl_source_lib "${BASH_SOURCE[0]}" vault-env.sh
@@ -390,7 +394,7 @@ hl_vault_self_test() {
   # each one a copy of the rule this lib replaces, and the fold is that lane's edit, not this one's.
   # What the arm forbids from now on is a NEW file naming the path: the list can only shrink.
   # `\.md` is excluded because a registry row that NAMES the path is documentation, not a reader.
-  readers="$(cd "$REPO" 2>/dev/null && git grep -l 'homelab-sa-token' -- scripts/ 2>/dev/null     | grep -v -e '\.md$' -e '^scripts/lib/vault-env\.sh$' -e '^scripts/testdata/'              -e '^scripts/ansible/bootstrap-runner\.sh$'              -e '^scripts/ansible/ansible-run\.sh$'              -e '^scripts/ansible/restore-runner-key\.sh$'              -e '^scripts/ansible/routeros-apply-delta\.sh$'              -e '^scripts/git/git-bootstrap\.sh$'              -e '^scripts/secrets/rotate-spark-llm-key\.sh$' || true)"
+  readers="$(cd "$REPO" 2>/dev/null && git grep -l 'homelab-sa-token' -- scripts/ 2>/dev/null     | grep -v -e '\.md$' -e '^scripts/lib/vault-env\.sh$' -e '^scripts/testdata/'              -e '^scripts/ansible/bootstrap-runner\.sh$'                                                                  || true)"
   # A git that cannot open this checkout answers with NOTHING, and "nothing new" must not read as a
   # passed arm (a Linux git pointed at a Windows worktree reads the `gitdir:` file as relative and
   # dies — lib/wsl-route.sh records it). Not judged is printed as not judged.

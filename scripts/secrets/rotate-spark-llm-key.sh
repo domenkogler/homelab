@@ -82,16 +82,19 @@ say "  7. report the per-consumer env hashes vs the vault (empty = host unreacha
 if [ "$ASSUME_YES" != "1" ]; then read -r -p "Execute the window now (engine DOWN ~25 min)? [y/N] " a; [ "${a:-n}" = "y" ] || { say "aborted"; exit 1; }; fi
 
 # ---- 1. before-state ----------------------------------------------------------
-# An already-running shell keeps exporting the PREVIOUS token and the environment beats
-# ~/.config/op/homelab-sa-token — this exact shadowing aborted a window run on 2026-09-19 with
-# a misleading "auth/vault?" line. Re-source the sanctioned file once and retry before blaming
-# the rotation.
+# An already-running shell keeps exporting the PREVIOUS token, and the credential rule's first source IS
+# the environment — this exact shadowing aborted a window run on 2026-09-19 with a misleading
+# "auth/vault?" line. So this leg drops the ambient value and re-resolves before blaming the rotation;
+# it is the ONE place that inverts lib/vault-env.sh's order, on purpose and with its reason below.
 if ! op vault list </dev/null >/dev/null 2>&1; then
-  TOKFILE="$HOME/.config/op/homelab-sa-token"
-  if [ -r "$TOKFILE" ]; then
-    say "  op auth failed with the inherited env — re-sourcing $TOKFILE and retrying"
-    set -a; . "$TOKFILE"; set +a
-  fi
+  # This is the one place the rule's order is INVERTED on purpose: the env is what is suspected, so the
+  # ambient value is dropped and the file/door route answers instead. lib/vault-env.sh still resolves it,
+  # so a win11 seat re-seats from the engine's install rather than dying on a missing file.
+  say "  op auth failed with the inherited env — dropping it and re-resolving through lib/vault-env.sh"
+  unset OP_SERVICE_ACCOUNT_TOKEN
+  # shellcheck disable=SC1091
+  hl_source_lib "${BASH_SOURCE[0]}" vault-env.sh
+  hl_vault_env || say "  nothing else answered either ($(hl_vault_verdict)) — the next read will say why"
 fi
 OLD=$(op read "op://$VAULT/$ITEM/credential" </dev/null 2>/dev/null)
 [ -n "$OLD" ] || { say "ABORT: cannot read the current value. If 1P answers 403, the token in this";

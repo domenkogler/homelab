@@ -29,7 +29,8 @@
 #    on this machine that is /home/domen/source/homelab, the WSL ext4 primary)
 #
 # Requires Phase 0 bootstrap on whichever machine runs it:
-#   ~/ansible-venv + ~/.config/op/homelab-sa-token  (scripts/ansible/bootstrap-runner.sh),
+#   ~/ansible-venv + a reachable SA credential (scripts/ansible/bootstrap-runner.sh installs the
+#   engine's 0600 install; lib/vault-env.sh is what finds it, including across the WSL door),
 #   plus the vault-canonical runner key (scripts/ansible/restore-runner-key.sh).
 #
 # HD-413: some legs refuse when this runner IS the target (network / storage /
@@ -66,13 +67,17 @@ while [ ! -f "$_hl_d/lib/repo-root.sh" ] && [ "$_hl_d" != / ]; do _hl_d="$(dirna
 export ANSIBLE_CONFIG="$REPO/IaC/ansible/ansible.cfg"
 export ANSIBLE_ROLES_PATH="$REPO/IaC/ansible/roles"
 
-if [ -f "$HOME/.config/op/homelab-sa-token" ]; then
-    # shellcheck disable=SC1091
-    source "$HOME/.config/op/homelab-sa-token"
-else
-    echo "FAIL: $HOME/.config/op/homelab-sa-token missing — run scripts/ansible/bootstrap-runner.sh first" >&2
+# The vault credential resolves through the ONE rule (lib/vault-env.sh): ambient env → this seat's 0600
+# install → on the win11 seat, the engine's install across the WSL door → otherwise NOTHING is exported.
+# Sourcing the file here was the same rule written a fifth time, and on the seat that has no file it made
+# a missing credential look like a missing prerequisite while `op` quietly went to the desktop app.
+# shellcheck disable=SC1091
+hl_source_lib "${BASH_SOURCE[0]}" vault-env.sh
+hl_vault_env || {
+    echo "FAIL: no vault credential reachable on this seat — $(hl_vault_verdict)." >&2
+    echo "      run scripts/ansible/bootstrap-runner.sh on the engine, or export OP_SERVICE_ACCOUNT_TOKEN." >&2
     exit 1
-fi
+}
 
 if [ -d "$HOME/ansible-venv" ]; then
     # shellcheck disable=SC1091

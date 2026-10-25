@@ -31,8 +31,8 @@
 #   Env: ROS_SSH_USER (default: ansible)
 #
 # Requires: the 1Password CLI, openssh client + ssh-keygen, and EITHER the read-scope
-#   service-account token (`OP_SERVICE_ACCOUNT_TOKEN`, what `scripts/ansible/ansible-run.sh` sources
-#   from ~/.config/op/homelab-sa-token) or a signed-in account (`op signin`). Measured
+#   service-account token (`OP_SERVICE_ACCOUNT_TOKEN`, resolved by `lib/vault-env.sh` — see
+#   `scripts/ansible/ansible-run.sh`) or a signed-in account (`op signin`). Measured
 #   2026-10-08: with the SA token alone, `op account list` returns 0 and
 #   `op read op://Homelab-ansible/ansible-admin_ssh/"private key"` returns a PEM that
 #   `ssh-keygen -yf` loads — the item lives in `Homelab-ansible`, which the read-scope SA can
