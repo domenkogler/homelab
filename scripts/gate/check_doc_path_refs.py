@@ -567,7 +567,7 @@ def git_files():
     return [f for f in r.stdout.decode("utf-8", "replace").split("\0") if f]
 
 
-# HD-1179: a fixture that builds a git repo must not inherit the caller's git location — these
+# The fixture-scrub rule (scripts/README.md): a fixture that builds a git repo must not inherit the caller's git location — these
 # outrank `git -C <dir>` and the child's cwd, so an inherited one writes the fixture's objects and
 # refs into the repository the gate is grading (that is how `session/selftest` came to exist).
 _GIT_LOC_VARS = ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY",
@@ -713,7 +713,7 @@ def self_test():
         ig = tempfile.mkdtemp(prefix="check-doc-path-refs-ignore-")
         (Path(ig) / ".gitignore").write_text("out/\n", encoding="utf-8")
         (Path(ig) / "tracked.md").write_text("ok\n", encoding="utf-8")
-        keep = {k: os.environ.pop(k) for k in _GIT_LOC_VARS if k in os.environ}   # HD-1179
+        keep = {k: os.environ.pop(k) for k in _GIT_LOC_VARS if k in os.environ}   # the fixture-scrub rule
         saved_root = ROOT
         try:
             gi = subprocess.run(["git", "init", "-q", str(Path(ig))], capture_output=True)

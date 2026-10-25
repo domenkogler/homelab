@@ -124,7 +124,7 @@ CLASSES = ("history", "derived")
 FIELDS = ("baseline_bytes", "baseline_lines", "sealed_at")
 REV_RE = re.compile(r"^[0-9a-f]{7,40}$")
 MAX_PRINTED = 12
-# A git fixture must not reach the tree that is running it (HD-1179): these six are scrubbed from
+# A git fixture must not reach the tree that is running it (the fixture-scrub rule, scripts/README.md): these six are scrubbed from
 # every git call here, so a caller exporting GIT_DIR cannot move --reseal's rev or --self-test's reads.
 GIT_VARS = ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR",
             "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES")
@@ -657,7 +657,7 @@ def self_test() -> int:
     contract: a ceiling that cannot tell two lines from a paragraph is not a ceiling, and a ratchet
     that cannot watch its own debt vanish is not a ratchet. Nothing here writes near the real tree,
     and no arm reaches git — the seal revision is injected, so the test reads the same in every
-    clone and in every fixture environment (the HD-1179 rule about a gate's own fixture)."""
+    clone and in every fixture environment (the fixture-scrub rule about a gate's own fixture, scripts/README.md)."""
     fails = 0
 
     def arm(label: str, ok: bool, detail: str = "") -> None:

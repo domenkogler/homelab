@@ -238,7 +238,12 @@ self_test() {
   local tmp fails=0 rc=0
   tmp="$(mktemp -d 2>/dev/null)" || { err "mktemp failed"; return 1; }
   trap "rm -rf '$tmp'" RETURN
-  require_node || { err "self-test needs node — it cannot prove anything without it"; return 1; }
+  # A seat with no node cannot run this case; that is rc 2 (a printed SKIP), the same boundary every
+  # other path in this file answers with, not rc 1 — the rc 1 form read as a broken harness where the seat only lacked node.
+  require_node >/dev/null 2>&1 || {
+    info "SKIP: without a usable node this case cannot stage a fixture, so the pi-subagents payload self-test ran nothing here (a SKIP, not a verdict)"
+    return 2
+  }
   # a compliant file == the SSOT payload
   "$NODE" -e '
     const fs=require("fs"), path=require("path");
