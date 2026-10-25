@@ -463,9 +463,9 @@ def candidates(origin, kind, target, render_map=None):
     for the path it is handed and `IaC/router/rendered/` is a directory entry the tree cannot show."""
     out = [resolve(origin, kind, target, render_map)]
     if kind in ("bare", "code"):
-        out += [os.path.normpath(b + target) for b in bases(target)]
-        out.append(os.path.normpath(os.path.join(os.path.dirname(origin), target)))
-    return [os.path.normpath(c) for c in out]
+        out += [npath(b + target) for b in bases(target)]
+        out.append(npath(os.path.join(os.path.dirname(origin), target)))
+    return [npath(c) for c in out]
 
 
 def ignore_candidates(origin, kind, target, render_map=None):
@@ -477,8 +477,30 @@ def ignore_candidates(origin, kind, target, render_map=None):
     path, not about a guess."""
     out = [resolve(origin, kind, target, render_map)]
     if kind in ("bare", "code"):
-        out.append(os.path.normpath(os.path.join(os.path.dirname(origin), target)))
-    return [os.path.normpath(c) for c in out]
+        out.append(npath(os.path.join(os.path.dirname(origin), target)))
+    return [npath(c) for c in out]
+
+
+def npath(p):
+    """The ONE spelling every comparison here uses: normpath'd, forward-slashed, on every seat.
+    `os.path.normpath` on a Windows seat rewrites `a/b` to `a\\b`, and git reads that backslash as
+    an ESCAPE, not a separator: `git check-ignore` answers rc 1 for a path it does ignore, so the
+    whole generated-file exemption silently vanishes on that seat and every renderer-output
+    citation turns into a dangling ref (HD-1202: the probe answered correctly on its own, so the
+    leg passed on a clone that had rendered and reddened on a fresh one — a verdict about the
+    checkout, not about the repo). Pathspecs are slash-separated everywhere; ask and compare that
+    way."""
+    s = os.path.normpath(str(p))
+    return s.replace(os.sep, "/") if os.sep != "/" else s
+
+
+def gpath(p):
+    """Separators git can read, and NOTHING else changed. `npath()` is the comparison spelling and
+    it normalises away the TRAILING SLASH a directory-only `.gitignore` rule needs `git
+    check-ignore` to answer for (see main() — a directory pattern matches only a query that carries
+    it), so the QUERY is slash-converted and never normpath'd."""
+    s = str(p)
+    return s.replace(os.sep, "/") if os.sep != "/" else s
 
 
 def check(corpus, exists, ignored=frozenset(), verbose=False, render_map=None, ledger=None):
@@ -545,13 +567,20 @@ def git_files():
     return [f for f in r.stdout.decode("utf-8", "replace").split("\0") if f]
 
 
+# HD-1179: a fixture that builds a git repo must not inherit the caller's git location — these
+# outrank `git -C <dir>` and the child's cwd, so an inherited one writes the fixture's objects and
+# refs into the repository the gate is grading (that is how `session/selftest` came to exist).
+_GIT_LOC_VARS = ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY",
+                 "GIT_COMMON_DIR", "GIT_SEPARATE_GITDIR")
+
+
 def git_ignored(paths):
     """Ask git which of these absences are INTENTIONAL. Chunked, and a failed chunk is retried
     line by line: one weird candidate (an `\u2026` ellipsis in a doc path was enough) must not
     silently disable the exemption for the whole corpus \u2014 that is how the generated
     post_install_with_secrets.sh, which .gitignore declares by name, came to be reported as a
     defect while the isolated test said it was fine."""
-    paths = [p for p in paths if p and not p.startswith("-")]
+    paths = [gpath(p) for p in paths if p and not p.startswith("-")]
     out = set()
     for i in range(0, len(paths), 64):
         chunk = paths[i:i + 64]
@@ -565,7 +594,7 @@ def git_ignored(paths):
             r2 = subprocess.run(["git", "-C", str(ROOT), "check-ignore", "--", one],
                                 capture_output=True)
             if r2.returncode == 0:
-                out.add(one)
+                out.add(gpath(one))
     return frozenset(out)
 
 
@@ -673,6 +702,46 @@ def self_test():
         arm("render map: a generated-doc template resolves its links from the doc it renders into",
             not hits(("IaC/ansible/templates/tpl.md.j2", "docs/sibling.md")), str(sorted(got)))
 
+        # HD-1202: the ignore probe IS a git call, so it is tested as one. The shape it must survive
+        # is the repo's own renderer output — a DIRECTORY-ONLY rule (`IaC/router/rendered/`) cited
+        # as `IaC/router/rendered/rb4011_initial.rsc`. The defect was the spelling of the query: a
+        # normpath'd Windows path asks git about `IaC\router\rendered\rb4011_initial.rsc`, git reads
+        # the backslash as an escape and answers rc 1 for a path it does ignore, and the exemption
+        # for every generated file then vanishes ON THAT SEAT ALONE — which is why the leg was green
+        # where a render had happened and red in a fresh worktree. An in-process fixture cannot show
+        # this, because `ignored=` reaches check() already resolved, so this arm asks git.
+        ig = tempfile.mkdtemp(prefix="check-doc-path-refs-ignore-")
+        (Path(ig) / ".gitignore").write_text("out/\n", encoding="utf-8")
+        (Path(ig) / "tracked.md").write_text("ok\n", encoding="utf-8")
+        keep = {k: os.environ.pop(k) for k in _GIT_LOC_VARS if k in os.environ}   # HD-1179
+        saved_root = ROOT
+        try:
+            gi = subprocess.run(["git", "init", "-q", str(Path(ig))], capture_output=True)
+            if gi.returncode != 0:
+                arm("ignore-probe arm SKIPPED — no usable git for the fixture (a SKIP, not a pass): "
+                    + (gi.stderr or b"").decode("utf-8", "replace")[:70], True)
+            else:
+                ROOT = Path(ig)
+                # Both spellings the probe asks with, exactly as main() builds them: as written, and
+                # with the trailing slash a directory-only rule needs. `tracked.md` is the negative
+                # control — a rule that exempted everything would also pass the positive half.
+                probed = [p for p in ("out/x.rsc", "out/x.rsc/", "tracked.md", "tracked.md/")]
+                ig_res = {npath(p) for p in git_ignored(probed)}
+                arm("ignore-probe arm (HD-1202): git decides an absent generated path, in the "
+                    "spelling git reads — a directory-only rule exempts its contents on every seat, "
+                    "and a tracked file is still not exempt",
+                    "out/x.rsc" in ig_res and "tracked.md" not in ig_res, str(sorted(ig_res)))
+        finally:
+            ROOT = saved_root
+            os.environ.update(keep)
+            shutil.rmtree(ig, ignore_errors=True)
+
+        arm("the probe asks git in slashes and compares in one spelling (the normpath half of "
+            "HD-1202): npath/gpath keep the trailing slash git needs and drop only the separator",
+            npath("a/b") == "a/b" and npath("a/b/") == "a/b" and gpath("a/b/") == "a/b/"
+            and "\\\\" not in gpath(os.path.join("a", "b")),
+            f"npath(a/b/)={npath('a/b/')} gpath(a/b/)={gpath('a/b/')}")
+
         # BOTH halves of the ledger ratchet. Frozen debt, growth, and a line whose path went back
         # to existing -- an entry that outlives its citation must redden, or it exempts the next one.
         h = [("docs/a.md", "scripts/gone-backtick.py", "code", 8)]
@@ -734,7 +803,7 @@ def main():
     # `IaC/router/rendered/`, and `git check-ignore` only answers 0 for a directory-only pattern
     # when the queried path carries the trailing slash. Normalising the slash away — which is what
     # a path comparison has to do — would silently drop the exemption for every generated DIR.
-    ignored = {os.path.normpath(p) for p in git_ignored(missing + [m + "/" for m in missing])}
+    ignored = {npath(p) for p in git_ignored(missing + [m + "/" for m in missing])}
     ledger = read_ledger()
     findings, skipped, stats = check(
         corpus, lambda p: (ROOT / p).exists() or (ROOT / p).is_dir(), ignored, verbose,

@@ -56,6 +56,26 @@ tags: [ai, pi, agent-harness, harness, spark, llm, settings]
   shell into a target, need WSL-only tooling, or need a pty a native `ansible-playbook` cannot make (`WinError 87`) print
   `SKIP` naming what was not proven, so the run ends **`PARTIAL`** and a Debian seat is the authority on those classes.
   Wall clock is not comparable across the two OSes: ~10 ms per leg here against ~0.7 ms there is `fork()` emulation.
+- **One unfiltered run on this seat, and what its reds were.** `bash scripts/validate-all.sh --time` over the whole item set
+  ends at `wall 1518 s`, `Σ item duration 12,953 s`, `Σ/wall 8.53×` — the fork-diet ratio measured on the full set rather
+  than a subset, which is the number to read before touching `GATE_WIN_PAR`. Three items read red and each was asking a
+  different question from the Debian seats: **the ignore probe asked git with platform separators** (a backslash is an escape
+  to a pathspec, so `git check-ignore` answered "not ignored" for renderer output it does ignore, and 16 citations to
+  generated paths read as dangling refs — green on a clone that had once rendered, red in a fresh worktree, which is a
+  verdict about the checkout rather than the tree); **a pipe's carriage return moved into a comparison** (`jq -r x | od -c`
+  answers `x\r\n` here, and the one assertion that pipes a value through `tr '\n' ' '` was the arm that could see it); and
+  **the vault read crossed its ceiling** under the pool's load — `op item list` costs ~11 s warm here against a couple of
+  seconds on Debian, so a flat 60 s ceiling printed a traceback where a boundary belonged. All three are fixed in the
+  scripts and fenced by arms of their own; the UTF-8 pin now sits with the launcher in
+  [`../scripts/lib/python.sh`](../scripts/lib/python.sh) so a leg a person runs directly decodes what the pool decodes. What
+  stays unproven here is not a repo defect: with the 1Password session closed the leak leg answers
+  `SKIP: op item list rc 1: authorization timeout` — a named boundary at rc 2, never a green — so the leak class is not
+  proven from this seat until an unlocked run completes there (an owner act), and this seat's verdict stays `PARTIAL`.
+- **A seat with no `node` on PATH returns a verdict where it should return a boundary.** On the `oldsrv` runner clone the
+  same tip reads 2 items red — `pi-settings-config.sh --self-test`, `pi-tui-config.sh --self-test` — while their `--check`
+  forms on that host print `SKIP: no usable node … a SKIP is not a pass`. The self-test arms never ask whether the
+  interpreter exists, so a seat that cannot run the case at all reports a failure: the class CONVENTIONS §6 already rules
+  for the tmux and ansible probes, and the repair is the same probe before the same case, never a softer assertion.
 - **A leg that asks a different question on this seat returns a wrong verdict, not an error** — the shapes that fix it are
   in [`../scripts/README.md`](../scripts/README.md) (launcher arrays, a bash that can read the path, probed interpreters,
   LF-pinned machine pipes, the UTF-8 pin), and each has a self-test or a leg that fails loudly when it regrows.
