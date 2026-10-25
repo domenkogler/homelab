@@ -519,7 +519,15 @@ PAIRS
   else
     _ctl="$PWD"; [ -d "$_ctl/IaC/ansible" ] || _ctl="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
     _HLW="$(hl_wsl_class)"
-    HL_WSL=auto _HL_WSL_PROBED=0 HL_WSL_ON=0 HL_WSL_WHY="" HL_WSL_EXE=wsl.exe hl_wsl_probe "$_ctl" >/dev/null 2>&1
+    # EVERY piece of probe state, cleared with STATEMENTS, and the stub launcher dropped: a prefix list
+    # on a function call is the wrong tool here, because a variable this file forgets to name in the
+    # list keeps whatever the last stubbed arm left — and an arm that grades a leftover verdict is
+    # worse than no arm: on the win11 seat the leftover `HL_WSL_ON=1` is exactly what the control
+    # expects, so it passes without asking the door anything, while the SAME arm on the wsl seat fails.
+    # That asymmetry is how this defect was found — it went red only on the seat that expected 0.
+    HL_WSL=auto; _HL_WSL_PROBED=0; HL_WSL_ON=0; HL_WSL_WHY=""; HL_WSL_EXE=wsl.exe
+    HL_WSL_MNT=""; HL_WSL_PY=""; HL_WSL_BASH=""; HL_WSL_GIT=0; HL_WSL_PYTHONS=""; HL_WSL_GUEST=()
+    hl_wsl_probe "$_ctl" >/dev/null 2>&1
     case "$_HLW" in
       win11)   [ "$HL_WSL_ON" = 1 ] && _ok "control — this win11 seat reaches the engine ($HL_WSL_PY)" \
                                       || _no "this win11 seat cannot reach the engine — $HL_WSL_WHY" ;;
