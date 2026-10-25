@@ -109,6 +109,7 @@ from typing import NamedTuple
 sys.path.insert(0, str(next(p for p in Path(__file__).resolve().parents
                             if p.name == "scripts") / "lib"))
 from repo_root import root as _hl_root  # noqa: E402
+from vault_env import ensure as _vault_ensure, provenance as _vault_provenance  # noqa: E402
 
 ROOT = _hl_root(__file__)
 VAULT = "Homelab-ansible"
@@ -194,6 +195,14 @@ def _secret_fields(raw: dict) -> list[str]:
 def load_values(parallel: int) -> tuple[dict[bytes, list[str]], dict[str, str], list[str], list[str], str]:
     """The fleet's CURRENT secret values.
     Returns (needles, id→title, short-value item ids, read errors, vault version key)."""
+    # Resolve the credential through the ONE rule (lib/vault-env.sh) before the first `op`. A seat
+    # that reaches `op` with nothing exported is silently the 1Password desktop app, and on the Win11
+    # seat that is a consent dialog per read answered by a human — not a slow check, a blocked one.
+    ok, why = _vault_ensure()
+    if not ok:
+        raise Boundary(f"no vault credential reachable on this seat ({why}) — this check compares "
+                       "captured bytes against CURRENT values, so without a headless read it has no "
+                       "idea what a leak looks like; a desktop-app fallback is a dialog, not a verdict")
     r = _op(["item", "list", "--vault", VAULT, "--format", "json"])
     if r.returncode != 0:
         raise Boundary(f"`op item list` rc {r.returncode}: {(r.stderr or '').strip()[:120]}")
@@ -699,6 +708,10 @@ def report(res: ScanRun, n_values: int, n_items: int, short: list[str], errs: li
            retired_hits: list[tuple[str, int]]) -> int:
     for note in res.notes:
         print(note)
+    # Which credential answered is part of the verdict: the two service accounts list the same one
+    # vault, so a run that does not name its route cannot be told apart from one reading the fleet
+    # with the write-scoped credential (or none at all).
+    print(_vault_provenance())
     if retired_hits:
         for path, line in retired_hits[:MAX_PRINTED]:
             print(f"INFO retired value (a DEAD secret, informational only) at {path}:{line}")
@@ -1102,15 +1115,18 @@ def mutation_test() -> int:
             print(f"  mutate {label}: FAIL — the source anchor moved")
             failed += 1
             continue
-        # The mutant needs `scripts/lib/repo_root.py` on its import path — the module resolves its
-        # root the same way every gate script does — so it goes into a throwaway `scripts/gate/` with
-        # a copied lib, and $REPO points it back at THIS checkout. A copy left inside the tree would
-        # be an untracked file every other tree-walking gate has to explain.
+        # The mutant needs `scripts/lib/repo_root.py` AND `scripts/lib/vault_env.py` on its import
+        # path — the module resolves its root the same way every gate script does, and resolves its
+        # credential through the lib twin — so it goes into a throwaway `scripts/gate/` with a copied
+        # lib, and $REPO points it back at THIS checkout. A copy left inside the tree would be an
+        # untracked file every other tree-walking gate has to explain. A missing second copy is not a
+        # skipped mutant but a `ModuleNotFoundError` that reads as "nothing broke".
         with tempfile.TemporaryDirectory() as td:
             fake = Path(td) / "scripts"
             (fake / "lib").mkdir(parents=True)
             (fake / "gate").mkdir()
-            shutil.copy(ROOT / "scripts" / "lib" / "repo_root.py", fake / "lib" / "repo_root.py")
+            for _lib in ("repo_root.py", "vault_env.py"):
+                shutil.copy(ROOT / "scripts" / "lib" / _lib, fake / "lib" / _lib)
             mutant = fake / "gate" / "leak-mutant.py"
             mutant.write_text(mutated, encoding="utf-8")
             r = subprocess.run([sys.executable, str(mutant), "--self-test"], capture_output=True,

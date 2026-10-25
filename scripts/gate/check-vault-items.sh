@@ -159,8 +159,20 @@ sort -u "$TMP/needed.txt" -o "$TMP/needed.txt"
 if [ -n "$FAKE_VAULT" ]; then
     sort -u "$FAKE_VAULT" > "$TMP/have.txt"
 else
+    # ONE credential rule for the whole tree (lib/vault-env.sh): the ambient env, then this seat's 0600
+    # install, then — Win11 seat only — the Debian engine's install across the WSL door. Reaching `op`
+    # with nothing exported is NOT the fallback: on the Win11 seat that is the 1Password desktop app,
+    # which answers in a consent dialog per read rather than in an error. A seat with no reachable
+    # credential is a boundary (rc 2) that names the routes it tried; `--fake-vault` is the flag that
+    # judges the parse without the vault.
     # shellcheck disable=SC1091
-    source "$HOME/.config/op/homelab-sa-token"
+    hl_source_lib "${BASH_SOURCE[0]}" vault-env.sh
+    if ! hl_vault_env; then
+        echo "check-vault-items.sh: no vault credential reachable here — $HL_VAULT_WHY" >&2
+        echo "                      pass --fake-vault FILE to diff the catalog against a list instead." >&2
+        exit 2
+    fi
+    echo "== vault read: route=$HL_VAULT_ROUTE sha256[:12]=$HL_VAULT_SHA =="
     op item list --vault Homelab-ansible --format json 2>/dev/null |
         python3 -c "import json,sys; [print(i['title']) for i in json.load(sys.stdin)]" | sort -u > "$TMP/have.txt"
 fi

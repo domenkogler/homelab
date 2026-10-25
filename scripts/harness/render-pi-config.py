@@ -95,6 +95,7 @@ import yaml  # noqa: E402
 sys.path.insert(0, str(next(p for p in Path(__file__).resolve().parents
                             if p.name == "scripts") / "lib"))
 from repo_root import root as _hl_root, script_path as _hl_script  # noqa: E402
+from vault_env import ensure as _vault_ensure  # noqa: E402
 REPO = _hl_root(__file__)
 # Resolved by NAME, not by `scripts/harness/pi/`: HD-1118 Stage 3 moved this spec next to the
 # renderer that owns it (harness/pi/), and a data path written as a folder literal is the same
@@ -130,14 +131,10 @@ def check_thinking_levels(spec: dict) -> None:
 
 
 def sa_token() -> None:
-    """Same convention as ansible-run.sh / provision-secrets.py: fall back to the 0600 file."""
-    if os.environ.get("OP_SERVICE_ACCOUNT_TOKEN"):
-        return
-    f = Path.home() / ".config" / "op" / "homelab-sa-token"
-    if f.is_file():
-        m = re.search(r"OP_SERVICE_ACCOUNT_TOKEN=['\"]?([^'\"\n]+)", f.read_text())
-        if m:
-            os.environ["OP_SERVICE_ACCOUNT_TOKEN"] = m.group(1)
+    """Resolve the service-account token through the ONE rule — env, then this seat's 0600 install,
+    then (Win11 only) the Debian engine's install across the WSL door: lib/vault-env.sh. The CR of a
+    Windows-side value is stripped there, which is what makes an `op.exe` read usable here."""
+    _vault_ensure()
 
 
 def mask(v: str) -> str:

@@ -742,12 +742,19 @@ credential the machine already holds answers in under a second. Measured on `Dom
 | `op item get <item>` (the client render) | the `op` CLI, which authorises the *calling* process (`bash.exe`) | **yes — one per read** (8–12 s) |
 | `git commit` on the seat default (`--git-identity`: `commit.gpgsign=false`, `gpg.ssh.program` absent) | git never reaches a signer | no — 0 s, `%G?` = `N` |
 | `git ls-remote` through `C:/Program Files/Git/usr/bin/ssh.exe -i ~/.ssh/github_auth -o IdentityAgent=none -o BatchMode=yes` | the bundled OpenSSH 10.5p1 | no — 1 s, authenticates |
+| the gate's vault legs (`check_secret_leak.py`, `check_host_reporting.py`, `check_ssh_grants.py`, `check-vault-items.sh`) | the credential rule in [`../scripts/lib/vault-env.sh`](../scripts/lib/vault-env.sh): env → this seat's 0600 install → the Debian engine's install across the WSL door | no — 1.2 s for `op item list`, and a seat with none of those three answers is a named **SKIP**, never a dialog |
 
 Why it is per-process: 1Password authorises a key *against a requesting process*, and a harness that
 starts a fresh shell per command (an agent, a scheduled task) is a new process every time. Same
 mechanism that makes `op` prompt from Git-Bash but not from a terminal that stays open; also why
 VS Code's `git.autofetch` produced dialogs nobody ran (now `false` on this seat — **a suppressed
 prompt is not a refusal, it is a wait**).
+
+⚠ **The third row is why an `op` call never gets to decide this for itself.** A leg that reaches the CLI with
+no credential resolved does not error on this seat — it authenticates through the desktop app and waits for a
+human, so "the gate is slow" is what a missing credential looks like from the inside. The resolution lives in
+one file, every vault leg calls it, and a seat where it answers nothing says so as an environment boundary
+([`1password.md`](1password.md) §Reading the vault from the Win11 seat).
 
 **What the `key / credential` row in §Config vs credential split means on this seat.** The fleet keys
 (`ansible-admin_ssh`, `domen_ssh`) are "never on disk" only as told from the agent side: on the Windows seats

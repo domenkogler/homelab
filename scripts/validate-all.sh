@@ -1566,6 +1566,10 @@ item_x "its pin() half resolves every real plane with grep|head|sed|tr PER pin �
 # than the distro installed on it, and it runs in a tenth of a second. It is excluded from quick
 # because it tests the router, not the tree — rerun it when the routing or the seat classes change.
 item_x "a router self-test over a stub engine, not a tree check: rerun it when the routing, the seat classes, or the eligibility rule changes" "lib/wsl-route.sh --self-test (the win11 seat's hybrid route: which legs cross to the Debian engine, and what makes a leg ineligible)" bash scripts/lib/wsl-route.sh --self-test
+# The credential rule the vault legs share. Sandboxed: a stub door, a throwaway HOME, synthesised
+# fixture values — it reads no vault and needs no token, and its ratchet arm reads the tree, so it
+# runs NATIVE (a wrapped leg must not read this checkout through a Linux git).
+item_x "~40 bash spawns plus the ratchet's git grep (measured 11 s on the win11 seat, 1 s on Debian): a self-test of the credential rule, not a tree check — rerun it when the resolution order or a refusal changes" "lib/vault-env.sh --self-test (one credential rule for every vault leg: env → this seat's 0600 install → the Debian engine's install across the WSL door, and the refusals that must never fall back to the desktop app)" bash scripts/lib/vault-env.sh --self-test
 
 # Everything else — cheap, but they add up, so they are in the pool too.
 item_q "guard-session.sh --self-test (sandboxed guard fixture, HD-253)" hl_wsl_route bash scripts/gate/guard-session.sh --self-test

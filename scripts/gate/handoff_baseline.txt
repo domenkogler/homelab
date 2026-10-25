@@ -18,7 +18,7 @@
 #
 # Re-derive the body after a trim lands — at the merge station, never inside a lane:
 #     python3 scripts/gate/check_handoff_size.py --reseal
-baseline_bytes 45440
-baseline_lines 422
-sealed_at 43c4009e7c92f10cb211f1cf76f28715cb827e2c
+baseline_bytes 45872
+baseline_lines 425
+sealed_at bfc9972ebd37880eadea30d04b525ffcc065f265
 exempt	history	prompt.md	1	- ⏸ **Retire the RB4011 deltas — RULED 2026-10-13: yes, and scheduled, not executed.** The retire procedure and its

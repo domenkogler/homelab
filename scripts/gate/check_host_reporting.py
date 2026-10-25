@@ -72,6 +72,7 @@ from pathlib import Path
 sys.path.insert(0, str(next(p for p in Path(__file__).resolve().parents
                             if p.name == "scripts") / "lib"))
 from repo_root import root as _hl_root  # noqa: E402
+from vault_env import ensure as _vault_ensure  # noqa: E402
 
 ROOT = _hl_root(__file__)
 INVENTORY = "IaC/ansible/inventory.ini"
@@ -152,6 +153,13 @@ def creds() -> tuple[str, str]:
     u, p = os.environ.get("VM_USERNAME", ""), os.environ.get("VM_PASSWORD", "")
     if u and p:
         return u, p
+    # No ambient credentials: resolve the vault credential through the ONE rule (lib/vault-env.sh) and
+    # say so when it is unreachable — an `op` called with nothing exported is the desktop-app route on
+    # the Win11 seat, which answers in consent dialogs rather than in an error.
+    ok, why = _vault_ensure()
+    if not ok:
+        raise RuntimeError(f"no vault credential reachable on this seat ({why}) and "
+                           "VM_USERNAME/VM_PASSWORD are unset")
     if not shutil.which("op"):
         raise RuntimeError("no op CLI and VM_USERNAME/VM_PASSWORD unset")
     got = {}

@@ -53,7 +53,7 @@ the ACL with `git push --dry-run`, then retry, and never conclude the commit is 
 
 **Git identity:** signing is RETIRED (**HD-1116**) — commit plainly, ⛔ never `git commit -s`; `git log -1 --format='%G?'`
 → `N` is the expected value and is not a failure. A Win11 seat signs and pushes without a 1Password window once
-`bash scripts/git/git-bootstrap-win11.sh --git-identity` has run (`--check` shows the route, `--1password` opts back).
+`bash scripts/git/git-bootstrap-win11.sh --git-identity` has run (`--check` shows the route, `--1password` opts back); the **vault** legs are modal-free too (`scripts/lib/vault-env.sh --check`, **HD-1204**).
 The seat file map and the one vault item left in this area (`GitHub auth`, the transport key):
 [docs/deployment-secrets.md](docs/deployment-secrets.md) §What actually raises a 1Password prompt and
 [docs/1password.md](docs/1password.md) §GitHub signing + auth keys. The two `.env.op` files that reference items and hold

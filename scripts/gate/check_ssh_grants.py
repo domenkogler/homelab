@@ -58,6 +58,7 @@ from pathlib import Path
 sys.path.insert(0, str(next(p for p in Path(__file__).resolve().parents
                             if p.name == "scripts") / "lib"))
 from repo_root import root as _hl_root  # noqa: E402
+from vault_env import ensure as _vault_ensure  # noqa: E402
 REPO = _hl_root(__file__)
 DOC = REPO / "docs" / "deployment-secrets.md"
 SECTION = "Who is authorized where"
@@ -98,16 +99,12 @@ def core(fp: str) -> str:
 
 def vault_named() -> list[dict]:
     """Authoritative named entries: fingerprints computed from the vault's public halves."""
-    # Same convention as ansible-run.sh / restore-runner-key.sh: if the ambient shell has no token,
-    # source the runner's 0600 token file. Without this the audit silently loses its authoritative
-    # source and falls back to the doc's 7-char prefixes — still useful, but weaker, and it must
-    # not fail quietly.
-    if not os.environ.get("OP_SERVICE_ACCOUNT_TOKEN"):
-        tok = Path.home() / ".config" / "op" / "homelab-sa-token"
-        if tok.is_file():
-            m = re.search(r"OP_SERVICE_ACCOUNT_TOKEN=['\"]?([^'\"\n]+)", tok.read_text(encoding="utf-8", errors="ignore"))
-            if m:
-                os.environ["OP_SERVICE_ACCOUNT_TOKEN"] = m.group(1)
+    # One credential rule for the whole tree — env, then this seat's 0600 install, then (Win11 only)
+    # the Debian engine's install across the WSL door: lib/vault-env.sh via lib/vault_env.py. Without
+    # this the audit silently loses its authoritative source and falls back to the doc's 7-char
+    # prefixes — still useful, but weaker — and on the Win11 seat an unresolved `op` is a desktop-app
+    # consent dialog rather than an error.
+    _vault_ensure()
     out = []
     for item in VAULT_SSH_ITEMS:
         r = subprocess.run(["op", "item", "get", item, "--vault", VAULT, "--format", "json"],
