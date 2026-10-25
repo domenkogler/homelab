@@ -281,9 +281,22 @@ that answer is harder to write.
   `D:\…` and a Git bash cannot see `/home/…`, and a blind one reports the contents it could not see as absent. Interpreters
   are probed, not named: [`lib/python.sh`](lib/python.sh) `hl_python` refuses a Microsoft Store alias stub and a candidate
   that cannot import what the leg needs. A machine-readable pipe pins LF, since a Windows text-mode stream appends a
-  carriage return to the last field — the one a bash comparison reads. And the gate exports `PYTHONUTF8=1` on a Windows
-  seat: git answers in UTF-8 while a native interpreter decodes `text=True` with the ANSI codepage, so a dead reader thread
-  returns `stdout = None` and a gate's own crash reads as a finding about the tree.
+  carriage return to the last field — the one a bash comparison reads. And [`lib/python.sh`](lib/python.sh) exports
+  `PYTHONUTF8=1` on a Windows seat, at the place the interpreter itself is decided: the pin belongs to the launcher rather
+  than to the pool, so a leg a person runs straight from a prompt reads the same tree as the same leg run by
+  `validate-all.sh`. git answers in UTF-8 while a native interpreter decodes `text=True` with the ANSI codepage, so a dead
+  reader thread returns `stdout = None` and a gate's own crash reads as a finding about the tree.
+- **A check that builds a git fixture scrubs the caller's git location.** `GIT_DIR`, `GIT_WORK_TREE`, `GIT_INDEX_FILE`,
+  `GIT_OBJECT_DIRECTORY`, `GIT_COMMON_DIR` and `GIT_SEPARATE_GITDIR` outrank both `git -C <dir>` and the child's working
+  directory, so one inherited from a pool run writes the fixture's objects, refs and worktree registrations into the
+  repository the gate is grading — the fixture then grades a tree it rewrote itself. Scrub them for the fixture's lifetime
+  and prove the fixture owns its git-dir before it writes an object. Owning spec: `CONVENTIONS.md` §6.
+- **An absent path can be an intentional absence — ask git, not the checkout.** `git check-ignore` is the authority on
+  whether a missing generated file is a defect or renderer output, and it answers only for the spelling it is handed: a
+  platform separator reads as an escape (so the answer for a path it does ignore comes back "not ignored"), and a
+  directory-only pattern matches only a query that still carries the trailing slash. Ask in slashes, never normpath the
+  query, and keep the comparison in one spelling — otherwise a lookup that is correct alone disappears inside a run on one
+  seat, and the verdict describes the checkout rather than the tree.
 - **Never edit a `-generated` doc directly** — change the SSOT (`group_vars/*.yml`, `rack-connections.json`) and re-render, then `git diff --exit-code` to confirm.
 - **A script must not derive the repo root from its own depth — and a probe that cannot see the files must not be able to say OK.** Every script resolves the root by walking UP to the two structural markers (`IaC/ansible` + `docs/index.md`) via `lib/repo-root.sh` / `lib/repo_root.py`, and fails loud when nothing matches; every tree-walking checker asserts a non-empty corpus through `require_corpus()` (a walk that found nothing is a broken root, not a clean tree). `gate/check_script_layout.py` is the ratchet that keeps the fixed-depth derivations from regrowing.
 - **`validate-all.sh` judges what is TRACKED — so `git add` a new file before believing a green run.** The path/secret/table walkers list files with `git ls-files`, so an untracked file is invisible to them. For a **new validator** the same trap is worse — a green run in which the new check never executed.
