@@ -286,6 +286,10 @@ that answer is harder to write.
   than to the pool, so a leg a person runs straight from a prompt reads the same tree as the same leg run by
   `validate-all.sh`. git answers in UTF-8 while a native interpreter decodes `text=True` with the ANSI codepage, so a dead
   reader thread returns `stdout = None` and a gate's own crash reads as a finding about the tree.
+- **A seal rewritten from a Windows seat is re-read on a Debian one.** `--reseal` writes its baseline through the seat's
+  text mode, so on a Git-Bash seat the file can come out CRLF while `.gitattributes` pins the tree to LF. git normalises the
+  committed copy and every reader tolerates both, so nothing breaks — but the seat that wrote a seal is not the seat that
+  proves it, and a seal re-read where it was written proves only that both seats tolerate the same file.
 - **A check that builds a git fixture scrubs the caller's git location.** `GIT_DIR`, `GIT_WORK_TREE`, `GIT_INDEX_FILE`,
   `GIT_OBJECT_DIRECTORY`, `GIT_COMMON_DIR` and `GIT_SEPARATE_GITDIR` outrank both `git -C <dir>` and the child's working
   directory, so one inherited from a pool run writes the fixture's objects, refs and worktree registrations into the

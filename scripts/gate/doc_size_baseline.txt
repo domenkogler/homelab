@@ -41,7 +41,7 @@ docs/hardware.md	101
 docs/harness-pi-engines.md	186
 docs/harness-pi-models.md	200
 docs/harness-pi-seat-identity.md	105
-docs/harness-pi-seats.md	274
+docs/harness-pi-seats.md	294
 docs/harness-pi-terminal.md	155
 docs/harness-rejected.md	43
 docs/harness-review.md	39
