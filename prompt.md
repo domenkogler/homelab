@@ -51,7 +51,7 @@ work and the fleet. The transient-failure note (a `remote: fatal error in commit
 the ACL with `git push --dry-run`, then retry, and never conclude the commit is lost) lives in the same place:
 [docs/orchestration.md](docs/orchestration.md) §4 step 5.
 
-**Git identity:** signing is RETIRED (**HD-1116**) — commit plainly, ⛔ never `git commit -s`; `git log -1 --format='%G?'`
+**Git identity:** signing is RETIRED — commit plainly, ⛔ never `git commit -s`; `git log -1 --format='%G?'`
 → `N` is the expected value and is not a failure. A Win11 seat signs and pushes without a 1Password window once
 `bash scripts/git/git-bootstrap-win11.sh --git-identity` has run (`--check` shows the route, `--1password` opts back); the **vault** legs are modal-free there too and address items **by ID** (`scripts/lib/vault-env.sh --check`, `--map <vault>`) — a NAME-addressed `op item get` costs 3 of the ACCOUNT's 1000 requests/24 h where the ID form costs 1, so ask `op service-account ratelimit` before chasing transport (**HD-1204**).
 The seat file map and the one vault item left in this area (`GitHub auth`, the transport key):
