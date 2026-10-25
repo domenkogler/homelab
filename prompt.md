@@ -231,7 +231,7 @@ not this list, holds the steps, the file ownership and the converge host. Waves,
    host that owns the unit. **HD-1101** — the fail-loud resolver guard is keyed on `host_resolver_dns` alone with a
    per-host `set_fact`, and it is fixed and applied on both hosts. ⚠ On a keyfile host the write leg is **`nm-pi`**;
    `--tags nm-resolver` there selects the guard and proves the check, and writes nothing.
-   Plus **HD-04 · 434 · 438 · 439 · 319 · 17**. → [prompt-smart-home.md](prompt-smart-home.md)
+   Plus **HD-04 · 434 · 438 · 439 · 319 · 17 · 1204**. → [prompt-smart-home.md](prompt-smart-home.md)
 8. ⏳ **Edge and identity** — **HD-147**'s browser-login tail, **HD-457** (the SSO seat owns the family library —
    ruled; what is left is the per-user/shared-album shape, read at implementation time), **HD-458 · 459** (zipline, the
    published names), **HD-112**, and **HD-357** — the launchpad tiles. ⏸ **HD-47** stays an owner act: the
@@ -241,8 +241,8 @@ not this list, holds the steps, the file ownership and the converge host. Waves,
    thinking**: `litellm-engine_api` is minted and rendered into spark's accepted-key list, and the gateways may be
    pointed at it only **after** spark reboots with it — so step 2 is parked rather than slipped in. Settled state lives
    in its owning docs, not here: thinking control ([docs/services-ai.md](docs/services-ai.md) §9d), the `/ui/login`
-   deep link (§4c), voice ([docs/smart-home-voice.md](docs/smart-home-voice.md); the plaintext-replication ruling in
-   [docs/deployment-secrets.md](docs/deployment-secrets.md) §Runtime plaintext that leaves the vault), and n8n audited
+   deep link (§4c), voice — STT front ruled (#29, [docs/smart-home-voice.md](docs/smart-home-voice.md)); the plaintext-replication ruling in
+   [docs/deployment-secrets.md](docs/deployment-secrets.md) §Runtime plaintext that leaves the vault, and n8n audited
    shut with no AI node ([docs/services-utilities.md](docs/services-utilities.md)). One defect from that turn is NOT
    the gateway's: Assist cannot resolve "dnevna soba" — the entity/area-exposure Gap the voice doc above names, so it
    is the smart-home lane's row. **HD-1178** (new in this lane): the oldsrv `embed` leg's next model is chosen by a

@@ -11,14 +11,11 @@ tags: [services, ai, rejected, decision-log, rag, memory]
 > **Role:** Decision log for the **AI platform plane** (gateway / RAG / memory / agent harnesses) — the
 > candidates the `services-ai` domain evaluated and declined, with the measured result that closed each one.
 > This log is that plane's decision-log SSOT (`CONVENTIONS.md` §8.3).
-> **Links to:** [`services-ai.md`](services-ai.md), [`../reports/probe-ov-20260921.md`](../reports/probe-ov-20260921.md),
-> [`../reports/probe-agentmemory-20260921.md`](../reports/probe-agentmemory-20260921.md),
-> [`CONVENTIONS.md`](../CONVENTIONS.md) §8.3
+> **Links to:** [`services-ai.md`](services-ai.md), [`../reports/probe-ov-20260921.md`](../reports/probe-ov-20260921.md), [`../reports/probe-agentmemory-20260921.md`](../reports/probe-agentmemory-20260921.md), [`CONVENTIONS.md`](../CONVENTIONS.md) §8.3
 > **Linked from:** [`index.md`](index.md), [`services-ai.md`](services-ai.md)
 
 > ⚠️ **Append-only.** Do not edit a landed decision; a changed decision is a **new row**, left alongside the old
-> one — never a strike/replace. One row per subject, sorted by subject. Each row:
-> `| <subject> | <rejected|dropped|superseded> | <why, max ~12 words> |`.
+> one — never a strike/replace. One row per subject, sorted by subject. Each row: `| <subject> | <rejected|dropped|superseded> | <why, max ~12 words> |`.
 > A re-review is allowed **only with an exception note** ("re-evaluating X because Y changed"), per §8.3.
 
 ## Decisions
@@ -29,11 +26,13 @@ tags: [services, ai, rejected, decision-log, rag, memory]
 | `agentmemory` as the Qdrant-backed plane | rejected | Vendor stores SQLite + iii-engine: Qdrant is a second plane |
 | `agentmemory` central instance as briefed | rejected | Loopback REST, one shared bearer, no per-user isolation |
 | `agentmemory` LLM compression (consolidation, graph extraction) | rejected | Drops every identifier: retrieval-key 0/5 |
+| Any other Wyoming STT image | rejected | One front is ruled; the fallback rung is CPU |
 | `ar-blk-lean` (ar-blk minus the ple_dispatch env) | rejected | Crashes at first shard; knobs constitutive |
 | `ar-dv` (AR-hybrid + draft-vocab slice) | rejected | Slice lowers MTP acceptance 54.7 to 36.8 %, slows decode |
 | `ar-mmap` (AR-hybrid + FP8 PLE mmap) | rejected | Control arm, on par with tier-1, not a candidate |
 | `awq-mmap` / B10 (AWQ on the winner's machinery) | dropped | Owner certified the AR-hybrid winner instead |
 | A wrapper service for OpenAI-shaped STT | rejected | `--inference-path` relocates the route; HA Assist needs no glue |
+| A wrapper service for OpenAI-shaped STT | superseded | HA speaks Wyoming only; the front serves Wyoming |
 | `bge-m3` vector leg for the `agentmemory` plane | dropped | Keyless BM25 clears every gate; recall shortfall re-opens |
 | Bigger window or smaller quant to reopen the agent leg | rejected | The wall is cold prefill, not the carve or context |
 | Coding harnesses behind the LAN LiteLLM hop | rejected | Decision #26 puts harnesses direct on the spark name edge |

@@ -2,7 +2,7 @@
 
 > **Role:** dispatch note for **one** lane session on the smart-home domain. **The rows are the authority** for what is
 > missing and how to do it — this file carries the contract, the order of work and the traps, nothing else:
-> [todo.md](todo.md) **HD-04 · HD-418 · HD-434 · HD-438 · HD-439 · HD-319 · HD-1109 · HD-1103 · HD-1101 · HD-17 · HD-1167 · HD-1127**
+> [todo.md](todo.md) **HD-04 · HD-418 · HD-434 · HD-438 · HD-439 · HD-319 · HD-1109 · HD-1103 · HD-1101 · HD-17 · HD-1167 · HD-1127 · HD-1204**
 > (row ids as of `c13e30f6` — re-derive with `grep -c "^| HD-<id> " todo.md` before quoting one).
 > **Linked from:** [todo-table.md](todo-table.md) §B0 · [todo.md](todo.md)
 

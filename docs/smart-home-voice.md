@@ -95,8 +95,8 @@ Microphone → Wake Word Detection → STT over Wyoming → LLM → TTS over Wyo
  (phone / ESP32)  (microWakeWord)      (RX 7600)     (spark)      (CPU)         (WiiM Bar)
 ```
 
-> **The Wyoming hop is the design, not an add-on:** Wyoming is the only protocol HA's Assist pipeline
-> speaks to a local STT/TTS engine (§Components), so every engine leg terminates in a Wyoming server.
+> **Transport (ruled):** Wyoming is the only protocol HA's Assist pipeline speaks to a local STT/TTS engine,
+> so every engine leg terminates in a Wyoming server. The front is **`debackerl/wyoming-whisper.cpp`** (whisper.cpp on Vulkan, same weights, digest-pinned); a Vulkan miss on this card lands on the **CPU rung**, not on a re-decide (decision #29).
 
 ---
 
@@ -121,7 +121,7 @@ Microphone → Wake Word Detection → STT over Wyoming → LLM → TTS over Wyo
 | Stage | Software | Hardware | Notes |
 |-------|----------|----------|-------|
 | **Wake Word** | microWakeWord / HA Assist | ESP32-S3 / Android | "Hey, assistant" |
-| **STT** | **`whisper.cpp` `main-vulkan`** (`whisper-server`, digest-pinned) — **not** faster-whisper (CTranslate2 is CUDA-only) | **oldsrv RX 7600** (Vulkan/RADV — no `/dev/kfd`, no `HSA_*`) | **Slovenian** + English → text (multilingual GGML, measured `n_langs = 100`). Serves `--inference-path /v1/audio/transcriptions`, measured ([services-ai-bench.md](services-ai-bench.md) §2) — that answers the gateway's `local-stt` row, **not** HA: Assist reaches an STT engine only through **Wyoming** (`whisper` is a `supported_by: wyoming` stub on the pin) |
+| **STT** | **`debackerl/wyoming-whisper.cpp`** (whisper.cpp/Vulkan, digest-pinned) behind **Wyoming** — **not** faster-whisper (CTranslate2 is CUDA-only) | **oldsrv RX 7600** (Vulkan/RADV — no `/dev/kfd`, no `HSA_*`) | **Slovenian** + English → text (multilingual GGML, measured `n_langs = 100`). Same `ggml-large-v3-turbo.bin` + sha256 as the `whisper-server` leg, measured in [services-ai-bench.md](services-ai-bench.md) §2; `whisper-server`'s HTTP path answers the gateway's `local-stt` row, **never** HA (`whisper` is a `supported_by: wyoming` stub on the pin) |
 | **LLM** | Gateway model via LiteLLM — `openai/spark/qwen3.8-flash-next` (fast) or `openai/spark/qwen3.6-27b` (reasoning) | **spark GB10**, through the gateway | Intent parsing, response generation |
 | **TTS** | Piper TTS — **authored nowhere** (`grep -ri piper IaC/` = 0 files) | **CPU** (decision #24 — CPU-only engine) | Text → Slovenian speech; also Wyoming-only in HA, and no Slovenian voice has been chosen — the one TTS entity that exists is `tts.google_translate_en_com`, **cloud + English** |
 
@@ -163,8 +163,7 @@ See [`hardware-gpu.md`](hardware-gpu.md) for the full VRAM management table.
 
 ## Not Yet Implemented
 
-1. **A Wyoming front for both legs** — HA 2026.x ships `whisper` and `piper` as `supported_by: wyoming`
-   stubs, so an engine leg HA cannot address over Wyoming is a leg with no consumer.
-2. **Piper TTS** — decided (CPU, decision #24), authored nowhere; no Slovenian voice chosen.
-3. **A satellite** — the ESP32-S3 is unflashed and no phone Assist entry is configured; a Companion app
+1. **Deploy the Wyoming fronts** — the STT front is ruled (decision #29); Piper is decided (CPU, #24) but
+   authored nowhere (`grep -ri piper IaC/` = 0 files), and no Slovenian voice is chosen.
+2. **A satellite** — the ESP32-S3 is unflashed and no phone Assist entry is configured; a Companion app
    mic is a satellite already, and hits `the pipeline does not support speech-to-text` today.
