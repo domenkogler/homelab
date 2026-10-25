@@ -43,7 +43,7 @@ the test plan) → [docs/hardware-spark.md](docs/hardware-spark.md) §Unified-me
 | 9 | **HD-359 · HD-367** | The ladder tails: the S2/S3 × SGLang lane (weights IaC exists in `roles/spark-artifacts`; missing = manifest entries + compose + harness param), the safe C3/warm re-run into [spark/BENCHMARK-PLAN.md](spark/BENCHMARK-PLAN.md) §9, the tool-call **EMPTY** fix and a true 3×87k fill | Accuracy is the anchor for both arms — NVFP4 is a throughput play, so it is accuracy-gated too. ⛔ Ladder #10 (LMCache KV offload) is in the rejected log: not open work, not to be re-proposed |
 | 10 | **HD-380** | The never-taken measurement: prefix-cache hit rate + preemption counter off `/metrics` across one normal working day vs the pre-raise numbers ([spark/stability-test.md](spark/stability-test.md) §6a) | The standing `gpu_top_mib` **> 2 GiB/h under traffic that does not return at idle** condition is the only thing that re-arms C3 `--enforce-eager`; `--enforce-eager` stays off **on measurement**, not on deferral |
 
-## ⛔ Traps that cost a round (re-grounded at this `HEAD`)
+## ⛔ Traps that cost a round
 
 * **SSOT = live.** Read the engine's real values off the box **and** from `IaC/ansible/group_vars/spark.yml`; a bench table
   records what was benched, not what is live. `spark_llm_pool_ceiling_bytes` is **16 GiB** (`group_vars/spark.yml:303`) and

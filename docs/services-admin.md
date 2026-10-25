@@ -322,6 +322,15 @@ one exact domain and offers no whole-zone listing, so the leg reads candidates b
 live zone state against the SSOT: a retired name that nobody recorded keeps answering, and no static gate
 sees it — `check_dns_seed_drift.py` renders the SSOT, so an orphan is outside what it can read.
 
+⚠ **The prune leg has two defects that keep it from running at all, and neither is visible offline.** The
+read task passes `token` + `zone`/`domain`/`type`/paging through `url_query`, but this API answers that
+token only in a form body — the query-string form returns no parseable answer, so the task's own
+`failed_when` fires; and the candidate-build `set_fact` uses a Jinja list comprehension, which Jinja has no
+syntax for in expression position (`TemplateSyntaxError: expected token ',', got 'for'` under jinja2
+3.1.6). Both are invisible to `--syntax-check` and to every offline gate because the block is gated
+`not ansible_check_mode` — a leg can sit broken in the tree with every gate green. Whoever takes the leg
+fixes both before the first real run.
+
 **Read it back rather than assume it** (read-only, per instance):
 
 ```bash

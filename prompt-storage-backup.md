@@ -39,14 +39,14 @@ show `zfs list`, then act.
 | 9 | **HD-1129** | The **VPS** leg: move the ~289 MB of Immich originals still on the VPS NVMe onto the live Hetzner Box mount, point the Immich storage path at it, and prove a fresh upload lands on the Box | Assert the Box mount **before** moving anything — a dead CIFS mount is an empty directory. When it lands, `docs/backup.md`'s scope statement needs no exception; the VPS volume inventory (HD-1106) is the same slot, sequence rather than bundle |
 | 10 | **HD-1183** | Fix the boot catch-up in `roles/storage`: give `push-db-dumps-push.service.j2` the ordering its guard assumes (`RequiresMountsFor=/mnt/nas/data`, or `After=` on the `mnt-nas-data.automount` unit) so `findmnt` no longer loses the race with the `x-systemd.automount` trigger | ⛔ **oldsrv, and run it OFF-box** — [docs/deployment-ansible.md](docs/deployment-ansible.md) §Self-converge guardrail refuses a `--tags storage` run whose controller is the target, and a `--check` of this role never reaches the assert. The guard stays: it is the ordering that is wrong, not the check. The unit is storage's; making it **page** (adding it to `monitoring_hygiene_units`) is the observability lane's HD-450 class, and the one `systemctl start` that lands the owed dump is an owner hand |
 
-## ⛔ Traps that cost a round (re-grounded at this `HEAD`)
+## ⛔ Traps that cost a round
 
 * **Green converge ≠ healthy box.** Three nas units fail on a converge that reports `failed=0`; a timer that is *enabled* and a
   unit whose `ExecStart` points at a nonexistent path look identical in Ansible output. Always read the systemd state directly.
 * **Backups are proven by restore, never by listing.** A snapshot set, a dump file, or an "Up" agent is a state that coexists
   with an unrecoverable box. Every backup claim in this lane needs a restore command and its output.
-* **A scheduled thing that fails every night is invisible** if nothing scrapes the result — the ZFS second copy that every
-  restore story assumes was absent for weeks while `sanoid.conf` looked correct. If your change lands a unit, land the proof it
+* **A scheduled thing that fails every night is invisible** if nothing scrapes the result — `sanoid.conf` reading correct
+  coexists with a second copy that no restore story can rely on. If your change lands a unit, land the proof it
   ran (`zfs list -t snapshot`, not the timer's `LastTriggerUSec`).
 * **Password rotation has two halves**: the vault and the target. `pdbedit` state is the only proof, and NT-hash offline
   cracking makes a short family password a box-wide problem (one captured LAN exchange is enough).

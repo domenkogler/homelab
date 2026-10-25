@@ -294,6 +294,16 @@ The job is **two units because one run user cannot serve both halves**:
 The timer arms the push unit, which `Requires=`/`After=` the producer, so a failed dump cannot be papered
 over by pushing yesterday's file. No `--delete` — retention belongs to sanoid, not to a copy job.
 
+⚠ **The boot catch-up is where the mount assert bites, and the ordering is the fix.** The timer is
+`Persistent=true`, so the run missed during an outage fires at activation — and at first activation
+`findmnt -no SOURCE,FSTYPE -T /mnt/nas/data` holds only the `systemd-1 autofs` line, because `findmnt -T`
+does not wake an `x-systemd.automount` trigger. The guard is right (that assertion is exactly what stops a
+failed mount from becoming a quietly LOCAL "backup"), so the remedy is ordering, not weakening:
+`RequiresMountsFor=/mnt/nas/data` (and/or `After=` on the `mnt-nas-data.automount` unit) so the mount is up
+before the assert runs, with the `findmnt` re-read once after a single bounded touch of `$TARGET` so a
+genuinely dead mount still fails loudly. Until that ordering lands, the scheduled nightly runs are fine and
+the boot-adjacent catch-up — the run that follows an outage — is the one that fails.
+
 ⚠ **Preservation flags and the split are both forced by the export, not by taste.** `rsync -a` cannot chown
 onto an export mounted `root_squash,anonuid=1005` (rc 23), and the target directory is
 `drwxr-xr-x media:media`, so `media` — the anonid the export maps root to — is the only identity that

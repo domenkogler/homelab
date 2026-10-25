@@ -32,16 +32,15 @@ and never beside a probe lane standing things up on oldsrv under the `domen` sea
 | 7 | **HD-354** | Open the `music` door: one `zone_kogler_si` row, a `music` router on the VPS `traefik-tailnet` edge (service-name backend to `navidrome:4533`, the `immich-backend` pattern), and the home edge's `music-backend` dialled at `wg_s2s_vps.ip:wg_internal_edge_port` (the `foto` precedent) | Prove it by dialling the **HOSTNAME**, not by reading `docker ps`. The pin is `versions.yml:102` — the row still quotes an older tag, so re-read before repeating a number. The empty-library and admin-user halves are **VOID** by owner fact: do not mint an admin for an empty library |
 | 8 | **HD-353** | Owner leg only: verify the owner's own Jellyfin login at the `seerrng` route | Per-device and interactive — park it with the exact blocked action rather than staging a substitute check |
 | 9 | **HD-230** | The batch's leftovers: the surgical converge + its verifies, then hand the two owner decisions (the Kopia source-wiring call and the two password items that row carries) | Both are deploy-gated / owner-owned; the repo halves are already in tree, so this line is converges + a park, nothing authored here |
-| 10 | **HD-1089** | The seed is live on **oldsrv**; what is left is one read from a real tailnet client — `curl -sk https://sab.ts.kogler.si/` on a phone or laptop on the tailnet, answering anything other than `External internet access denied` | An **owner eyeball** (O4): this seat resolves no `.ts` name at all, so the seed's XFF-simulated probe is the whole automated proof. ⛔ Do not re-open the router or the LAN leg — both were proven fine |
+| 10 | **HD-1089** | The seed is live on **oldsrv**; what is left is one read from a real tailnet client — `curl -sk https://sab.ts.kogler.si/` on a phone or laptop on the tailnet, answering anything other than `External internet access denied` | An **owner eyeball** (O4): this seat resolves no `.ts` name at all, so the seed's XFF-simulated probe is the whole automated proof. ⛔ Do not re-open the router or the LAN leg — both are proven fine |
 | 11 | **HD-1172** | Make Lidarr's root set a declared fact on **oldsrv**: `arr_seed_apps.lidarr.root_folders` in `roles/docker_services/defaults/main.yml` is what `arr-seed.yml` POSTs, and `IaC/` carries no DELETE for `rootfolder` | ⛔ A live root that is undeclared is invisible to IaC in both directions while the seed reports `ok` over it. `/downloads/complete/music` is at the same moment slskd's completion dir and soularr's `download_dir` — whether it may be a root is an **owner** call, kept as one; do not resolve it by deleting a live root |
 
-## ⛔ Traps that cost a round (re-grounded at this `HEAD`)
+## ⛔ Traps that cost a round
 
-* **Quote a pin only with its `versions.yml` line beside it.** Navidrome, Bazarr and slskd all moved since the rows were
-  written — `versions.yml:102`, `versions.yml:83`, `versions.yml:107` are the current truth; a row's number is not.
-* **A green-looking timer is not evidence.** HD-1092's glue exited 127 on all 823 runs while the unit read enabled: read the
-  unit's **exit status** and the artefact it claims to produce (`/tank/data/users`, `/etc/samba/share-*.conf`, `id <member>`),
-  never the timer state.
+* **Quote a pin only with its `versions.yml` line beside it.** `versions.yml:102`, `versions.yml:83`, `versions.yml:107` are
+  the current truth for Navidrome, Bazarr and slskd; a row's number is not.
+* **A green-looking timer is not evidence.** Read the unit's **exit status** and the artefact it claims to produce
+  (`/tank/data/users`, `/etc/samba/share-*.conf`, `id <member>`), never the timer state.
 * **Vault refs are invisible to the gate.** `check-vault-items.sh` does not flag a `vault['X']` reference in a compose
   template, so a renamed or deleted item is a runtime 401. When you add a service that consumes an API, register it in
   `_service_vault_items` in the same change (CONVENTIONS §2) and run the vault check.

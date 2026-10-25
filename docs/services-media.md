@@ -394,7 +394,11 @@ cannot be answered until the provider login works.
   `/data/*` glob) with mode `0600` and the container's own uid as owner: the file carries both API keys, and
   a `0600 root` render is a file the poller cannot open. Its patience knobs are one hour on purpose: while a
   peer is sending, slskd keeps reporting the transfer as queued, so a short queue bound deletes an album
-  whose bytes are already landing on disk. What the bridge does NOT change is the import cost: the arr cannot
+  whose bytes are already landing on disk. ⚠ **The timeout path destroys partial progress instead of leaving
+  it for import** — soularr's timeout branch calls `cancel_and_delete()`, which `shutil.rmtree`s the album's
+  COMPLETED folder out of the completion dir and never runs the import trigger, so a retry starts from zero
+  and no knob in `config.ini` can express "leave the partial for import"; patience delays the deletion, it
+  does not prevent it. The lever for that is an upstream/config question about the rmtree, not another knob. What the bridge does NOT change is the import cost: the arr cannot
   hardlink across the `/downloads` → `/media` binds, so it MOVES the files and seeding stops at import.
   A Soulseek find still has to survive the network itself — a wanted album is only as fast as the peer that
   holds it — so the `\\nas\music` drop remains the manual path that never depends on a stranger.

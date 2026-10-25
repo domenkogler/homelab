@@ -203,6 +203,11 @@ silent-no-op rule above. Include the service name (or use `docker_services_scope
 rather than the recap: `docker ps` for the container, and for telemetry a backend query (e.g.
 `VM {job="dcgm"}`).
 
+One honest exception to "a repeat is churn": **renovate's project is a single exit-0 one-shot service**, so
+`state: present` starts it again on every converge and the module reports that truthfully — the converge IS
+renovate's trigger. Re-scheduling that is an owner-visible behaviour change, not a fix to fold silently into
+another change.
+
 **One green converge proves nothing about idempotence — run it twice.**
 `failed=0` on a first run is also what a converge that churns looks like: re-running the identical command from
 the identical commit must give `changed=0`; if a service reports `Up 2 minutes` and then `Up 3 minutes`, a

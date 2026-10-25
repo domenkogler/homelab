@@ -34,7 +34,7 @@ measurements behind the numbers you will re-take.
 | 1 | **HD-474** | Two owner hands **on the Win11 seat**, in order: (1) `op signin`, then `python scripts\render-pi-config.py pi --host Domen_P14s --check` — the render must carry exactly the vision + FIM rows and **no agent row**; (2) `lmstudio-llm.ps1 switch -Profile vision-qwen3vl-30b`, then `python scripts\laptop-llm.py probe-client` | `probe-client` must **PASS, not SKIP** — a SKIP run taken from oldsrv is correct and proves nothing. Its residency half is load-bearing because the endpoint does **not** police the `model` field: with one leg resident, a request naming the other leg is answered by the resident one, so a stale row is silent, not loud. ⚠ Hostnames canonicalise (`Domen_P14s` == `domenp14s`). ⏳ AI-side and still unmeasured: the FIM leg's **trigger latency** inside Continue's 150–400 ms budget — `probe-fim` resolves that leg by its `insert` capability, not by the dial's name |
 | 2 | **HD-476** | Take the one number this leg owes: exercise the 32k window with image tokens **actually resident** in the KV — `python scripts\laptop-llm.py probe-vision --image <the 8160x6120 rack photo> --expect CAT6` against the loaded leg, reading the PDH **dedicated-memory** counter through the prefill | `--expect CAT6` is a whole-frame string the model supplies reliably; the switch **part number** is not (a wide-frame misread, since pixel allocation, not sight). The declared 23.51 GiB budget is header arithmetic plus a text-only 32k load today — ~4 k image tokens land in the same KV, so without this the budget is unproven |
 
-## ⛔ Traps that cost a round (re-grounded at this `HEAD`)
+## ⛔ Traps that cost a round
 
 * **Crop, do not shrink.** Image tokens **saturate** (~4.1 k for the full frame and for a quarter of it alike; 1120 px → 937;
   a label close-up → 528), so downscaling a wide frame takes the detail away from the answer while keeping the cost.
@@ -45,8 +45,8 @@ measurements behind the numbers you will re-take.
   nothing else; confirm a read against a second instrument (a crop, or the repo's own label photo).
 * **Weight files**: LM Studio's downloader auto-pulls the **mmproj-F32** and `lms get <file-url>` fetches the whole repo — always
   fetch exactly the two files (`huggingface_hub` `allow_patterns`), and use **mmproj-BF16**, never F32.
-* **Do not re-run the class of probe that produced the Gemma finding**: the max-side-length crash (>~1120 px, engine exit
-  `3221226505`) is measured twice and is the reason the leg is Qwen3-VL. Re-running it costs an engine crash, not information.
+* **Do not re-run the max-side-length probe class**: a frame wider than ~1120 px crashes the engine (exit
+  `3221226505`) — that is why the leg is Qwen3-VL. Re-running it costs an engine crash, not information.
 * ⛔ `networkingMode=mirrored` is **owner-rejected** — WSL2 stays `Nat` on purpose, so `127.0.0.1` inside the guest is the guest
   and the seat for local models is pi.dev on Win11. Never "fix" the loopback by changing the WSL network mode.
 * The runtime is pinned in the **dial, not in `versions.yml`** (LM Studio has no Renovate datasource there): `version:

@@ -29,25 +29,24 @@ for h in vps oldsrv spark pi nas; do printf '%-7s ' "$h"; timeout 15 ssh -o Batc
 Then the CONVENTIONS §0 ritual (the `CONVENTIONS.md` outline grep, `git status`, **your own worktree** — the guard refuses
 edits while the primary sits on `main`) and the prior-art sweep for whatever you are about to touch.
 
-**What this seat is, measured (re-measure; do not trust this list):**
+**What this seat is (re-measure; do not trust this list):**
 
-| Fact | State at this commit |
+| Fact | State (re-measure at your own `HEAD`) |
 |---|---|
 | It is a control node | `~/ansible-venv` + `~/.config/op/homelab-sa-token` present; `ansible all -m ping` answers for `vps nas spark oldsrv pi`; `librouteros` imports, so the RouterOS API path works from here — the API port answered on the Mgmt address and **not** on the Home one (addresses: [docs/network-addresses-generated.md](docs/network-addresses-generated.md)) |
 | It is **off-box** for every target | the inventory carries the VPS jump (`group_vars/{home_servers,storage,raspberry_pi,spark}.yml`), and no converge target is the controller → `IaC/ansible/playbooks/tasks/self-converge-guard.yml` never fires here. This is the whole reason the seat exists as a dispatch target |
-| Its own git transport | `origin` is SSH and `git ls-remote origin` answers. `commit.gpgsign` reads `false` in the clone config and the effective value is `false`, and `git log -1 --format='%G?'` is `N` — signing is retired, so committing here needs nothing and there is no hang on this box. HD-1116's **seat payload** is paid here: `~/.gitconfig-github` reads `gpgsign = false` under `[commit]`, so both files a github-remote clone resolves — that seat file, included through `includeIf "hasconfig:remote.*.url:*github.com*/**"`, and the clone's own config — print `false` in `git config --list --show-origin`. `git-bootstrap.sh --ssh-auth` never writes that file (its signing block writes the clone's config and says so on screen), so it was a hand edit run FROM this box; the seats HD-1116 still owes are Win11-local per §1.4 |
-| Its gate is green **before you start** — re-measure anyway | run `bash scripts/validate-all.sh --list \| wc -l` and read the verdicts by name: at this tip this box is **green**, and the seven seat items that used to redden it now pass — `pi-settings-config.sh --check --strict` OK, `sync-skills.sh --check --strict` OK, and `install-tmux-conf.sh --check --strict` exits 0 (`SAME` + `IN PLACE`) with its load probe printing a **verdict**: the tmux **binary** is installed on this seat and the load probe prints `OK — the SSOT parses AND applies`, so the old `SKIP: no tmux on PATH` is gone. Two items still print **SKIP** here, and a SKIP is not a pass (CONVENTIONS §6): the two Windows-only arms — `scripts/harness/seat-ssh-build.sh --check --strict` (not a Windows seat) and `probe-client` in `scripts/bench/laptop-llm.py` (a `native_only` client contract that lives on the Win11 seat). The tmux plane is no longer a SKIP-on-this-box caveat — it executed |
+| Its own git transport | `origin` is SSH and `git ls-remote origin` answers. `commit.gpgsign` reads `false` in the clone config and the effective value is `false`, and `git log -1 --format='%G?'` is `N` — signing is retired, so committing here needs nothing and there is no hang on this box. HD-1116's **seat payload** is paid here: `~/.gitconfig-github` reads `gpgsign = false` under `[commit]`, so both files a github-remote clone resolves — that seat file, included through `includeIf "hasconfig:remote.*.url:*github.com*/**"`, and the clone's own config — print `false` in `git config --list --show-origin`. `git-bootstrap.sh --ssh-auth` never writes that file (its signing block writes the clone's config and says so on screen), so a seat missing it is a hand edit run FROM this box; the seats HD-1116 still owes are Win11-local per §1.4 |
+| Its gate is green **before you start** — re-measure anyway | run `bash scripts/validate-all.sh --list \| wc -l` and read the verdicts by name: this box is expected **green**, with `pi-settings-config.sh --check --strict` OK, `sync-skills.sh --check --strict` OK, and `install-tmux-conf.sh --check --strict` exiting 0 (`SAME` + `IN PLACE`) with its load probe printing a **verdict** — the tmux **binary** is installed on this seat and the load probe prints `OK — the SSOT parses AND applies`. Two items still print **SKIP** here, and a SKIP is not a pass (CONVENTIONS §6): the two Windows-only arms — `scripts/harness/seat-ssh-build.sh --check --strict` (not a Windows seat) and `probe-client` in `scripts/bench/laptop-llm.py` (a `native_only` client contract that lives on the Win11 seat) |
 | Both providers are already rendered | `providers.entrim` (hosted, cost-bearing — read its live rows with `pi --list-models entrim`, because the provider retires ids without asking anyone) **and** `providers.spark` (262 144) come from `scripts/harness/pi/models-spec.yml`; the default is spark. An externally-served run is a model switch, not a config change |
 
 **Fix your own seat first** (⛔ every one of these legs must be run **from** this box — the station cannot speak for a seat's
-PATH). At `02721b29` this box's own nine planes are `OK`, so do **not** run `pi-seat-sync.sh --push` to repair a red that is not
-there: `--check` here prints `RESULT ok=9 problems=1 skipped=0` with every `wsl` line `OK`, and the single problem is the
+PATH). Run `pi-seat-sync.sh --check` and read its verdict before anything else: a red on **this box's** planes is what
+`--push` repairs — do not run `--push` to fix a red that is not here. The single problem this seat normally reports is the
 **oldsrv** seat's `STALE-CLONE` — that seat's clone, not this box's — fixed on oldsrv (`git -C ~/source/homelab fetch origin
 && git -C ~/source/homelab merge --ff-only origin/main`) and not from here; while that clone lags, the driver skips oldsrv's
-planes, so the `ok=` count names the `wsl` half only and the same command prints `ok=18 problems=0` once it is current. The
-one host change this box owed is landed — the **`tmux` binary** is installed (`command -v tmux` → `/usr/bin/tmux`, tmux 3.5a),
-and `bash scripts/harness/install-tmux-conf.sh --check --strict` prints `SAME` + `load probe OK` + `OK: seat tmux config ==
-repo SSOT and effective` — a verdict, not a SKIP. (The binary is a host change with no in-repo path: `roles/seat`'s
+planes, so the `ok=` count names the `wsl` half only. The **`tmux` binary** is installed on this seat (`command -v tmux` →
+`/usr/bin/tmux`, tmux 3.5a) and `bash scripts/harness/install-tmux-conf.sh --check --strict` prints `SAME` + a load-probe
+verdict, not a SKIP. (The binary is a host change with no in-repo path: `roles/seat`'s
 `seat_packages` reaches only hosts in
 [`IaC/ansible/inventory.ini`](IaC/ansible/inventory.ini) and this laptop is not one of them — a rebuilt WSL seat replays
 `sudo apt-get install -y tmux`, then `install-tmux-conf.sh --reload`.)
@@ -83,7 +82,7 @@ oldsrv seat and inside this box's reach. Row ownership does not move (O3 is abou
 | **HD-1152** | the DNS seed's record-prune apply across the three Technitium instances, detached | owner-present apply; never `--diff` on `docker_services` |
 | **HD-1128** | the Pi exit-node advertisement + the headscale route, converge Pi + VPS, then prove egress from a tailnet client | `tailscale-node` is guard-listed on the Pi's own box |
 | **HD-1116** | this box's git identity/config leg (§0) | only this box can write its own seat config |
-| **HD-1110** · **HD-1085** | this box's own seat planes are `OK` at `02721b29` (`--check`, not `--push` — there is nothing here to push), so what is left in this lane is HD-1085's tmux **effectiveness** leg, which cannot be closed until the binary exists (§0); the other rows' Win11 legs stay Win11-local per §1.4 | a seat plane converges from its own clone, and from inside WSL the driver cannot certify the Win11 seat |
+| **HD-1110** · **HD-1085** | this box's own seat planes read `OK` on `--check` (not `--push` — there is nothing here to push), so what is left in this lane is HD-1085's tmux **effectiveness** leg, now closeable because the binary is on the box (§0); the other rows' Win11 legs stay Win11-local per §1.4 | a seat plane converges from its own clone, and from inside WSL the driver cannot certify the Win11 seat |
 | **HD-1123** · **HD-1125** · **HD-1138** | the alias-plane legs that must be run from a laptop class, and the four callers that reach the VPS by bare FQDN | the seat's own `~/.ssh/config` and its own callers |
 
 ⛔ **Never** a second session on one converge host at the same time (O3), and **never** a timed spark leg from this session

@@ -27,9 +27,9 @@ that recreates the same containers, and `docs/services-ai*.md` is single-writer.
 | # | Row | Do | Gate / trap |
 |---|-----|----|-------------|
 | 1 | **HD-384** | Finish the ordered pair: after spark has rebooted with `litellm-engine_api` in its accepted-key list, point `lan-litellm` + `litellm` `OPENAI_API_KEY` at it and converge both; then the OWUI grant, which cannot ship by editing records (create-only glue until `/key/update`) | ⚠ **Order is the whole risk** — the engine only accepts the new credential from its next boot; flipping the gateways first 401s every upstream call. Prove `GET https://llm.kogler.si/v1/models` answers **200** with the new bearer before touching either gateway. ⚠ `/model/list` is unusable with the master key; **`GET /model/info` on the LAN instance answers FOUR rows** (`spark/qwen3.8-flash-next`, `local-rerank`, `local-stt`, `bge-m3-vk`) and the VPS one, so `ollama/bge-m3` is a *fallback rung*, not a row. ⚠ The mint glue lives **inside** the `lan-litellm` deploy pass (name the service tag) and is **create-only**: a live key keeps its old allow-list until `/key/update` exists or the key is deliberately re-minted |
-| 2 | **HD-249** | Nothing to execute today: the audit is **done** (one workflow, one active webhook, caller is Grafana on the docker network, `auto.kogler.si` tailnet-only) and n8n has **no AI node**, so there is no key to mint yet | When an AI node appears: mint on the **LAN** instance with **no `max_budget`** and **local rows only** (`spark/qwen3.8-flash-next`) per the owner's 2026-10-09 ruling — an unused scoped key is a liability, not a head start |
+| 2 | **HD-249** | Nothing to execute today: the audit is **done** (one workflow, one active webhook, caller is Grafana on the docker network, `auto.kogler.si` tailnet-only) and n8n has **no AI node**, so there is no key to mint yet | When an AI node appears: mint on the **LAN** instance with **no `max_budget`** and **local rows only** (`spark/qwen3.8-flash-next`) per the owner's ruling — an unused scoped key is a liability, not a head start |
 
-## ⛔ Traps that cost a round (re-grounded at this `HEAD`)
+## ⛔ Traps that cost a round
 
 * **The pin is `versions.yml:231` — say nothing about LiteLLM's behaviour that you have not re-read there.** The rows and the
   old prose quote an older tag; §9c's constraints are written as "measured on the pinned image", so re-verify the two that
@@ -67,5 +67,5 @@ Every item returns `PASS` / `FAIL` / `BLOCKED` / `PARKED` + the number + the evi
 not run. Concretely: `/model/info` on both gateways showing the decided rows · each scoped consumer authenticating with **its
 own** key with one request proven end-to-end per consumer (HA Assist answering is the visible one) · the `llm`-router credential
 shape named and the triple-use broken in the render, or the alternative shape recorded with the owner's call parked ·
-`/ui/login` deep-link verified on the pinned image (done — the defect did not survive the 2026-10-08 pin, §4c) · the plaintext-`.storage` ruling ruled and the HA entry + Assist wire live with one Slovenian turn proven (done — [docs/smart-home-voice.md](docs/smart-home-voice.md) header table) · every minted item in the secrets catalog · rows deleted or trimmed to their tails, no history in the
+`/ui/login` deep-link verified on the pinned image (the defect did not survive the current pin, §4c) · the plaintext-`.storage` ruling ruled and the HA entry + Assist wire live with one Slovenian turn proven ([docs/smart-home-voice.md](docs/smart-home-voice.md) header table) · every minted item in the secrets catalog · rows deleted or trimmed to their tails, no history in the
 row · `bash scripts/validate-all.sh` green **in this worktree** → **stop**.
