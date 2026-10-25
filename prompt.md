@@ -406,11 +406,11 @@ the row→brief index is [todo-table.md](todo-table.md) §B0. A brief is named f
     check-ignore` platform separators (renderer output read as dangling citations — green in a clone that had rendered, red
     in a fresh worktree), one assertion let a pipe's CRLF into a comparison, and the vault read crossed a flat ceiling and
     printed a traceback where a boundary belonged. Fixed, fenced by arms, and the UTF-8 pin moved to the launcher in
-    `lib/python.sh`; the numbers and the contract are [docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1, and the rule
-    stands — grade from WSL Debian, report a Win11 `OK` as partial. ⏳ In **HD-1177**: the *value-carrying* proof of that pin,
-    which needs an unlocked 1Password session here (**HD-1181**: a green leak read on this seat would mean the register was
-    muted), and the `pi-*-config.sh --self-test` node probe that makes a node-less seat SKIP rather than redden — those are
-    the `oldsrv` seat's 2 reds. **HD-1179** keeps its WSL-Debian `--self-test` legs and names the `session/selftest` branch
+    `lib/python.sh`; the set re-run at the merged tip passes every item there. Numbers and contract:
+    [docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1, and the rule stands — grade from WSL Debian, report a Win11 `OK`
+    as partial, and read the named SKIPs it still prints. ⏳ In **HD-1177**: the `pi-*-config.sh --self-test` node probe that
+    makes a node-less seat SKIP rather than redden — the `oldsrv` clone's 2 reds. **HD-1179** keeps its WSL-Debian
+    `--self-test` legs and names the `session/selftest` branch
     in the primary (fixture commits, no work, and a `git branch -d` refusal that is the fixture's fingerprint). ⏳
     `GATE_WIN_PAR` is untested with a measurement attached to it, and `deployment-manual.md` still lacks the `jq` step for
     the Win11 seat and the WSL clone. **HD-1176**'s mechanism is in place on the seat and its row stays **open** for what it
