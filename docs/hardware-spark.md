@@ -423,9 +423,9 @@ Certified state and its costs, stated plainly:
   main K/V only while the QSA indexer side-caches and the GDN state stay bf16 — and on the pinned image
   it **cannot boot at all** (`NotImplementedError: QSA requires a BF16 main KV cache`,
   [`../spark/reports/hd469-graded/README.md`](../spark/reports/hd469-graded/README.md)). That is the
-  **build**, not the model: fp8 main KV merged upstream as vllm#55557, after the last push of the pinned
-  tag ([`image-probe-20260928.md`](../spark/reports/hd469-graded/image-probe-20260928.md)) and it is not
-  in vLLM v0.30.0 either. Reaching it is the engine-pin lane, not a config flip and not a bigger pool.
+  **build**, not the model: the upstream fix (vllm#55557) is merged and **ships in vLLM v0.31.0+** (arm64
+  manifests, CUDA 13), while the ref pinned here predates it ([`image-probe-20260928.md`](../spark/reports/hd469-graded/image-probe-20260928.md)
+  · [`pin check`](../spark/reports/hd473-pin-check-20261025/README.md)). Reaching it is the engine-pin lane.
   Profile-level arithmetic + the host-floor gate: [spark-llm-profiles.md](spark-llm-profiles.md).
 - **Costs paid:** idle `usable` **18.5 GiB** (margin to the 12 GiB reserve target is 6.5 GiB), and
   `NV_ERR_NO_MEMORY` occurrences rise slightly under load (boot-load burst unchanged in character). Under

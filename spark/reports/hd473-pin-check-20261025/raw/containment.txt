@@ -1,0 +1,14 @@
+# captured 2026-10-25T22:54:52Z — release containment
+# compare <tag>...<merge_sha>: status=behind => the merge commit IS an ancestor of the tag (contained)
+vllm#55557  in v0.30.0 : diverged
+vllm#55557  in v0.31.0 : behind
+vllm#55557  in v0.32.0 : behind
+vllm#54371  in v0.30.0 : behind
+vllm#54371  in v0.31.0 : behind
+vllm#54371  in v0.32.0 : behind
+vllm#54890  in v0.30.0 : behind
+vllm#54890  in v0.31.0 : behind
+vllm#54890  in v0.32.0 : behind
+vllm#55309  in v0.30.0 : behind
+vllm#55309  in v0.31.0 : behind
+vllm#55309  in v0.32.0 : behind

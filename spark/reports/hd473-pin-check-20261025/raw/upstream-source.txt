@@ -1,0 +1,33 @@
+# captured 2026-10-25T22:54:52Z — the fp8 read path in the upstream source, per release tag
+# same marks scripts/bench/spark-fp8-image-probe.py greps, but read at the TAG, not in a container
+=== v0.30.0  vllm/models/qwen4_exp/nvidia/qsa.py  (http 200, 16859 bytes)
+49:    get_kv_quant_mode,
+67:    supported_kv_cache_dtypes: ClassVar[list[CacheDType]] = ["auto", "bfloat16"]
+110:            raise NotImplementedError("Qwen4Exp QSA requires a BF16 main KV cache")
+189:            raise NotImplementedError("Qwen4Exp QSA requires a BF16 main KV cache")
+346:            kv_quant_mode=get_kv_quant_mode(self.kv_cache_dtype),
+=== v0.31.0  vllm/models/qwen4_exp/nvidia/qsa.py  (http 200, 20409 bytes)
+50:    get_kv_quant_mode,
+68:    # fp8/fp8_e4m3: e4m3 bytes in a uint8 cache, written by reshape_and_cache
+72:    supported_kv_cache_dtypes: ClassVar[list[CacheDType]] = [
+76:        "fp8_e4m3",
+81:        return kv_cache_dtype is None or kv_cache_dtype in cls.supported_kv_cache_dtypes
+154:        if kv_cache_dtype in ("fp8", "fp8_e4m3"):
+176:        if self.kv_cache_dtype not in ("auto", "bfloat16", "fp8", "fp8_e4m3"):
+217:        if self.kv_cache_dtype in ("fp8", "fp8_e4m3"):
+278:            "fp8_e4m3",
+441:            kv_quant_mode=get_kv_quant_mode(self.kv_cache_dtype),
+=== v0.32.0  vllm/models/qwen4_exp/nvidia/qsa.py  (http 200, 25468 bytes)
+59:    get_kv_quant_mode,
+150:    # fp8/fp8_e4m3: e4m3 bytes in a uint8 cache, written by reshape_and_cache
+154:    supported_kv_cache_dtypes: ClassVar[list[CacheDType]] = [
+158:        "fp8_e4m3",
+163:        return kv_cache_dtype is None or kv_cache_dtype in cls.supported_kv_cache_dtypes
+236:        if kv_cache_dtype in ("fp8", "fp8_e4m3"):
+258:        if self.kv_cache_dtype not in ("auto", "bfloat16", "fp8", "fp8_e4m3"):
+299:        if self.kv_cache_dtype in ("fp8", "fp8_e4m3"):
+360:            "fp8_e4m3",
+550:            kv_quant_mode=get_kv_quant_mode(self.kv_cache_dtype),
+=== CUDA default in the release Dockerfile (docker/Dockerfile ARG CUDA_VERSION) ===
+v0.31.0: ARG CUDA_VERSION=13.0.3
+v0.32.0: ARG CUDA_VERSION=13.0.3

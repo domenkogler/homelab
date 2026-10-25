@@ -12,21 +12,21 @@ Why a bar at all: the box has one 121.62 GiB unified pool shared by weights, KV 
 cold engine boot is ~20 min. A profile that "boots and answers one prompt" has proven nothing about
 whether it will survive an agent session.
 
-> **Measured 2026-09-28: fp8 KV cannot boot on the IMAGE we pin — which is not the same
-> sentence as "this model cannot do fp8 KV", and the difference is the whole lane.** The
-> engine dies at EngineCore init with
-> `NotImplementedError: Qwen3.8-Flash-Next QSA requires a BF16 main KV cache`
-> (`…/qwen3_8_flash_next/nvidia/qsa.py`, raise at :109 and :188, declaration at :70
-> `supported_kv_cache_dtypes = ["auto", "bfloat16"]`). Upstream **merged** fp8 main KV on the
-> QSA path as vllm **#55557** on **2026-09-16** — three weeks *after* the last push of our
-> tag (2026-08-26, registry-verified) — reproduced it on GB10/sm_121, and the fp8 plumbing
-> (`kv_quant_mode`) is already in our build. It is not in vLLM v0.30.0 either.
-> So `graded` is blocked on an **engine pin + re-cert (todo.md HD-473)**, not on the model:
-> do not re-attempt it against this pin, do **not** vendor the AGPL overlay patch, do **not**
-> hand-edit a container's site-packages. Evidence:
+> **fp8 KV cannot boot on the IMAGE we pin — which is not the same sentence as "this model cannot do
+> fp8 KV", and the difference is the whole lane.** The engine dies at EngineCore init with
+> `NotImplementedError: Qwen3.8-Flash-Next QSA requires a BF16 main KV cache` (declaration
+> `supported_kv_cache_dtypes = ["auto", "bfloat16"]`). The upstream fix, vllm **#55557** (merged
+> 2026-09-16), **ships in the vLLM v0.31.0 / v0.32.0 releases**: arm64 manifests, `docker/Dockerfile`
+> CUDA 13.0.3, and their `qsa.py` declares `"fp8_e4m3"` with no BF16-only raise anywhere in the file.
+> The model-specific ref this box pins (`qwen38-flash-next`, last pushed 2026-08-26) predates the merge
+> and has not moved, and v0.30.0 still carries the raise. So `graded` is blocked on a **pin choice plus
+> the re-cert it costs** — no longer on upstream, never on the model: do not re-attempt it against this
+> pin, do **not** vendor the AGPL overlay patch, do **not** hand-edit a container's site-packages, and
+> take the default or `-aarch64` release tag — never a `-cu129` build on GB10/sm_121. Evidence:
 > [`reports/hd469-graded/README.md`](../../spark/reports/hd469-graded/README.md) +
-> [`image-probe-20260928.md`](../../spark/reports/hd469-graded/image-probe-20260928.md);
-> re-derive both with `scripts/bench/spark-fp8-image-probe.py` (read-only, ~40 s, no GPU).
+> [`reports/hd473-pin-check-20261025/README.md`](../../spark/reports/hd473-pin-check-20261025/README.md);
+> re-derive with `scripts/bench/spark-fp8-image-probe.py --skip-box` (read-only, ~40 s, no GPU) — it
+> prints `UNDECIDED` until the box leg has read the candidate image's own `qsa.py`.
 
 > **Rule 0 — whose session may run this gate.** If the session executing the gate is itself
 > served by `spark/…`, every tok/s, TTFT and TPOT it measures is contaminated by its own

@@ -1,0 +1,13 @@
+# captured 2026-10-25T22:54:21Z — GitHub PR state for the fp8/pin question
+vllm#55557 | closed | merged=true | merged_at=2026-09-16T15:07:52Z | merge_sha=dff1bde84dd6e34a49c150116d0f212507280910 | [Model] Qwen4Exp: fp8_e4m3 main KV cache on the QSA path
+vllm#54846 | open | merged=false | merged_at=null | merge_sha=null | [Model] Qwen4Exp: fp8_e4m3 and nvfp4 KV cache on the QSA path
+vllm#54890 | closed | merged=true | merged_at=2026-09-07T12:15:45Z | merge_sha=94e26dd3dd7d6363b524c96521c78feb501bdc61 | [Qwen3.8-Flash-Next] Support FP8 indexer cache for QSA
+vllm#54371 | closed | merged=true | merged_at=2026-09-09T14:32:35Z | merge_sha=3116c5d06bfe76501b3dd6b5434bfc7f3274f5e7 | [Qwen4Exp] Support UVA PLE-offload and Engram tensor parallelism
+vllm#54517 | closed | merged=true | merged_at=2026-09-02T04:32:16Z | merge_sha=f870b9297685bd3c968063b52b769315cb08fd7f | [Qwen3.8-Flash-Next] Fuse Qwen4Exp PLE kernels
+vllm#54513 | closed | merged=true | merged_at=2026-09-02T01:08:10Z | merge_sha=003e34341a824ab8e3bec4861e92b5e84180af8b | [Qwen3.8-Flash-Next] Separate prefill and decode paths for QSA indexer
+vllm#54873 | closed | merged=true | merged_at=2026-09-04T13:08:03Z | merge_sha=31a8a266622781917cef482d01db415cfa3cbd92 | [Qwen3.8-Flash-Next] Improve QSA sparse GQA for prefill and short-ctx decode
+vllm#55309 | closed | merged=true | merged_at=2026-09-14T12:16:25Z | merge_sha=3f55ad2f073a7d1f573db5a5a3fe3dc9c688ddee | [Qwen3.8-Flash-Next] Fuse PLE residual and QSA output gate
+# sglang
+sglang#36644 | open | merged=false | merged_at=null | [Qwen3.8] Fix FP8 KV cache support in QSA
+sglang#37068 | closed | merged=true | merged_at=2026-09-05T11:19:04Z | [Qwen4-Exp] File-backed PLE table backend for unified-memory devices (GB10 / DGX Spark)
+sglang#38121 | closed | merged=true | merged_at=2026-09-05T17:59:37Z | [Qwen4-Exp] Load nvidia/Qwen3.8-Flash-Next-NVFP4 (ModelOpt MIXED_PRECISION) on qwen4-main-squashed

@@ -110,8 +110,9 @@ not this list, holds the steps, the file ownership and the converge host. Waves,
    broken pairing, `accuracy-gate.sh`'s default stays 1024), `usable-sampler.sh` (**HD-494**),
    `needle-window.sh` (**HD-376**), `text-only-preflight.sh` (**HD-400** — a read, legal from any seat; the profile
    stays NOT applied). Run order, exit codes, rollback:
-   [spark/reports/external-window-card.md](spark/reports/external-window-card.md). **HD-473 waits on an upstream
-   build, not on a seat.** **HD-380 needs no external model** — it is a `/metrics` read. Gate 7, B10's 6/8/9,
+   [spark/reports/external-window-card.md](spark/reports/external-window-card.md). **HD-473 does not wait on
+   upstream any more** — the fp8 main-KV merge ships in vLLM `v0.31.0`/`v0.32.0`, so it waits on the ref choice
+   + the re-cert it costs. **HD-380 needs no external model** — it is a `/metrics` read. Gate 7, B10's 6/8/9,
    B9 · B5 · B8 are closed — do not re-run. → [prompt-spark-llm.md](prompt-spark-llm.md) (one spark slot; HD-359 · 367 ride it)
 2. ⏳ **The transport / answer plane** — **HD-436** owes ONLY the live half: the two converges in the parked table
    below, both still PARKED. **HD-477** — make the resolver actually float with the VIP; the row carries the three

@@ -1,0 +1,27 @@
+
+── Leg A · registry (read-only, anonymous) ─────────────────────────────
+pinned image (versions.yml): vllm/vllm-openai:qwen38-flash-next@sha256:fc120ece0a388cc0aa1caad4a9f1cd92113484ab7ec2fd0efadd62585be05bf8
+  pin parses as repo=vllm/vllm-openai tag=qwen38-flash-next digest=sha256:fc120ece0a38…
+  tags matching /qwen38|flash/ in the first 5 page(s): 32, newest:
+    2026-10-23T01:07:44.826097Z  minimax-m31-flash                            sha256:86f582dae25e…  [amd64, arm64]
+    2026-10-23T01:07:05.273509Z  minimax-m31-flash-arm64-cu134                sha256:5d7634762897…  [arm64]
+    2026-10-23T01:07:01.42608Z  minimax-m31-flash-x86_64-cu134               sha256:f5ec69891fb7…  [amd64]
+    2026-09-10T06:47:58.803361Z  deepseekv41-flash-0909-cu129                 sha256:4a4431d6a283…  [amd64, arm64]
+    2026-09-10T06:47:50.258356Z  deepseekv41-flash-0909                       sha256:00d577a6a632…  [amd64, arm64]
+    2026-09-10T06:47:27.376416Z  deepseekv41-flash-0909-cu129-arm64           sha256:cbb6e77f340e…  [arm64]
+    2026-09-10T06:47:20.434513Z  deepseekv41-flash-0909-cu129-amd64           sha256:af36b3aac947…  [amd64]
+    2026-09-10T06:47:14.109314Z  deepseekv41-flash-0909-arm64                 sha256:d84a123255b8…  [arm64]
+    2026-09-10T06:47:07.468784Z  deepseekv41-flash-0909-amd64                 sha256:4f3c8bcf6328…  [amd64]
+    2026-09-09T13:32:06.031224Z  glm53-flash                                  sha256:819ec9c06341…  [amd64, arm64]
+    2026-09-09T13:31:53.739285Z  glm53-flash-cu129                            sha256:2b84cf23f140…  [amd64, arm64]
+    2026-09-09T13:31:25.42925Z  glm53-flash-arm64-cu130                      sha256:b0501f99fec5…  [arm64]
+  qwen38-flash-next: last_updated=2026-08-26T13:06:10.219275Z full_digest=sha256:fc120ece0a38… architectures=[amd64, arm64] (2 entries)  ← IS our pin
+      · amd64/linux sha256:0aea30240f3e… size=8634450611
+      · arm64/linux sha256:3b0e188ffceb… size=9702868146
+  qwen38-flash-next-arm64-cu130: last_updated=2026-08-26T13:04:17.794978Z full_digest=sha256:3b0e188ffceb… architectures=[arm64] (1 entries)
+      · arm64/linux sha256:3b0e188ffceb… size=9702868146
+
+── Verdict ─────────────────────────────────────────────────────────────
+UNDECIDED — the box leg (the only one that reads the engine's own qsa.py) did
+not run. An inconclusive probe is not a verdict: fix the leg, or say in the
+report that the dtype question is OPEN (prompt-spark-llm.md: an UNDECIDED run is not a verdict).
