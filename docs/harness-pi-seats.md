@@ -55,30 +55,7 @@ tags: [ai, pi, agent-harness, harness, spark, llm, settings]
   all three seats — converge `oldsrv`, fan out the settings and git identity — it does not certify the tree: the legs that
   shell into a target, need WSL-only tooling, or need a pty a native `ansible-playbook` cannot make (`WinError 87`) print
   `SKIP` naming what was not proven, so the run ends **`PARTIAL`** and a Debian seat is the authority on those classes.
-  Wall clock is not comparable across the two OSes: ~10 ms per leg here against ~0.7 ms there is `fork()` emulation.
-- **The hybrid route: this seat now runs part of the gate on the Debian engine of the same box** (2026-10-25,
-  **HD-1202**). Why it exists is a fork measurement taken in one quiet minute at the same tip: `fork`+`exec` of a 5 KB
-  script costs **16–44 ms** in Git-Bash against **0.66 ms** in WSL Debian (560–995 ms here under the gate's own load),
-  and `python -c pass` **383 ms** against **12 ms** — so a leg that forks thousands of times is minutes against seconds,
-  and the same commit was green on both engines while costing 133 s here and 20 s there. The decision lives in
-  [`../scripts/lib/wsl-route.sh`](../scripts/lib/wsl-route.sh) (seat class, the `/mnt/<drive>/…` translation, the probed
-  guest launcher, the far `rc` — the transport is the same `wsl.exe -d Debian --cd /mnt/... --` form as
-  `seat-bash-build.sh`, with the MSYS conversion pinned per spawn) and each leg says so at its registration line in
-  `validate-all.sh`; `--wsl auto|on|off` chooses, one `route:` line names what ran where, and a leg that cannot cross
-  runs **here**, so a fast gate is never a quieter one. The engine reads **this** checkout through `/mnt/d/…`, never a
-  clone, because the verdict has to be about the bytes under review. Two things the measurements settled, since "it is
-  slow here" was not on its own a reason: **a leg that reads the checkout through `git` stays native** — the 9p tax beats
-  the fork win (`check_hd_mint_space.py` 118 s across against 72 s native, `check_string_twins.py` 71 s against 56 s,
-  `corpus_diff.py --gate` 40 s against 30 s), and in a Windows **worktree** a Linux git reads the `gitdir: D:/…` file as
-  a RELATIVE path and dies, which turned one checker into `CANNOT RUN` and another into a false red whose positive
-  control could not tell a missing repo from a broken invariant; and **a seat-tool leg stays native too** — tmux, the
-  font plane, the `pi` CLI launches, `ansible-playbook` and `rsync` are slow here because the tool is missing or 6–125×
-  slower to start, which is a reason to install the tool, not to open a door. Automatic **only** on this seat: inside
-  WSL the engine is never nested, a real Debian host and any other Linux run their legs natively, so the Debian seats
-  stay the authority exactly as above. What the offload does NOT yet prove is narrower than the SKIP list suggests: the
-  seat-tool legs, the `GATE_WIN_PAR` value, and an A/B wall number on one quiet machine — the first timed full gate here
-  read `Σ 5914 s over 128 items / wall 675 s / 8.75×` while competing with its own offload, so it is a load warning and
-  not a baseline. Mechanism and refusals: [`../scripts/README.md`](../scripts/README.md) `lib/wsl-route.sh`.
+  Wall clock is not comparable across the two OSes: ~10 ms per leg here against ~0.7 ms there is `fork()` emulation, so the fork-heavy legs of this seat's gate run on the Debian engine of the same box through `/mnt/d/…` — [`../scripts/lib/wsl-route.sh`](../scripts/lib/wsl-route.sh); a leg that reads the checkout through `git`, or needs a seat tool, still runs here, and a Debian seat stays the authority.
 - **One unfiltered run on this seat, and what its reds were.** `bash scripts/validate-all.sh --time` over the whole item set
   ends at `wall 1518 s`, `Σ item duration 12,953 s`, `Σ/wall 8.53×` — the fork-diet ratio measured on the full set rather
   than a subset, which is the number to read before touching `GATE_WIN_PAR`. The same set with nothing else forking on the

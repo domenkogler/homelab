@@ -366,26 +366,9 @@ not this list, holds the steps, the file ownership and the converge host. Waves,
     headscale-side call on MagicDNS `SERVFAIL`ing most of `zone_kogler_si`, and the suspend/resume + away-from-home
     re-measure. Record: [scripts/README.md](scripts/README.md) `validate-all.sh` + `lib/python.sh` + `lib/repo_root.py` ·
     [docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1.
-    ⏳ the 0-byte artifact a full set leaves in the tree root, now with a clue: its name is the doc header line
-    `**Role:**` run through Git-Bash's MSYS byte-round-trip (`*`→`U+F0AA`, `:`→`U+F03A`), so the writer is a **python**
-    leg handed a doc's first line where a path belonged — start where a leg builds an output name from a header.
-
-    **Hybrid route — landed on a branch, not yet merged** (2026-10-25, `feat/gate-wsl-offload` @ `18bbf66d`, worktree
-    `D:/source/domenkogler/homelab-wt-20261025-1211`): the win11 seat now runs the fork-heavy legs on the Debian engine
-    of the SAME laptop through `/mnt/d/…`, against this checkout and never a clone. The decision lives in
-    `scripts/lib/wsl-route.sh` (seat class, the `/mnt` path, the probed launcher, the far rc — all measured, all
-    recorded in [scripts/README.md](scripts/README.md) and [docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1);
-    15 legs are wrapped at their registration line, `--wsl auto|on|off` and a `route:` line name what ran where, and
-    `bash scripts/lib/wsl-route.sh --self-test` is the witness. **What the next session owes, in order:** (a) grade
-    the branch on a CLEAN main checkout — in a Windows **worktree** a Linux git cannot open the checkout (a
-    `gitdir: D:/…` file read as a relative path), which is proven and fenced but means the wrapped set must be
-    re-checked where git works; (b) the A/B wall numbers on one quiet machine (`--wsl off` against default, twice each,
-    because the first timed full gate measured here read **5914 s Σ / 675 s wall** with this offload competing with
-    itself — unusable as a baseline); (c) the remaining slow legs are seat-TOOL-bound, not fork-bound (tmux, the font
-    plane, `pi` CLI launches, `ansible-playbook`, `rsync`) and each needs its own ruling on whether a Debian answer is
-    a better verdict or a different question — the rule that decides it is in the lib's `hl_wsl_route` doc; (d) the
-    `GATE_WIN_PAR` value the first run re-derives (this seat measured 217 ms/exec → 16 concurrent, against the 8 the
-    config pins); (e) docs still say "run the WSL clone instead", which this supersedes.
+    ⏳ the hybrid route (branch `feat/gate-wsl-offload` @ `18bbf66d`): grade it on a clean main checkout, re-take the A/B
+    wall quietly, set `GATE_WIN_PAR` from a re-derived number, and rule each seat-tool-bound leg — mechanism,
+    eligibility and timings: [`scripts/lib/wsl-route.sh`](scripts/lib/wsl-route.sh) · [docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1.
 
 **Parked on an owner-present window** — authored work with exactly one blocked action in front of it, named with that
 action so no lane re-derives it. An entry marked RULED is AI work, not an owner act — the rulings are the rows' and
