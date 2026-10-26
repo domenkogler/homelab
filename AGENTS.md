@@ -10,8 +10,8 @@ of its lines are **reminders that never fail the run** (§6.4) — those are you
 change added them.
 
 1. **Docs state facts; commits state what changed.** No changelog entries, no session narrative, no values
-   that describe a state that no longer exists. A sentence reporting an event ("measured 2026-10-17 …",
-   "this session moved …") belongs to the commit message, because **git is the only changelog this repo
+   that describe a state that no longer exists. A sentence that reports an **event** — what a session did,
+   found or measured, and when — belongs to the commit message, because **git is the only changelog this repo
    keeps**. Dates are kept when the date IS state — expiry, renewal, firmware date, and a `live-verified` /
    as-built marker, where the date is the information. Clear a finding by rewriting the sentence as a fact
    or cutting it, never by deleting a date and keeping the story. → [`CONVENTIONS.md`](CONVENTIONS.md) §6,
