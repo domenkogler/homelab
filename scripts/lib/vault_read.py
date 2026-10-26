@@ -32,8 +32,11 @@ WHAT NEVER CHANGES, whichever route answers:
   * credential resolution goes through `scripts/lib/vault-env.sh` / `vault_env.py` and nowhere
     else — this module reads no token file and resolves nothing of its own. No credential is a
       boundary (rc 1 / `Boundary`), never a desktop-app fallback with a human behind it.
-  * values never reach a TTY: the value handoff (`--values`) refuses a terminal (rc 3) exactly
-    like `vault-env.sh --emit` does, so the only way out is a pipe held by the calling process.
+  * values never reach a TTY: every mode that prints a value (`--values`, `--item`) refuses a
+    terminal (rc 3) exactly like `vault-env.sh --emit` does, so the only way out is a pipe held by
+    the calling process — and it refuses BEFORE reading, so refusing costs nothing too. `--list`
+    prints names and versions and nothing else, so it needs no refusal: titles are how the vault is
+    keyed, not what it hides.
   * stderr prints the provenance — `route=`, the REQUEST count, and a digest of the per-item
     `version` numbers. The digest is over ids+versions, NEVER over the values: a digest of an
     8-char secret is a dictionary oracle (the reason is written into check_secret_leak.py, whose
@@ -57,14 +60,16 @@ USE (python legs — the normal form):
 USE (CLI):
     python3 scripts/lib/vault_read.py --list [--vault V]    title<TAB>id<TAB>version lines — names, no values
     python3 scripts/lib/vault_read.py --values [--vault V]  the whole vault as JSON, PIPE ONLY (a tty -> rc 3)
-    python3 scripts/lib/vault_read.py --item TITLE          one item as JSON (ID-addressed via the vault map)
+    python3 scripts/lib/vault_read.py --item TITLE          one item as JSON (ID-addressed via the vault
+                                                           map), PIPE ONLY — a tty is refused (rc 3)
     python3 scripts/lib/vault_read.py --probe               which interpreter imports the SDK; the install command
     python3 scripts/lib/vault_read.py --install-sdk        pip install onepassword-sdk into the probed interpreter
                                                            (an explicit seat act; nothing here installs by itself)
     python3 scripts/lib/vault_read.py --self-test          fixture arms; ZERO requests, reads no vault
 
 Exit: 0 ok · 1 boundary (no credential reachable here — legs print it as a SKIP, not a FAIL) ·
-      2 usage · 3 --values refused a terminal · 4 the SDK answered nothing where it was required.
+      2 usage · 3 a value mode (--values, --item) refused a terminal ·
+      4 the SDK answered nothing where it was required.
 
 Fixture seam for legs: `HL_VAULT_READ_FIXTURE` replaces the read with a JSON file of the `--values`
 shape (ids/titles/versions/fields) and costs ZERO requests — the same role `--fake-vault` plays for
@@ -577,7 +582,8 @@ def main() -> int:
                     help="title<TAB>id<TAB>version per item; no values")
     ap.add_argument("--values", action="store_true",
                     help="the whole vault as JSON on a PIPE ONLY — a terminal is refused (rc 3)")
-    ap.add_argument("--item", metavar="TITLE", help="one item as JSON (ID-addressed)")
+    ap.add_argument("--item", metavar="TITLE",
+                    help="one item as JSON (ID-addressed) — on a PIPE ONLY, a terminal is refused (rc 3)")
     ap.add_argument("--probe", action="store_true",
                     help="print which interpreter imports the SDK, and the seat install command")
     ap.add_argument("--install-sdk", action="store_true",
@@ -654,6 +660,13 @@ def main() -> int:
         return 0
 
     if args.item:
+        # A value mode, so the pipe rule applies here too: `--item` prints one item's FIELDS, which is
+        # the whole vault value for the item asked. Refused BEFORE any read, so refusing also costs
+        # nothing — the same rc 3 as `--values` and `vault-env.sh --emit`.
+        if _refuse_tty():
+            print(f"vault-read: --item refuses a terminal — {args.item} would print its fields onto a "
+                  "tty; pipe it (a value travels down a pipe, never onto a screen)", file=sys.stderr)
+            return 3
         try:
             vr = read_item(args.item, args.vault)
             item = vr.only()
@@ -1046,6 +1059,18 @@ def self_test() -> int:
         check("--item on the fixture route answers one item, ZERO requests",
               r.returncode == 0 and got.get("requests") == 0
               and got.get("item", {}).get("title") == "item_3", f"rc {r.returncode} {str(got)[:100]}")
+
+        # (10b) `--item` is a VALUE mode — it prints an item's fields — so the pipe rule binds there
+        # too: a terminal is rc 3, nothing is printed, and because the refusal happens before any
+        # read, refusing costs ZERO requests as well. The canary sits in item_7 on purpose.
+        r = subprocess.run([sys.executable, str(Path(__file__).resolve()), "--item", "item_7",
+                            "--vault", "V"],
+                           capture_output=True, stdin=subprocess.DEVNULL,
+                           env=dict(env_off, HL_VAULT_READ_FIXTURE=str(fx), HL_VAULT_READ_TTY="1"))
+        out10 = (r.stdout or b"") + (r.stderr or b"")
+        check("--item refuses a terminal (rc 3) and discloses no field value", r.returncode == 3
+              and canary.encode() not in out10 and b"v7x" not in out10,
+              f"rc {r.returncode} out {out10[:110]!r}")
 
     if fails:
         print(f"vault_read.py --self-test: FAILED — {fails} arm(s)")
