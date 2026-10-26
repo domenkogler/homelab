@@ -1372,9 +1372,11 @@ blk_bench_provenance() {
   esac
 }
 
-# The leak eye. Its own SKIP semantics: `op` absent or an unreadable vault is an environment
-# boundary (rc 2), printed and never counted green — the check compares captured bytes against the
-# vault's CURRENT values, so without them it has no idea what a leak would look like. It judges three
+# The leak eye. Its own SKIP semantics: no `op`, no importable Server SDK, or an unreadable vault is
+# an environment boundary (rc 2), printed and never counted green — the check compares captured bytes
+# against the vault's CURRENT values, so without them it has no idea what a leak would look like. The
+# whole-vault read is the ONE batched read of scripts/lib/vault_read.py (HD-1206), and the run prints
+# its request count. It judges three
 # classes (the working tree, the seat's run captures, and every blob a ref still reaches); a run asked
 # to read less says which class it did NOT look at instead of reading as a full green.
 blk_secret_leak() {
@@ -1605,6 +1607,11 @@ item_x "a router self-test over a stub engine, not a tree check: rerun it when t
 # runs NATIVE (a wrapped leg must not read this checkout through a Linux git).
 item_x "~40 bash spawns plus the ratchet's git grep (measured 11 s on the win11 seat, 1 s on Debian): a self-test of the credential rule, not a tree check — rerun it when the resolution order or a refusal changes" "lib/vault-env.sh --self-test (one credential rule for every vault leg: env → this seat's 0600 install → the Debian engine's install across the WSL door, and the refusals that must never fall back to the desktop app)" bash scripts/lib/vault-env.sh --self-test
 item_x "~2 bash spawns and a fixture map in a temp dir: the python face is proved without ONE vault read, which is what makes it gradeable on a day the account's request budget is spent" "lib/vault_env.py --self-test (the ID map: read, honored, fallen back from, and shared with the bash face — a name-addressed read costs 3 of an account ceiling of 1000 requests/24 h)" "${PY_CMD[@]}" scripts/lib/vault_env.py --self-test
+# The ONE batched reader (HD-1206). QUICK and vault-free by construction: every arm runs on the
+# fixture route (HL_VAULT_READ_FIXTURE, zero requests) or stubbed routes — the batched SDK arm, the
+# labelled op fan-out arm, the no-credential boundary, the TTY refusal, the get_all chunking. The
+# account's request bucket is never touched by the profile, which is the whole point of the module.
+item_q "lib/vault_read.py --self-test (the ONE reader both route arms, the chunking, the boundary SKIP, the TTY refusal — proved at ZERO vault requests)" "${PY_CMD[@]}" scripts/lib/vault_read.py --self-test
 
 # Everything else — cheap, but they add up, so they are in the pool too.
 item_q "guard-session.sh --self-test (sandboxed guard fixture, HD-253)" hl_wsl_route bash scripts/gate/guard-session.sh --self-test

@@ -136,6 +136,16 @@ whose INSTALLED package resolves the host-peer question from the manifest. So th
 keeps the failure shape above regardless of what the pin says. Live-verified on the oldsrv seat 2026-10-21: pi 1.3.0 with
 `pi-subagents@0.80.0` installed, one background launch produced a child session file, ran, and returned its result.
 
+**A leg must ask the same question on both seat planes, down to the bytes.** A Python `subprocess` capture with `text=True`
+and no explicit `encoding=` decodes with the LOCALE default — UTF-8 on the Debian plane, cp1252 on the Win11 Git-Bash one —
+so the same captured bytes can yield a verdict on one plane and a `UnicodeDecodeError` on the other, and an em-dash in a
+verdict line encodes back out as a byte the reader cannot decode. The rule is therefore mechanical: every capturing
+`subprocess` call under `scripts/**` carries an explicit `encoding=`/`errors=`, and files that cross the MSYS byte
+round-trip are read with an explicit UTF-8 (a value that arrived with a `\r` is a vault 403-shaped bug, the shape
+`lib/vault-env.sh` already strips for tokens). The batched vault reader [`../scripts/lib/vault_read.py`](../scripts/lib/vault_read.py)
+and its migrated legs are UTF-8-correct from the start, and their self-tests pin that a CR or a non-UTF-8 byte cannot
+differ between the planes.
+
 ---
 ## 5. Reference `~/.pi/agent/settings.json` (harness tuning)
 
