@@ -1,0 +1,215 @@
+# SPDX-License-Identifier: Apache-2.0
+# spark-profile-fast8 — the UltraFast patch stack re-anchored on the v0.32 base image.
+#
+# WHAT THIS IS. The same patch stack as upstream's `Dockerfile.iter6c` + `Dockerfile.iter6d`, in
+# upstream's own step order, with the anchors that the v0.32 layout moved. One layer instead of two:
+# a two-layer build needs an intermediate tag, and a tag is only ever a name to write, so a single
+# layer removes a name this lineage could otherwise get wrong. Nothing here is a new idea — every
+# step exists upstream; only paths, class names and constants are re-anchored, plus the two steps
+# whose anchor v0.32.0 already fixed or moved (flagged in place, each with a guard that proves the
+# claim at build time).
+#
+# PROVENANCE. Every anchor below carries the v0.32.0 evidence for it (`path:line` of the upstream tag
+# source, or the HTTP status of the path). Anchors that could NOT be proven offline live in
+# spark/reports/hd1206-v32-port-20261026/README.md, and a step whose patcher is anchor-asserting
+# (upstream's own `assert n == 1, "anchor found N times (want 1)"` in its patchers) fails the build
+# loudly if that patcher's code anchor moved — which is the safe direction.
+#
+# NEVER `docker build` this file by hand: the ARGs are rendered from group_vars by
+# roles/spark-profile-fast8, so the base digest and the output tag exist in exactly one place.
+# Shape of the command (values from group_vars/all/versions.yml):
+#   docker build --network none --pull=false -f Dockerfile.v32 \
+#     --build-arg BASE=<spark_vllm_v32_base_image> --build-arg MAMBA_UTILS_GUARD=<see step 7> \
+#     -t <spark_vllm_ultrafast_v32_tag> .
+
+# No default on purpose: the base digest is the pin in group_vars/all/versions.yml, and a default
+# here would be a second copy of it that can drift. Omit --build-arg BASE and the build stops at FROM.
+ARG BASE
+FROM ${BASE}
+
+# ${SP}: python3.12 site-packages — v0.32.0 docker/Dockerfile:25-26 pins CUDA 13.0.3 / Python 3.12.
+ARG SP=/usr/local/lib/python3.12/dist-packages
+# The model package is `vllm/models/qwen4_exp/…` at v0.32.0. Evidence:
+#   vllm/models/qwen3_8_flash_next/nvidia/ple_layer.py -> HTTP 404 at the tag
+#   vllm/models/qwen4_exp/nvidia/ple_layer.py          -> HTTP 200, class Qwen4ExpPLELayer:65
+#   vllm/models/qwen4_exp/nvidia/model.py              -> HTTP 200, class Qwen4ExpForCausalLM:693
+#   vllm/models/qwen4_exp/nvidia/mtp.py                -> HTTP 200, class Qwen4ExpMTP:400
+ARG PLE=${SP}/vllm/models/qwen4_exp/nvidia/ple_layer.py
+ARG MODEL_PY=${SP}/vllm/models/qwen4_exp/nvidia/model.py
+ARG MTP_PY=${SP}/vllm/models/qwen4_exp/nvidia/mtp.py
+# model_state.py is where the n-gram prefetch hook lives; class Qwen4ExpModelState:17, prepare_inputs:95
+ARG MODEL_STATE=${SP}/vllm/models/qwen4_exp/nvidia/model_state.py
+ARG GPTQ_PY=${SP}/vllm/model_executor/layers/quantization/auto_gptq.py
+ARG FLA_UTILS=${SP}/vllm/third_party/flash_linear_attention/ops/utils.py
+ARG FLA_CDH=${SP}/vllm/third_party/flash_linear_attention/ops/chunk_delta_h.py
+ARG MAMBA_UTILS=${SP}/vllm/v1/worker/mamba_utils.py
+
+# ---- 1. PLE n-gram table from disk (VLLM_PLE_MMAP=1) ----
+# src/vllm_ple_mmap.py here is the STAGED copy, already re-anchored by port_v32.py: its
+# `vllm.models.qwen3_8_flash_next.nvidia.model_state` import becomes
+# `vllm.models.qwen4_exp.nvidia.model_state` (proven: model_state.py exists at the tag, 200).
+COPY src/vllm_ple_mmap.py ${SP}/vllm_ple_mmap.py
+# The appended line names the class the hook wraps. At v0.32.0 that class is
+# `Qwen4ExpNGramEmbedding`, imported into ple_layer.py's OWN namespace at
+# vllm/models/qwen4_exp/nvidia/ple_layer.py:29 (`from .ngram_embedding import …`) — so the name is
+# bound in the module the append is written into. Both pre-greps are what make a moved anchor loud
+# here instead of a NameError at the first boot.
+RUN test -f ${PLE} \
+ && grep -q 'class Qwen4ExpPLELayer' ${PLE} \
+ && grep -q 'Qwen4ExpNGramEmbedding' ${PLE} \
+ && cp ${PLE} ${PLE}.orig \
+ && printf '\n\n# --- qwen38-flash-dgx: serve the PLE n-gram table from disk (VLLM_PLE_MMAP=1) ---\nfrom vllm_ple_mmap import apply as _ple_mmap_apply\n_ple_mmap_apply(Qwen4ExpNGramEmbedding)\n' >> ${PLE} \
+ && grep -q '_ple_mmap_apply(Qwen4ExpNGramEmbedding)' ${PLE} \
+ && python3 -c "import ast; ast.parse(open('${PLE}').read()); print('ple_layer.py patched OK')"
+
+# ---- 2. GB10 shared-memory constant (the fla backend table) ----
+# sed exits 0 when it matches nothing, so the constant is counted BEFORE the substitution and the
+# marker is grepped after: `test -eq 1` fails if upstream moved or duplicated the line, and the
+# post-grep fails if the substitution did not land. The target value is the same box's ADA entry in
+# the same enum (vllm/third_party/flash_linear_attention/ops/utils.py:180 `ADA = 101376`); the line
+# being rewritten is :183 `DEFAULT = 102400`.
+RUN test "$(grep -c '^    DEFAULT = 102400' ${FLA_UTILS})" -eq 1 \
+ && sed -i 's|^    DEFAULT = 102400.*$|    DEFAULT = 101376  # spark-fla-shmem: GB10 99KiB = ADA, big GDN tiles fit|' ${FLA_UTILS} \
+ && grep -q 'spark-fla-shmem' ${FLA_UTILS} \
+ && ! grep -q 'DEFAULT = 102400' ${FLA_UTILS} \
+ && echo "fla shmem gate patched"
+
+# ---- 3. Blackwell tl.dot race: pin the autotune to num_warps 2 (fla#953) ----
+# Anchor proven at v0.32.0 vllm/third_party/flash_linear_attention/ops/chunk_delta_h.py:37
+# (`for num_warps in [2, 4]`, exactly one occurrence in that file).
+RUN test "$(grep -c 'for num_warps in \[2, 4\]' ${FLA_CDH})" -eq 1 \
+ && sed -i 's|for num_warps in \[2, 4\]|for num_warps in [2]  # spark-fla-warps: fla#953 Blackwell tl.dot race|' ${FLA_CDH} \
+ && grep -q 'spark-fla-warps' ${FLA_CDH} \
+ && ! grep -q 'for num_warps in \[2, 4\]' ${FLA_CDH} \
+ && echo "fla num_warps pinned"
+
+# ---- 4. int4+fp8 hybrid dispatch (VLLM_FP8_HYBRID=1) ----
+# Constitutive on the AR-hybrid checkpoint: without it the boot dies at the first safetensors shard.
+# vllm/model_executor/layers/quantization/auto_gptq.py: HTTP 200 at the tag (class
+# AutoGPTQLinearMethod:301); the hook takes no class argument, so only the path is an anchor.
+COPY src/vllm_fp8_hybrid.py ${SP}/vllm_fp8_hybrid.py
+RUN test -f ${GPTQ_PY} \
+ && cp ${GPTQ_PY} ${GPTQ_PY}.orig \
+ && printf '\n\n# --- qwen38-flash-dgx: int4+fp8 hybrid dispatch (VLLM_FP8_HYBRID=1) ---\nfrom vllm_fp8_hybrid import apply as _fp8_hybrid_apply\n_fp8_hybrid_apply()\n' >> ${GPTQ_PY} \
+ && grep -q '_fp8_hybrid_apply()' ${GPTQ_PY} \
+ && python3 -c "import ast; ast.parse(open('${GPTQ_PY}').read()); print('auto_gptq.py patched OK')"
+
+# ---- 5. The never-evict option (flag stays REJECTED; the step exists so the build is upstream's) ----
+# patch_never_evict.py asserts every anchor occurs exactly once (its own
+# `assert n == 1, "anchor found N times (want 1)"`), and its targets exist at the tag:
+# vllm/config/cache.py 200, vllm/engine/arg_utils.py 200 (note: NOT vllm/arg_utils.py — 404 there),
+# vllm/v1/core/block_pool.py 200, vllm/v1/core/sched/scheduler.py 200.
+COPY src/patch_never_evict.py /tmp/patch_never_evict.py
+RUN python3 /tmp/patch_never_evict.py && rm /tmp/patch_never_evict.py
+
+# ---- 6. lm_head under the checkpoint's quant config (model.py + mtp.py) ----
+# Anchor proven at both call sites, one occurrence per file:
+#   vllm/models/qwen4_exp/nvidia/model.py:740   (12-space indent, vllm_config in scope at :730)
+#   vllm/models/qwen4_exp/nvidia/mtp.py:432     (20-space indent, vllm_config in scope at :421)
+# Unlike upstream's single `grep -c` over BOTH files (which exits 0 if either file matched), each
+# file is counted separately here, so a patch that lands in one file and misses the other cannot
+# pass.
+RUN test -f ${MODEL_PY} && test -f ${MTP_PY} \
+ && test "$(grep -cF 'prefix=maybe_prefix(prefix, "lm_head"),' ${MODEL_PY})" -eq 1 \
+ && test "$(grep -cF 'prefix=maybe_prefix(prefix, "lm_head"),' ${MTP_PY})" -eq 1 \
+ && cp ${MODEL_PY} ${MODEL_PY}.orig && cp ${MTP_PY} ${MTP_PY}.orig \
+ && sed -i 's|prefix=maybe_prefix(prefix, "lm_head"),|quant_config=vllm_config.quant_config,\n            prefix=maybe_prefix(prefix, "lm_head"),|' ${MODEL_PY} \
+ && sed -i 's|prefix=maybe_prefix(prefix, "lm_head"),|quant_config=vllm_config.quant_config,\n                    prefix=maybe_prefix(prefix, "lm_head"),|' ${MTP_PY} \
+ && grep -q 'quant_config=vllm_config.quant_config' ${MODEL_PY} \
+ && grep -q 'quant_config=vllm_config.quant_config' ${MTP_PY} \
+ && python3 -c "import ast; [ast.parse(open(p).read()) for p in ('${MODEL_PY}','${MTP_PY}')]; print('lm_head patched OK in model.py + mtp.py')"
+
+# ---- 7. The guarded mamba_utils.py — REFUSES unless a human passed the gate ----
+# Upstream's step is a WHOLE-FILE COPY of their `mamba_utils_guarded.py` over the image's
+# `vllm/v1/worker/mamba_utils.py`. That file is a snapshot of the DAY-0 base: 1641 lines, against
+# 1654 lines at v0.32.0 (HTTP 200), and the snapshot does not contain
+# `get_aligned_state_indices_multi_group_kernel`, which v0.32.0's copy does — 329 changed lines
+# between the two. Copying it here would therefore revert upstream work into this lineage silently,
+# which is the one failure mode a green build cannot show. So the step is gated on an explicit
+# build-arg: read the diff inside the base image, port the guard as an anchored patch (or prove the
+# snapshot is still what you want), and only then pass --build-arg MAMBA_UTILS_GUARD=apply.
+ARG MAMBA_UTILS_GUARD=refuse
+COPY src/mamba_utils_guarded.py /tmp/mamba_utils_guarded.py
+RUN test -f ${MAMBA_UTILS} \
+ && if [ "${MAMBA_UTILS_GUARD}" != "apply" ]; then \
+      echo 'REFUSED: MAMBA_UTILS_GUARD is not "apply", so the day-0 whole-file snapshot was not'; \
+      echo 'copied over this image\'s vllm/v1/worker/mamba_utils.py. Read the diff first —'; \
+      echo '  docker run --rm --network none --entrypoint bash <built-or-base-image> -c \'diff -u /tmp/mamba_utils_guarded.py <site-packages>/vllm/v1/worker/mamba_utils.py\''; \
+      echo 'then pass --build-arg MAMBA_UTILS_GUARD=apply, or port the guard as an anchored patch.'; \
+      exit 1; \
+    fi \
+ && cp ${MAMBA_UTILS} ${MAMBA_UTILS}.orig \
+ && cp /tmp/mamba_utils_guarded.py ${MAMBA_UTILS} \
+ && DRIFT=$(diff -u ${MAMBA_UTILS}.orig ${MAMBA_UTILS} | grep -c '^[+-]' || true) \
+ && echo "mamba_utils.py replaced: ${DRIFT} changed lines against this image's own copy (record it)" \
+ && python3 -c "import ast; ast.parse(open('${MAMBA_UTILS}').read()); print('mamba_utils.py guarded OK')"
+
+# ---- 8–10. The three host-side patchers upstream runs verbatim ----
+# Each targets model-agnostic vllm paths that exist at the tag (kv_cache_coordinator,
+# single_type_kv_cache_manager, block_pool, scheduler, v1/worker/gpu/model_states/mamba_hybrid.py
+# :74 class MambaHybridModelState, v1/worker/gpu/model_runner.py:193 class GPUModelRunner) and each
+# asserts its own anchors are unique, so base drift stops the build instead of shipping.
+COPY src/patch_hit_debug.py /tmp/patch_hit_debug.py
+RUN python3 /tmp/patch_hit_debug.py && rm /tmp/patch_hit_debug.py
+
+COPY src/patch_mamba_align_split.py /tmp/patch_mamba_align_split.py
+RUN python3 /tmp/patch_mamba_align_split.py && rm /tmp/patch_mamba_align_split.py
+
+COPY src/patch_step_profile.py /tmp/patch_step_profile.py
+RUN python3 /tmp/patch_step_profile.py && rm /tmp/patch_step_profile.py
+
+# ---- 11. Reduced MTP draft vocabulary (VLLM_MTP_DRAFT_VOCAB) ----
+# The wrapped class is `Qwen4ExpMTP` at v0.32.0 — proven twice: the class definition at
+# vllm/models/qwen4_exp/nvidia/mtp.py:400 and the model registry entry
+# vllm/model_executor/models/registry.py:696 ("Qwen4ExpMTP" -> vllm.models.qwen4_exp).
+COPY src/draft_vocab_common.py ${SP}/draft_vocab_common.py
+COPY src/vllm_mtp_draft_vocab.py ${SP}/vllm_mtp_draft_vocab.py
+RUN test -f ${MTP_PY} \
+ && grep -q 'class Qwen4ExpMTP' ${MTP_PY} \
+ && printf '\n\n# --- qwen38-flash-dgx: reduced MTP draft vocabulary (VLLM_MTP_DRAFT_VOCAB) ---\nfrom vllm_mtp_draft_vocab import apply as _mtp_draft_vocab_apply\n_mtp_draft_vocab_apply(Qwen4ExpMTP)\n' >> ${MTP_PY} \
+ && grep -q '_mtp_draft_vocab_apply(Qwen4ExpMTP)' ${MTP_PY} \
+ && python3 -c "import ast; ast.parse(open('${MTP_PY}').read()); print('mtp.py draft-vocab hook patched OK')"
+
+# ---- 12. The short-conv async H2D patch — NOT applied, and the build proves why ----
+# Upstream's patch_short_conv_async_h2d.py rewrites two blocking `.to(device)` transfers in the
+# short-conv metadata builder. v0.32.0 already does the async transfer for BOTH of them:
+# vllm/v1/attention/backends/short_conv_attn.py:334 and :337 are `async_tensor_h2d(` calls, so the
+# day-0 anchor is gone and running that patcher here would only produce a confusing failure. The
+# grep below is the guard for that claim: if a future base loses the async transfer, the build stops
+# and says so instead of quietly serving a blocking transfer.
+RUN grep -q 'spec_req_idx = async_tensor_h2d(' ${SP}/vllm/v1/attention/backends/short_conv_attn.py \
+ && echo "short-conv async H2D: already upstream at this base, patcher not applied"
+
+# ---- 13–17. The rest of upstream's patchers, verbatim ----
+# patch_low_latency_gemm_sm12x.py is the STAGED copy: its target path constant
+# `.../vllm/models/qwen3_8_flash_next/nvidia/low_latency_gemm.py` (:9-11) is re-anchored by
+# port_v32.py to `qwen4_exp`, whose file exists at the tag (HTTP 200). Its second target,
+# vllm/model_executor/kernels/linear/cute_dsl/skinny_gemm.py, is model-agnostic (HTTP 200).
+# patch_in_proj_ba_gemv.py appends `_in_proj_ba_gemv_apply(QwenGatedDeltaNetAttention)` to
+# vllm/model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py — class proven at that file:454.
+COPY src/patch_measure_draft_mass.py /tmp/patch_measure_draft_mass.py
+RUN python3 /tmp/patch_measure_draft_mass.py && rm /tmp/patch_measure_draft_mass.py
+
+COPY src/patch_low_latency_gemm_sm12x.py /tmp/patch_low_latency_gemm_sm12x.py
+RUN python3 /tmp/patch_low_latency_gemm_sm12x.py && rm /tmp/patch_low_latency_gemm_sm12x.py
+
+COPY src/vllm_inproj_ba_gemv.py ${SP}/vllm_inproj_ba_gemv.py
+COPY src/patch_in_proj_ba_gemv.py /tmp/patch_in_proj_ba_gemv.py
+RUN python3 /tmp/patch_in_proj_ba_gemv.py && rm /tmp/patch_in_proj_ba_gemv.py
+
+COPY src/patch_ple_rendezvous.py /tmp/patch_ple_rendezvous.py
+RUN python3 /tmp/patch_ple_rendezvous.py && rm /tmp/patch_ple_rendezvous.py
+
+COPY src/patch_verify_topk_pivot.py /tmp/patch_verify_topk_pivot.py
+RUN python3 /tmp/patch_verify_topk_pivot.py && rm /tmp/patch_verify_topk_pivot.py
+
+# ---- 18–19. What Dockerfile.iter6d added on top (merged into this layer) ----
+COPY src/patch_block_drop.py /tmp/patch_block_drop.py
+RUN python3 /tmp/patch_block_drop.py && rm /tmp/patch_block_drop.py
+
+COPY src/patch_r7_logger.py /tmp/patch_r7_logger.py
+RUN python3 /tmp/patch_r7_logger.py && rm /tmp/patch_r7_logger.py
+
+# Every patched module must at least parse. This is upstream's own gate shape (`ast.parse` after
+# each append), applied once more to the finished layer over the files this lineage touched.
+RUN python3 -c "import ast; [ast.parse(open(p).read()) for p in ('${PLE}','${MODEL_PY}','${MTP_PY}','${GPTQ_PY}','${SP}/vllm_ple_mmap.py','${SP}/vllm_fp8_hybrid.py','${SP}/vllm_inproj_ba_gemv.py','${SP}/draft_vocab_common.py','${SP}/vllm_mtp_draft_vocab.py')]; print('every patched module parses')"

@@ -1,0 +1,317 @@
+---
+# role: spark-profile-fast8 — the v0.32 lineage: read the base, port the patch stack, build it.
+# Order = cheapest failure first. Everything that runs an engine act sits behind
+# `spark_profile_fast8_build` (group_vars/spark.yml, default false) AND behind the lineage's own
+# "is it already built?" read, so a normal converge never pulls a base image or builds anything.
+
+- name: Assert the spark-profile-fast8 lineage's own pins are usable
+  ansible.builtin.assert:
+    that:
+      - spark_vllm_ultrafast_v32_image is defined
+      - spark_vllm_ultrafast_v32_tag | length > 0
+      - spark_profile_fast8_lineage.tag not in (spark_vllm_ultrafast_live_tags)
+      - spark_vllm_v32_base_image is search("@sha256:")
+      - (spark_ultrafast_upstream_commit | length) == 40
+      - spark_profile_fast8_build_dir | length > 0
+      - spark_profile_fast8_build_dir != spark_ultrafast_src_dir
+    fail_msg: >-
+      The v0.32 lineage is not specified separately enough to build:
+      pin='{{ spark_vllm_ultrafast_v32_image | default("(undefined)") }}' (EMPTY is legal and IS the
+      gate), tag='{{ spark_vllm_ultrafast_v32_tag | default("") }}',
+      base='{{ spark_vllm_v32_base_image | default("") }}' (must be digest-pinned and arm64 — never a
+      -cu129 tag), build_dir='{{ spark_profile_fast8_build_dir | default("") }}'. Its tag must not be
+      one of the live lineage's ({{ spark_vllm_ultrafast_live_tags | join(', ') }}) — those names are
+      the only references the live `fast` image has — and its build directory must not be the
+      checkout ({{ spark_ultrafast_src_dir }}), which has to stay byte-for-byte the pin.
+  tags: [spark, spark-ultrafast-build, spark-profile-fast8, llm]
+
+- name: Prove the recipe checkout is the pinned commit and nothing else
+  ansible.builtin.include_role:
+    name: spark-ultrafast-build
+    tasks_from: checkout_pinned
+    apply:
+      tags: [spark, spark-ultrafast-build, spark-profile-fast8, llm]
+  vars:
+    bc_repo: "{{ spark_ultrafast_upstream_repo }}"
+    bc_commit: "{{ spark_profile_fast8_lineage.commit }}"
+    bc_src_dir: "{{ spark_profile_fast8_lineage.src_dir }}"
+  tags: [spark, spark-ultrafast-build, spark-profile-fast8, llm]
+
+- name: Ask whether the spark-profile-fast8 lineage still needs building
+  # This lineage's OWN pin, never spark_vllm_ultrafast_image: reading the live lineage's pin here is
+  # how a v32 build is skipped and the run reports green. check_mode: false so --check answers the
+  # same question instead of letting the legs below run on an empty read.
+  ansible.builtin.command:
+    cmd: "docker image inspect --format '{{ '{{' }}.Id{{ '}}' }}' {{ spark_vllm_ultrafast_v32_image if spark_vllm_ultrafast_v32_image | length > 0 else spark_vllm_ultrafast_v32_tag }}"
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  register: fast8_pre
+  tags: [spark, spark-ultrafast-build, spark-profile-fast8, llm]
+
+- name: Record what this run still owes
+  # One fact, so every engine-touching leg below shares the same answer as the build step in
+  # tasks/build_lineage.yml (which reads the same pin for the same reason).
+  ansible.builtin.set_fact:
+    spark_profile_fast8_will_build: "{{ not (fast8_pre.rc == 0 and spark_vllm_ultrafast_v32_image | length > 0) }}"
+  tags: [spark, spark-ultrafast-build, spark-profile-fast8, llm]
+
+- name: Pull the v0.32 base image into this host's store
+  # `--pull=false` downstream means the base must already be HERE, at this digest, so pull it as its
+  # own visible leg instead of letting the build fail on an absent layer. A ~10 GB pull, and the
+  # digest in the name is what keeps it from resolving a floating tag later.
+  when: spark_profile_fast8_will_build | bool
+  ansible.builtin.command:
+    cmd: "docker pull {{ spark_vllm_v32_base_image }}"
+  changed_when: true
+  async: 5400
+  poll: 60
+  tags: [spark, spark-ultrafast-build, spark-profile-fast8, llm]
+
+- name: Read the v0.32 base image where the anchors actually live
+  # A path or a constant that moved is invisible to `sed` (exit 0 on no match) and to a Python
+  # patcher that never reaches the line. So read the base image at the pinned digest FIRST: `grep -c`
+  # prints the count, and 0 stops the run with the evidence line attached.
+  when: spark_profile_fast8_will_build | bool
+  ansible.builtin.command:
+    cmd: >-
+      docker run --rm --network none --memory 2g --entrypoint grep
+      {{ spark_vllm_v32_base_image }} -F -c {{ item.pattern | quote }} {{ item.path }}
+  changed_when: false
+  failed_when: false
+  register: fast8_base_probe
+  loop: "{{ spark_profile_fast8_base_probes }}"
+  loop_control:
+    label: "{{ item.pattern | truncate(52, true) }}"
+  tags: [spark, spark-ultrafast-build, spark-profile-fast8, llm]
+
+- name: Assert the v0.32 base carries every anchor this lineage assumes
+  when: spark_profile_fast8_will_build | bool
+  ansible.builtin.assert:
+    that:
+      - fast8_base_probe.results | rejectattr('rc', 'equal', 0) | list | length == 0
+    fail_msg: >-
+      These anchors are not in {{ spark_vllm_v32_base_image }}:
+      {% for r in fast8_base_probe.results %}{% if r.rc != 0 %}
+        rc={{ r.rc }}  {{ r.item.path }}  pattern: {{ r.item.pattern }}
+          evidence at the tag: {{ r.item.evidence }}{% endif %}{% endfor %}
+      Read the file inside the image at that digest and re-anchor
+      roles/spark-profile-fast8/files/{Dockerfile.v32,port_v32.py} — do NOT relax the probe, and do
+      not build: an anchor that is absent becomes a no-op in the artifact, which is the only failure
+      mode a green build hides.
+  tags: [spark, spark-ultrafast-build, spark-profile-fast8, llm]
+
+- name: Ensure the v0.32 build directory exists
+  when: spark_profile_fast8_will_build | bool
+  ansible.builtin.file:
+    path: "{{ spark_profile_fast8_build_dir }}"
+    state: directory
+    mode: "0775"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  tags: [spark, spark-ultrafast-build, spark-profile-fast8, llm]
+
+- name: Install this lineage's build definition and porter
+  when: spark_profile_fast8_will_build | bool
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ spark_profile_fast8_build_dir }}/{{ item }}"
+    mode: "0644"
+  loop:
+    - Dockerfile.v32
+    - port_v32.py
+  tags: [spark, spark-ultrafast-build, spark-profile-fast8, llm]
+
+- name: Print the port plan for this lineage
+  # The porter's --check-only arm runs the checkout's own md5/sha256 gates and every anchor without
+  # writing anything: the cheap failure (a moved day-0 anchor) is read before a byte is staged.
+  when: spark_profile_fast8_will_build | bool
+  ansible.builtin.command:
+    cmd: >-
+      python3 {{ spark_profile_fast8_build_dir }}/port_v32.py
+      --checkout {{ spark_ultrafast_src_dir }}/recipe/build/image
+      --stage {{ spark_profile_fast8_build_dir }} --check-only
+  changed_when: false
+  become: true
+  become_user: "{{ ansible_user }}"
+  register: fast8_port_plan
+  tags: [spark, spark-ultrafast-build, spark-profile-fast8, llm]
+
+- name: Show the port plan
+  when: fast8_port_plan.stdout is defined and fast8_port_plan.stdout | length > 0
+  ansible.builtin.debug:
+    msg: "{{ fast8_port_plan.stdout_lines }}"
+  tags: [spark, spark-ultrafast-build, spark-profile-fast8, llm]
+
+- name: Stage and re-anchor the patch set for this lineage
+  # Stages OUT OF the checkout into the build directory, so the checkout stays the pin; removes the
+  # day-0 build.sh/Dockerfiles from the staged tree, so this directory cannot write the live
+  # lineage's tags by accident; and verifies every anchor before and after each substitution.
+  when: spark_profile_fast8_will_build | bool
+  ansible.builtin.command:
+    cmd: >-
+      python3 {{ spark_profile_fast8_build_dir }}/port_v32.py
+      --checkout {{ spark_ultrafast_src_dir }}/recipe/build/image
+      --stage {{ spark_profile_fast8_build_dir }}
+  changed_when: fast8_port.rc == 0
+  become: true
+  become_user: "{{ ansible_user }}"
+  register: fast8_port
+  tags: [spark, spark-ultrafast-build, spark-profile-fast8, llm]
+
+- name: Build the v0.32 lineage
+  ansible.builtin.include_role:
+    name: spark-ultrafast-build
+    tasks_from: build_lineage
+    apply:
+      tags: [spark, spark-ultrafast-build, spark-profile-fast8, llm]
+  vars:
+    bl_key: "{{ spark_profile_fast8_lineage.key }}"
+    bl_pin: "{{ spark_profile_fast8_lineage.pin }}"
+    bl_pin_var: "{{ spark_profile_fast8_lineage.pin_var }}"
+    bl_tag: "{{ spark_profile_fast8_lineage.tag }}"
+    bl_reserved_tags: "{{ spark_profile_fast8_lineage.reserved_tags }}"
+    bl_commit: "{{ spark_profile_fast8_lineage.commit }}"
+    bl_src_dir: "{{ spark_profile_fast8_lineage.src_dir }}"
+    bl_chdir: "{{ spark_profile_fast8_lineage.chdir }}"
+    bl_plan_cmd: "{{ spark_profile_fast8_lineage.plan_cmd }}"
+    bl_build_cmd: "{{ spark_profile_fast8_lineage.build_cmd }}"
+    bl_build_drafter: "{{ spark_profile_fast8_lineage.build_drafter }}"
+    bl_head: "{{ bc_head.stdout }}"
+  tags: [spark, spark-ultrafast-build, spark-profile-fast8, llm]
+
+# ---- The day-0 image's own CPU gates, re-run against this artifact ----
+# Upstream refuses to call a build done without them (recipe/build/image/build.sh runs them against
+# $iter6d). They are CPU-only, `--rm`, `--network none`: no engine, no port, nothing that persists.
+- name: Run the draft-vocabulary CPU gate in the built image
+  when: spark_profile_fast8_will_build | bool
+  ansible.builtin.command:
+    cmd: >-
+      docker run --rm --network none --memory 8g
+      -v {{ spark_profile_fast8_build_dir }}/tests/test_draft_vocab_cpu.py:/tmp/t.py:ro
+      --entrypoint python3 {{ spark_vllm_ultrafast_v32_tag }} /tmp/t.py
+  changed_when: false
+  tags: [spark, spark-ultrafast-build, spark-profile-fast8, llm]
+
+- name: Run the block-drop CPU gate in the built image (both knob arms)
+  when: spark_profile_fast8_will_build | bool
+  ansible.builtin.command:
+    cmd: >-
+      docker run --rm --network none --memory 8g {{ '-e VLLM_KEEP_DRAFT_BLOCKS=1' if item == 'set' else '' }}
+      -v {{ spark_profile_fast8_build_dir }}/tests/test_block_drop_cpu.py:/tmp/t.py:ro
+      -v {{ spark_profile_fast8_build_dir }}/src/patch_block_drop.py:/tmp/patch_block_drop.py:ro
+      -v {{ spark_profile_fast8_build_dir }}/tests/blockdrop_base_sha256.json:/tmp/base.json:ro
+      --entrypoint python3 {{ spark_vllm_ultrafast_v32_tag }} /tmp/t.py
+  changed_when: false
+  loop: [unset, set]
+  loop_control:
+    label: "VLLM_KEEP_DRAFT_BLOCKS={{ item }}"
+  tags: [spark, spark-ultrafast-build, spark-profile-fast8, llm]
+
+- name: Run the patch-set CPU gate in the built image
+  when: spark_profile_fast8_will_build | bool
+  ansible.builtin.command:
+    cmd: >-
+      docker run --rm --network none --memory 8g
+      -v {{ spark_profile_fast8_build_dir }}/tests/test_iter6_patches_image.py:/tmp/t.py:ro
+      -v {{ spark_profile_fast8_build_dir }}/src:/selftest/src:ro
+      --entrypoint python3 {{ spark_vllm_ultrafast_v32_tag }} /tmp/t.py
+  changed_when: false
+  tags: [spark, spark-ultrafast-build, spark-profile-fast8, llm]
+
+- name: Assert the in-proj GEMV module loads with its own logger (both knob arms)
+  when: spark_profile_fast8_will_build | bool
+  ansible.builtin.command:
+    cmd: >-
+      docker run --rm --network none --memory 8g {{ '-e VLLM_INPROJ_BA_GEMV=1' if item == 'set' else '' }}
+      --entrypoint python3 {{ spark_vllm_ultrafast_v32_tag }}
+      -c 'import vllm_inproj_ba_gemv as g; assert g.logger.name == "vllm.inproj_ba_gemv"; assert g.is_enabled() == {{ "True" if item == "set" else "False" }}'
+  changed_when: false
+  loop: [unset, set]
+  loop_control:
+    label: "VLLM_INPROJ_BA_GEMV={{ item }}"
+  tags: [spark, spark-ultrafast-build, spark-profile-fast8, llm]
+
+# ---- The artifact half of the anchor rule ----
+- name: Read the built artifact where a no-match sed would still show nothing
+  when: spark_profile_fast8_will_build | bool
+  ansible.builtin.command:
+    cmd: >-
+      docker run --rm --network none --memory 2g --entrypoint grep
+      {{ spark_vllm_ultrafast_v32_tag }} -F -c {{ item.pattern | quote }} {{ item.path }}
+  changed_when: false
+  failed_when: false
+  register: fast8_artifact_probe
+  loop: "{{ spark_profile_fast8_artifact_probes }}"
+  loop_control:
+    label: "{{ item.pattern | truncate(52, true) }}"
+  tags: [spark, spark-ultrafast-build, spark-profile-fast8, llm]
+
+- name: Assert the built artifact carries the ported anchors
+  when: spark_profile_fast8_will_build | bool
+  ansible.builtin.assert:
+    that:
+      - fast8_artifact_probe.results | rejectattr('rc', 'equal', 0) | list | length == 0
+    fail_msg: >-
+      {{ (fast8_artifact_probe.results | selectattr('rc', 'ne', 0) | list | length) }} of
+      {{ spark_profile_fast8_artifact_probes | length }} ported anchors are absent from
+      {{ spark_vllm_ultrafast_v32_tag }} — see
+      roles/spark-profile-fast8/defaults/main.yml for what each one proves. A `sed -i` that matched
+      nothing exits 0, so this read, not the build's rc, is the witness that the GB10 fixes and the
+      class-name hooks are in the image.
+  tags: [spark, spark-ultrafast-build, spark-profile-fast8, llm]
+
+- name: Read the day-0 symbol out of the installed patcher
+  # If the port had silently not applied, the installed vllm_ple_mmap.py would still import the
+  # day-0 module path inside its `except ImportError: warn` block — a prefetch hook that disables
+  # itself and a build that stays green. rc 0 here means the day-0 name is STILL in the file.
+  when: spark_profile_fast8_will_build | bool
+  ansible.builtin.command:
+    cmd: >-
+      docker run --rm --network none --memory 2g --entrypoint grep
+      {{ spark_vllm_ultrafast_v32_tag }} -c Qwen3_8FlashNext
+      /usr/local/lib/python3.12/dist-packages/vllm_ple_mmap.py
+  changed_when: false
+  failed_when: false
+  register: fast8_stale_name
+  tags: [spark, spark-ultrafast-build, spark-profile-fast8, llm]
+
+- name: Assert no day-0 symbol survived the port
+  when: spark_profile_fast8_will_build | bool
+  ansible.builtin.assert:
+    that:
+      - fast8_stale_name.rc != 0
+    fail_msg: >-
+      {{ spark_vllm_ultrafast_v32_tag }} still contains a Qwen3_8FlashNext symbol in
+      vllm_ple_mmap.py, so the port did not reach the installed copy even though port_v32.py
+      reported its anchors. The build is a day-0 patch stack on a v0.32 base and must not be pinned.
+  tags: [spark, spark-ultrafast-build, spark-profile-fast8, llm]
+
+# ---- The property this lineage exists to not break ----
+- name: Read the live lineage's tags after building this one
+  # iter6c/iter6d are the only names the live `fast` image has. A build that wrote one of them would
+  # leave 4900c13e… untagged and therefore `docker image prune -a`-able, which is the damage this
+  # lineage must never do: `fast` is the rollback for `fast8`.
+  when: spark_profile_fast8_will_build | bool
+  ansible.builtin.command:
+    cmd: "docker image inspect --format '{{ '{{' }}.Id{{ '}}' }}' {{ item }}"
+  changed_when: false
+  failed_when: false
+  register: fast8_live_tags
+  loop: "{{ spark_vllm_ultrafast_live_tags }}"
+  tags: [spark, spark-ultrafast-build, spark-profile-fast8, llm]
+
+- name: Assert building this lineage did not untag the live image
+  when: spark_profile_fast8_will_build | bool
+  ansible.builtin.assert:
+    that:
+      - fast8_live_tags.results | rejectattr('rc', 'equal', 0) | list | length == 0
+    fail_msg: >-
+      After this build, {{ fast8_live_tags.results | rejectattr('rc', 'equal', 0)
+                             | map(attribute='item') | list | join(', ') }} no longer resolves to an
+      image. Those names belong to the live lineage and are the only thing keeping the `fast` engine
+      referenced, so it is now prune-able: re-tag it from the recorded ID
+      ({{ spark_vllm_ultrafast_image }}) BEFORE anything prunes, and keep
+      spark-rollback:fast as the pointer. Then find which step wrote a tag it does not own —
+      this lineage writes exactly one name, {{ spark_vllm_ultrafast_v32_tag }}.
+  tags: [spark, spark-ultrafast-build, spark-profile-fast8, llm]

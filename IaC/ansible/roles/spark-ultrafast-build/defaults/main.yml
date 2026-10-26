@@ -28,3 +28,23 @@
 # DEPLOY-GATED like the rest of the lane: every profile that needs this output references
 # `image: ultrafast`, whose pin is empty until the ID above lands, so roles/spark-llm-profile
 # refuses them all until then (docs/spark-llm-profiles.md §7. The ultra-fast funnel).
+
+# THE LINEAGE AS DATA — the (pin, tag, commit, build command) set tasks/build_lineage.yml drives.
+# This is the LIVE lineage: what the certified `fast` profile boots, so its commands are the ones
+# upstream measured. `reserved_tags` names the tags another lineage owns; writing one of them would
+# move the only reference a live image has and make it prune-able, so build_lineage.yml refuses it.
+# A second lineage carries its OWN dict (roles/spark-profile-fast8/defaults/main.yml) and never
+# reads these values, and nothing here reads theirs.
+spark_ultrafast_lineage:
+  key: ultrafast
+  pin: "{{ spark_vllm_ultrafast_image }}"
+  pin_var: spark_vllm_ultrafast_image
+  tag: "{{ spark_vllm_ultrafast_tag }}"
+  reserved_tags: "{{ [spark_vllm_ultrafast_v32_tag] }}"
+  commit: "{{ spark_ultrafast_upstream_commit }}"
+  src_dir: "{{ spark_ultrafast_src_dir }}"
+  chdir: "{{ spark_ultrafast_src_dir }}"
+  plan_cmd: bash recipe/build/image/build.sh --print
+  build_cmd: bash recipe/build/image/build.sh --run
+  build_drafter: true   # this lineage owns the drafter conversion: it is the lineage the tier-3
+                        # drafter directory was converted inside, and the certified arms read it

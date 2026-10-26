@@ -208,8 +208,26 @@ checker, the probe and the render matrix all refuse to treat them as servable).
 package is `vllm.models.qwen4_exp` with `Qwen4Exp*` classes, `…/models/qwen3_8_flash_next/…` is gone and stock
 upstream carries no `vllm/v1/ple_offload/` at all — so the recipe's path and symbol anchors do not carry over
 unmodified, and its two `sed`-patched constants fail **silently** rather than loudly. The patch-by-patch map, the
-role gaps that make a naive rebuild unsafe, and the build order are in
+role gaps that made a naive rebuild unsafe, and the build order are in
 [`spark/reports/hd1206-v32-port-20261026/`](../spark/reports/hd1206-v32-port-20261026/README.md) (`HD-1206`).
+
+**The port lives in this repository, as a lineage.** `roles/spark-profile-fast8` is that lineage: its own
+(`pin`, `tag`, upstream `commit`, patch set) driving the shared build machinery in
+`roles/spark-ultrafast-build/tasks/build_lineage.yml`, and its build definition under
+`roles/spark-profile-fast8/files/` (`Dockerfile.v32` + the `port_v32.py` porter). Four properties make a
+rebuild safe, and each is an assert rather than a comment: the inspect/skip and the assert pair read **this
+lineage's own pin** (`spark_vllm_ultrafast_v32_image`), so the live lineage's pin can neither skip the v32
+build nor be the value the v32 artifact is asserted against; `git status --porcelain` must be empty in the recipe checkout, because a
+hand-edited tree still has the pinned `HEAD` and would otherwise buy an image nobody can rebuild; the build
+writes exactly one name, `spark-ultrafast:v32-iter6d`, which cannot collide with the two
+`qwen38-flash-dgx:iter6c…`/`:iter6d…` tags that are the only names the live `fast` image has (a tag is
+`repository:tag`, and this one is a different repository) — and after the build every one of them is re-read
+and must still resolve; and every anchor a `sed` cannot report — both GB10 constants, the `Qwen4Exp*` names,
+the `ple_layer.py` path — is grepped in the base image before the build and in the built image after it,
+because `sed -i` exits 0 when it matches nothing. The porter stages out of the checkout into
+`/opt/homelab/ultrafast-v32-build` and deletes upstream's `build.sh` there, so the directory that builds v32
+is not a directory that can retag `fast`. Like the live lineage, the role is opt-in
+(`spark_profile_fast8_build`, `--tags spark-ultrafast-build`) and the empty pin is still the gate.
 
 **The arms** (each is `certified: false` until it wins a leg; every loser is a row in
 [services-ai-rejected.md](services-ai-rejected.md), and the reports under `spark/reports/hd489-*`

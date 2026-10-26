@@ -1,0 +1,96 @@
+---
+# role: spark-profile-fast8 — the v0.32 lineage of the UltraFast patch stack.
+#
+# WHY A ROLE AND NOT A FLAG ON spark-ultrafast-build: this is a second ARTIFACT, not a second run of
+# the first one. The `fast8` profile names `image: ultrafast-v32`, whose pin is the patch stack
+# rebuilt ON `spark_vllm_v32_base_image`; the day-0 lineage it descends from is a different image
+# with different module paths. Two artifacts need two (pin, tag, commit) triples, and a lineage that
+# shares another lineage's pin is inspected against, skipped by, and asserted against the wrong image
+# — all three of which report success. So the shared machinery lives in
+# roles/spark-ultrafast-build/tasks/{checkout_pinned,build_lineage}.yml and this role supplies the
+# data plus the patch set that is specific to the v0.32 layout.
+#
+# WHAT IS OPT-IN HERE: everything that touches the engine. The role is pulled by
+# `playbooks/spark.yml` only when `spark_profile_fast8_build` is true (group_vars/spark.yml), exactly
+# like the live lineage's switch, because a v0.32 build pulls a ~10 GB base image and runs a
+# third party's code on this box.
+
+# The lineage as data — the same shape roles/spark-ultrafast-build uses for the live lineage, and
+# deliberately NOT a copy of it: every field is this lineage's own.
+spark_profile_fast8_lineage:
+  key: spark-profile-fast8
+  pin: "{{ spark_vllm_ultrafast_v32_image }}"          # "" is the designed state: the empty pin IS the gate
+  pin_var: spark_vllm_ultrafast_v32_image
+  tag: "{{ spark_vllm_ultrafast_v32_tag }}"            # its own name; never one of the two below
+  # The tags this lineage must never write. They are the ONLY names the live `fast` image has, and
+  # upstream's own build.sh writes both of them, which is why the day-0 build script is removed from
+  # this lineage's build directory (files/port_v32.py) and refused here.
+  reserved_tags: "{{ spark_vllm_ultrafast_live_tags }}"
+  commit: "{{ spark_ultrafast_upstream_commit }}"      # the recipe is unchanged; the PORT is in-repo
+  src_dir: "{{ spark_ultrafast_src_dir }}"             # read-only source of the patch inputs
+  chdir: "{{ spark_profile_fast8_build_dir }}"         # the staged tree, never the checkout
+  plan_cmd: ""                                         # the plan is printed by the staging step below
+  build_cmd: >-
+    docker build --network none --pull=false -f Dockerfile.v32
+    --build-arg BASE={{ spark_vllm_v32_base_image }}
+    --build-arg MAMBA_UTILS_GUARD={{ spark_profile_fast8_mamba_guard }}
+    -t {{ spark_vllm_ultrafast_v32_tag }} .
+  build_drafter: false    # the drafter directory is a per-CHECKPOINT artifact that the live lineage
+                          # converted and the certified arms read; converting it again from this
+                          # lineage would rewrite an artifact `fast` boots, for no image-level gain
+
+# The whole-file copy in upstream's Dockerfile.iter6c (src/mamba_utils_guarded.py over the image's
+# vllm/v1/worker/mamba_utils.py) is a snapshot of the DAY-0 base, and that file changed at v0.32 —
+# see Dockerfile.v32 step 7. `refuse` is the shipped value: the build stops there and prints the
+# diff command. Flipping it to `apply` is an owner act recorded in its own commit, made only after
+# the diff has been read inside the image.
+spark_profile_fast8_mamba_guard: refuse
+
+# Read the base image BEFORE building anything. A `sed -i` that matches nothing exits 0, so the
+# anchors a build silently skips must be read where they live — inside this image, at this digest.
+# Each probe is `grep -c <pattern> <path>`; any count of 0 stops the run, naming the pattern and the
+# v0.32.0 evidence for it. This is upstream's own rule (their patchers assert each anchor occurs
+# exactly once) applied to the two constants and the class names a `sed`/append cannot report.
+spark_profile_fast8_base_probes:
+  - path: /usr/local/lib/python3.12/dist-packages/vllm/models/qwen4_exp/nvidia/ple_layer.py
+    pattern: class Qwen4ExpPLELayer
+    evidence: vllm/models/qwen4_exp/nvidia/ple_layer.py:65
+  - path: /usr/local/lib/python3.12/dist-packages/vllm/models/qwen4_exp/nvidia/ple_layer.py
+    pattern: Qwen4ExpNGramEmbedding
+    evidence: ple_layer.py:29 imports it, so the append in Dockerfile.v32 step 1 binds a real name
+  - path: /usr/local/lib/python3.12/dist-packages/vllm/models/qwen4_exp/nvidia/mtp.py
+    pattern: class Qwen4ExpMTP
+    evidence: vllm/models/qwen4_exp/nvidia/mtp.py:400, registry.py:696
+  - path: /usr/local/lib/python3.12/dist-packages/vllm/models/qwen4_exp/nvidia/model_state.py
+    pattern: class Qwen4ExpModelState
+    evidence: vllm/models/qwen4_exp/nvidia/model_state.py:17 (the prefetch hook's target)
+  - path: /usr/local/lib/python3.12/dist-packages/vllm/models/qwen4_exp/nvidia/model.py
+    pattern: 'prefix=maybe_prefix(prefix, "lm_head"),'
+    evidence: vllm/models/qwen4_exp/nvidia/model.py:740
+  - path: /usr/local/lib/python3.12/dist-packages/vllm/third_party/flash_linear_attention/ops/utils.py
+    pattern: DEFAULT = 102400
+    evidence: vllm/third_party/flash_linear_attention/ops/utils.py:183 (the sed source constant)
+  - path: /usr/local/lib/python3.12/dist-packages/vllm/third_party/flash_linear_attention/ops/chunk_delta_h.py
+    pattern: for num_warps in [2, 4]
+    evidence: vllm/third_party/flash_linear_attention/ops/chunk_delta_h.py:37 (the sed source constant)
+  - path: /usr/local/lib/python3.12/dist-packages/vllm/v1/attention/backends/short_conv_attn.py
+    pattern: spec_req_idx = async_tensor_h2d(
+    evidence: short_conv_attn.py:334 — the reason patch_short_conv_async_h2d.py is not applied
+
+# What the FINISHED artifact must contain. The base-image probes above read the inputs; these read
+# the result, which is the only place a `sed` that matched nothing can still be caught. The markers
+# are upstream's own (`spark-fla-shmem`, `spark-fla-warps`), so a probe here also proves the build
+# applied the same fixes the day-0 lineage was measured with.
+spark_profile_fast8_artifact_probes:
+  - path: /usr/local/lib/python3.12/dist-packages/vllm/third_party/flash_linear_attention/ops/utils.py
+    pattern: spark-fla-shmem
+    evidence: Dockerfile.v32 step 2
+  - path: /usr/local/lib/python3.12/dist-packages/vllm/third_party/flash_linear_attention/ops/chunk_delta_h.py
+    pattern: spark-fla-warps
+    evidence: Dockerfile.v32 step 3
+  - path: /usr/local/lib/python3.12/dist-packages/vllm/models/qwen4_exp/nvidia/ple_layer.py
+    pattern: _ple_mmap_apply(Qwen4ExpNGramEmbedding)
+    evidence: Dockerfile.v32 step 1
+  - path: /usr/local/lib/python3.12/dist-packages/vllm/models/qwen4_exp/nvidia/mtp.py
+    pattern: _mtp_draft_vocab_apply(Qwen4ExpMTP)
+    evidence: Dockerfile.v32 step 11

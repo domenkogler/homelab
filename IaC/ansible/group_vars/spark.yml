@@ -80,12 +80,22 @@ spark_ultrafast_drafter_marker: dense-mtp-build-report.json
 # (`--tags spark-ultrafast-build` with this flipped, or -e spark_ultrafast_build=true),
 # not because a converge happened to touch spark.
 spark_ultrafast_build: false
+# The v0.32 lineage's own opt-in switch (roles/spark-profile-fast8). Separate from the one above on
+# purpose: this build pulls a ~10 GB base image and runs a third party's patch stack on this box, so
+# it is an act, not a side effect of building the live lineage. Nothing about it can flip a profile:
+# `fast8` stays gated by the empty `spark_vllm_ultrafast_v32_image` pin whatever this is set to.
+spark_profile_fast8_build: false
 spark_models_roots:
   xfs: "{{ spark_models_dir }}"
   os: "{{ spark_models_dir_os }}"
 # Upstream clone + built-image build tree (roles/spark-ultrafast-build). Kept off the data
 # store on purpose: it is build input, not serving data, and it must survive artifact pruning.
 spark_ultrafast_src_dir: /opt/homelab/ultrafast-src
+# The v0.32 lineage's BUILD directory — a copy of the recipe's build inputs, re-anchored by
+# roles/spark-profile-fast8/files/port_v32.py. Never the checkout above: the checkout has to stay
+# byte-for-byte the pinned commit for the provenance assert to mean anything, and a build definition
+# that edits it would also leave upstream's build.sh in place, writing the live lineage's tags.
+spark_profile_fast8_build_dir: /opt/homelab/ultrafast-v32-build
 spark_draft_vocab_dir: "{{ spark_xfs_mount }}/draft_vocab"
 spark_draft_vocab_host_file: "{{ spark_draft_vocab_dir }}/draft-vocab-ids-K65536.txt"
 spark_draft_vocab_container: /draft-vocab/ids.txt

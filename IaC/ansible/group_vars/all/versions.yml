@@ -508,6 +508,25 @@ spark_vllm_v32_base_image: "vllm/vllm-openai:v0.32.0-aarch64@sha256:6ff5ff0ddf36
 # spark_llm_overlays in group_vars/spark.yml to this build's module paths in the same change.
 spark_vllm_ultrafast_v32_image: ""
 
+# The BUILD-OUTPUT TAG of that lineage. Why this shape cannot collide: `docker build -t` writes the
+# one name it is given, and a tag is `repository:tag` — both day-0 names live in the
+# `qwen38-flash-dgx` repository, so a tag in the `spark-ultrafast` repository is a different object
+# and can never move them; the `v32-` prefix then names the lineage inside the tag itself, so it can
+# not be mis-tagged as the iter6d arm either. Never served (CONVENTIONS §7): the served reference is
+# the ID above, and this name exists so the build has somewhere to put the result and the role has a
+# name to re-read that ID from.
+spark_vllm_ultrafast_v32_tag: "spark-ultrafast:v32-iter6d"
+
+# The tags that are the ONLY names the live `fast` engine image has — upstream's
+# recipe/build/image/build.sh writes both (`iter6c` is the intermediate layer, `iter6d` the final
+# one). They are data here because a guard needs them, not prose: roles/spark-profile-fast8 refuses
+# to build when its own tag is one of these, and after building it asserts every one of them still
+# resolves. A v32 rebuild that wrote one of them would leave the live image untagged and therefore
+# `docker image prune -a`-able — the rollback for `fast8`, deleted by a green run.
+spark_vllm_ultrafast_live_tags:
+  - "qwen38-flash-dgx:iter6c-20260909"   # intermediate layer of the day-0 build
+  - "qwen38-flash-dgx:iter6d-20260910"   # = spark_vllm_ultrafast_tag, the served lineage's name
+
 # The immutable provenance of what gets built. `build.sh --run` re-verifies eleven md5s +
 # two sha256s of its own patch sources and refuses the build on a mismatch, so pinning the
 # commit is what makes "we built what they measured" a checkable claim rather than a hope.
