@@ -159,8 +159,11 @@ sort -u "$TMP/needed.txt" -o "$TMP/needed.txt"
 if [ -n "$FAKE_VAULT" ]; then
     sort -u "$FAKE_VAULT" > "$TMP/have.txt"
 else
-    # The names come off the ONE reader (lib/vault_read.py): the Server-SDK list answers in a
-    # handful of requests, the labelled `op` FALLBACK in one list — either way the reader prints
+    # The names come off the ONE reader (lib/vault_read.py) in its NAMES mode: ONE request on either
+    # route — `items.list` on the Server-SDK path, one `op item list` on the labelled FALLBACK — and
+    # no `item get` anywhere, because the list row already carries id/title/version. (Before the
+    # reader had a names-only mode, this leg paid the fallback's list-plus-a-get-per-item, ~144
+    # requests of a 1000/24 h day, to print a column of titles.) Either way the reader prints
     # `route=`/requests to stderr, so this leg's quota price is in the log, not a guess. The
     # credential rule (lib/vault-env.sh) answers behind it; reaching `op` with nothing exported is
     # NOT the fallback: on the Win11 seat that is the 1Password desktop app, which answers in a
@@ -183,7 +186,8 @@ else
         echo "                      (lib/vault_read.py) cannot run. Environment boundary, not a verdict." >&2
         exit 2
     fi
-    # --list prints title<TAB>id<TAB>version — names, never values; the title column is the HAVE-list.
+    # --list prints title<TAB>id<TAB>version — names, never values, ONE request; the title column is
+    # the HAVE-list.
     if ! "${HL_PYTHON[@]}" "$REPO/scripts/lib/vault_read.py" --list --vault Homelab-ansible \
             | cut -f1 > "$TMP/have.raw"; then
         echo "check-vault-items.sh: the vault read failed — see the route=/reason above. Pass " >&2

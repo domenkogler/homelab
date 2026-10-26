@@ -20,12 +20,14 @@ THE ROUTES, in order (the LAST RESORT is the OLD one, kept honest by its name):
                   repo's leak gate exists for; HD-1181's lesson). When THIS interpreter cannot
                   import `onepassword` (the wheels are cp39-cp313, so a 3.14 `py -3` cannot), the
                   read crosses to the first candidate interpreter that imports it and takes the
-                  JSON back over a PIPE; `--probe` prints what the probe found.
+                  JSON back over a PIPE; `--probe` prints what the probe found. A NAMES-ONLY read
+                  stops after that one `items.list` — a leg that wants titles pays 1 request, not 4.
   3. `op-fanout` — the FALLBACK, labelled as one: the `op` CLI, `item list` once and one
                   ID-addressed `item get` per item — a request per item against the same account
                   bucket, which is exactly why it is the fallback and not the plan. Used when the
                   SDK will not import on ANY candidate; it never silently answers where the batch
-                  read was expected, because every mode prints which route answered.
+                  read was expected, because every mode prints which route answered. A NAMES-ONLY
+                  read stops after the list — a name list never pays a get.
 
 WHAT NEVER CHANGES, whichever route answers:
 
@@ -48,7 +50,7 @@ WHAT NEVER CHANGES, whichever route answers:
     set (check_secret_leak.py's `--update-ledger`) reads that list, not the log line.
 
 USE (python legs — the normal form):
-    from vault_read import read_vault, read_item, Boundary
+    from vault_read import read_vault, read_item, read_names, Boundary
     vr = read_vault()                       # one batched read shared by the whole leg
     vr.items[item_id]                       # {"title","version","fields":[{"id","label","value","type","section"}]}
     vr.requests, vr.route, vr.vkey          # what it cost, which route answered, the versions digest
@@ -56,9 +58,13 @@ USE (python legs — the normal form):
     vr.print_cost("my_leg.py")              # the leg's own quota line — ONE shape every leg prints
     one = read_item("victoria-metrics_api") # ONE item where one item is all the leg needs (1 request);
                                             # the same read shape: one.only() is the row, one.requests
+    names = read_names()                    # titles+versions ONLY, 1 request on every route, values
+                                            # never fetched — a name list must not pay for the vault
 
 USE (CLI):
-    python3 scripts/lib/vault_read.py --list [--vault V]    title<TAB>id<TAB>version lines — names, no values
+    python3 scripts/lib/vault_read.py --list [--vault V]    title<TAB>id<TAB>version lines — names, no
+                                                           values, and ONE request on every route (the
+                                                           fallback pays a list, never a get per item)
     python3 scripts/lib/vault_read.py --values [--vault V]  the whole vault as JSON, PIPE ONLY (a tty -> rc 3)
     python3 scripts/lib/vault_read.py --item TITLE          one item as JSON (ID-addressed via the vault
                                                            map), PIPE ONLY — a tty is refused (rc 3)
@@ -222,7 +228,8 @@ def sdk_probe() -> tuple[list[str] | None, list[str]]:
     return found, log
 
 
-def _emit_values_json(items: dict, requests: int = 0, errors: list[str] | None = None) -> str:
+def _emit_values_json(items: dict, requests: int = 0, errors: list[str] | None = None,
+                      names_only: bool = False) -> str:
     # ensure_ascii=True keeps the value pipe pure ASCII: every non-ASCII character, and every
     # control character including a CR, leaves here as an escape that json.loads() puts back
     # byte-exactly. The re-exec handoff then cannot depend on the seat locale (docs/harness-pi-seats.md
@@ -231,24 +238,30 @@ def _emit_values_json(items: dict, requests: int = 0, errors: list[str] | None =
     # `errors` rides along because the re-exec child is the one route whose partial read the parent
     # would otherwise never see: the child's stderr is a diagnostic, its stdout is the answer.
     return json.dumps({"items": {iid: {"title": row["title"], "version": row["version"],
-                                       "fields": row["fields"]}
+                                       **({} if names_only else
+                                          {"fields": row["fields"]})}
                                  for iid, row in items.items()},
                        "requests": requests,
                        "errors": list(errors or [])},
                       ensure_ascii=True)
 
 
-def _read_via_launcher(launcher: list[str], vault: str) -> tuple[dict, int, list[str]]:
+def _read_via_launcher(launcher: list[str], vault: str,
+                       names_only: bool = False) -> tuple[dict, int, list[str]]:
     """Cross to an interpreter that has the SDK and take the JSON back over a PIPE. The child runs
     THIS module in --values mode; stdout is captured (never inherited), so no value can land on a
     tty here, and the child's own pipe rule refuses one anyway.
 
     The child's `errors` are read, not just its items: this is the route a Win11 seat normally
     takes, and a partial read that stops at the child's stdout would be silent exactly where the
-    batched read is the plan."""
-    r = subprocess.run([*launcher, str(Path(__file__).resolve()), "--values", "--vault", vault,
-                        "--sdk-required"],
-                       capture_output=True, stdin=subprocess.DEVNULL)
+    batched read is the plan.
+
+    `names_only` asks the child for the LIST half (`--names-only`), which is what a name-only reader
+    means: no `items.get_all`, so no value crosses the pipe at all."""
+    argv = [*launcher, str(Path(__file__).resolve()), "--values", "--vault", vault, "--sdk-required"]
+    if names_only:
+        argv.append("--names-only")
+    r = subprocess.run(argv, capture_output=True, stdin=subprocess.DEVNULL)
     err = (r.stderr or b"").decode("utf-8", "replace")
     if r.returncode == 4:
         raise Boundary(f"{shlex_join(launcher)} refused the SDK read: {err.strip()[:140]}")
@@ -265,6 +278,31 @@ def _read_via_launcher(launcher: list[str], vault: str) -> tuple[dict, int, list
                    "fields": _norm_fields(row.get("fields", []))}
              for iid, row in data.get("items", {}).items()}
     return items, requests, errs
+
+
+def _names_sdk(vault: str) -> tuple[dict, int, list[str]]:
+    """`items.list` and nothing else: the names and versions of the whole vault for ONE request, with
+    no value read at all. The versions on a list row are whatever that SDK release exposes — a
+    summary that carries none is stated, not guessed, and `read_names` prints that."""
+    try:
+        import onepassword  # noqa: F401
+    except ImportError as exc:
+        raise ImportError(f"onepassword SDK not importable here: {exc}") from exc
+    token = os.environ.get("OP_SERVICE_ACCOUNT_TOKEN")
+    if not token:
+        raise Boundary("the SDK route needs the credential vault_env.ensure() exports")
+
+    async def _main():
+        from onepassword import Client
+        client = await Client.authenticate(token, INTEGRATION_NAME, INTEGRATION_VERSION)
+        rows = await client.items.list(vault)
+        return {r.id: {"title": r.title, "version": getattr(r, "version", None)}
+                for r in rows}, 1, []
+
+    entries, requests, errs = asyncio.run(_main())
+    if not entries:
+        raise Boundary("items.list answered ZERO items — an empty vault answer is not an empty fleet")
+    return entries, requests, errs
 
 
 def shlex_join(argv: list[str]) -> str:
@@ -410,6 +448,37 @@ def _read_op_fanout(vault: str) -> tuple[dict, int]:
     return items, requests, errs
 
 
+def _names_op_fanout(vault: str) -> tuple[dict, int, list[str]]:
+    """ONE `op item list` and no gets: the list row already carries id, title and version, so a NAME
+    list on the FALLBACK route costs a list. Paying a `get` per item here is how `--list` came to
+    spend ~144 requests of a 1000/24 h account bucket to print a column of titles."""
+    argv = _op_argv()
+    from vault_env import cached_vault_id as _cached_vault_id
+    vid = _cached_vault_id(vault)
+    requests = 1 if vid else 2            # a NAME-addressed list resolves the name: 2 billed
+    try:
+        r = _op_run(["item", "list", "--vault", vid or vault, "--format", "json"])
+    except UnicodeDecodeError as exc:
+        raise Boundary(f"`op item list` answered bytes that are not UTF-8 ({exc}) — an item list "
+                       "decoded with a replacement character is not a fleet") from exc
+    if r.returncode != 0:
+        raise Boundary(f"`op item list` rc {r.returncode}: {(r.stderr or '').strip()[:120]}")
+    try:
+        rows = json.loads(r.stdout or "[]")
+    except json.JSONDecodeError as exc:
+        raise Boundary(f"`op item list` did not answer JSON: {exc}") from exc
+    entries, errs = {}, []
+    for row in rows if isinstance(rows, list) else []:
+        if not isinstance(row, dict) or not row.get("id"):
+            errs.append("an item list row carried no id — it cannot be addressed, only counted")
+            continue
+        entries[str(row["id"])] = {"title": row.get("title", "?"), "version": row.get("version")}
+    if not entries:
+        raise Boundary("the item list carried no id/title pairs — an empty vault answer is not an "
+                       "empty fleet")
+    return entries, requests, errs
+
+
 # --------------------------------------------------------------------------- the read
 def _note_partial(errs: list[str]) -> None:
     """ONE line per read, whichever route answered. An item that did not read is not a harmless
@@ -458,9 +527,7 @@ class VaultRead:
         """The leg's own line — a run's quota price belongs in the log, not in a guess. Every leg
         prints it, which is what turns 'how much did today cost' from an archaeology question into
         a grep."""
-        print(f"{leg}: vault requests this leg: {self.requests} — route={self.route} "
-              f"({len(self.items)} item(s) in memory; the account ceiling is 1000 requests/24 h "
-              "across ALL its service accounts — `op service-account ratelimit`)")
+        print(_cost_line(leg, self.requests, self.route, f"{len(self.items)} item(s) in memory"))
 
 
 def read_vault(vault: str = DEFAULT_VAULT, note: str = "") -> VaultRead:
@@ -509,6 +576,98 @@ def read_vault(vault: str = DEFAULT_VAULT, note: str = "") -> VaultRead:
     _say(route, requests, len(items), key, cred_route)
     _note_partial(errs)             # once, here, whatever route answered
     return VaultRead(items, requests, route, key, cred_route, errs)
+
+
+def _cost_line(leg: str, requests: int, route: str, what: str) -> str:
+    """ONE shape for a leg's quota line, so "what did today cost" is one grep across the gate."""
+    return (f"{leg}: vault requests this leg: {requests} — route={route} ({what}; the account "
+            "ceiling is 1000 requests/24 h across ALL its service accounts — "
+            "`op service-account ratelimit`)")
+
+
+class VaultNames:
+    """Titles and versions only — the shape a name list needs, at ONE request on every route.
+
+    A separate shape, on purpose: a leg that asked for the vault's NAMES must not be handed rows that
+    look like a read and carry no values, and it certainly must not have paid for the values."""
+
+    def __init__(self, entries: dict, requests: int, route: str, vkey: str,
+                 errors: list[str] | None = None):
+        self.entries = entries
+        self.requests = requests
+        self.route = route
+        self.vkey = vkey
+        self.errors = list(errors or [])
+
+    def print_cost(self, leg: str) -> None:
+        print(_cost_line(leg, self.requests, self.route,
+                         f"{len(self.entries)} name(s), values NOT read"))
+
+
+def read_names(vault: str = DEFAULT_VAULT, note: str = "") -> VaultNames:
+    """The vault's TITLES and VERSIONS — one request on EVERY route, and no value read at all.
+
+    This exists because `--list` used to call `read_vault()`: on the labelled fallback that is one
+    `item list` plus one `item get` per item, ~144 requests of the account's 1000/24 h bucket spent
+    to print a column of titles the list answer already carried. Same routes, same provenance line,
+    same `Boundary`, one tenth of the price."""
+    fixture = os.environ.get("HL_VAULT_READ_FIXTURE")
+    if fixture:
+        items, requests, errs = _read_fixture(Path(fixture))
+        entries = {iid: {"title": row["title"], "version": row["version"]}
+                   for iid, row in items.items()}
+        key = _vkey(entries)
+        if note:
+            print(f"vault-read: {note}", file=sys.stderr)
+        _say("fixture(names-only)", requests, len(entries), key)
+        _note_partial(errs)
+        return VaultNames(entries, requests, "fixture(names-only)", key, errs)
+
+    ok, why = _vault_ensure()
+    if not ok:
+        raise Boundary(f"no vault credential reachable on this seat ({why}) — an environment "
+                       "boundary: reading the vault without one is the desktop-app route, i.e. a "
+                       "consent dialog per read, not a verdict")
+    from vault_env import STATE as _VS
+    cred_route = str(_VS.get("route", "resolved"))
+
+    forced = os.environ.get("HL_VAULT_READ_ROUTE", "")
+    if forced == "op-fanout":
+        entries, requests, errs = _names_op_fanout(vault)
+        route = "op-fanout(FALLBACK,names-only)"
+    else:
+        try:
+            entries, requests, errs = _names_sdk(vault)
+            route = "sdk(names-only)"
+        except ImportError:
+            launcher, log = sdk_probe()
+            for line in log:
+                print(f"vault-read {line}", file=sys.stderr)
+            if launcher is None:
+                print("vault-read: no interpreter imports onepassword — the name list takes the "
+                      "labelled op-fanout FALLBACK, where ONE list still answers it", file=sys.stderr)
+                entries, requests, errs = _names_op_fanout(vault)
+                route = "op-fanout(FALLBACK,names-only)"
+            else:
+                items, requests, errs = _read_via_launcher(launcher, vault, names_only=True)
+                entries = {iid: {"title": row["title"], "version": row["version"]}
+                           for iid, row in items.items()}
+                route = (f"sdk:{launcher[-1] if len(launcher) == 1 else '+'.join(launcher)}"
+                         "(names-only)")
+    if not entries:
+        raise Boundary("the name list answered ZERO items — an empty vault answer is not an empty fleet")
+    if note:
+        print(f"vault-read: {note}", file=sys.stderr)
+    key = _vkey(entries)
+    _say(route, requests, len(entries), key, cred_route)
+    if all(row["version"] is None for row in entries.values()):
+        # Not a failure, and not something to leave to the reader to discover: this SDK release's
+        # list rows carry no version number, so the VERSION column is empty while the NAMES are whole.
+        print("vault-read NOTE: the SDK's list rows carried no versions — titles are complete, the "
+              "version column is empty, and read_vault()/--values is the mode that reads versions",
+              file=sys.stderr)
+    _note_partial(errs)
+    return VaultNames(entries, requests, route, key, errs)
 
 
 def read_item(title: str, vault: str = DEFAULT_VAULT) -> VaultRead:
@@ -592,6 +751,7 @@ def main() -> int:
     ap.add_argument("--self-test", action="store_true", help="fixture arms; ZERO requests")
     ap.add_argument("--vault", default=DEFAULT_VAULT)
     ap.add_argument("--sdk-required", action="store_true", help=argparse.SUPPRESS)
+    ap.add_argument("--names-only", action="store_true", help=argparse.SUPPRESS)
     args = ap.parse_args()
 
     if args.self_test:
@@ -643,14 +803,16 @@ def main() -> int:
                 # a line that claims the batched read, so the child that cannot do the SDK says so
                 # at rc 4 and the parent decides.
                 try:
-                    items, requests, errs = _read_sdk(args.vault)
+                    items, requests, errs = (_names_sdk(args.vault) if args.names_only
+                                             else _read_sdk(args.vault))
                 except ImportError as exc:
                     print(f"vault-read: {exc}", file=sys.stderr)
                     return 4
-                _say("sdk", requests, len(items), _vkey(items))
+                _say("sdk(names-only)" if args.names_only else "sdk", requests, len(items),
+                     _vkey(items))
                 # errors ride the ANSWER, not the child's stderr: the parent parses stdout, and a
                 # partial read that stops at this pipe is the P1 this whole payload exists for.
-                sys.stdout.write(_emit_values_json(items, requests, errs))
+                sys.stdout.write(_emit_values_json(items, requests, errs, names_only=args.names_only))
                 return 0
             vr = read_vault(args.vault)
         except Boundary as exc:
@@ -679,13 +841,16 @@ def main() -> int:
         return 0
 
     if args.list:
+        # The names-only read: ONE request on every route, because the list answer already carries
+        # id/title/version. Reaching for read_vault() here is what used to spend a get per item on the
+        # fallback route to print a column of titles.
         try:
-            vr = read_vault(args.vault)
+            vn = read_names(args.vault)
         except Boundary as exc:
             print(f"vault-read: {exc}", file=sys.stderr)
             return 1
-        for iid in sorted(vr.items, key=lambda k: vr.items[k]["title"]):
-            print(f"{vr.items[iid]['title']}\t{iid}\t{vr.items[iid].get('version')}")
+        for iid in sorted(vn.entries, key=lambda k: vn.entries[k]["title"]):
+            print(f"{vn.entries[iid]['title']}\t{iid}\t{vn.entries[iid].get('version')}")
         return 0
 
     ap.print_help(sys.stderr)
@@ -1037,6 +1202,36 @@ def self_test() -> int:
               "route=fixture" in err and "requests=0" in err and "versions=" in err
               and canary not in err and canary not in (r.stdout or b"").decode("utf-8", "replace"),
               err[:140])
+
+        # (8b) `--list` is the NAME mode, so it must cost ONE request on the FALLBACK route: the list
+        # row already carries id/title/version, and paying a `get` per item here was ~144 requests of
+        # the account's day for a column of titles. Asserted on the stub's CALL LOG, not on the
+        # module's own arithmetic: zero get lines, one list line.
+        log8b = tdp / "op-list.log"; log8b.write_text("", encoding="utf-8")
+        r = subprocess.run([sys.executable, str(Path(__file__).resolve()), "--list", "--vault", "V"],
+                           capture_output=True, stdin=subprocess.DEVNULL,
+                           env=dict(env_fall, OP_STUB_LOG=str(log8b)))
+        calls8b = log8b.read_text(encoding="utf-8")
+        err8b = (r.stderr or b"").decode("utf-8", "replace")
+        check("--list on the FALLBACK route pays ONE item list and ZERO gets",
+              r.returncode == 0 and calls8b.count("item list") == 1
+              and "item get" not in calls8b and "requests=1" in err8b
+              and "names-only" in err8b and len(r.stdout.decode().splitlines()) == 4,
+              f"rc {r.returncode} calls {calls8b.count('item list')} list/"
+              f"{calls8b.count('item get')} get err {err8b[-120:]!r}")
+
+        # (8c) the same on the SDK route: `items.list` alone — one request, and no get_all at all
+        # (the count is the route's own, so requests=1 IS the proof that no chunk was fetched).
+        r = subprocess.run([sys.executable, str(Path(__file__).resolve()), "--list", "--vault", "V"],
+                           capture_output=True, stdin=subprocess.DEVNULL,
+                           env=dict(env_off, OP_SERVICE_ACCOUNT_TOKEN="x" * 48,
+                                    HL_VAULT_READ_FIXTURE="",
+                                    PYTHONPATH=str(tdp / "stublib")))
+        err8c = (r.stderr or b"").decode("utf-8", "replace")
+        check("--list on the SDK route pays items.list alone (1 request, no get_all)",
+              r.returncode == 0 and "requests=1" in err8c and "sdk(names-only)" in err8c
+              and len(r.stdout.decode().splitlines()) == 55,
+              f"rc {r.returncode} err {err8c[-140:]!r}")
 
         # (9) the probe answers without a network or a vault, and --install-sdk never runs from here.
         r = subprocess.run([sys.executable, str(Path(__file__).resolve()), "--probe"],

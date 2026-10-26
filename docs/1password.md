@@ -107,6 +107,10 @@ request count (`route=`/`requests=` on stderr), so the log, not a comment, state
 the ID-addressed fallback replaced an earlier name-addressed fan-out that cost 3 requests per item —
 ~429 requests, three runs to an exhausted day.
 
+A leg that needs the vault's **names and versions only** — the catalog check's HAVE-list — asks the
+reader's names mode (`--list`, or `read_names()`), which stops after the list on BOTH routes: ONE
+request, and no value is read at all. Asking for names is not a reason to buy the whole vault.
+
 Seat step — the SDK wheel is tagged cp39–cp313, so an interpreter newer than the wheel set cannot
 import it and the reader answers through the fallback until this runs on a supported interpreter:
 
