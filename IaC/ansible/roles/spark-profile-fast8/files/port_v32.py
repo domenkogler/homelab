@@ -25,6 +25,9 @@ WHAT IT DOES, in order, each step loud:
 EXIT: 0 = staged and re-anchored · 1 = an anchor did not match · 2 = a source hash did not match ·
 3 = usage / refusing to touch the checkout.
 
+--check-only is the pre-build read: nothing is staged yet, so it inspects the CHECKOUT — the tree the
+port is about to be derived from — and never the (still nearly empty) build directory.
+
 Usage: port_v32.py --checkout <path>/recipe/build/image --stage <build dir> [--check-only]
 """
 
@@ -174,12 +177,12 @@ def verify_hashes(checkout: Path) -> list[str]:
     return printed
 
 
-def apply_anchors(stage: Path, check_only: bool) -> int:
+def apply_anchors(tree: Path, check_only: bool) -> int:
     failures = 0
     for rel, old, new, expected, evidence in ANCHORS:
-        path = stage / rel
+        path = tree / rel
         if not path.is_file():
-            print(f"port_v32: MISSING  {rel} — staged tree is incomplete", file=sys.stderr)
+            print(f"port_v32: MISSING  {rel} — {tree} does not contain it", file=sys.stderr)
             failures += 1
             continue
         src = path.read_text(encoding="utf-8")
@@ -211,7 +214,7 @@ def main() -> int:
     ap.add_argument("--checkout", required=True, type=Path)
     ap.add_argument("--stage", required=True, type=Path)
     ap.add_argument("--check-only", action="store_true",
-                    help="verify the hashes and every anchor without writing the staged tree")
+                    help="verify the hashes and every anchor against the CHECKOUT, writing nothing")
     args = ap.parse_args()
 
     checkout = args.checkout.resolve()
@@ -238,12 +241,17 @@ def main() -> int:
                 victim.unlink()
                 print(f"port_v32: removed    {name} — {reason}")
 
-    bad = apply_anchors(stage, args.check_only)
+    # --check-only runs BEFORE anything is staged, and the build directory at that point holds only
+    # this script and Dockerfile.v32. Reading it would report every anchor MISSING and hand the role a
+    # --check verdict about a tree that is not the port's source, so this mode reads the checkout.
+    tree = checkout if args.check_only else stage
+    label = "checkout" if args.check_only else "staged tree"
+    bad = apply_anchors(tree, args.check_only)
     if bad:
         print(f"port_v32: {bad} anchor(s) did not match — see the evidence lines above. Nothing was "
               "built; do not loosen an anchor to make this pass.", file=sys.stderr)
         return 1
-    print(f"port_v32: {len(ANCHORS)} anchors verified in {stage}")
+    print(f"port_v32: {len(ANCHORS)} anchors verified against the {label} {tree}")
     return 0
 
 

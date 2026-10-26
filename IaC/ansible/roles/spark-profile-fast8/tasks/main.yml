@@ -123,8 +123,11 @@
   tags: [spark, spark-ultrafast-build, spark-profile-fast8, llm]
 
 - name: Print the port plan for this lineage
-  # The porter's --check-only arm runs the checkout's own md5/sha256 gates and every anchor without
-  # writing anything: the cheap failure (a moved day-0 anchor) is read before a byte is staged.
+  # The porter's --check-only arm runs the checkout's own md5/sha256 gates and every anchor WITHOUT
+  # writing anything, and it reads them in the CHECKOUT: at this point the build directory holds only
+  # this script and Dockerfile.v32, so anchors checked there would all report MISSING and the --check
+  # verdict would describe a tree that is not the port's source (tasks/build_lineage.yml runs this
+  # leg before the staging one). The cheap failure (a moved day-0 anchor) is read before a byte moves.
   when: spark_profile_fast8_will_build | bool
   ansible.builtin.command:
     cmd: >-
