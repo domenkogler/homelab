@@ -172,7 +172,7 @@ not this list, holds the steps, the file ownership and the converge host. Waves,
    written — the Authentik→NAS glue is gone from BOTH sides and `op` on the NAS is unwanted rather than missing; what
    remains is one credential-bearing leg on a second host (`smbclient //nas/domen -A creds`), parked. (**HD-1089**,
    the SABnzbd locality read, is in the unbriefed list below.) → [prompt-media-arrs.md](prompt-media-arrs.md)
-5. ⏳ **Cockpit, the coding seats, grants** — the cluster (**HD-361 · 411 · 442 · 443 · 444 · 465 · 495 · 1085 ·
+5. ⏳ **Cockpit, the coding seats, grants** — the cluster (**HD-361 · 411 · 442 · 443 · 465 · 495 · 1085 ·
    1110 · 1161**) with its owner-gated tails intact, plus **HD-1180** (unbriefed). ⚠ **Pull the DRIVER clone first: at
    `main~2` the pre-flight calls two current seats `STALE-CLONE`.** **HD-495**: `git-bootstrap.sh --git-identity` (and
    `--git-identity --check`, read-only) owns the three lines a Debian seat needs OUTSIDE any clone; what is left is the
@@ -283,8 +283,8 @@ not this list, holds the steps, the file ownership and the converge host. Waves,
     **The registry's prose is a rule with a checker** —
     [`gate/check_registry_prose.py`](scripts/gate/check_registry_prose.py) — so `scripts/README.md` is a facts-only
     map; print its count with `--show`, never a number typed into a handoff. → [prompt-scripts.md](prompt-scripts.md)
-12. ⏳ **Owner-gated tails** (exact steps in the rows): **377** the Grafana render re-do · **444** the phone→oldsrv
-    cockpit crossing · **1103 + 1167** one Pi visit — the boot that makes the fstab `mode=` true on the mount, and the
+12. ⏳ **Owner-gated tails** (exact steps in the rows): **377** the Grafana render re-do
+    · **1103 + 1167** one Pi visit — the boot that makes the fstab `mode=` true on the mount, and the
     one-time re-render of `pi-eth0.nmconnection` that notifies `reload NetworkManager` · **HD-06** the UPS drill ·
     **411** the cockpit resume word · **HD-230 · 207** the decisions taken at the drill · **HD-1173** the live tails
     only, repo side landed: the parked `dsh` + `pi-dev` harness IaC comes out and `pi-dev.ts.kogler.si` becomes a second

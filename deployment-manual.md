@@ -2332,7 +2332,7 @@ Run everything as root on oldsrv (`sudo -n`); the cockpit itself always runs as 
    ```
    A 404 here = the `pi-oldsrv-ts` router is not converged yet; a TLS name mismatch = the `*.ts.kogler.si`
    wildcard is not loaded (`check_traefik_host_rules.py` catches the template shape, not the cert store).
-   Final word is a **tailnet peer** — see HD-444: no node inside this fleet may reach oldsrv's tailnet node.
+   Final word is a **tailnet peer** (a phone on cellular is one): no node inside this fleet may reach oldsrv's tailnet node.
 9. **Seat clone (the authoring repo) + its own write credential.** oldsrv runs two clones: `/home/ansible-admin/source/homelab`
    **converges**, `/home/domen/source/homelab` **is what the seat edits** — roles, update rules and why they
    are separate are in [docs/deployment-ansible.md](docs/deployment-ansible.md) §Runner placement. The seat
