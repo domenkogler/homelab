@@ -133,8 +133,8 @@ COPY src/mamba_utils_guarded.py /tmp/mamba_utils_guarded.py
 RUN test -f ${MAMBA_UTILS} \
  && if [ "${MAMBA_UTILS_GUARD}" != "apply" ]; then \
       echo 'REFUSED: MAMBA_UTILS_GUARD is not "apply", so the day-0 whole-file snapshot was not'; \
-      echo 'copied over this image\'s vllm/v1/worker/mamba_utils.py. Read the diff first —'; \
-      echo '  docker run --rm --network none --entrypoint bash <built-or-base-image> -c \'diff -u /tmp/mamba_utils_guarded.py <site-packages>/vllm/v1/worker/mamba_utils.py\''; \
+      echo 'copied over vllm/v1/worker/mamba_utils.py in this image. Read the diff, then decide:'; \
+      echo "  docker run --rm --network none --entrypoint bash <image> -c 'diff -u /tmp/mamba_utils_guarded.py ${MAMBA_UTILS}'"; \
       echo 'then pass --build-arg MAMBA_UTILS_GUARD=apply, or port the guard as an anchored patch.'; \
       exit 1; \
     fi \
