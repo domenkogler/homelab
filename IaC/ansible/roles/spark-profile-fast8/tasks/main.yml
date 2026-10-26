@@ -180,6 +180,10 @@
     bl_plan_cmd: "{{ spark_profile_fast8_lineage.plan_cmd }}"
     bl_build_cmd: "{{ spark_profile_fast8_lineage.build_cmd }}"
     bl_build_drafter: "{{ spark_profile_fast8_lineage.build_drafter }}"
+    # This lineage's post-build legs are below, so the shared unpinned-ID fail must not fire inside
+    # build_lineage.yml — it sits right after the build there, and it fires on exactly the run that
+    # still owes those legs. tasks/build_lineage.yml:bl_fail_unpinned is the switch for that.
+    bl_fail_unpinned: false
     bl_head: "{{ bc_head.stdout }}"
   tags: [spark, spark-ultrafast-build, spark-profile-fast8, llm]
 
@@ -317,4 +321,25 @@
       ({{ spark_vllm_ultrafast_image }}) BEFORE anything prunes, and keep
       spark-rollback:fast as the pointer. Then find which step wrote a tag it does not own —
       this lineage writes exactly one name, {{ spark_vllm_ultrafast_v32_tag }}.
+  tags: [spark, spark-ultrafast-build, spark-profile-fast8, llm]
+
+# ---- The deliberate red, placed where the lineage's work is actually finished ----
+# tasks/build_lineage.yml ends with this fail and the live lineage stops there — it has no post-build
+# legs. This lineage has six reads of the built artifact after the build, so it switches that one off
+# (bl_fail_unpinned: false) and fails here instead: a red that arrives BEFORE the CPU gates and the
+# artifact reads would leave the one run that builds also the one run that proves nothing.
+- name: Refuse to continue while the spark-profile-fast8 image ID is unpinned
+  when:
+    - spark_profile_fast8_will_build | bool
+    - spark_vllm_ultrafast_v32_image | length == 0
+  ansible.builtin.fail:
+    msg: >-
+      Lineage 'spark-profile-fast8' built AND passed every post-build leg above (the three CPU
+      gates, the in-proj GEMV import, the ported-anchor reads, the day-0 symbol read, the live-tag
+      read). Its immutable ID is {{ bl_built.stdout | trim }}.
+      Record it as spark_vllm_ultrafast_v32_image in IaC/ansible/group_vars/all/versions.yml (one
+      commit, note the base digest it was built FROM), then the profiles that name this lineage unlock
+      by themselves and roles/spark-llm-profile stops refusing them. Until then the build tag
+      {{ spark_vllm_ultrafast_v32_tag }} exists on the box but is NEVER served — a tag is a mutable
+      alias (CONVENTIONS §7).
   tags: [spark, spark-ultrafast-build, spark-profile-fast8, llm]
