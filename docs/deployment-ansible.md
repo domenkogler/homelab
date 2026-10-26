@@ -436,7 +436,7 @@ The probe that actually answers (read-only, no `no_log` needed because nothing i
 Device identity this probe returns: `router.kogler.si` → **RB4011iGS+ 7.24.4**,
 `switch.kogler.si` → **CRS328-24P-4S+ 7.24.4**. ⚠ Run it over the **Mgmt** address (VLAN 99 is
 same-site only — never a `ProxyJump`); away from home there is **no** path to a device API at all
-(HD-398 decision A: the Mgmt plane gets no tunnel route and no jump), so a firmware read is an on-site
+(ruled: the Mgmt plane gets no tunnel route and no jump), so a firmware read is an on-site
 act. The device facts above are
 reachability evidence only — the authoritative device state is the `print`/`foreach` reads in
 [network-ops.md](network-ops.md) §Apply workflow, and a mutate of either device is still a

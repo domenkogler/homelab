@@ -35,6 +35,7 @@ tags: [index, dispatcher, ai]
 | **Triage a storage candidate / check past rejections** | [`storage-review.md`](storage-review.md) + [`storage-rejected.md`](storage-rejected.md) | `storage.md`, `CONVENTIONS.md` §8.3 |
 | **Provision Authentik OIDC clients (Blueprint + glue)** | [`deployment-oidc.md`](deployment-oidc.md) | `services-authentik.md`, `deployment-secrets.md`, `deployment-compose.md`, `deployment-ansible.md`, `security.md` |
 | **Cross-cutting conventions / onboarding a service** | [`CONVENTIONS.md`](../CONVENTIONS.md) | owning docs (`deployment-*.md`, `network-*.md`, `services.md`) |
+| **The working contract itself (state-only docs, worktree, validation)** | [`../AGENTS.md`](../AGENTS.md) (one page) | `CONVENTIONS.md` §6, §6.4, the opening sections of [`../README.md`](../README.md) |
 | **Find a script / validation gate / renderer** | [`../scripts/README.md`](../scripts/README.md) | `CONVENTIONS.md` §8, [`validate-all.sh`](../scripts/validate-all.sh) |
 | **Understand personal finance / budgeting** | [`services-finance.md`](services-finance.md) | `services.md`, `services-office.md`, `deployment-compose.md` |
 | **Understand the security posture / hardening** | [`security.md`](security.md) | `services-traefik.md`, `deployment-secrets.md`, `deployment-preseed.md`, `network-ops.md` |
@@ -131,6 +132,7 @@ docs/
 ├── services-inventory-generated.md        Service inventory (generated from group_vars docker_services; never hand-edited)
 │
 ├── CONVENTIONS.md                        Cross-cutting rules index + service-onboarding checklist (repo root)
+├── AGENTS.md                             One-page working contract for an agent (repo root; mirrors README §0–§4)
 │
 ├── smart-home.md                          Index: HA, devices, architecture, links to smart-home-*.md
 ├── smart-home-review.md                   Smart-home intake queue

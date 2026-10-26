@@ -1667,7 +1667,10 @@ def main():
     ap.add_argument("--list")
     ap.add_argument("--gate", action="store_true",
                     help="the registered form: replay the window the baseline pins, over the "
-                         "in-tree signed accepts list")
+                         "in-tree signed accepts list (ADVISORY: prints, exits 0 — see --strict)")
+    ap.add_argument("--strict", action="store_true",
+                    help="with --gate, let a REJECT list or a stale accept entry exit 1 again "
+                         "(the pre-2026-10-26 hard verdict; the registered form is advisory)")
     ap.add_argument("--baseline", metavar="FILE", default=BASELINE,
                     help="the pinned baseline --gate reads (default scripts/gate/corpus_baseline.txt)")
     ap.add_argument("--show-baseline", action="store_true",
@@ -1696,7 +1699,19 @@ def main():
                 print("--gate takes no file arguments: the scope is the baseline's, and a scope a "
                       "run can widen is not a pinned population", file=sys.stderr)
                 return 2
-            return gate_run(str(ROOT), a.baseline, a.accept or ACCEPTS, show=a.show_baseline)
+            rc = gate_run(str(ROOT), a.baseline, a.accept or ACCEPTS, show=a.show_baseline)
+            # ADVISORY by default since 2026-10-26 (CONVENTIONS §6.4): the verdict is a function of the
+            # two pinned revisions, so once the window ages the REJECT list is ordinary development the
+            # window happens to span -- hundreds of true-but-irrelevant findings whose only cure is a
+            # re-sign. That is a reminder about the baseline, not a regression in the tree, and a gate
+            # that prints hundreds of reds is a gate that gets muted. rc 2 (could not measure) is NOT
+            # softened: a window it cannot read is not a verdict to soften. --strict restores the red.
+            if rc == 1 and not a.strict:
+                print("ADVISORY: the window above is printed and NOT judged --gate's hard verdict is "
+                      "retired (CONVENTIONS §6.4); re-sign gate/corpus_baseline.txt at a wave tip to "
+                      "clear it, or pass --strict to judge it.")
+                return 0
+            return rc
         if a.keys:
             if not a.paths:
                 print("usage: corpus_diff.py --keys <repo> [<path> ...]   (an empty scope is an "

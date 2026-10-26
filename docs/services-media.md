@@ -416,8 +416,8 @@ cannot be answered until the provider login works.
     `lidarr-ydl:5000`, so a Lidarr search can never hand it a release. Its Newznab surface is not at
     `/api/v1/indexers.xml` either (404; the real path is not established).
   So today it is a poll-and-cache reader of the wanted list, not a client Lidarr can grab through. Closing
-  that is APP state — a Lidarr indexer entry plus a download-client entry — which is the seed-in-IaC
-  question HD-363 asks, not a credential question. Until it lands, "YouTube #3" is an intention.
+  that is APP state — a Lidarr indexer entry plus a download-client entry — which is the open seed-in-IaC
+  question, not a credential question. Until it lands, "YouTube #3" is an intention.
 
 ## Related
 - [Downloads stack](services-downloads.md) — SABnzbd / qBittorrent / gluetun ingress

@@ -493,27 +493,34 @@
 #                                     PARALLEL since 2026-10-09 (8.4 s -> 3.0 s on 8 cores): the cost
 #                                     was 17 × interpreter startup, not work; each leg keeps its own
 #                                     stderr file, so the duplicate-key witness is unchanged.
-#  41. check_doc_size.py             — HD-1199: nothing in this repo bounded a doc's length, so the
-#                                     corpus average drifted past 300 lines while the README tells every
-#                                     session not to bulk-read the repo. A RATCHET, not a cap: the
-#                                     hand-authored docs/*.md are sealed at their current sizes in
-#                                     `gate/doc_size_baseline.txt` (one `<path><TAB><line count>` line,
-#                                     derived whole by --reseal, no wall clock in it — CONVENTIONS §8.5),
-#                                     a doc may shrink freely and may not exceed its sealed count, a doc
-#                                     NOT yet sealed must be born under the new-doc ceiling, and the
-#                                     seal fails in BOTH directions (an in-scope doc the seal omits
-#                                     reddens, so deleting a line launders nothing; a line whose doc is
-#                                     gone reddens, because a line matching nothing is the next doc's free
-#                                     pass). The four `docs/*-generated.md` render views are out of the
-#                                     walk, the seal and the rule — their length is an IaC-render property
-#                                     and a docs gate must not redden on a render (§8.2, §8.5); the mirror
-#                                     holds from inside the seal, where such a line is a parse error.
-#                                     `--reseal` belongs to the merge station only: a growth red there
-#                                     means a doc GREW, and the fix is the doc, never the number.
-#                                     `--self-test` breeds every rule in a temp tree, proves the shrink
-#                                     half is live (so this cannot be a silent cap), proves the ceiling
-#                                     and the seal are separate checks, and refuses an empty corpus, a
-#                                     missing baseline and a malformed body at rc 2.
+#  41. check_doc_size.py            — REMINDER (non-blocking, CONVENTIONS §6.4): the corpus-size nudge.
+#                                     It used to be a ratchet over a per-file seal in
+#                                     `gate/doc_size_baseline.txt`, and that seal is RETIRED on purpose: a
+#                                     warning measured against a frozen number can only be silenced by
+#                                     rewriting the number, so it either blocks (never a warning) or rots
+#                                     into permanent yellow (never read). The bound is now DERIVED at run
+#                                     time (2 × the new-doc reference) and a doc above it is PRINTED as a
+#                                     placement hint (§8.1), never as a defect — a long doc of facts is a
+#                                     split question, and this corpus has docs far above any honest
+#                                     per-file number. The walk and its `walk_docs` function stay the ONE
+#                                     definition of "hand-authored doc" (`check_role_docs.py` and
+#                                     `check_docs_pure.py` import it, §2); `docs/*-generated.md` render
+#                                     views are out of it, because their length is an IaC-render property
+#                                     (§8.2, §8.5). rc 2 only for a broken root — a gate that cannot see
+#                                     the files cannot remind either.
+#  41b. check_docs_pure.py           — the machine half of CONVENTIONS §6 over the surface the other prose
+#                                     gates never read (`docs/**/*.md` + the root `README.md`): the docs
+#                                     had been used as a changelog, and §6.4 records that motive. TWO
+#                                     SEVERITIES on purpose. HARD (a red): an `HD-`/`KOPS-` token whose
+#                                     `todo.md` row no longer exists — an id is allowed in a doc only while
+#                                     the work is open, so deleting a row WITHOUT sweeping the mentions is
+#                                     what reddens, and the live-id basis is derived from the rows on every
+#                                     run (nothing is listed, §2). WARN (printed, exit 0): a past-tense
+#                                     evidence verb anchored to a date, a diary/supersession phrase, a run
+#                                     recap — printed at SENTENCE level because the sentence is the thing to
+#                                     rewrite, and a date that the line names as state (expiry, renewal,
+#                                     firmware date, a live-verified marker) is never a finding. An id in
+#                                     code font (`HD-1080p`) is data, not a citation.
 #  42. check_role_docs.py            — HD-1200: the tree→docs half of the docs seam. A role directory
 #                                     could land with no doc of its own and nothing noticed —
 #                                     check_doc_path_refs.py proves the paths a doc cites exist and
@@ -666,6 +673,8 @@ echo "launcher: $PY ($("${PY_CMD[@]}" -c 'import sys; print(sys.version.split()[
 #     --serial (one at a time, the pre-parallel behaviour, for bisecting an issue),   #
 #     --time (per-item accounting, HD-1137), --profile full|quick (a subset, HD-1137), #
 #     --wsl auto|on|off (whether the legs that cross the door really do, HD-1202).     #
+# Items registered with `item_reminder` are REMINDERS (CONVENTIONS §6.4): they run in EVERY profile,             #
+# print their findings, and a non-zero answer is counted and printed but NEVER fails the run.                   #
 ONLY=""; LIST=0; SERIAL=0; PROFILE=full; TIME=0; WSLMODE="${HL_WSL-auto}"
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -832,6 +841,8 @@ pids=(); states=(); mems=(); whys=(); n_run=0; rc_missing=0; n_excl_launch=0
 # per registration, so `quick ⊆ full` and "nothing in both buckets" hold by construction; what the
 # audit can still catch is the three things that do break.
 P_MEM=""; P_WHY=""
+_reminder=0
+_reminders=()          # index -> 1 for every item registered as a reminder
 _set_quick()    { P_MEM=q; P_WHY=""; }
 _set_excluded() { P_MEM=x; P_WHY="$1"; }
 
@@ -839,6 +850,7 @@ _reg() {
   local label="$1"; shift
   local i=$n_items; n_items=$((n_items+1))
   labels+=("$label"); mems+=("$P_MEM"); whys+=("$P_WHY")
+  _reminders[$i]="${_reminder:-0}"
   starts+=(""); ends+=(""); walls+=(""); pids+=("0"); states+=("pending")
   cstart+=("${#cmds[@]}"); clen+=("$#")
   local _w
@@ -854,6 +866,12 @@ _reg() {
 
 # item "<label>" <command...>   — one command. The *_q / *_x forms carry its profile decision.
 item() { local label="$1"; shift; _reg "$label" "$@"; }
+# item_reminder "<label>" <command...> — a REMINDER (CONVENTIONS §6.4): it runs in every profile, prints
+# its findings, and a non-zero return is REPORTED but never fails the run. The distinction is the rule:
+# a fact the tree can disprove reddens, a prose-shape or size judgement reminds — a gate that blocks on
+# judgement is a gate that gets muted, and a reminder nobody sees is not enforcement either, which is why
+# the report keeps counting and printing them.
+item_reminder() { local label="$1"; shift; _reminder=1; _set_quick; _reg "REMINDER: $label" "$@"; _reminder=0; }
 # item_blk "<label>" <function> — a multi-command block; the function is defined above
 item_blk() { _reg "$1" "$2"; }
 item_q()     { _set_quick; _reg "$@"; }
@@ -1052,7 +1070,10 @@ _diagnose_fails() {
   for i in "${!labels[@]}"; do
     [ "${states[$i]}" = "run" ] || continue
     # ONE ROW PER ITEM THAT RAN: start, end, wall-ms, failed?, label. awk decides who gets named.
+    # -1 = a reminder that answered non-zero: it stays in the population (it really was in flight, and
+    # the sibling count must count it) but awk never names it as a failure (CONVENTIONS §6.4).
     local _f=0; [ "$(_rc_of "$i")" != "0" ] && _f=1
+    [ "${_reminders[$i]:-0}" = 1 ] && _f=-1
     rows+="${starts[$i]:-0}"$'\t'"${ends[$i]:-0}"$'\t'"${walls[$i]:-0}"$'\t'"$_f"$'\t'"${labels[$i]}"$'\n'
   done
   printf '%s' "$rows" | awk -F'\t' -v par="$MAXPAR" -v npar="$GATE_NPAR" -v cores="$cores" -v lavg="$load" '
@@ -1061,7 +1082,7 @@ _diagnose_fails() {
       printf "\nPOOL DIAGNOSTIC (HD-1117) — the pool was %s wide (GATE_NPAR %s) on %s core(s); load 1/5/15: %s\n",
              par, npar, cores, lavg
       for (i = 1; i <= n; i++) {
-        if (!bad[i]) continue
+        if (bad[i] <= 0) continue
         infl = 0
         for (j = 1; j <= n; j++) if (s[j] < e[i] && e[j] > s[i]) infl++   # legs overlapping THIS one
         printf "  %8.1f s wall, %2d sibling leg(s) in flight, rc!=0   %s\n", w[i] / 1000, infl - 1, nm[i]
@@ -1072,7 +1093,7 @@ _diagnose_fails() {
 }
 
 _report() {
-  local i rc fails=0 ran=0 filt=0 excl=0 never=""
+  local i rc fails=0 rem=0 ran=0 filt=0 excl=0 never=""
   for i in "${!labels[@]}"; do
     local label="${labels[$i]}"
     case "${states[$i]}" in
@@ -1091,8 +1112,16 @@ _report() {
     [ -f "$RUN/$i.log" ] && cat "$RUN/$i.log"
     ran=$((ran+1))
     if [ "$rc" != "0" ]; then
-      printf 'FAILED (rc %s): %s\n' "$rc" "$label"
-      fails=$((fails+1))
+      if [ "${_reminders[$i]:-0}" = 1 ]; then
+        # A reminder that came back non-zero is REPORTED and counted, never a failure (CONVENTIONS §6.4):
+        # the finding is the point, the red is not. rc 2 (could not measure) prints the same way — the
+        # output below carries that word, so a blind reminder is visible without stopping a merge.
+        printf 'REMINDER not clean (rc %s): %s\n' "$rc" "$label"
+        rem=$((rem+1))
+      else
+        printf 'FAILED (rc %s): %s\n' "$rc" "$label"
+        fails=$((fails+1))
+      fi
     fi
   done
   # Say how fast the HOST was, not only how long the gate took. WHY: "why is the gate slow?" was
@@ -1159,10 +1188,15 @@ _report() {
   [ "$fails" -eq 0 ] || { printf '\n%d of %d items FAILED:\n' "$fails" "$ran"
     for i in "${!labels[@]}"; do
       [ "${states[$i]}" = "run" ] || continue
+      [ "${_reminders[$i]:-0}" = 1 ] && continue      # a reminder is never in the failed list
       [ "$(_rc_of "$i")" != "0" ] && printf '  - %s\n' "${labels[$i]}"
     done; exit 1; }
   [ "$filt" -gt 0 ] && echo "($filt items filtered by --only)"
   echo "OK: all validators passed"
+  if [ "$rem" -gt 0 ]; then
+    echo "   $rem REMINDER item(s) had findings — non-blocking by design (CONVENTIONS §6.4): the session"
+    echo "   that wrote the line clears it, and a reminder nobody clears for weeks is retuned, not promoted."
+  fi
   # The quick profile's last words must be what it did NOT prove (CONVENTIONS §6 applied to a profile:
   # a boundary prints, it never implies). After the verdict, so it is the last thing anyone reads.
   # An `if`, not `[ … ] &&`: as the function's LAST statement an AND-list would return 1 on a full run
@@ -1649,7 +1683,14 @@ item_q "check_bench_provenance.py --self-test (each verdict on fixtures, then a 
 # as REJECT "not in base ref" and redden a window that is otherwise clean. The self-test item below
 # stays registered too: its arms build their own throwaway repo, baseline and accepts list, so the
 # proof that the audit can still fail does not depend on the pinned window's contents.
-item_q "corpus_diff.py --gate (replays the pinned purge window: every change confined to rendered text, or signed by name)" "${PY_CMD[@]}" scripts/gate/corpus_diff.py --gate
+# stays registered too: its arms build their own throwaway repo, baseline and accepts list, so the
+# proof that the audit can still fail does not depend on the pinned window's contents.
+# ADVISORY since 2026-10-26 (CONVENTIONS §6.4): a REJECT list from a window that has aged past the
+# staleness cap is a re-sign reminder, not a regression, and hundreds of true-but-irrelevant REJECTs on
+# ordinary development is exactly how an audit gets muted. So --gate now prints its verdict and exits 0;
+# rc 2 (could not measure) still surfaces, because a gate that cannot read its window has no verdict to
+# soften. The hard form is `--strict`, and the self-test item below stays a hard item either way.
+item_reminder "corpus_diff.py --gate (REMINDER, non-blocking: replays the pinned purge window and prints what the window does not explain — re-signing the baseline at a wave tip is the act that clears it, CONVENTIONS §6.4)" "${PY_CMD[@]}" scripts/gate/corpus_diff.py --gate
 item_q "corpus_diff.py --self-test (classifier cases + both halves of the accepts/baseline canary)" "${PY_CMD[@]}" scripts/gate/corpus_diff.py --self-test
 # homelab-llm.json is GENERATED: a hand-edit that diverges from the generator is silent otherwise.
 # `--check` only compares, it writes nothing — the write-half (adapt-vllm-dashboards.py --inplace) is
@@ -1692,10 +1733,12 @@ item_q "testdata/rsync-max-delete/run.sh (the shape-parity arm + the two real rs
 item_q "ansible_query.py --self-test (HD-456 fixtures + the venv re-exec guard both seat planes depend on)" "${PY_CMD[@]}" scripts/ansible/ansible_query.py --self-test
 # HD-1199: the doc corpus had no size bound at all — this is the ratchet, cheap enough for the quick
 # profile because it reads 75 docs' line counts and nothing else.
-item_q "check_doc_size.py (HD-1199: a hand-authored docs/*.md may shrink and may not exceed its sealed line count; the seal fails in both directions, so deleting a baseline line launders nothing)" "${PY_CMD[@]}" scripts/gate/check_doc_size.py
-item_q "check_doc_size.py --self-test (the shrink half proved live so this is no silent cap, the new-doc ceiling proved separate from the seal rule, a render view invisible to every rule and refused from inside the seal, and a missing baseline / malformed body / empty corpus all refusing to print OK)" "${PY_CMD[@]}" scripts/gate/check_doc_size.py --self-test
+item_reminder "check_doc_size.py (REMINDER, non-blocking: the hand-authored docs/**/*.md against a DERIVED soft ceiling — a long doc of facts is a placement question (§8.1), never a red; the per-file seal this used to be measured against is retired, CONVENTIONS §6.4)" "${PY_CMD[@]}" scripts/gate/check_doc_size.py
+item_reminder "check_doc_size.py --self-test (the reminder half proved live so this is never a silent cap, the ceiling proved derived rather than sealed, a render view invisible to the walk, the retired baseline proved absent, and a broken root refusing to print a corpus line)" "${PY_CMD[@]}" scripts/gate/check_doc_size.py --self-test
 # HD-1200: the other direction of the docs seam — a role directory with no doc is invisible to every
 # docs→tree gate. Two reads and a substring scan, so it belongs in quick too.
+item_q "check_docs_pure.py (CONVENTIONS §6/§6.4: a doc may cite an HD/KOPS id only while its todo.md row lives — a dangling id reddens and the row's closing change must sweep it; changelog-shaped prose is printed as a reminder and never reddens)" "${PY_CMD[@]}" scripts/gate/check_docs_pure.py
+item_q "check_docs_pure.py --self-test (both severities bred: a dangling id reddens, an open row's id passes, a code-font HD-shaped value and an in-row recap stay silent, a live-verified date is state, a dated event sentence warns without reddening, fences and render views are invisible, a missing todo.md and a walk below the corpus floor both refuse at rc 2)" "${PY_CMD[@]}" scripts/gate/check_docs_pure.py --self-test
 item_q "check_role_docs.py (HD-1200: every dir under IaC/ansible/roles/ is named by a hand-authored docs/*.md — the role set is derived from the tree, never listed, and naming is decided by shape rather than by the string)" "${PY_CMD[@]}" scripts/gate/check_role_docs.py
 item_q "check_role_docs.py --self-test (a role bred and deleted in a temp tree to prove the set is derived, a prose-only role reddening with its sites printed while one code-font mention clears it, a render view unable to document a role, and an empty corpus / missing role tree / doc-less tree all refusing to print OK)" "${PY_CMD[@]}" scripts/gate/check_role_docs.py --self-test
 

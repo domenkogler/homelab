@@ -873,7 +873,7 @@ until ssh spark 'curl -sf -m 3 localhost:8000/health >/dev/null'; do sleep 10; e
 
 Probe **on the box** (`localhost:8000`), not through the edge: the edge returns 502 for reasons that are
 not the engine's (the `spark-dashboard` file-provider edge is in the restart-guard exclusion list exactly
-because a route converge must not cost an inference window — HD-451). This is also the readiness leg for
+because a route converge must not cost an inference window). This is also the readiness leg for
 `spark-oom-watchdog.sh rebaseline`: the watchdog's own `await-health` stage is the same condition, so
 re-baselining before this loop finishes baselines against a disarmed engine.
 

@@ -320,7 +320,7 @@ Two mechanisms account for everything in the table:
    content at that path; the previous one is orphaned where it stands. Every same-second timestamp burst is
    one recreate (2026-08-23 22:35, 2026-10-17 10:08, 2026-10-17 16:01).
 2. **a one-off `docker run postgres` with no pinned data path** — initdb wrote the cluster into the anonymous
-   volume instead of into a bind. This is the HD-247 class the row feared, and it is bounded: 14 clusters,
+   volume instead of into a bind. This is the anonymous-volume class the ledger feared, and it is bounded: 14 clusters,
    every one holding a user database whose body is template1's size (7–11 MB) — created, **never loaded** —
    and untouched since its first-start burst.
 

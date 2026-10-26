@@ -2,7 +2,8 @@
 
 > **Role:** AI session bootstrap. Read at the start of EVERY coding/agent task. Absolute map to the
 > mandatory context + the repo's working contract for agents.
-> **Linked from:** `readme-humans.md` (the human/family guide) & `AGENTS.md` guidance.
+> **Linked from:** `readme-humans.md` (the human/family guide) & [`AGENTS.md`](AGENTS.md) (the one-page
+> contract for an agent that did not start by reading this file).
 > **Scope note:** a `prompt-*.md` handoff may supersede this by naming its own context — this file is
 > the base, handoff files extend it.
 
@@ -114,6 +115,12 @@ task-specific dispatch. Do **not** bulk-read the repo.
   (the rows and their prices) + [`docs/harness-pi-models.md`](docs/harness-pi-models.md) §4c (why each
   row claims what it claims). The data-egress half of this rule reads a document's `sensitivity:` class —
   [CONVENTIONS.md](CONVENTIONS.md) §8.6.
+- **Docs state facts, commits state what changed** — a doc that reports what a session did or measured is
+  a changelog, and git is the only changelog ([CONVENTIONS.md](CONVENTIONS.md) §6, §6.4). A ticket id may
+  sit in a doc only while its `todo.md` row still exists (the work is genuinely open); when the row is
+  deleted the mention leaves in the same change. The prose-shape and size checks are **reminders** printed
+  by `validate-all.sh`, never blockers; a reminder is cleared by the session that wrote it, and dated
+  `live-verified` markers are state — keep them.
 - **SSOT direction:** values live in IaC (`group_vars/*.yml`, `host_vars/*.yml`,
   `rack-connections.json`). Generated `*-generated.md` docs are render views — **never hand-edit**
   them, and scripts never parse generated MD.
@@ -138,7 +145,7 @@ task-specific dispatch. Do **not** bulk-read the repo.
 6. implement → `bash scripts/validate-all.sh` green → update `todo.md` + owning `docs/*.md` per
    lifecycle (the finding/✅ goes to the doc, the row keeps only the remaining `⏳` items and shrinks;
    close-out record = owning doc + commit; the frozen changelog/journal are archived)
-   → commit — **plain `git commit`, signing is retired (HD-1116, 2026-10-08): `commit.gpgsign=false`, never
+   → commit — **plain `git commit`, signing is retired (2026-10-08): `commit.gpgsign=false`, never
      `git commit -s` (that adds a `Signed-off-by` trailer, it signs nothing), and `%G?` → `N` is the expected
      value, not a failure; CONVENTIONS §6**
 
@@ -205,7 +212,7 @@ a verdict — the parent had already verified the final state itself. Rules:
 > **Away from home (mobile hotspot / public Wi-Fi)?** SSH to LAN nodes goes through the VPS jump; service
 > traffic goes through the tailnet edge. The measured per-node matrix, what is broken today (`nas`,
 > oldsrv's management leg) and the three traps: [docs/network-vpn.md](docs/network-vpn.md) §Reaching LAN nodes when away.
-`CONVENTIONS.md` (root) · `docs/index.md` · `IaC/README.md` · [`scripts/README.md`](scripts/README.md) (validators, renderers, vault-seeding utilities) · `todo.md` · archive: `reports/changelog.md`, `reports/deployment-journal.md` (frozen)
+`CONVENTIONS.md` (root) · [`AGENTS.md`](AGENTS.md) (the one-page contract, for an agent that did not start here) · `docs/index.md` · `IaC/README.md` · [`scripts/README.md`](scripts/README.md) (validators, renderers, vault-seeding utilities) · `todo.md` · archive: `reports/changelog.md`, `reports/deployment-journal.md` (frozen)
 
 **Ansible questions — answer them without bulk-reading the tree.** §0 says *do not bulk-read the
 repo*; [`scripts/ansible/ansible_query.py`](scripts/ansible/ansible_query.py) is how that is done for Ansible. Read-only,

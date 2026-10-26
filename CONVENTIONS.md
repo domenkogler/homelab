@@ -109,7 +109,35 @@ A new service must clear this path (each step's owning doc is the anchor; violat
 - Language: English (technical), Slovenian (family/manual). Slovenian also covers the family-facing root guide `readme-humans.md`.
 - Decision dates are ISO `YYYY-MM-DD`; when touching a dated prose entry, fix year typos in the same change (2025→2026 sweep pending in five docs; the frozen `reports/changelog.md` / `reports/deployment-journal.md` are untouched archive).
 - Headers: every doc starts with `> **Role:**` and `> **Linked from:**` — enforced by convention.
-- **Docs are state-only (owning-doc rule):** an owning `docs/*.md` states current/desired state and nothing else — **no** changelog entries or dated "we did X / as of Y" narrative, **no** `HD-<n>` ids, **no** pointers to `todo.md` / `todo-table.md` / `prompt-*.md`, and **no** values that describe a state that no longer exists (a superseded placement, a retired component, an old pin — git keeps those). Dated execution prose belongs to `todo.md` while its row lives, and to `deployment-tasks.md` ticks + the commit message; a rejected alternative belongs to `<domain>-rejected.md`. A date survives in a doc only when the date IS the state: a live-verified marker, an expiry, a renewal. **The rule binds the root tool map `scripts/README.md` by the same argument** — it is the file an agent reads to decide which script to run, so a row there says what the script does (flags, verdicts, exit contract, declared limits) and which doc owns the detail, not what a ticket changed and when; `scripts/gate/check_registry_prose.py` enforces it there, the way `scripts/gate/check_iac_identifiers.py` does for `IaC/`.
+- **Docs state facts; commits state what changed (owning-doc rule):** an owning `docs/*.md` says what is
+  true now — configuration, invariants, interfaces, live status — and nothing else. A sentence that reports
+  an **event** (what a session did, found, measured, fixed, moved, ruled, renamed) belongs to the commit
+  message and `git log`, exactly as an `IaC/` comment does (§3 Comment hygiene): **git is the only changelog
+  this repo keeps.** A superseded value, placement or pin is a value that no longer exists, and git keeps it
+  (§2). The rule binds the root tool map `scripts/README.md` (§3 registry rows), the runbook (§4 ledger) and
+  the backlog surfaces (§4 housekeeping) by the same argument — different files, one rule.
+  - **Ticket ids, with one exception:** an `HD-<n>` / `KOPS-<n>` token may sit in a doc **only while its
+    `todo.md` row still exists** — the pointer is honest while the work is unfinished. When the row closes it
+    is deleted (§4(a)), and a doc still naming it points at nothing, so the mention leaves **in the same
+    change** as the row. An id is not stable prose (rows renumber, §4 Backlog); the fact outlives it.
+  - **A date is legal; a dated event is not.** Dates that ARE state stay and are never findings: expiry,
+    `valid_until`, a renewal, a firmware build date, and a **`live-verified` / as-built marker — there the
+    date IS the information** (it answers "how fresh is this claim?"). What is not state is a past-tense
+    **evidence verb anchored to a date** (`measured …`, `ruled …`, `fixed …` + `YYYY-MM-DD`): the verb marks
+    the sentence as history, the date only points at it. The closed verb list lives in
+    `scripts/gate/check_backlog_prose.py` and is **never re-typed here** (§2).
+  - **The finding is the sentence; the token is only the tell.** Clearing means rewriting the sentence as a
+    fact or cutting it — never deleting a date and keeping the story, because a stripped "measured X" is
+    still a story. **State Test:** after the next re-render and the next live verify, is this sentence still
+    true, and does anything read it? A sentence whose only purpose is to prove that someone checked is
+    changelog.
+  - **Enforcement is a REMINDER, not a blocker** (§6.4): `scripts/validate-all.sh` prints the prose-shape and
+    size findings and stays green, and every reminder line cites this section. Blocking is reserved for what
+    the tree can prove — a dangling ticket id, a stale citation, a secret literal — not for prose judgement.
+  - **Gate ownership:** `check_docs_pure.py` (`docs/**/*.md` + root `README.md`), `check_doc_size.py`
+    (corpus size, reminder), `check_registry_prose.py` (`scripts/README.md`), `check_runbook_purity.py`
+    (runbook), `check_backlog_prose.py` (`todo.md`, briefs), `check_iac_identifiers.py` (`IaC/`),
+    `check_handoff_size.py` (`prompt.md`).
 - Relative links only — markdown relatives to `docs/*.md`.
 - Secrets never in docs — 1Password `Homelab-ansible` vault only.
 - **Never print a secret VALUE to stdout / chat / git / transcripts** — probes show **lengths / prefixes / item IDs / hashes** only (rotation + readback precedents).
@@ -203,6 +231,36 @@ A new service must clear this path (each step's owning doc is the anchor; violat
 - **A string two files shipped byte-equal may not be renamed on one side**, so a deliberate rename changes every side in one commit; the enforcer is `scripts/gate/check_string_twins.py`, and its blind spots (payload block scalars, heredocs, rendered Jinja, twin families that never agreed at the pinned baseline) are stated with it in [scripts/README.md](scripts/README.md) §Validation gate.
 - **Collapsible `<details>` sections:** human/family-facing browser-rendered docs only (`readme-humans.md`, `docs/manual/*`) and only for optional asides (troubleshooting, FAQ) — **never** in agent-facing docs (owning specs, runbooks incl. `deployment-manual.md`, ledger, todo, or the frozen `reports/*` archives): the primary readers are AI agents working on raw text, where folds hurt grep-ability and add noise. Blank lines between the HTML tags and the inner Markdown are mandatory, else fences/tables render as raw text. Precedent: `readme-humans.md` §Za družino troubleshooting fold.
 
+### 6.4 Why the doc gates exist, why they remind, and what they are NOT
+
+- **Motivation, recorded once:** these gates were not built over long files or over formatting. They exist
+  because **the docs, the script registry, the runbook and the backlog were used as a changelog** — preserved
+  history, dated "as of" narration, session accounts of what was measured, and references to `HD-` rows that
+  had already been deleted. That text is a second copy of git that nothing re-renders: it goes false the
+  moment reality moves, and it buries the fact a reader came for.
+- **The rule is semantic; size is a proxy for it, never the rule.** A long doc made of facts is a *placement*
+  problem, and the fix is §8.1 — split a catalog out of an index — not a size finding. A changelog-shaped doc
+  is the defect at any length.
+- **Reminder semantics (ruled 2026-10-26):** the prose-shape and doc-size checks run in every validation,
+  print their findings **with a pointer to §6 / §6.4**, and **exit green** — they inform the next edit and
+  never veto one. Two consequences are binding. A reminder must **re-derive its finding on every run**: a
+  frozen per-file baseline would rot into permanent yellow nobody clears, because yellow never blocks a
+  merge — that is why the doc-size seal (`gate/doc_size_baseline.txt`) was retired rather than widened, and
+  why the size bound is derived at run time from the new-doc reference. And a reminder must stay **cheap to
+  clear in the same change**: one sentence rewritten, not a project. Findings nobody clears over weeks are
+  evidence the wording or the threshold is wrong, and are re-tuned rather than promoted to a blocker.
+  Every seat is the merge station, so nothing here waits on a special place or a special person.
+- **What stays a blocker:** a **dangling ticket id** (a doc naming an `HD-`/`KOPS-` row that no longer
+  exists — §6), a false statement the tree can disprove (secret literals and value disclosure, doc-map /
+  path / anchor citations, generated-view purity and SSOT drift, duplicate YAML keys, duplicate todo ids,
+  the session-worktree guard), and anything that would render a lie.
+- **Drain, do not sweep:** the reminder drains the corpus by touch — each doc's history leaves when a session
+  edits that doc. No purge wave is run for prose shape, because a wave of rewrites is what turned these files
+  into changelogs in the first place.
+- **What a reminder does not license:** accreting history "for context", citing a closed `HD` id as
+  provenance, or treating a printed reminder as debt someone else owes. The session that wrote the sentence
+  clears it.
+
 ---
 
 ## 7. Version-pin hygiene
@@ -272,8 +330,9 @@ A new service must clear this path (each step's owning doc is the anchor; violat
   belong to the seat-class domain even though the model contract it writes is about an AI engine.
 - **Central service stack index** = `docs/services.md` (catalog + networks + domains). It is the *only*
   pointer from `docs/index.md` for service layout.
-- **No doc is both** an index and a dumping ground: when a domain doc grows past ~1 screen of catalog
-  table, split the table into a `services-<x>.md` stack doc and link it from the index.
+- **No doc is both** an index and a dumping ground: a doc that mixes a pointer list with a catalog table
+  reads as a dumping ground whatever its length — split the table into a `services-<x>.md` stack doc and link
+  it from the index. Placement follows content shape, not line count (§6.4).
 
 ### 8.2 Generated docs — the `-generated` suffix
 - **Any file produced by a script/Ansible (not hand-authored) carries a `-generated` suffix** in its
