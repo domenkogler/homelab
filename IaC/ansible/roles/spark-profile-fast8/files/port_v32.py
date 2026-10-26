@@ -243,11 +243,12 @@ def main() -> int:
             if victim.exists():
                 victim.unlink()
                 print(f"port_v32: removed    {name} — {reason}")
-        # The deletion is verified, not assumed: `if exists` alone is silent about the one shape that
-        # matters, a day-0 build definition that reached the build directory under a name this table
-        # does not know yet. A directory that can run upstream's build.sh is a directory that can
-        # retag the live `fast` image, so "it was not there" and "nothing removed it" must not print
-        # the same way.
+        # Verify the deletion instead of assuming it: `if exists` + `unlink()` prints the same line for
+        # "there was nothing there" and "nothing was actually removed", and a build directory that can
+        # still run upstream's build.sh is a directory that can retag the live `fast` image. A day-0
+        # file that reached here under a name this table does not list is NOT caught by this read;
+        # what catches the damage it could do is the assert that re-reads every reserved tag after
+        # the build.
         left = [name for name, _ in REMOVED if (stage / name).exists()]
         if left:
             fail(1, f"{', '.join(left)} still in {stage} after the removal step — this build "
