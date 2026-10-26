@@ -103,6 +103,8 @@ def patterns_from_role():
         ("'CHANGEME' not in", "refuses a placeholder prompt-pin substring"),
         ("spark_llm_never_evict_capable_images", "refuses a prompt-pin on an image lineage "
          "whose build has no --never-evict-kv-cache-* argument"),
+        ("spark_llm_fp8_kv_capable_images", "refuses an fp8 KV cache on an image lineage whose "
+         "build carries no fp8 main-KV read path (the #55557 qsa.py guard)"),
         ("spark_llm_os_min_free_bytes", "checks free space on the root the artifacts use"),
         ("spark_llm_ple_pairing", "refuses a checkpoint/PLE-table combination nobody weighed "
          "(HD-489 tail B10)"),
@@ -198,6 +200,27 @@ def vllm_verdicts(profile, cat):
         f"spark_llm_never_evict_capable_images ({', '.join(capable) or 'EMPTY'}) — the "
         "--never-evict-kv-cache-* arguments exist only in the patched lineage, so anywhere else "
         "the engine dies at argument parse (live: reasoning restarts=105, 2026-10-04)")
+    # ---- fp8 KV is a BUILD capability, not a dial ----
+    # The dtype guard is a line of Python inside the image (`qsa.py`: supported_kv_cache_dtypes), so
+    # an fp8 profile on a build that predates vllm#55557 renders fine, passes every arithmetic
+    # invariant here, and dies ~20 minutes later inside EngineCore with NotImplementedError (the
+    # BF16-only QSA guard) in a Docker restart loop. `graded` is that record. A CERTIFIED fp8 claim on
+    # an incapable lineage is a FAIL; an UNCERTIFIED one is GATED — the role refuses it at converge,
+    # and an authored-and-refused arm must read as neither green nor broken (the empty-pin and
+    # REFUSED-pair precedent above / in ple-pairing).
+    fp8_capable = [str(x) for x in (cat.get("spark_llm_fp8_kv_capable_images") or [])]
+    fp8_unfit = str(dtype).startswith("fp8") and img not in fp8_capable
+    out["fp8-lineage"] = (
+        (not fp8_unfit) or not profile.get("certified"),
+        f"kv_cache_dtype={dtype!r} on image={img!r}, which is not in "
+        f"spark_llm_fp8_kv_capable_images ({', '.join(fp8_capable) or 'EMPTY'}) \u2014 that build's own "
+        "qsa.py declares supported_kv_cache_dtypes = [auto, bfloat16] and raises, so fp8 KV dies at "
+        "EngineCore init and the container restart-loops with every other gate green. Prove the "
+        "lineage with scripts/bench/spark-fp8-image-probe.py (UNDECIDED is not a verdict), or converge "
+        "the arm that names the rebuilt lineage (fast8) once its image ID is pinned")
+    if fp8_unfit and not profile.get("certified"):
+        GATED.append(f"kv_cache_dtype={dtype} on image {img}: no fp8 main-KV read path in that build "
+                     "\u2014 roles/spark-llm-profile refuses the converge")
     coords = {profile.get("models_root"), profile.get("ple_host_root"),
               profile.get("ple_host_base")}
     out["coordinates"] = (None not in coords and coords <= {"xfs", "os", "mount", "models"},
@@ -357,6 +380,11 @@ def canary(cat, pats):
         # require the refusal.
         ("pin-lineage", lambda p: p.update(
             never_evict_prompt="# Global instructions (loaded at every session start by pi)")),
+        # fp8 KV on a lineage whose qsa.py has no fp8 read path: bred from the CERTIFIED lane, whose
+        # image is `base`, so the dtype is the only difference from a green row. This is `graded`'s
+        # recorded failure (EngineCore NotImplementedError on the BF16-only QSA guard), and the shape
+        # the v32 lineage exists to make impossible.
+        ("fp8-lineage", lambda p: p.update(kv_cache_dtype="fp8")),
         ("cost-labelled", lambda p: p.update(fixed_cost_basis="guessed from the brochure")),
         ("cudagraph-cap", lambda p: p.update(max_cudagraph_capture_size=16)),
         ("ple-dispatch", lambda p: p.update(ple_dispatch=True)),   # dispatch on a non-mmap arm
@@ -418,7 +446,8 @@ def main():
     pats = patterns_from_role()
     for key in ("spark_llm_profiles", "spark_llm_kv_bytes_per_token",
                 "spark_llm_pool_ceiling_bytes", "spark_llm_device_hold_ceiling_bytes",
-                "spark_llm_profile_images", "spark_llm_never_evict_capable_images"):
+                "spark_llm_profile_images", "spark_llm_never_evict_capable_images",
+                "spark_llm_fp8_kv_capable_images"):
         if key not in cat:
             print(f"ERROR: {key} missing from {CATALOGUE.relative_to(ROOT)}", file=sys.stderr)
             return 2

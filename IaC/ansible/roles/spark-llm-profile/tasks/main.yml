@@ -157,6 +157,33 @@
       docs/services-ai-rejected.md) or move the arm onto a capable image.
   tags: [spark, spark-llm-profile, llm]
 
+# ---- fp8 KV is only legal on a lineage whose build carries the fp8 read path ----
+# The same failure shape as the pin above, bought by a different flag: the dtype guard is a line of
+# Python inside the image (`qsa.py`: supported_kv_cache_dtypes), so an fp8 profile on a build that
+# predates vllm#55557 renders perfectly, passes every arithmetic gate, and then dies inside
+# EngineCore at boot — a ~20-minute failure Docker reports as a restart loop. The upstream fix ships
+# in vLLM v0.31.0/v0.32.0; a stock release of it cannot serve the AR-hybrid checkpoint at all, so the
+# capable name is the PATCH STACK REBUILT on that base, not the release itself.
+- name: Assert an fp8 KV cache is never armed on an image lineage that cannot do fp8 KV
+  ansible.builtin.assert:
+    that:
+      - (not (spark_llm.kv_cache_dtype | string is match('^fp8'))) or spark_llm.image in spark_llm_fp8_kv_capable_images
+    fail_msg: >-
+      Profile '{{ spark_llm_profile }}' sets kv_cache_dtype='{{ spark_llm.kv_cache_dtype }}' but its
+      image '{{ spark_llm.image }}' is not in spark_llm_fp8_kv_capable_images
+      ({{ spark_llm_fp8_kv_capable_images | join(', ') }}). That build's own qsa.py declares
+      supported_kv_cache_dtypes = ["auto", "bfloat16"], so the engine dies at EngineCore init with
+      NotImplementedError: Qwen3.8-Flash-Next QSA requires a BF16 main KV cache and Docker
+      restart-loops the container while every other gate stays green. Prove the candidate lineage
+      FIRST — `python3 scripts/bench/spark-fp8-image-probe.py --image <pin>` must print a verdict on
+      the box leg (an UNDECIDED probe is NOT a verdict) — then add the image NAME to
+      spark_llm_fp8_kv_capable_images in group_vars/spark.yml in the same change that pins it
+      (CONVENTIONS §7). To run this arm as authored, converge the lineage's own profile (`fast8`)
+      after its image ID is pinned in group_vars/all/versions.yml; do NOT re-point an fp8 profile at
+      `base` or `ultrafast`, and never vendor the AGPL overlay patch or hand-edit a container's
+      site-packages.
+  tags: [spark, spark-llm-profile, llm]
+
 # ---- Free space on the root the artifacts ACTUALLY live on ----
 # One `df`, read-only, on the models root only when the profile uses the root partition.
 # `/` is the mount /opt/homelab sits on (docs/hardware-spark.md §Partition layout: p2 = the

@@ -164,6 +164,7 @@ def main():
 
     bad = []
     rendered_pin = []   # must stay empty: the pin is REJECTED (docs/services-ai-rejected.md)
+    gated_names = []    # arms whose rendered image is EMPTY = the designed gate, not a failure
     if "spark_llm_never_evict_capable_images" not in cat:
         bad.append("catalogue declares no spark_llm_never_evict_capable_images — the pin/lineage "
                    "check below would read an EMPTY list and pass whatever it renders (fail-loud, "
@@ -185,6 +186,8 @@ def main():
         if f["evict"]:
             rendered_pin.append(name)
         gated = not f["image"]
+        if gated:
+            gated_names.append(name)
         notes = []
         if gated:
             notes.append("IMAGE-PIN-EMPTY(gated)")
@@ -267,9 +270,15 @@ def main():
         print("\n--strict: every profile renders, parses, and carries a non-empty image pin.")
     else:
         print("\nAll profiles render and parse.")
-        print("The `ultrafast` image pin is RECORDED (versions.yml:311, sha256:4900c13e…); the")
-        print("only empty pin left is `fast-sglang` (spark_sglang_image) — its designed gate. "
-              "roles/spark-llm-profile refuses those profiles until a pin lands.")
+        # Derived from the table above, never hardcoded here: which arms still resolve to an EMPTY
+        # image pin is a fact about versions.yml, and a sentence that names them by hand goes stale
+        # the moment a pin lands or a new gated arm is authored (CONVENTIONS §6).
+        if gated_names:
+            print(f"Arms whose image pin is EMPTY, by design (CONVENTIONS §7 — an empty pin IS the "
+                  f"refusal, and roles/spark-llm-profile enforces it at converge): "
+                  f"{', '.join(gated_names)}")
+        else:
+            print("Every profile names a pinned image.")
     return 0
 
 

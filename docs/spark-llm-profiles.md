@@ -24,6 +24,7 @@ engine or quantization must not move any of those four, or every client breaks a
 | `reasoning` | vLLM pinned fork · AWQ W4A16 + PLE **INT4** + MTP3 | `auto` (bf16) 16 GB pool = **515,679** token slots ≈ **1.97 ×** the 262,144 window | the certified S1 config; the 3-rung load chain holds 94.6 % of pool, 0 kernel OOM, worst `usable` **17.78 GiB** | **LIVE + certified** ([`spark/reports/hd469-reasoning/`](../spark/reports/hd469-reasoning/README.md) · [`spark/reports/stability/`](../spark/reports/stability/README.md)); the **under-cap baseline and gates 5–7 are still owed** |
 | `graded` | same weights/engine | **fp8** 16 GB pool ≈ **876,664** slots ≈ **3.34 ×** window (fp8 = **1.70–1.89×**, NOT 2× — main K/V only) | graded thinking chains stop evicting each other at 4 concurrent sessions | **BLOCKED ON THE IMAGE PIN, not on the model** — the pinned build's `qsa.py` declares `supported_kv_cache_dtypes = ["auto","bfloat16"]` and raises, so fp8 KV dies at EngineCore init ([evidence](../spark/reports/hd469-graded/README.md) · [pin check](../spark/reports/hd473-pin-check-20261025/README.md)). The upstream fix (vllm#55557) is merged and **ships in vLLM v0.31.0+** — arm64 manifests, CUDA 13 — while the model-specific ref pinned here predates it (v0.30.0 still carries the raise). Reaching it = an engine-pin change + re-cert, not a flip |
 | `fast` | vLLM same fork · AutoRound **W4A16 AR-hybrid** + FP8 PLE **disk-mmap** + in-checkpoint MTP-3 with block rejection, `enforce_eager: true`, `spec{mtp,3,block,probabilistic}` | `auto` (bf16) 20 GB pool = **644,599** slots = **2.46 ×** window, 80,575 tokens/stream at the `max_num_seqs: 8` ceiling | the implementator lane: C2L decode **39.7 tok/s**, TTFT p50 ~0.7 s, ITL p50 ~65 ms, MTP accept 49–55 %, 0 preemptions | **LIVE + certified** on the 20 GB / seqs-8 shape ([`spark/reports/hd489-ar-blk/`](../spark/reports/hd489-ar-blk/README.md) · [`spark/reports/hd489-legs-20261006-1228/`](../spark/reports/hd489-legs-20261006-1228/RESULTS.md)); the catalogue's `certified_evidence` names the gates and the one battery re-run still owed |
+| `fast8` | vLLM · the **same** AutoRound **W4A16 AR-hybrid** + FP8 PLE **disk-mmap** + MTP-3 block, on the patch stack **rebuilt ON a v0.32 base** (`image: ultrafast-v32`) — a stock release cannot serve this checkpoint at all | **fp8** 20 GB pool = **1,095,830** slots = **4.18 ×** window, 136,978 tokens/stream at the `max_num_seqs: 8` ceiling — the SAME 20 GB `fast` fills at bf16, read through 18,251 B/token | fp8 KV is the only thing that makes ≥ 4 concurrent full windows exist on this box, and it buys **slots inside the same 20 GB**, not a bigger pool: the AR-hybrid fixed cost already caps the pool | **authored + gate-blocked** on the unpinned v0.32 lineage (`spark_vllm_ultrafast_v32_image` is EMPTY — an empty pin IS the refusal), and an fp8 dtype is refused on every other lineage (`spark_llm_fp8_kv_capable_images`). Gates 8–9 — MTP acceptance old-vs-new dtype, quality vs the noise floor — are the bar after that; where the pool cap comes from: [hardware-spark.md](hardware-spark.md) §The fixed cost, MEASURED |
 | `fast-sglang` | **SGLang** · RadixArk NVFP4 | SGLang pool semantics (`--mem-fraction-static 0.80` / `--max-total-tokens`), not `--kv-cache-memory-bytes`; the vendor's measured single-Spark pools are ~93k–174k tokens | proves the *engine* swap is also one var | authored + **gate-blocked** on three counts: no registry-verified arm64 digest (CONVENTIONS §7 — the only builds with support ≥ v0.5.20 + the #38121 loader are floating dev tags); the measured pool cannot hold our 262,144 window (closing it needs sglang fp8 KV = open PR #36644); and file-backed PLE (`--ple-offload-backend file`, #37068) needs a bind that is not wired yet. The vendor's own text confirms the arithmetic, including why plain `--ple-offload-embedding` does nothing on GB10 |
 
 **Measured constants the arithmetic uses** (owner's numbers, not estimates — same basis as
@@ -45,6 +46,17 @@ weight change a POOL change.
 > exception that leaves every other profile gated at the global 113.000e9. The global is now the
 > measured rest floor; its numbers and the sampler behind them are in Ledger: [hardware-spark.md](hardware-spark.md) §The fixed cost, MEASURED.
 
+**What the fp8 constant buys at a fixed pool.** fp8 does not enlarge the pool — on the AR-hybrid
+checkpoint the ceiling is already reached in bf16 (`112.70e9 − 92.13e9 ≈ 20.57 GB` of room, and
+`fast` takes the largest 1-GB-rounded pool inside it), so the only lever left is bytes per token:
+31,027 → 18,251 turns the SAME pool from 2.46 × the 262,144 window into 4.18 × it, i.e. **136,978
+tokens per stream at `max_num_seqs: 8`** instead of 80,575 — the first shape on this box where four
+full windows coexist without preempting each other. That is the whole arithmetic of the `fast8` arm,
+and it is a PROJECTION: the 1.70× floor of the measured 1.70–1.89× range is what makes it a floor
+rather than a promise, and the engine's own `GPU KV cache size` line on the boot that finally runs it
+is the number of record. The dtype is also a BUILD property, not a flag: it needs a build carrying
+the #55557 fp8 read path (vLLM v0.31.0+), which no pin on this box is yet.
+
 No profile on this box claims four concurrent full windows: `reasoning` and `fast` hold **1.97 ×** and
 **2.46 ×**, and four full windows need fp8 KV. A "4 × 262k" claim is an fp8-pool claim built on the
 flat-2× constant and it fails its own bound (≈905k, 3.45 ×). **Never quote a projection where the engine
@@ -64,7 +76,11 @@ weights — `fast` fits 16 GiB of KV at NVFP4's weight cost and still walks the 
 global OOM that Docker reports as `OOMKilled: false`) · CUDA-graph capture cap above
 `max_num_seqs` · for SGLang: `--mem-fraction-static` > 0.80 (0.85 = DGX OS's
 earlyoom threshold), `--max-total-tokens` below the advertised window, and
-`--ple-offload-embedding` without `--ple-offload-backend file` · profile **not certified**
+`--ple-offload-embedding` without `--ple-offload-backend file` · **a KV dtype the image's own build
+cannot execute** — an fp8 value is refused unless the profile's `image` is in
+`spark_llm_fp8_kv_capable_images`, the same lineage-rule shape as the prompt-pin above, because the
+fp8 main-KV read path is a property of the build (`qsa.py`), not of the flag (the `fast8` arm exists
+to name a lineage that has it) · profile **not certified**
 without `spark_llm_allow_uncertified: true` · **a checkpoint that is not the checkpoint the
 profile names**, and **a checkpoint/PLE-table combination that was never weighed** (both below)
 · artifacts not staged. It never downloads
@@ -174,13 +190,14 @@ README's rule 0.
 Upstream [qwen3.8-Flash-DGX-UltraFast](https://github.com/dime-online/qwen3.8-Flash-DGX-UltraFast)
 v16b (Apache-2.0, pinned `0c391a3` in `group_vars/all/versions.yml`) is **13 candidate arms on this
 dial**, not a second stack. The count is the catalogue's, and it is checkable: the keys of
-`spark_llm_profiles` in `IaC/ansible/group_vars/spark.yml` minus the `_x` merge anchor and minus the three
-profiles this funnel did not introduce (`reasoning`, `graded`, `fast-sglang`) = 13 arms. The tier bullets
+`spark_llm_profiles` in `IaC/ansible/group_vars/spark.yml` minus the `_x` merge anchor and minus the four
+profiles this funnel did not introduce (`reasoning`, `graded`, `fast-sglang`, and `fast8` — the fp8 arm
+the engine-pin lane authors on this funnel's winner) = 13 arms. The tier bullets
 below name 11 of them; the two they leave out are the funnel's tail arms `ar-blk-lean` (the dispatch-env
 isolation) and `awq-mmap` (AWQ on the winner's machinery), both live catalogue entries with their own
 rejected-log row, and the winner is catalogued under its dial name `fast` rather than its arm name `ar-blk`.
 
-**A profile NAMES things instead of hardcoding them** — `image: base|ultrafast|sglang`,
+**A profile NAMES things instead of hardcoding them** — `image: base|ultrafast|ultrafast-v32|sglang`,
 `models_root: xfs|os`, `ple_host_base: mount|models`, one PLE mechanism (`ple_overlay` XOR
 `ple_mmap`). The compose template is the only place those names become paths, so a profile has
 one representation and the gate can refuse a bad name with a remediation. Shared defaults live
