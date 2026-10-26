@@ -39,12 +39,17 @@ WHAT NEVER CHANGES, whichever route answers:
     8-char secret is a dictionary oracle (the reason is written into check_secret_leak.py, whose
     history-cache key consumes this exact formula).
   * nothing is written to disk: no cache, no holder, no TTL. Values live and die in memory.
+  * a PARTIAL read is never silent. An item that did not read comes back in `VaultRead.errors` and
+    the run prints one NOTE — on EVERY route, including the re-exec handoff, where the child's
+    stdout is the answer and its stderr is a nobody. A leg that must not act on a half-seen value
+    set (check_secret_leak.py's `--update-ledger`) reads that list, not the log line.
 
 USE (python legs — the normal form):
     from vault_read import read_vault, read_item, Boundary
     vr = read_vault()                       # one batched read shared by the whole leg
     vr.items[item_id]                       # {"title","version","fields":[{"id","label","value","type","section"}]}
     vr.requests, vr.route, vr.vkey          # what it cost, which route answered, the versions digest
+    vr.errors                               # items that did NOT read — a partial read says so
     vr.print_cost("my_leg.py")              # the leg's own quota line — ONE shape every leg prints
     one = read_item("victoria-metrics_api") # ONE item where one item is all the leg needs (1 request);
                                             # the same read shape: one.only() is the row, one.requests
@@ -69,7 +74,9 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
 import hashlib
+import io
 import json
 import os
 import shlex
@@ -155,9 +162,9 @@ def _norm_fields(raw_fields: list[dict]) -> list[dict]:
 
 
 # --------------------------------------------------------------------------- route: fixture
-def _read_fixture(path: Path) -> tuple[dict, int]:
+def _read_fixture(path: Path) -> tuple[dict, int, list[str]]:
     """The ZERO-request route. The file uses the --values shape; anything unparsable is a Boundary,
-    never a silently empty vault."""
+    never a silently empty vault. A fixture holds what it holds, so it cannot read partially."""
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
@@ -169,7 +176,7 @@ def _read_fixture(path: Path) -> tuple[dict, int]:
     out = {iid: {"title": row.get("title", "?"), "version": row.get("version"),
                  "fields": _norm_fields(row.get("fields", []))}
            for iid, row in items.items()}
-    return out, 0
+    return out, 0, []
 
 
 # --------------------------------------------------------------------------- route: SDK
@@ -210,22 +217,30 @@ def sdk_probe() -> tuple[list[str] | None, list[str]]:
     return found, log
 
 
-def _emit_values_json(items: dict, requests: int = 0) -> str:
+def _emit_values_json(items: dict, requests: int = 0, errors: list[str] | None = None) -> str:
     # ensure_ascii=True keeps the value pipe pure ASCII: every non-ASCII character, and every
     # control character including a CR, leaves here as an escape that json.loads() puts back
     # byte-exactly. The re-exec handoff then cannot depend on the seat locale (docs/harness-pi-seats.md
     # §1 — the HD-1202 rule), which the self-test pins with a planted CR and a planted non-ASCII value.
+    #
+    # `errors` rides along because the re-exec child is the one route whose partial read the parent
+    # would otherwise never see: the child's stderr is a diagnostic, its stdout is the answer.
     return json.dumps({"items": {iid: {"title": row["title"], "version": row["version"],
                                        "fields": row["fields"]}
                                  for iid, row in items.items()},
-                       "requests": requests},
+                       "requests": requests,
+                       "errors": list(errors or [])},
                       ensure_ascii=True)
 
 
-def _read_via_launcher(launcher: list[str], vault: str) -> tuple[dict, int]:
+def _read_via_launcher(launcher: list[str], vault: str) -> tuple[dict, int, list[str]]:
     """Cross to an interpreter that has the SDK and take the JSON back over a PIPE. The child runs
     THIS module in --values mode; stdout is captured (never inherited), so no value can land on a
-    tty here, and the child's own pipe rule refuses one anyway."""
+    tty here, and the child's own pipe rule refuses one anyway.
+
+    The child's `errors` are read, not just its items: this is the route a Win11 seat normally
+    takes, and a partial read that stops at the child's stdout would be silent exactly where the
+    batched read is the plan."""
     r = subprocess.run([*launcher, str(Path(__file__).resolve()), "--values", "--vault", vault,
                         "--sdk-required"],
                        capture_output=True, stdin=subprocess.DEVNULL)
@@ -240,19 +255,25 @@ def _read_via_launcher(launcher: list[str], vault: str) -> tuple[dict, int]:
     except json.JSONDecodeError as exc:
         raise Boundary(f"the SDK reader's answer was not JSON: {exc}") from exc
     requests = int(data.get("requests", 0))
+    errs = [str(e) for e in (data.get("errors") or [])]
     items = {iid: {"title": row.get("title", "?"), "version": row.get("version"),
                    "fields": _norm_fields(row.get("fields", []))}
              for iid, row in data.get("items", {}).items()}
-    return items, requests
+    return items, requests, errs
 
 
 def shlex_join(argv: list[str]) -> str:
     return shlex.join(argv)
 
 
-def _read_sdk(vault: str) -> tuple[dict, int]:
+def _read_sdk(vault: str) -> tuple[dict, int, list[str]]:
     """In-process SDK route. `items.list` names the whole vault in one call; values come from
-    `items.get_all` in chunks of GET_ALL_CAP. Nothing is stored anywhere but memory."""
+    `items.get_all` in chunks of GET_ALL_CAP. Nothing is stored anywhere but memory.
+
+    An `individual_response` with no content is a MISSING item, not a harmless one: it comes back in
+    `errors` so the read says it was partial — every route answers the same three-tuple for that
+    reason, and a leg cannot tell "the vault holds 142 items" from "one item failed and 142 came
+    back" any other way."""
     try:
         import onepassword  # noqa: F401
     except ImportError as exc:
@@ -286,10 +307,7 @@ def _read_sdk(vault: str) -> tuple[dict, int]:
     items, requests, errs = asyncio.run(_main())
     if not items:
         raise Boundary("items.list answered ZERO items — an empty vault answer is not an empty fleet")
-    if errs:
-        print(f"vault-read NOTE: {len(errs)} item(s) did not read via the SDK "
-              f"(first: {errs[0]}) — a partial read is not a clean read", file=sys.stderr)
-    return items, requests
+    return items, requests, errs
 
 
 # --------------------------------------------------------------------------- route: op FALLBACK
@@ -384,23 +402,35 @@ def _read_op_fanout(vault: str) -> tuple[dict, int]:
     if not items:
         raise Boundary("the fallback read produced ZERO items — a vault that answers nothing is an "
                        "environment boundary, not a clean fleet")
-    if errs:
-        print(f"vault-read NOTE: {len(errs)} item(s) did not read (first: {errs[0]}) — a partial "
-              "read is not a clean read", file=sys.stderr)
-    return items, requests
+    return items, requests, errs
 
 
 # --------------------------------------------------------------------------- the read
-class VaultRead:
-    """What one batched read answered: items in memory, the request count, the route, and the
-    versions digest. Attributes, not a dict, so a leg cannot mutate the shared read by accident."""
+def _note_partial(errs: list[str]) -> None:
+    """ONE line per read, whichever route answered. An item that did not read is not a harmless
+    gap: its values were never compared and its name was never seen, so the run must say PARTIAL
+    rather than look quiet. The routes RETURN their errors for this; a route that printed them itself
+    would print the line twice on the re-exec path, where the child answers across a pipe."""
+    if errs:
+        print(f"vault-read NOTE: {len(errs)} item(s) did not read (first: {errs[0]}) — a partial "
+              "read is not a clean read", file=sys.stderr)
 
-    def __init__(self, items: dict, requests: int, route: str, vkey: str, cred_route: str = ""):
+
+class VaultRead:
+    """What one batched read answered: items in memory, the request count, the route, the versions
+    digest, and the items that did NOT read. Attributes, not a dict, so a leg cannot mutate the
+    shared read by accident."""
+
+    def __init__(self, items: dict, requests: int, route: str, vkey: str, cred_route: str = "",
+                 errors: list[str] | None = None):
         self.items = items
         self.requests = requests
         self.route = route
         self.vkey = vkey
         self.cred_route = cred_route
+        # The partial reads travel with the read, they do not vanish into a route's stderr: the leak
+        # gate's `errs` argument — and its refusal to shorten the ledger — depend on it arriving.
+        self.errors = list(errors or [])
 
     def by_title(self, title: str) -> dict | None:
         hits = [row | {"id": iid} for iid, row in self.items.items() if row.get("title") == title]
@@ -432,11 +462,12 @@ def read_vault(vault: str = DEFAULT_VAULT, note: str = "") -> VaultRead:
     """The ONE whole-vault read. Fixture seam: HL_VAULT_READ_FIXTURE. Boundary = no read, no guess."""
     fixture = os.environ.get("HL_VAULT_READ_FIXTURE")
     if fixture:
-        items, requests = _read_fixture(Path(fixture))
+        items, requests, errs = _read_fixture(Path(fixture))
         route = "fixture"
         key = _vkey(items)          # digested ONCE: the line printed and the object returned agree
         _say(route, requests, len(items), key)
-        return VaultRead(items, requests, route, key)
+        _note_partial(errs)
+        return VaultRead(items, requests, route, key, errors=errs)
 
     ok, why = _vault_ensure()
     if not ok:
@@ -448,11 +479,11 @@ def read_vault(vault: str = DEFAULT_VAULT, note: str = "") -> VaultRead:
 
     forced = os.environ.get("HL_VAULT_READ_ROUTE", "")
     if forced == "op-fanout":
-        items, requests = _read_op_fanout(vault)
+        items, requests, errs = _read_op_fanout(vault)
         route = "op-fanout(FALLBACK)"
     else:
         try:
-            items, requests = _read_sdk(vault)
+            items, requests, errs = _read_sdk(vault)
             route = "sdk"
         except ImportError:
             launcher, log = sdk_probe()
@@ -462,16 +493,17 @@ def read_vault(vault: str = DEFAULT_VAULT, note: str = "") -> VaultRead:
                 print("vault-read: no interpreter imports onepassword — taking the labelled "
                       "op-fanout FALLBACK (1 request per item). The seat step that removes this "
                       "line: `python3 scripts/lib/vault_read.py --install-sdk`", file=sys.stderr)
-                items, requests = _read_op_fanout(vault)
+                items, requests, errs = _read_op_fanout(vault)
                 route = "op-fanout(FALLBACK)"
             else:
-                items, requests = _read_via_launcher(launcher, vault)
+                items, requests, errs = _read_via_launcher(launcher, vault)
                 route = f"sdk:{launcher[-1] if len(launcher) == 1 else '+'.join(launcher)}"
     if note:
         print(f"vault-read: {note}", file=sys.stderr)
     key = _vkey(items)              # digested ONCE — see the fixture arm above
     _say(route, requests, len(items), key, cred_route)
-    return VaultRead(items, requests, route, key, cred_route)
+    _note_partial(errs)             # once, here, whatever route answered
+    return VaultRead(items, requests, route, key, cred_route, errs)
 
 
 def read_item(title: str, vault: str = DEFAULT_VAULT) -> VaultRead:
@@ -485,8 +517,8 @@ def read_item(title: str, vault: str = DEFAULT_VAULT) -> VaultRead:
     from asking "which of these two did I get back?"."""
     fixture = os.environ.get("HL_VAULT_READ_FIXTURE")
     if fixture:
-        items, _ = _read_fixture(Path(fixture))
-        vr = VaultRead(items, 0, "fixture", _vkey(items))
+        items, _, errs = _read_fixture(Path(fixture))
+        vr = VaultRead(items, 0, "fixture", _vkey(items), errors=errs)
         row = vr.by_title(title)
         if row is None:
             raise Boundary(f"the fixture vault has no item titled {title!r}")
@@ -605,18 +637,20 @@ def main() -> int:
                 # a line that claims the batched read, so the child that cannot do the SDK says so
                 # at rc 4 and the parent decides.
                 try:
-                    items, requests = _read_sdk(args.vault)
+                    items, requests, errs = _read_sdk(args.vault)
                 except ImportError as exc:
                     print(f"vault-read: {exc}", file=sys.stderr)
                     return 4
                 _say("sdk", requests, len(items), _vkey(items))
-                sys.stdout.write(_emit_values_json(items, requests))
+                # errors ride the ANSWER, not the child's stderr: the parent parses stdout, and a
+                # partial read that stops at this pipe is the P1 this whole payload exists for.
+                sys.stdout.write(_emit_values_json(items, requests, errs))
                 return 0
             vr = read_vault(args.vault)
         except Boundary as exc:
             print(f"vault-read: {exc}", file=sys.stderr)
             return 1
-        sys.stdout.write(_emit_values_json(vr.items, vr.requests))
+        sys.stdout.write(_emit_values_json(vr.items, vr.requests, vr.errors))
         return 0
 
     if args.item:
@@ -753,7 +787,7 @@ def self_test() -> int:
             "class _I:\n"
             "    def __init__(s, i): s.id, s.title, s.version, s.fields, s.vault_id = 'iid' + str(i).zfill(26), 'item_' + str(i), 1 + i, [_F(i)], 'vaultid'\n"
             "class _R:\n"
-            "    def __init__(s, c): s.content, s.error = c, None\n"
+            "    def __init__(s, c, e=None): s.content, s.error = c, e\n"
             "class _Resp:\n"
             "    def __init__(s, rs): s.individual_responses = rs\n"
             "class _Items:\n"
@@ -761,7 +795,10 @@ def self_test() -> int:
             "        CALLS.append('list'); return [_I(i) for i in range(55)]\n"
             "    async def get_all(s, v, ids):\n"
             "        assert len(ids) <= 50, 'a chunk over the API cap is a request the server refuses'\n"
-            "        CALLS.append('get_all'); return _Resp([_R(_I(int(i[3:]))) for i in ids])\n"
+            "        CALLS.append('get_all')\n"
+            "        bad = os.environ.get('STUB_FAIL_ONE', '')\n"
+            "        return _Resp([_R(None, 'item unavailable (stub)') if bad == i else _R(_I(int(i[3:])))\n"
+            "                      for i in ids])\n"
             "class Client:\n"
             "    items = _Items()\n"
             "    @classmethod\n"
@@ -772,16 +809,61 @@ def self_test() -> int:
         sys.path.insert(0, str(tdp / "stublib"))
         for m in [k for k in sys.modules if k.startswith("onepassword")]:
             sys.modules.pop(m, None)
+        tok_before = os.environ.get("OP_SERVICE_ACCOUNT_TOKEN")
         os.environ["OP_SERVICE_ACCOUNT_TOKEN"] = "x" * 48
         try:
-            items_s, requests_s = _read_sdk("V")
+            items_s, requests_s, errs_s = _read_sdk("V")
             import onepassword as _op_pkg
-            ok6 = len(items_s) == 55 and requests_s == 3 and _op_pkg.CALLS.count("get_all") == 2
-            detail6 = f"items {len(items_s)} requests {requests_s} calls {getattr(_op_pkg, 'CALLS', None)}"
+            ok6 = len(items_s) == 55 and requests_s == 3 and errs_s == [] \
+                and _op_pkg.CALLS.count("get_all") == 2
+            detail6 = f"items {len(items_s)} requests {requests_s} errors {errs_s} calls {getattr(_op_pkg, 'CALLS', None)}"
         except Exception as exc:
-            ok6, detail6 = False, f"{type(exc).__name__}: {str(exc)[:140]}"
+            items_s, ok6, detail6 = {}, False, f"{type(exc).__name__}: {str(exc)[:140]}"
         check("the SDK route costs one list + one get_all per 50-ID chunk (55 items -> 3 calls)",
               ok6, detail6)
+
+        # (6b) A PARTIAL read on the SDK route. An `individual_response` with no content is an item
+        # this run never saw — so it must arrive as `errors`, the run must say so ONCE, and the item
+        # count must not read like a whole fleet. This is the finding the leak gate's permanently-empty
+        # `errs` list came from: a route that printed its note into its own stderr, on the re-exec
+        # path the only route this seat takes, printed it where nobody was listening.
+        try:
+            bad_id = "iid" + "3".zfill(26)
+            os.environ["STUB_FAIL_ONE"] = bad_id
+            err_cap = io.StringIO()
+            with contextlib.redirect_stderr(err_cap):
+                vr_p = read_vault("V")
+            got_err = err_cap.getvalue()
+            check("a partial SDK read arrives as errors and the run says PARTIAL once, not twice",
+                  len(vr_p.items) == 54 and len(vr_p.errors) == 1
+                  and got_err.count("partial read is not a clean read") == 1
+                  and "item unavailable" in vr_p.errors[0],
+                  f"items {len(vr_p.items)} errors {vr_p.errors} note {got_err.count('partial')}")
+
+            # (6c) and the SAME partial read down the re-exec handoff, the route a Win11 seat
+            # actually takes: the child's errors must cross the pipe in the ANSWER, not in its
+            # stderr, and the parent must still say it once.
+            pp_before = os.environ.get("PYTHONPATH")
+            os.environ["PYTHONPATH"] = str(tdp / "stublib")
+            try:
+                items_x, requests_x, errs_x = _read_via_launcher([sys.executable], "V")
+                check("the re-exec SDK handoff carries the child's partial read across the pipe",
+                      len(items_x) == 54 and len(errs_x) == 1 and requests_x >= 3,
+                      f"items {len(items_x)} requests {requests_x} errors {errs_x}")
+            finally:
+                if pp_before is None:
+                    os.environ.pop("PYTHONPATH", None)
+                else:
+                    os.environ["PYTHONPATH"] = pp_before
+        except Exception as exc:
+            check("a partial SDK read arrives as errors and the run says PARTIAL once, not twice",
+                  False, f"{type(exc).__name__}: {str(exc)[:160]}")
+        finally:
+            os.environ.pop("STUB_FAIL_ONE", None)
+            if tok_before is None:
+                os.environ.pop("OP_SERVICE_ACCOUNT_TOKEN", None)
+            else:
+                os.environ["OP_SERVICE_ACCOUNT_TOKEN"] = tok_before
         check("the SDK read keys versions by item ID like every other route",
               ok6 and _vkey(items_s) == _vkey({k: {"version": v["version"]}
                                                for k, v in items_s.items()}))
@@ -805,6 +887,8 @@ def self_test() -> int:
             "if 'list' in args:\n"
             "    sys.stdout.write(open(os.environ['OP_STUB_LIST'], encoding='utf-8').read())\n"
             "elif 'get' in args:\n"
+            "    if args[2] == os.environ.get('OP_STUB_FAIL_ID', ''):\n"
+            "        sys.stderr.write('stub: this item did not read'); sys.exit(1)\n"
             "    json.dump({'id': args[2], 'title': 't', 'version': 1,\n"
             "               'fields': [{'id': 'password', 'label': 'password',\n"
             "                           'value': 'vvvvvvvvvv', 'type': 'Concealed'}]}, sys.stdout)\n",
@@ -839,6 +923,25 @@ def self_test() -> int:
               and len(get_calls) == 4 and calls_txt.count("item list") == 1 and not mis
               and "route=op-fanout" in err7 and "requests=5" in err7,
               f"rc {r.returncode} gets {len(get_calls)} misaddressed {mis[:1]}")
+
+        # (7e) a PARTIAL read on the FALLBACK route: one get answers rc != 0. The read must say so,
+        # the count must still include the request that failed (the account paid for it), and the
+        # --values payload must carry the error so a leg on the other side of the pipe can act on it.
+        log7e = tdp / "op-partial.log"; log7e.write_text("", encoding="utf-8")
+        r = subprocess.run([sys.executable, str(Path(__file__).resolve()), "--values", "--vault", "V"],
+                           capture_output=True, stdin=subprocess.DEVNULL,
+                           env=dict(env_fall, OP_STUB_LOG=str(log7e), OP_STUB_FAIL_ID=rows[1]["id"]))
+        try:
+            got7e = json.loads(r.stdout.decode("utf-8", "replace"))
+        except Exception:
+            got7e = {}
+        err7e = (r.stderr or b"").decode("utf-8", "replace")
+        check("a failed `op item get` is a named partial read, counted, and carried in the payload",
+              r.returncode == 0 and len(got7e.get("items", {})) == 3
+              and len(got7e.get("errors", [])) == 1
+              and err7e.count("partial read is not a clean read") == 1 and "requests=5" in err7e,
+              f"rc {r.returncode} items {len(got7e.get('items', {}))} errors {got7e.get('errors')} "
+              f"err {err7e[-120:]!r}")
 
         # (7b) a COLD ID map: the fan-out must answer it with its OWN list (2 billed for the name
         # resolution), never with a separate discovery list, and the gets must still go out

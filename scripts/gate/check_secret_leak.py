@@ -197,7 +197,11 @@ def load_values() -> tuple[dict[bytes, list[str]], dict[str, str], list[str], li
         raise Boundary(str(exc)) from exc
     needles: dict[bytes, list[str]] = {}
     short: list[str] = []
-    errs: list[str] = []
+    # The reader's OWN partial-read list, not an empty one declared here: an item that failed to read
+    # is an item whose value was never compared, and the report's "a partial read is not a clean
+    # read" line is only true if it arrives. (It used to stay empty forever, which made that line
+    # unreachable prose and the ledger below it unsafe to re-derive.)
+    errs: list[str] = list(vr.errors)
     titles = {iid: row.get("title", "?") for iid, row in vr.items.items()}
     for iid, row in vr.items.items():
         for v in _secret_fields(row):
@@ -670,7 +674,8 @@ LEDGER_HEADER = [
 
 
 def update_ledger(path: Path, findings: list[Finding], judged: set[str],
-                  class_scope: list[str] | None = None) -> int:
+                  class_scope: list[str] | None = None,
+                  partial: list[str] | None = None) -> int:
     """Rewrite the book from this run — without ever deleting a debt this run could not see.
 
     The old behaviour was `write_ledger(findings)`: derive everything from what THIS seat's scan set
@@ -682,8 +687,21 @@ def update_ledger(path: Path, findings: list[Finding], judged: set[str],
 
     `judged` is the set of classes this run actually read with a non-empty corpus — the only classes
     entitled to prove a pair absent.
+
+    `partial` is the reader's list of items that did NOT read. A run holding one cannot prove any
+    pair absent, because a hit is a match against the CURRENT value set and part of that set is
+    unknown to it — so the rewrite is refused, not narrowed. (The unread item's own id is not carried
+    here on purpose: the SDK's `individual_responses` do not promise the order the IDs went in, and a
+    ledger pruned by a guess is the erasure this function exists to prevent.)
     Returns 0 when the file was written, 1 when the rewrite was refused (the file is then untouched).
     """
+    if partial:
+        print(f"REFUSED: --update-ledger will not re-derive the book after a PARTIAL vault read — "
+              f"{len(partial)} item(s) did not read (first: {partial[0][:80]})")
+        print("Refusing to write: the file is unchanged. A value this run never saw cannot be proven "
+              "absent, and dropping its line would print a live debt as a fresh FAIL on the next "
+              "seat that could read the item. Re-run when the read is clean.")
+        return 1
     scope = set(class_scope) if class_scope else set(judged)
     blind = sorted(scope - judged)
     rows = read_ledger_rows(path)
@@ -857,19 +875,20 @@ def self_test() -> int:
         fails += not ok
         print(f"  arm {label}: {'ok' if ok else 'FAIL'}{(' — ' + detail) if (detail and not ok) else ''}")
 
-    def verdict(res: ScanRun, ledger: Path) -> tuple[int, str]:
+    def verdict(res: ScanRun, ledger: Path, errs: list[str] | None = None) -> tuple[int, str]:
         """Ask the reporter and keep its text: several arms are about what the run PRINTS, and a verdict
         nobody can read is not an instrument."""
         buf = io.StringIO()
         with redirect_stdout(buf):
-            rc = report(res, 1, 1, [], [], ledger, False, DEFAULT_MAX_FILE_MB, [])
+            rc = report(res, 1, 1, [], list(errs or []), ledger, False, DEFAULT_MAX_FILE_MB, [])
         return rc, buf.getvalue()
 
     def rewrite(path: Path, findings: list[Finding], judged: set[str],
-                scope: list[str] | None = None) -> tuple[int, str]:
+                scope: list[str] | None = None,
+                partial: list[str] | None = None) -> tuple[int, str]:
         buf = io.StringIO()
         with redirect_stdout(buf):
-            rc = update_ledger(path, findings, judged, scope)
+            rc = update_ledger(path, findings, judged, scope, partial)
         return rc, buf.getvalue()
 
     # (1) a clean tree reads GREEN — a check that cannot say so cannot be trusted to say otherwise.
@@ -1039,6 +1058,69 @@ def self_test() -> int:
         rc, out = rewrite(led, [], {"repo-tree", "run-capture"}, ["run-capture", "git-history"])
         check("a run without the history leg cannot clear a git-history line",
               rc == 1 and led.read_text() == book, f"rc {rc}: {led.read_text()[-80:]}")
+
+    # (11) A PARTIAL vault read — the shape the reader used to hide. An item that did not read holds
+    # a value this run never compared, so (a) the errors must REACH the leg, (b) the report must say
+    # PARTIAL, and (c) `--update-ledger` must not re-derive the book from a half-seen value set: a
+    # line it cannot prove present would be dropped, and the debt would come back as a fresh FAIL on
+    # the next seat that could read the item. Planted through the labelled FALLBACK with a stub `op`
+    # whose ONE get fails — zero vault requests, and the route a seat with no importable SDK takes.
+    with tempfile.TemporaryDirectory() as td:
+        bin_dir = Path(td) / "bin"; bin_dir.mkdir()
+        (bin_dir / "op_stub.py").write_text(
+            "import json, os, sys\n"
+            "args = sys.argv[1:]\n"
+            "if 'list' in args:\n"
+            "    sys.stdout.write(open(os.environ['STUB_LIST'], encoding='utf-8').read())\n"
+            "elif args[2] == os.environ.get('STUB_FAIL_ID', ''):\n"
+            "    sys.stderr.write('stub: this item did not read'); sys.exit(1)\n"
+            "else:\n"
+            "    json.dump({'id': args[2], 'title': 't', 'version': 5, 'fields': [\n"
+            "        {'id': 'password', 'label': 'password',\n"
+            "         'value': 'readvalue' + args[2][-4:], 'type': 'Concealed'}]}, sys.stdout)\n",
+            encoding="utf-8")
+        vrows = [{"id": f"iid{i:026d}", "title": f"item_{i}", "version": 5,
+                  "vault": {"id": "vaultid00000000000000000"}} for i in range(3)]
+        (Path(td) / "list.json").write_text(json.dumps(vrows), encoding="utf-8")
+        st = Path(td) / "state"; st.mkdir()
+        # The map is the one the reader addresses by — VAULT is this file's own vault name.
+        (st / f"op-map-{VAULT.replace('/', '_')}.tsv").write_text(
+            "# vault_id=vaultid00000000000000000\n"
+            + "".join(f"{r['title']}\t{r['id']}\n" for r in vrows), encoding="utf-8")
+        keep = {k: os.environ.get(k) for k in
+                ("HL_VAULT_READ_FIXTURE", "HL_VAULT_READ_ROUTE", "HL_VAULT_READ_OP_CMD",
+                 "HL_VAULT_STATE_DIR", "OP_SERVICE_ACCOUNT_TOKEN", "STUB_LIST", "STUB_FAIL_ID")}
+        os.environ.update(HL_VAULT_READ_FIXTURE="", HL_VAULT_READ_ROUTE="op-fanout",
+                          HL_VAULT_READ_OP_CMD=f"{sys.executable} {bin_dir / 'op_stub.py'}",
+                          HL_VAULT_STATE_DIR=str(st), OP_SERVICE_ACCOUNT_TOKEN="x" * 48,
+                          STUB_LIST=str(Path(td) / "list.json"), STUB_FAIL_ID=vrows[1]["id"])
+        try:
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                n_p, _t_p, _s_p, e_p, _k_p = load_values()
+            out_p = buf.getvalue()
+            check("a partial read reaches the leg as read errors, not as a quietly smaller value set",
+                  len(e_p) == 1 and len(n_p) == 2 and "op-fanout" in out_p,
+                  f"errors={e_p} needles={len(n_p)} out={out_p[:120]!r}")
+            led = Path(td) / "led.txt"
+            book = "# book\naaaa\trun-capture\titem_a\n"
+            led.write_text(book, encoding="utf-8")
+            rc, out = verdict(ScanRun([], zero_counts(), 1, {"run-capture"}, {}, []), led, errs=e_p)
+            check("a run that read part of the vault prints that on its own report",
+                  "partial read is not a clean read" in out, out[-160:])
+            rc, out = rewrite(led, [], {"run-capture"}, None, partial=e_p)
+            check("--update-ledger REFUSES to shorten the register after a partial read",
+                  rc == 1 and led.read_text(encoding="utf-8") == book
+                  and "PARTIAL vault read" in out, f"rc {rc}: {out[-140:]}")
+            rc, out = rewrite(led, [], {"run-capture"}, None)
+            check("the same rewrite on a CLEAN read still works (the refusal is the partial, not the flag)",
+                  rc == 0 and "ledger rewritten" in out, f"rc {rc}: {out[-140:]}")
+        finally:
+            for _k, _v in keep.items():
+                if _v is None:
+                    os.environ.pop(_k, None)
+                else:
+                    os.environ[_k] = _v
 
     # (24) the read-budget half moved to the ONE reader (lib/vault_read.py --self-test proves the
     # ID-addressed fallback and the get_all chunking there). What THIS file pins is that its needle
@@ -1221,6 +1303,16 @@ MUTATIONS = [
      "    if blind:",
      "    if False:",
      "the refusal arm"),
+    # The partial-read plumbing (HD-1206): both halves are one regression away from the shape that
+    # made the NOTE unreachable prose and the ledger unsafe to re-derive.
+    ("the reader's partial read never reaches the leg (errs empty again)",
+     "    errs: list[str] = list(vr.errors)",
+     "    errs: list[str] = []",
+     "the partial-read arms"),
+    ("--update-ledger re-derives the book after a partial read",
+     "    if partial:",
+     "    if False:",
+     "the partial-read refusal arm"),
 ]
 
 
@@ -1368,7 +1460,7 @@ def main() -> int:
         needles, titles, short, errs, vkey = load_values()
         res, files = build_run(needles, titles, vkey, args)
         if args.update_ledger:
-            return update_ledger(LEDGER, res.findings, res.scanned, args.classes)
+            return update_ledger(LEDGER, res.findings, res.scanned, args.classes, errs)
         hits = scan_retired(files, retired, args.max_file_mb * 1024 * 1024) if retired else []
         return report(res, len(needles), len(titles), short, errs, LEDGER, args.strict,
                       args.max_file_mb, hits)
