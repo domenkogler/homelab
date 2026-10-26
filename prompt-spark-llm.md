@@ -2,8 +2,8 @@
 
 > **Role:** dispatch note for **one** lane session on the **spark** GB10 engine. **The rows are the authority** for what is
 > missing and how to do it — this file carries the contract, the order of work and the traps, nothing else:
-> [todo.md](todo.md) **HD-469 · HD-473 · HD-475 · HD-489 · HD-494 · HD-376 · HD-400 · HD-359 · HD-367 · HD-380**
-> (row ids as of `9e661845` — re-derive with `grep -c "^| HD-<id> " todo.md` before quoting one).
+> [todo.md](todo.md) **HD-469 · HD-473 · HD-475 · HD-489 · HD-494 · HD-1206 · HD-376 · HD-400 · HD-359 · HD-367 · HD-380**
+> (row ids as of `c1fdbd66` — re-derive with `grep -c "^| HD-<id> " todo.md` before quoting one).
 > **Linked from:** [todo-table.md](todo-table.md) §B0 · [todo.md](todo.md)
 
 **Lane contract:** [docs/orchestration.md](docs/orchestration.md) §4 (O1–O11) — read it once; it overrides README §4 and

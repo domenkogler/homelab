@@ -204,6 +204,13 @@ one representation and the gate can refuse a bad name with a remediation. Shared
 in the `_x` merge anchor (keys starting with `_` are anchors, not profiles — the gate, the
 checker, the probe and the render matrix all refuse to treat them as servable).
 
+**`ultrafast-v32` is that same patch stack on a v0.32 base, and it is a port, not a re-tag.** At v0.32 the model
+package is `vllm.models.qwen4_exp` with `Qwen4Exp*` classes, `…/models/qwen3_8_flash_next/…` is gone and stock
+upstream carries no `vllm/v1/ple_offload/` at all — so the recipe's path and symbol anchors do not carry over
+unmodified, and its two `sed`-patched constants fail **silently** rather than loudly. The patch-by-patch map, the
+role gaps that make a naive rebuild unsafe, and the build order are in
+[`spark/reports/hd1206-v32-port-20261026/`](../spark/reports/hd1206-v32-port-20261026/README.md) (`HD-1206`).
+
 **The arms** (each is `certified: false` until it wins a leg; every loser is a row in
 [services-ai-rejected.md](services-ai-rejected.md), and the reports under `spark/reports/hd489-*`
 keep the raw evidence under their own names):
