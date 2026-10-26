@@ -450,11 +450,9 @@ mcp_victorialogs_version: "v1.8.0"        # the newest release line
 homelable_version: "3.5.1"
 
 # ==== Spark (DGX GB10) — AI inference image pins ====
-# Multi-arch arm64+amd64 manifest — confirm the manifest for the arch before pinning.
-# Renovate docker datasource would track the tag; the digest is the load-bearing pin.
+# Multi-arch arm64+amd64 manifest — confirm the arch before pinning; Renovate tracks the tag, the digest
+# is the pin. `graded`'s `--kv-cache-dtype fp8` cannot boot on THIS lineage (bf16-only QSA KV) → docs/spark-llm-profiles.md
 spark_vllm_image: "vllm/vllm-openai:qwen38-flash-next@sha256:fc120ece0a388cc0aa1caad4a9f1cd92113484ab7ec2fd0efadd62585be05bf8"
-# The `graded` profile's `--kv-cache-dtype fp8` cannot boot on THIS lineage: its QSA kernel declares
-# bf16-only KV, so fp8 is an engine-lineage change and never a config flip. → docs/spark-llm-profiles.md
 
 # SGLang (`fast-sglang` profile) — INTENTIONALLY EMPTY, and that is the gate.
 # CONVENTIONS §7 forbids a bare `latest`/mutable alias, and no SGLang image has been

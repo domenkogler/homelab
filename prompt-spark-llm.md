@@ -62,9 +62,9 @@ the test plan) → [docs/hardware-spark.md](docs/hardware-spark.md) §Unified-me
 * `vllm bench serve` **401s every request** against the `--api-key` engine **and exits 0** — assert on counters, not on exit code.
 * **fp8 KV is BLOCKED-ON-IMAGE**: the fix ships upstream in `v0.31.0+`, neither the base pin nor the built lineage carries it. Probe first: `scripts/bench/spark-fp8-image-probe.py`
   already takes `--image`, so the built lineage is reachable without patching the script
-  (`spark_vllm_ultrafast_image`, `group_vars/all/versions.yml:447`; the base pin is `versions.yml:418`). A `UNDECIDED` run
+  (`spark_vllm_ultrafast_image`, `group_vars/all/versions.yml:483`; the base pin is `versions.yml:455`). A `UNDECIDED` run
   is **not** a verdict; `REACHABLE` means the registry changed under us — say so loudly, never flip a profile on a grep.
-* `spark_sglang_image` is **empty on purpose** (`group_vars/all/versions.yml:428`): `fast-sglang` must fail loud at the
+* `spark_sglang_image` is **empty on purpose** (`group_vars/all/versions.yml:464`): `fast-sglang` must fail loud at the
   dial, which is the point of CONVENTIONS §7. Do not spike it in a normal window.
 * Read-only beats reboot-first: `docker run --rm --entrypoint sh <image> -c '…'` is allowed — never `--gpus`, `-p`, or
   `-d`, and never during a converge. The probe refuses to pull.
