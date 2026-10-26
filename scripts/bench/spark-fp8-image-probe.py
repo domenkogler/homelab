@@ -313,9 +313,10 @@ def main():
     print("BLOCKED-ON-IMAGE — the pinned build carries no fp8 main-KV read path.")
     print("  · `graded` is therefore an ENGINE-PIN question (todo.md HD-473), not a config")
     print("    flip; it stays uncertified and nothing on this box needs to change.")
-    print("  · fp8 KV merged upstream as vllm#55557 (2026-09-16) and is NOT in vLLM v0.30.0;")
-    print("    the only refs that can carry it are a rebuilt qwen38-flash-next tag or a")
-    print("    nightly — and CONVENTIONS §7 needs a REGISTRY-VERIFIED ARM64 digest of it.")
+    print("  · fp8 main KV merged upstream as vllm#55557 (2026-09-16) and SHIPS in the vLLM")
+    print("    v0.31.0 / v0.32.0 releases (arm64 manifests, CUDA 13) — v0.30.0 does not carry it.")
+    print("    So this line describes the ref named here, not what exists: re-probe a candidate")
+    print("    with --image, and §7 still needs a REGISTRY-VERIFIED ARM64 digest of it.")
     print("  · if Leg A above printed no arm64 entry, that is the finding, verbatim.")
     if undecided:
         print(f"  (Leg A had {undecided} undecided tag(s) — record which.)")
