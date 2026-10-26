@@ -143,8 +143,13 @@ verdict line encodes back out as a byte the reader cannot decode. The rule is th
 `subprocess` call under `scripts/**` carries an explicit `encoding=`/`errors=`, and files that cross the MSYS byte
 round-trip are read with an explicit UTF-8 (a value that arrived with a `\r` is a vault 403-shaped bug, the shape
 `lib/vault-env.sh` already strips for tokens). The batched vault reader [`../scripts/lib/vault_read.py`](../scripts/lib/vault_read.py)
-and its migrated legs are UTF-8-correct from the start, and their self-tests pin that a CR or a non-UTF-8 byte cannot
-differ between the planes.
+pins its own stdout/stderr to UTF-8, hands values down a pipe ASCII-only (JSON escapes, so a `\r` or a non-ASCII character
+round-trips byte-exactly and no seat locale sits between the vault and the leg), and decodes an `op` answer STRICTLY and in its
+own thread — handing `encoding=` to `subprocess.run` would move the decode into a reader thread, where a failure prints a
+traceback and leaves stdout None instead of being reported. A byte that is not UTF-8 therefore never becomes a value: it is a
+boundary on an item list and a named partial read on an item get, never a U+FFFD inside a secret the leak gate would compare
+mangled. `vault_read.py --self-test` carries the arms that plant both shapes — a CR plus a non-ASCII value through the pipe, and
+a raw non-UTF-8 byte in an `op` answer — at ZERO vault requests.
 
 ---
 ## 5. Reference `~/.pi/agent/settings.json` (harness tuning)

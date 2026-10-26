@@ -126,6 +126,15 @@ def vault_id(vault: str) -> str | None:
     return vid if ok else None
 
 
+def cached_vault_id(vault: str) -> str | None:
+    """The vault ID if the map ALREADY knows it — and never a refresh.
+
+    A reader that is about to run its own `op item list` must ask this, not `vault_id()`: asking
+    whether the map is warm must not cost a discovery read of its own, or the read reports a
+    cheaper count than the account was billed (HD-1204's quota proof reads that number)."""
+    return _read_map(vault)[0]
+
+
 def item_ref(vault: str, item: str) -> tuple[str, str, str]:
     """(vault_arg, item_arg, note) — the ID form when it is known, the NAME form when it is not.
 

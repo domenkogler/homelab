@@ -205,10 +205,9 @@ def load_values() -> tuple[dict[bytes, list[str]], dict[str, str], list[str], li
                 short.append(iid)
                 continue
             needles.setdefault(v.encode("utf-8", "surrogateescape"), []).append(iid)
-    print(f"vault reads this run: {vr.requests} request(s) route={vr.route} — ONE batched read, "
-          f"{len(vr.items)} items held in memory only (nothing on disk); the account ceiling is "
-          "1000 requests/24 h across ALL its service accounts (`op service-account ratelimit`); "
-          "the reader is scripts/lib/vault_read.py")
+    # The leg's own quota line is the READER's line — same shape on every leg, so "what did today
+    # cost" is one grep across the gate rather than one format per file.
+    vr.print_cost("check_secret_leak.py")
     if not needles:
         raise Boundary("the vault read produced ZERO secret values — a vault that answers nothing "
                        "is an environment boundary, not a clean fleet")
@@ -1072,7 +1071,7 @@ def self_test() -> int:
                                                       ("cccccccccccccccccccccccccc",)}
                   and short2 == ["bbbbbbbbbbbbbbbbbbbbbbbbbb"]
                   and t2.get("cccccccccccccccccccccccccc") == "item_login"
-                  and "route=fixture" in out2 and "0 request(s)" in out2,
+                  and "route=fixture" in out2 and "requests this leg: 0" in out2,
                   f"needles={[v for vv in n2.values() for v in vv]} short={short2} out={out2[:120]!r}")
             check("the versions key the history cache keys on comes from the reader's version rows",
                   vkey2 == hashlib.sha256("\n".join(

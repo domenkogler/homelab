@@ -45,10 +45,12 @@ USE (python legs — the normal form):
     vr = read_vault()                       # one batched read shared by the whole leg
     vr.items[item_id]                       # {"title","version","fields":[{"id","label","value","type","section"}]}
     vr.requests, vr.route, vr.vkey          # what it cost, which route answered, the versions digest
-    one = read_item("victoria-metrics_api") # ONE item where one item is all the leg needs (1 request)
+    vr.print_cost("my_leg.py")              # the leg's own quota line — ONE shape every leg prints
+    one = read_item("victoria-metrics_api") # ONE item where one item is all the leg needs (1 request);
+                                            # the same read shape: one.only() is the row, one.requests
 
 USE (CLI):
-    python3 scripts/lib/vault_read.py --list [--vault V]    id<TAB>title<TAB>version lines — names, no values
+    python3 scripts/lib/vault_read.py --list [--vault V]    title<TAB>id<TAB>version lines — names, no values
     python3 scripts/lib/vault_read.py --values [--vault V]  the whole vault as JSON, PIPE ONLY (a tty -> rc 3)
     python3 scripts/lib/vault_read.py --item TITLE          one item as JSON (ID-addressed via the vault map)
     python3 scripts/lib/vault_read.py --probe               which interpreter imports the SDK; the install command
@@ -70,10 +72,20 @@ import asyncio
 import hashlib
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
 from pathlib import Path
+
+# The seat's locale default is not the module's encoding. The verdict lines carry em-dashes and the
+# value handoff carries whatever the vault holds, so both streams are pinned to UTF-8 here — the
+# HD-1202 rule (docs/harness-pi-seats.md §1); a no-op on a seat whose locale already is UTF-8.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8")
+    except (AttributeError, ValueError):
+        pass
 
 sys.path.insert(0, str(next(p for p in Path(__file__).resolve().parents
                             if p.name == "scripts") / "lib"))
@@ -199,11 +211,15 @@ def sdk_probe() -> tuple[list[str] | None, list[str]]:
 
 
 def _emit_values_json(items: dict, requests: int = 0) -> str:
+    # ensure_ascii=True keeps the value pipe pure ASCII: every non-ASCII character, and every
+    # control character including a CR, leaves here as an escape that json.loads() puts back
+    # byte-exactly. The re-exec handoff then cannot depend on the seat locale (docs/harness-pi-seats.md
+    # §1 — the HD-1202 rule), which the self-test pins with a planted CR and a planted non-ASCII value.
     return json.dumps({"items": {iid: {"title": row["title"], "version": row["version"],
                                        "fields": row["fields"]}
                                  for iid, row in items.items()},
                        "requests": requests},
-                      ensure_ascii=False)
+                      ensure_ascii=True)
 
 
 def _read_via_launcher(launcher: list[str], vault: str) -> tuple[dict, int]:
@@ -231,42 +247,7 @@ def _read_via_launcher(launcher: list[str], vault: str) -> tuple[dict, int]:
 
 
 def shlex_join(argv: list[str]) -> str:
-    import shlex
     return shlex.join(argv)
-
-
-_SDK_SOURCE = '''
-import asyncio, json, os, sys
-async def _main(vault):
-    from onepassword import Client
-    client = await Client.authenticate(os.environ["OP_SERVICE_ACCOUNT_TOKEN"],
-                                       %(name)r, %(version)r)
-    rows = await client.items.list(vault)
-    ids = [r.id for r in rows]
-    vid = rows[0].vault_id if rows else vault
-    items, requests, errs = {}, 1, []
-    for i in range(0, len(ids), %(cap)d):
-        chunk = ids[i:i + %(cap)d]
-        resp = await client.items.get_all(vid, chunk)
-        requests += 1
-        for r in resp.individual_responses:
-            it = r.content
-            if it is None:
-                errs.append(str(r.error)[:100])
-                continue
-            items[it.id] = {"title": it.title, "version": it.version,
-                            "fields": [{"id": f.id, "label": f.title, "value": f.value,
-                                        "type": str(f.field_type), "section": f.section_id or ""}
-                                       for f in it.fields]}
-    return {"items": items, "requests": requests, "errors": errs}
-
-try:
-    out = asyncio.run(_main(sys.argv[1]))
-except Exception as exc:
-    print("sdk: " + type(exc).__name__ + ": " + str(exc)[:140], file=sys.stderr)
-    sys.exit(4)
-json.dump(out, sys.stdout, ensure_ascii=False)
-''' % {"name": INTEGRATION_NAME, "version": INTEGRATION_VERSION, "cap": GET_ALL_CAP}
 
 
 def _read_sdk(vault: str) -> tuple[dict, int]:
@@ -319,7 +300,6 @@ def _op_argv() -> list[str]:
     this seam — an arm that cannot run its stub is an arm that silently tests nothing."""
     seam = os.environ.get("HL_VAULT_READ_OP_CMD")
     if seam:
-        import shlex
         return shlex.split(seam.replace("\\", "/"))
     if shutil.which("op") is None:
         raise Boundary("no `op` on PATH and no importable onepassword SDK — the vault cannot be "
@@ -328,22 +308,45 @@ def _op_argv() -> list[str]:
 
 
 def _op_run(args: list[str], timeout: int = 120) -> subprocess.CompletedProcess:
-    # Explicit UTF-8 on BOTH sides of the pipe: text=True alone decodes with the locale default,
-    # cp1252 on the Win11 seat, where one non-decodable byte leaves stdout None for the JSON readers
-    # (docs/harness-pi-seats.md §1 — the HD-1202 class).
-    return subprocess.run([*_op_argv(), *args], capture_output=True, stdin=subprocess.DEVNULL,
-                          encoding="utf-8", errors="replace", timeout=timeout)
+    # Explicit UTF-8, decoded STRICTLY and decoded HERE. Two reasons, both learned the hard way:
+    #  * `text=True` alone decodes with the locale default (cp1252 on the Win11 seat, where one
+    #    non-decodable byte leaves stdout None for the JSON readers — docs/harness-pi-seats.md §1,
+    #    the HD-1202 class), and `errors="replace"` would be worse still: it turns a byte that did
+    #    not decode into U+FFFD INSIDE a secret value, so the leak gate would compare a mangled
+    #    secret and call the item clean.
+    #  * handing `encoding=` to subprocess.run instead puts the decode in a reader THREAD, where the
+    #    failure prints a traceback and leaves stdout None — invisible to the caller that has to
+    #    report it. So: capture bytes, decode in this thread, let the caller name the failure
+    #    (a Boundary on a list, a partial-read entry on a get).
+    r = subprocess.run([*_op_argv(), *args], capture_output=True, stdin=subprocess.DEVNULL,
+                       timeout=timeout)
+    # stderr keeps errors="replace": a diagnostic is not a value, and an undecodable byte in an
+    # error message must not be able to hide the error itself.
+    return subprocess.CompletedProcess(r.args, r.returncode,
+                                       (r.stdout or b"").decode("utf-8"),
+                                       (r.stderr or b"").decode("utf-8", "replace"))
 
 
 def _read_op_fanout(vault: str) -> tuple[dict, int]:
-    """The clearly-labelled FALLBACK: the ID-addressed `op item get` fan-out for seats where the SDK
-    will not import. 1 request per item (the vault by ID; a vault NAME costs 2 for the list, because
-    the resolution is billed), so on a 143-item vault this is ~144 against the same 1000/24 h account
-    bucket — which is the whole reason it is named a fallback in every line that prints it."""
+    """The clearly-labelled FALLBACK: one `op item list` plus one ID-addressed `op item get` per item,
+    for seats where the SDK will not import. On a 143-item vault that is ~144 requests against the
+    same 1000/24 h account bucket — which is the whole reason it is named a fallback in every line
+    that prints it.
+
+    The count is what the ACCOUNT pays, not what the loop ran: a list addressed by vault ID is 1
+    request and by NAME 2 (the name resolution is billed), a get addressed by ID is 1 and by NAME 3,
+    and a cold ID map is answered by THIS list instead of a separate discovery list — HD-1204's
+    parked quota proof is measured against this number, so a printed cost that lies is worse than no
+    printed cost."""
     argv = _op_argv()
-    from vault_env import vault_id as _vault_id
-    vid = _vault_id(vault)
-    r = _op_run(["item", "list", "--vault", vid or vault, "--format", "json"])
+    from vault_env import cached_vault_id as _cached_vault_id
+    vid = _cached_vault_id(vault)      # free: the map the bash face shares, and no discovery read
+    requests = 1 if vid else 2
+    try:
+        r = _op_run(["item", "list", "--vault", vid or vault, "--format", "json"])
+    except UnicodeDecodeError as exc:
+        raise Boundary(f"`op item list` answered bytes that are not UTF-8 ({exc}) — an item list "
+                       "decoded with a replacement character is not a fleet") from exc
     if r.returncode != 0:
         raise Boundary(f"`op item list` rc {r.returncode}: {(r.stderr or '').strip()[:120]}")
     try:
@@ -352,11 +355,21 @@ def _read_op_fanout(vault: str) -> tuple[dict, int]:
         raise Boundary(f"`op item list` did not answer JSON: {exc}") from exc
     if not rows:
         raise Boundary("`op item list` answered ZERO items — an empty vault answer is not an empty fleet")
-    requests = 1 if vid else 2
+    if not vid:
+        # The list carries the vault ID on every row, so a cold map costs the ONE name resolution
+        # above and the gets below still go out ID-addressed.
+        vid = next((str((row.get("vault") or {}).get("id") or "") for row in rows
+                    if isinstance(row, dict) and (row.get("vault") or {}).get("id")), "")
+    per_get = 1 if vid else 3
     items, errs = {}, []
     for row in rows:
-        g = _op_run(["item", "get", row["id"], "--vault", vid or vault, "--format", "json"])
-        requests += 1
+        try:
+            g = _op_run(["item", "get", row["id"], "--vault", vid or vault, "--format", "json"])
+        except UnicodeDecodeError as exc:
+            requests += per_get
+            errs.append(f"{row['id']}: the item answer was not UTF-8 ({exc})")
+            continue
+        requests += per_get
         if g.returncode != 0:
             errs.append((g.stderr or "").strip()[:100])
             continue
@@ -398,6 +411,14 @@ class VaultRead:
                            "has collided; a leg may not guess which copy it read")
         return hits[0] if hits else None
 
+    def only(self) -> dict:
+        """The single row a one-item read answered. Refuses to pick when the read answered more than
+        one — a leg that asked for ONE item may not guess which of several it got."""
+        if len(self.items) != 1:
+            raise Boundary(f"this read answered {len(self.items)} item(s); a leg that asked for ONE "
+                           "item may not pick one of them")
+        return next(iter(self.items.values()))
+
     def print_cost(self, leg: str) -> None:
         """The leg's own line — a run's quota price belongs in the log, not in a guess. Every leg
         prints it, which is what turns 'how much did today cost' from an archaeology question into
@@ -413,8 +434,9 @@ def read_vault(vault: str = DEFAULT_VAULT, note: str = "") -> VaultRead:
     if fixture:
         items, requests = _read_fixture(Path(fixture))
         route = "fixture"
-        _say(route, requests, len(items), _vkey(items))
-        return VaultRead(items, requests, route, _vkey(items))
+        key = _vkey(items)          # digested ONCE: the line printed and the object returned agree
+        _say(route, requests, len(items), key)
+        return VaultRead(items, requests, route, key)
 
     ok, why = _vault_ensure()
     if not ok:
@@ -447,43 +469,55 @@ def read_vault(vault: str = DEFAULT_VAULT, note: str = "") -> VaultRead:
                 route = f"sdk:{launcher[-1] if len(launcher) == 1 else '+'.join(launcher)}"
     if note:
         print(f"vault-read: {note}", file=sys.stderr)
-    _say(route, requests, len(items), _vkey(items), cred_route)
-    return VaultRead(items, requests, route, _vkey(items), cred_route)
+    key = _vkey(items)              # digested ONCE — see the fixture arm above
+    _say(route, requests, len(items), key, cred_route)
+    return VaultRead(items, requests, route, key, cred_route)
 
 
-def read_item(title: str, vault: str = DEFAULT_VAULT) -> tuple[dict, int]:
+def read_item(title: str, vault: str = DEFAULT_VAULT) -> VaultRead:
     """ONE item, ID-addressed — for the leg that needs exactly one item, where the batched read
     would spend a dozen requests to avoid spending one. Addressing comes from the SAME vault map
     `vault_env.item_ref` owns (a cold map costs one `op item list`; an unknown title keeps the NAME
-    and says so, because a guessed ID is a wrong answer, not a cheap one)."""
+    and says so, because a guessed ID is a wrong answer, not a cheap one).
+
+    The answer is the SAME shape `read_vault` returns — a read of one row, so `.only()` is the row
+    and `.print_cost(leg)` is the leg's quota line. One shape for both faces is what keeps a leg
+    from asking "which of these two did I get back?"."""
     fixture = os.environ.get("HL_VAULT_READ_FIXTURE")
     if fixture:
         items, _ = _read_fixture(Path(fixture))
         vr = VaultRead(items, 0, "fixture", _vkey(items))
-        item = vr.by_title(title)
-        if item is None:
+        row = vr.by_title(title)
+        if row is None:
             raise Boundary(f"the fixture vault has no item titled {title!r}")
-        _say("fixture", 0, len(items), vr.vkey)
-        return item, 0
+        key = _vkey({row["id"]: row})
+        _say("fixture", 0, 1, key)
+        return VaultRead({row["id"]: row}, 0, "fixture", key)
     ok, why = _vault_ensure()
     if not ok:
-        raise Boundary(f"no vault credential reachable on this seat ({why})")
+        raise Boundary(f"no vault credential reachable on this seat ({why}) — an environment "
+                       "boundary: reading the vault without one is the desktop-app route, i.e. a "
+                       "consent dialog per read, not a verdict")
     requests = 0
     if shutil.which("op") is None:
         vr = read_vault(vault)  # no CLI at all: the batched read is the only reader left
-        item = vr.by_title(title)
-        if item is None:
+        row = vr.by_title(title)
+        if row is None:
             raise Boundary(f"the vault read found no item titled {title!r}")
-        return item, vr.requests
+        key = _vkey({row["id"]: row})
+        return VaultRead({row["id"]: row}, vr.requests, vr.route, key, vr.cred_route)
     from vault_env import item_ref as _item_ref, STATE as _VS
     v_arg, i_arg, form = _item_ref(vault, title)
     if form.startswith("names"):
         requests += 2  # the map refresh that could not name this title already cost the list read
+        get_reads = 3  # a NAME-addressed get resolves the name: 3 billed, not 1
     else:
-        from vault_env import vault_id as _vault_id
-        if _vault_id(vault) is None:
-            requests += 2
-    r = _op_run(["item", "get", i_arg, "--vault", v_arg, "--format", "json"])
+        get_reads = 1
+    try:
+        r = _op_run(["item", "get", i_arg, "--vault", v_arg, "--format", "json"])
+    except UnicodeDecodeError as exc:
+        raise Boundary(f"the read of {title!r} answered bytes that are not UTF-8 ({exc}) — a value "
+                       "decoded with a replacement character is not a credential") from exc
     if r.returncode != 0:
         raise Boundary(f"the read of {title!r} failed rc {r.returncode}: "
                        f"{(r.stderr or '').strip()[:120]}")
@@ -494,9 +528,10 @@ def read_item(title: str, vault: str = DEFAULT_VAULT) -> tuple[dict, int]:
     item = {"id": got.get("id", i_arg), "title": got.get("title", title),
             "version": got.get("version"), "fields": _norm_fields(got.get("fields", []))}
     vkey = _vkey({item["id"]: item})
-    _say(f"op-item({'ID' if not form.startswith('names') else 'name-addressed, 3 billed'})",
-         requests + 1, 1, vkey, str(_VS.get("route", "resolved")))
-    return item, requests + 1
+    requests += get_reads
+    route = f"op-item({'ID' if get_reads == 1 else 'name-addressed, 3 billed'})"
+    _say(route, requests, 1, vkey, str(_VS.get("route", "resolved")))
+    return VaultRead({item["id"]: item}, requests, route, vkey, str(_VS.get("route", "resolved")))
 
 
 # --------------------------------------------------------------------------- CLI
@@ -506,7 +541,8 @@ def _refuse_tty() -> bool:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[1])
-    ap.add_argument("--list", action="store_true", help="id<TAB>title<TAB>version per item; no values")
+    ap.add_argument("--list", action="store_true",
+                    help="title<TAB>id<TAB>version per item; no values")
     ap.add_argument("--values", action="store_true",
                     help="the whole vault as JSON on a PIPE ONLY — a terminal is refused (rc 3)")
     ap.add_argument("--item", metavar="TITLE", help="one item as JSON (ID-addressed)")
@@ -585,11 +621,14 @@ def main() -> int:
 
     if args.item:
         try:
-            item, requests = read_item(args.item, args.vault)
+            vr = read_item(args.item, args.vault)
+            item = vr.only()
         except Boundary as exc:
             print(f"vault-read: {exc}", file=sys.stderr)
             return 1
-        json.dump({"item": item, "requests": requests}, sys.stdout, ensure_ascii=False)
+        # ASCII-only on the pipe, exactly like --values: a value that travels as \uXXXX escapes cannot
+        # be re-encoded by the seat locale on the way out (docs/harness-pi-seats.md §1).
+        json.dump({"item": item, "requests": vr.requests}, sys.stdout, ensure_ascii=True)
         return 0
 
     if args.list:
@@ -613,9 +652,12 @@ def self_test() -> int:
     most are the ones gradeable on a day the account's request budget is spent — which is every day
     this suite runs — plus the two refusals (no credential, and a tty for values)."""
     fails = 0
+    n_arms = 0        # counted, not asserted: a footer that hard-codes the arm count is a line that
+                      # reads confidently while quietly lying about how much was graded.
 
     def check(label: str, ok: bool, detail: str = "") -> None:
-        nonlocal fails
+        nonlocal fails, n_arms
+        n_arms += 1
         fails += 0 if ok else 1
         print(f"  arm {label}: {'ok' if ok else 'FAIL'}{(' — ' + detail) if (detail and not ok) else ''}")
 
@@ -798,6 +840,77 @@ def self_test() -> int:
               and "route=op-fanout" in err7 and "requests=5" in err7,
               f"rc {r.returncode} gets {len(get_calls)} misaddressed {mis[:1]}")
 
+        # (7b) a COLD ID map: the fan-out must answer it with its OWN list (2 billed for the name
+        # resolution), never with a separate discovery list, and the gets must still go out
+        # ID-addressed off the list answer. The count the line prints is what the account pays.
+        cold = tdp / "state-cold"; cold.mkdir()
+        log7 = tdp / "op-cold.log"; log7.write_text("", encoding="utf-8")
+        r = subprocess.run([sys.executable, str(Path(__file__).resolve()), "--values", "--vault", "V"],
+                           capture_output=True, stdin=subprocess.DEVNULL,
+                           env=dict(env_fall, OP_STUB_LOG=str(log7), HL_VAULT_STATE_DIR=str(cold)))
+        calls7 = log7.read_text(encoding="utf-8")
+        err7b = (r.stderr or b"").decode("utf-8", "replace")
+        lists7 = [ln for ln in calls7.splitlines() if " item list " in f" {ln} "]
+        check("a cold ID map costs the fallback ONE name-addressed list, not a discovery read + a list",
+              r.returncode == 0 and len(lists7) == 1 and "--vault V" in lists7[0]
+              and "requests=6" in err7b,
+              f"rc {r.returncode} lists {lists7} err {err7b[:120]!r}")
+
+        # (7c) the bytes of the value pipe: a value carrying a CR and non-ASCII characters must come
+        # back byte-exactly AND the pipe itself must be pure ASCII, so no seat locale sits between
+        # the vault and the leg (docs/harness-pi-seats.md §1 — the HD-1202 class this pins).
+        odd_v = "a\r\nb\u00e9\u4e2d"          # CR, LF, é, 中 — synthesised, never a fleet value
+        fx_u = tdp / "fixture-utf8.json"
+        fx_u.write_text(json.dumps({"items": {"iid" + "0" * 23 + "u8": {
+            "title": "item_utf8", "version": 4, "fields": [
+                {"id": "password", "label": "password", "value": odd_v, "type": "Concealed"}]}}}),
+            encoding="utf-8")
+        r = subprocess.run([sys.executable, str(Path(__file__).resolve()), "--values", "--vault", "V"],
+                           capture_output=True, stdin=subprocess.DEVNULL,
+                           env=dict(env_off, HL_VAULT_READ_FIXTURE=str(fx_u)))
+        raw = (r.stdout or b"").strip()
+        try:
+            back = json.loads(raw.decode("ascii"))["items"]["iid" + "0" * 23 + "u8"]["fields"][0]["value"]
+        except Exception:
+            back = None
+        check("a CR and a non-ASCII byte cross the value pipe byte-exactly, as ASCII",
+              r.returncode == 0 and raw.isascii() and back == odd_v,
+              f"rc {r.returncode} ascii={raw.isascii()} back={back!r}")
+
+        # (7d) a byte that is NOT utf-8 in an `op` answer must never arrive as a value. Decoding it
+        # with errors="replace" would put U+FFFD inside a secret and let the leak gate compare a
+        # mangled needle; here the item is simply a partial read that names the reason.
+        (fakebin / "op_raw.py").write_text(
+            "import json, os, sys\n"
+            "args = sys.argv[1:]\n"
+            "if 'list' in args:\n"
+            "    sys.stdout.write(open(os.environ['OP_STUB_LIST'], encoding='utf-8').read())\n"
+            "elif args[2] == os.environ.get('OP_STUB_BAD_ID'):\n"
+            "    raw = json.dumps({'id': args[2], 'title': 't', 'version': 1,\n"
+            "                      'fields': [{'id': 'password', 'label': 'password',\n"
+            "                                  'value': 'PLACEHOLDERvalue'}]}).encode()\n"
+            "    sys.stdout.buffer.write(raw.replace(b'PLACEHOLDER', bytes([0xff, 0xfe, 0xc3, 0x28])))\n"
+            "else:\n"
+            "    json.dump({'id': args[2], 'title': 't', 'version': 1,\n"
+            "               'fields': [{'id': 'password', 'label': 'password',\n"
+            "                           'value': 'goodvalue00000', 'type': 'Concealed'}]}, sys.stdout)\n",
+            encoding="utf-8")
+        log8 = tdp / "op-raw.log"; log8.write_text("", encoding="utf-8")
+        r = subprocess.run([sys.executable, str(Path(__file__).resolve()), "--values", "--vault", "V"],
+                           capture_output=True, stdin=subprocess.DEVNULL,
+                           env=dict(env_fall, OP_STUB_LOG=str(log8),
+                                    HL_VAULT_READ_OP_CMD=f"{sys.executable} {fakebin / 'op_raw.py'}",
+                                    OP_STUB_BAD_ID=rows[2]["id"]))
+        try:
+            got8 = json.loads(r.stdout.decode("utf-8", "replace"))
+        except Exception:
+            got8 = {}
+        err8 = (r.stderr or b"").decode("utf-8", "replace") + (r.stdout or b"").decode("utf-8", "replace")
+        check("a non-UTF-8 byte in an item answer is a named partial read, never a U+FFFD value",
+              r.returncode == 0 and len(got8.get("items", {})) == 3
+              and "not UTF-8" in err8 and "\\xfffd" not in err8 and "\ufffd" not in err8,
+              f"rc {r.returncode} items {len(got8.get('items', {}))} err {err8[:140]!r}")
+
         # (8) the provenance line never carries a value: run the fixture route with a canary value
         # and require the canary to be ABSENT from everything the module wrote to stderr.
         r = subprocess.run([sys.executable, str(Path(__file__).resolve()), "--list", "--vault", "V"],
@@ -834,9 +947,11 @@ def self_test() -> int:
     if fails:
         print(f"vault_read.py --self-test: FAILED — {fails} arm(s)")
         return 1
-    print("vault_read.py --self-test: OK (10 arms — the fixture path costs ZERO requests, the SDK "
-          "path counts list + get_all chunks, the FALLBACK is ID-addressed, the digest is of "
-          "versions and never of values, and both refusals (no credential, a tty for values) hold)")
+    print(f"vault_read.py --self-test: OK ({n_arms} arms — the fixture path costs ZERO requests, the "
+          "SDK path counts list + get_all chunks, the FALLBACK counts what the account pays and is "
+          "ID-addressed, the digest is of versions and never of values, the value pipe is ASCII and "
+          "byte-exact whatever the seat locale, and both refusals (no credential, a tty for values) "
+          "hold)")
     return 0
 
 

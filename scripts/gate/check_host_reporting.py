@@ -155,16 +155,16 @@ def creds() -> tuple[str, str]:
     if u and p:
         return u, p
     # One ID-addressed read of the one item this leg needs, through the ONE reader
-    # (scripts/lib/vault_read.py): no ambient pair, no vault write, and the request count is
-    # printed — a run's quota price belongs in the log, not in a guess. No credential is a named
-    # boundary: an `op` called without one is the Win11 desktop-app route, a consent dialog per
-    # read rather than an error.
+    # (scripts/lib/vault_read.py): no ambient pair, no vault write, and the reader's own
+    # `print_cost` line states the price — a run's quota price belongs in the log, not in a guess.
+    # No credential is a named boundary: an `op` called without one is the Win11 desktop-app route, a
+    # consent dialog per read rather than an error.
     try:
-        item, requests = _read_item("victoria-metrics_api", "Homelab-ansible")
+        vr = _read_item("victoria-metrics_api", "Homelab-ansible")
+        item = vr.only()
+        vr.print_cost("check_host_reporting.py")
     except (_ReadBoundary, OSError, ValueError) as exc:
         raise RuntimeError(f"{exc} and VM_USERNAME/VM_PASSWORD are unset") from exc
-    print(f"check_host_reporting.py: vault requests this leg: {requests} — one ID-addressed read "
-          "of victoria-metrics_api (lib/vault_read.py)", file=sys.stderr)
     got: dict[str, str] = {}
     for f in item["fields"]:
         key = f["id"] if f["id"] in ("username", "password", "credential") else f["label"]

@@ -176,8 +176,11 @@ else
         exit 2
     fi
     if ! hl_python; then
-        echo "check-vault-items.sh: no python interpreter answers on this seat — the vault reader "
-             "(lib/vault_read.py) cannot run. Environment boundary, not a verdict." >&2
+        # ONE echo, to stderr: the second half of this message used to sit on its own line, where the
+        # shell read "(lib/vault_read.py) cannot run…" as a COMMAND — the boundary landed on stdout
+        # next to a "command not found", which is how a boundary stops being a boundary.
+        echo "check-vault-items.sh: no python interpreter answers on this seat — the vault reader" >&2
+        echo "                      (lib/vault_read.py) cannot run. Environment boundary, not a verdict." >&2
         exit 2
     fi
     # --list prints title<TAB>id<TAB>version — names, never values; the title column is the HAVE-list.

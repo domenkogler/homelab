@@ -95,7 +95,8 @@ import yaml  # noqa: E402
 sys.path.insert(0, str(next(p for p in Path(__file__).resolve().parents
                             if p.name == "scripts") / "lib"))
 from repo_root import root as _hl_root, script_path as _hl_script  # noqa: E402
-from vault_read import Boundary as _ReadBoundary, read_vault as _read_vault  # noqa: E402
+from vault_read import (Boundary as _ReadBoundary, read_vault as _read_vault,  # noqa: E402
+                        VaultRead as _VaultRead)
 REPO = _hl_root(__file__)
 # Resolved by NAME, not by `scripts/harness/pi/`: HD-1118 Stage 3 moved this spec next to the
 # renderer that owns it (harness/pi/), and a data path written as a folder literal is the same
@@ -130,28 +131,28 @@ def check_thinking_levels(spec: dict) -> None:
                  "does nothing — and a thinking level that silently does nothing is thinking left on.")
 
 
-_VAULT_READ: dict[str, dict] | None = None   # title -> item rows; PROCESS MEMORY ONLY — this
-_VAULT_REQUESTS = 0                          # render performs no vault write and caches nothing
+_VAULT_READS: dict[str, _VaultRead] = {}   # vault -> the read THAT vault answered; PROCESS MEMORY
+                                           # ONLY — this render performs no vault write and caches
+                                           # nothing on disk
 
 
-def _vault_load(vault: str) -> None:
-    """ONE batched read per render, through the ONE reader (lib/vault_read.py). The renderer used
-    to pay an addressed get per credential row; the shared read answers the whole spec for a
-    handful of requests and PRINTS the count, so a render's quota price is in the log."""
-    global _VAULT_READ, _VAULT_REQUESTS
-    if _VAULT_READ is not None:
-        return
-    try:
-        vr = _read_vault(vault)
-    except (_ReadBoundary, OSError, ValueError) as exc:
-        sys.exit(f"FAIL: the vault read failed: {exc}\n"
-                 "      Render on a seat with a headless vault read (scripts/lib/vault-env.sh --check),\n"
-                 "      or mark the provider `unmanaged: true` and run with --keep-legacy-credentials.")
-    _VAULT_REQUESTS = vr.requests
-    _VAULT_READ = {row["title"]: row for row in vr.items.values()}
-    print(f"render-pi-config: vault requests this render: {vr.requests} — ONE batched read "
-          f"route={vr.route}, {len(vr.items)} item(s) held in memory only (lib/vault_read.py)",
-          file=sys.stderr)
+def _vault_load(vault: str) -> _VaultRead:
+    """ONE batched read per VAULT per render, through the ONE reader (lib/vault_read.py). The
+    renderer used to pay an addressed get per credential row; the shared read answers the whole spec
+    for a handful of requests and prints its own cost line, so a render's quota price is in the log.
+
+    Keyed by VAULT, not one global: a spec that names credentials in two vaults must not have the
+    second one answered out of the first one's rows — that is a wrong credential, rendered quietly."""
+    if vault not in _VAULT_READS:
+        try:
+            vr = _read_vault(vault)
+        except (_ReadBoundary, OSError, ValueError) as exc:
+            sys.exit(f"FAIL: the vault read failed: {exc}\n"
+                     "      Render on a seat with a headless vault read (scripts/lib/vault-env.sh --check),\n"
+                     "      or mark the provider `unmanaged: true` and run with --keep-legacy-credentials.")
+        vr.print_cost("render-pi-config")
+        _VAULT_READS[vault] = vr
+    return _VAULT_READS[vault]
 
 
 def mask(v: str) -> str:
@@ -161,8 +162,12 @@ def mask(v: str) -> str:
 def op_secret(vault: str, item: str, field: str) -> str:
     """Resolve one field off the shared read. Fails LOUD with the item name — a missing credential
     is the finding, not something to default() around (the HD-399 rule)."""
-    _vault_load(vault)
-    row = (_VAULT_READ or {}).get(item)
+    try:
+        row = _vault_load(vault).by_title(item)
+    except _ReadBoundary as exc:
+        # Titles are the vault's primary key. Two items sharing one is a vault defect, and taking
+        # whichever copy a dict happened to keep last is a WRONG credential rendered green: name it.
+        sys.exit(f"FAIL: cannot read op://{vault}/{item} (field '{field}'): {exc}")
     if row is None:
         sys.exit(f"FAIL: cannot read op://{vault}/{item} (field '{field}'): the vault read answered "
                  f"no item with that title\n"

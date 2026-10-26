@@ -115,7 +115,16 @@ def vault_named() -> list[dict]:
     vr.print_cost("check_ssh_grants.py")
     out = []
     for item in VAULT_SSH_ITEMS:
-        row = vr.by_title(item)
+        try:
+            row = vr.by_title(item)
+        except _ReadBoundary as exc:
+            # Titles are the vault's primary key; two items sharing one is a vault defect and the
+            # reader refuses to guess which copy this leg meant. The leg's own promise is that the
+            # vault half DEGRADES to the doc's short prefixes with a warning — so a collision is a
+            # named boundary here, not a traceback in the middle of an audit.
+            print(f"WARN: {exc} — that key will be reported as UNKNOWN unless the doc names it",
+                  file=sys.stderr)
+            continue
         if row is None:
             print(f"WARN: the vault read holds no item titled {item} — that key will be reported "
                   "as UNKNOWN unless the doc names it", file=sys.stderr)
