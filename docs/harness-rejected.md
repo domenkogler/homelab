@@ -41,3 +41,4 @@ decisions taken since the domain existed.
 | The git identity as a pi-seat-sync plane | rejected | Own concern with own scripts under `scripts/git/`; the seat matrix stays out of it |
 | Automatic failover to a hosted model | rejected | External use is owner-authorized per session; no external bench |
 | The gate's validator fleet in C#, file-based apps included | rejected | Warm startup tax exceeds the gate's whole wall clock |
+| TrueForge (open-source agent harness) | rejected | Code execution needs Daytona's cloud sandbox; no self-hosted slot |
