@@ -8,9 +8,10 @@
 # TWO asserts, because one is not enough. `HEAD == pin` proves which commit the checkout is on; it
 # cannot see an edit, because editing a TRACKED file does not move HEAD. A dirty tree at the right
 # HEAD is therefore the shape that buys an image nobody can rebuild — the pin claims upstream, the
-# bytes are somebody's local patch — so `git status --porcelain` has to be empty too, and if it is
-# not, the answer is a patch set in this repository (where a port is reviewable and re-runnable),
-# never an edit in the checkout.
+# bytes are somebody's local patch — so the tracked worktree has to be clean too (`-uno`: untracked
+# build residue is not compiled into the image, and upstream's own md5/sha gates tolerate it). If the
+# tracked files are not clean, the answer is a patch set in this repository (where a port is
+# reviewable and re-runnable), never an edit in the checkout.
 
 - name: Ensure the build-input directory exists
   ansible.builtin.file:
@@ -54,9 +55,14 @@
   tags: [spark, spark-ultrafast-build, llm]
 
 - name: Read back the checkout's worktree state
+  # `-uno`, because the hazard this guard exists for is a port COMPILED INTO THE IMAGE, and that is a
+  # change to a TRACKED file. Untracked residue — a __pycache__, a lock file, a log the recipe's own
+  # build writes next to its sources — reaches no layer, and upstream's build refuses a modified tree
+  # by hash while writing exactly that residue, so counting it would redden a build that was green
+  # before this guard existed.
   # check_mode: false so a --check run makes this read too, instead of asserting on empty stdout.
   ansible.builtin.command:
-    cmd: git status --porcelain
+    cmd: git status --porcelain -uno
     chdir: "{{ bc_src_dir }}"
   changed_when: false
   check_mode: false
@@ -70,7 +76,9 @@
     that:
       - bc_status.stdout | trim | length == 0
     fail_msg: >-
-      {{ bc_src_dir }} is at the pinned commit but its WORKTREE IS DIRTY:
+      {{ bc_src_dir }} is at the pinned commit but TRACKED FILES IN ITS WORKTREE ARE MODIFIED
+      (`git status --porcelain -uno` — untracked build residue is deliberately not counted, because
+      it is not compiled into the image):
       {{ bc_status.stdout_lines | join(' | ') }}. A dirty tree at the right HEAD is the one
       provenance failure `HEAD == pin` cannot see: the build would compile these local edits into an
       image whose pin claims upstream {{ bc_commit }}, and nobody could rebuild it. Do not clear it

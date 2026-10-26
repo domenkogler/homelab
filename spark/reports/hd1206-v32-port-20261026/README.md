@@ -54,8 +54,9 @@ commit this repo already pins. There is **no upstream revision that bases on v0.
 ours (a fork or branch with a commit we can pin) or it does not happen. Editing the checkout by hand is the shape
 to refuse: `roles/spark-ultrafast-build/tasks/checkout_pinned.yml` proves provenance with `git rev-parse HEAD`, and
 **editing tracked files does not change HEAD** — a hand-patched tree passes that assert silently and produces an
-image nobody can rebuild. That file therefore asserts `git status --porcelain` empty as well, and the port itself
-is a patch set in this repository (§6 step 0), never an edit in the checkout.
+image nobody can rebuild. That file therefore asserts `git status --porcelain -uno` clean as well — tracked files,
+the bytes a build compiles; the untracked residue a build leaves beside its sources reaches no layer — and the port
+itself is a patch set in this repository (§6 step 0), never an edit in the checkout.
 
 ## 4. What the roles guarantee, and the failure each guarantee exists to prevent
 
@@ -71,7 +72,7 @@ vars, so a second lineage cannot inherit the first one's values by accident. The
 | a second lineage **skipped** because another lineage's image is present | the inspect reads `bl_pin` — the lineage's own pin — and nothing else; `spark_vllm_ultrafast_image` appears in the live lineage's dict only |
 | a red that reads like a mistake instead of like "wrong artifact" | the assert pair compares the built ID with **that lineage's** pin and names the var to record (`bl_pin_var`) |
 | a rebuild **retagging the live `fast` image** | a lineage declares `reserved_tags` and the build refuses if its own tag is one of them; `port_v32.py` deletes upstream's `build.sh`/`Dockerfile.iter6c`/`Dockerfile.iter6d` from the v32 build directory (they hardcode both live tags), and after the build every reserved tag is re-read and must still resolve |
-| a **hand-edited checkout** passing `HEAD == pin` | `git status --porcelain` must be empty in the checkout (`checkout_pinned.yml`), and the port is applied to a staged copy under `/opt/homelab/ultrafast-v32-build` |
+| a **hand-edited checkout** passing `HEAD == pin` | `git status --porcelain -uno` must be clean in the checkout (`checkout_pinned.yml`) — tracked files, because those are what the build compiles and untracked residue is not — and the port is applied to a staged copy under `/opt/homelab/ultrafast-v32-build` |
 | a **`sed` that matched nothing** shipping a green build | every `sed` in `Dockerfile.v32` counts its anchor before (`test "$(grep -c …)" -eq 1`) and greps its marker after; the same constants, the `Qwen4Exp*` names and the `ple_layer.py` path are also grepped **inside the base image** before the build and **inside the built image** after it, and `port_v32.py` fails on an anchor whose occurrence count is not the expected one |
 | upstream's source set silently drifting | `port_v32.py` runs the checkout's own `md5sum --check` / `sha256sum --check` blocks (the same eleven + two lists `recipe/build/image/build.sh` enforces) before it stages anything |
 

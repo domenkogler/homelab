@@ -217,9 +217,10 @@ role gaps that made a naive rebuild unsafe, and the build order are in
 `roles/spark-profile-fast8/files/` (`Dockerfile.v32` + the `port_v32.py` porter). Four properties make a
 rebuild safe, and each is an assert rather than a comment: the inspect/skip and the assert pair read **this
 lineage's own pin** (`spark_vllm_ultrafast_v32_image`), so the live lineage's pin can neither skip the v32
-build nor be the value the v32 artifact is asserted against; `git status --porcelain` must be empty in the recipe checkout, because a
-hand-edited tree still has the pinned `HEAD` and would otherwise buy an image nobody can rebuild; the build
-writes exactly one name, `spark-ultrafast:v32-iter6d`, which cannot collide with the two
+build nor be the value the v32 artifact is asserted against; `git status --porcelain -uno` must be clean in the
+recipe checkout — tracked files are what a build compiles, and the untracked residue a build leaves beside its
+sources reaches no layer — because a hand-edited tree still has the pinned `HEAD` and would otherwise buy an image
+nobody can rebuild; the build writes exactly one name, `spark-ultrafast:v32-iter6d`, which cannot collide with the two
 `qwen38-flash-dgx:iter6c…`/`:iter6d…` tags that are the only names the live `fast` image has (a tag is
 `repository:tag`, and this one is a different repository) — and after the build every one of them is re-read
 and must still resolve; and every anchor a `sed` cannot report — both GB10 constants, the `Qwen4Exp*` names,
