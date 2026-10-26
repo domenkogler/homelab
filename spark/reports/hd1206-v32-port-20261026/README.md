@@ -84,7 +84,10 @@ vars, so a second lineage cannot inherit the first one's values by accident. The
 * Off-box archives on the NAS (`tank/data/host-images/spark/`, i.e. oldsrv's `/mnt/nas/data/host-images/spark`):
   `spark-fast-4900c13e.tar.zst` (9,567,717,777 B) and `spark-reasoning-fc120ece.tar.zst` (9,567,372,199 B), each with a
   `.sha256` sidecar, `zstd -t` clean and `sha256sum -c` clean; restore with `zstd -dc <file> | docker load`.
-  Only the **engine images** are archived: the checkpoints and PLE tables are HF artifacts pinned by revision in
+  Each sidecar records the **NAS-native absolute path** (`/tank/data/host-images/spark/…`), so `sha256sum -c
+  <file>.sha256` verifies only when run ON the nas; from another host the file sits at `/mnt/nas/…` and the
+  same command fails on the PATH, not on the bytes — there, compare `sha256sum <file>` against the sidecar's
+  hash instead. Only the **engine images** are archived: the checkpoints and PLE tables are HF artifacts pinned by revision in
   `group_vars/all/versions.yml` (sets `b1-awq`, `ple-int4`, `ar-hybrid`, `ple-fp8`) and re-fetchable.
 * The archive is a copy, not a second engine: nothing about it changes what boots. Rollback is still
   `spark_llm_profile: fast` + a detached converge (~20 min cold boot).
@@ -110,8 +113,9 @@ vars, so a second lineage cannot inherit the first one's values by accident. The
    Every post-build leg runs `docker run --rm --network none --memory 8g` on the **same unified pool the live
    engine serves from**, so this step is scheduled inside the owner window and not beside serving: an 8 GiB CPU
    gate competes with the engine for the pool it budgets.
-5. Record the built ID as `spark_vllm_ultrafast_v32_image` **and** add `ultrafast-v32` to
-   `spark_llm_fp8_kv_capable_images` in the same change (that list is what makes an fp8 profile legal at all).
+5. Enter `ultrafast-v32` in `spark_llm_fp8_kv_capable_images` **only on the probe's `REACHABLE` verdict** — the
+   list is `[]` until then, because that list is the fp8 claim's evidence and a pre-registered name turns every
+   offline gate green by assertion (§7 box leg step 4). The arm reads GATED while it is empty, not broken.
 6. Offline: `check_spark_llm_gate.py`, `spark-llm-render-matrix.py`, `spark-llm-probe.py matrix`.
 7. Owner window: flip `spark_llm_profile: fast8` with a per-run `-e spark_llm_allow_uncertified=true`, converged
    **detached**; read the engine's own `GPU KV cache size` line (the projection is 1,095,830 slots = 4.18 ×); then
@@ -167,9 +171,13 @@ them detached):
    `docker run --rm --network none --entrypoint bash <base> -c 'diff -u /tmp/mamba_utils_guarded.py /usr/local/lib/python3.12/dist-packages/vllm/v1/worker/mamba_utils.py'`
    — then either port the guard as an anchored patch or set `spark_profile_fast8_mamba_guard: apply` in its own
    commit, with the diff line count in the commit message.
-4. `python3 scripts/bench/spark-fp8-image-probe.py <built tag>` (its box leg) and only then the pin commit:
-   `spark_vllm_ultrafast_v32_image` **and** the `ultrafast-v32` name in `spark_llm_fp8_kv_capable_images`, in the
-   same change, plus the `spark_llm_overlays` re-anchoring to this build's module paths (§2, `group_vars/spark.yml`).
+4. `python3 scripts/bench/spark-fp8-image-probe.py --image <built tag> --skip-registry` (the box leg — a built
+   image has no registry digest, and **`--image` is required**: the bare form resolves `spark_vllm_image`, the
+   BASE pin, and would hand a verdict about the wrong lineage). Only on its `REACHABLE` verdict comes the pin
+   commit: `spark_vllm_ultrafast_v32_image` **and** the `ultrafast-v32` name in `spark_llm_fp8_kv_capable_images`
+   in the same change. No `spark_llm_overlays` re-anchoring belongs in this step: `fast8` sets
+   `ple_overlay: false`, so its module paths arrive through the build and not through a bind over
+   `models/qwen3_8_flash_next/…`; overlays matter only to an arm that binds them, if that base is ever bumped.
 5. `python3 scripts/gate/check_spark_llm_gate.py && python3 scripts/bench/spark-llm-render-matrix.py && \
    python3 scripts/bench/spark-llm-probe.py matrix`.
 6. the owner-window flip and the gate order: §6 step 7.

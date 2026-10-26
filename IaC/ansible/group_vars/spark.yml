@@ -374,7 +374,11 @@ spark_llm_never_evict_capable_images: [ultrafast]
 # ONLY name allowed here is the patch stack rebuilt on a v0.32 base.
 # TO ADD A NAME HERE: run the box leg of scripts/bench/spark-fp8-image-probe.py against that image's
 # own qsa.py — an `UNDECIDED` probe is not a verdict (CONVENTIONS §7: the pin is the evidence).
-spark_llm_fp8_kv_capable_images: [ultrafast-v32]
+# EMPTY until that probe returns REACHABLE, and deliberately not pre-registered: the list is the fp8
+# claim's EVIDENCE, and a name entered before the box leg ran makes every offline gate green BY
+# ASSERTION — an authored-but-unbuilt lineage already satisfies both a listed name and a non-empty pin.
+# With the name absent the arm reads GATED ("no fp8 main-KV read path in that build"), which is the truth.
+spark_llm_fp8_kv_capable_images: []
 
 # ---- Checkpoint identity + the PLE pairing table ----------
 # WHY these two maps exist. A profile names TWO artifacts — a checkpoint (`model_subdir`) and a
