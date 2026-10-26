@@ -96,6 +96,16 @@ FLAT_ALIASES = {
 }
 
 
+# The two notes-column markers that mean GATED, not FAILED. An EMPTY image pin is the DESIGNED state
+# of an arm whose image is not built yet (CONVENTIONS §7 — an empty pin IS the refusal, enforced at
+# converge by roles/spark-llm-profile) and a CHANGEME prompt-pin is an authored-not-yet substring, so
+# the default run reports both and stays green; `--strict` asks the deployability question instead and
+# reddens on them. One spelling each, used by the table, by the strict verdict and by the default-mode
+# sentence, so the three cannot disagree (CONVENTIONS §6).
+EMPTY_PIN_NOTE = "IMAGE-PIN-EMPTY(gated)"
+PIN_PLACEHOLDER_NOTE = "pin-placeholder(gated)"
+
+
 def render(env, ctx, profile, cat):
     c = dict(ctx)
     c["spark_llm_profile"] = profile
@@ -164,7 +174,11 @@ def main():
 
     bad = []
     rendered_pin = []   # must stay empty: the pin is REJECTED (docs/services-ai-rejected.md)
-    gated_names = []    # arms whose rendered image is EMPTY = the designed gate, not a failure
+    # Arms the table marks `(gated)`, in profile order: name -> the markers its notes column
+    # printed. Every sentence that names gated arms is built from this dict, never from a list of
+    # names typed into a string — which arms are gated is a fact about the render, and a hand-named
+    # sentence goes stale the moment a pin lands or a new gated arm is authored (CONVENTIONS §6).
+    gated_rows = {}
     if "spark_llm_never_evict_capable_images" not in cat:
         bad.append("catalogue declares no spark_llm_never_evict_capable_images — the pin/lineage "
                    "check below would read an EMPTY list and pass whatever it renders (fail-loud, "
@@ -186,17 +200,17 @@ def main():
         if f["evict"]:
             rendered_pin.append(name)
         gated = not f["image"]
+        notes = []      # holds ONLY the gating markers below; the row's verdicts go into `bad`
         if gated:
-            gated_names.append(name)
-        notes = []
-        if gated:
-            notes.append("IMAGE-PIN-EMPTY(gated)")
+            notes.append(EMPTY_PIN_NOTE)
         if "CHANGEME" in render(env, ctx, name, cat):
-            # NOT a failure: the pin arms SHIP with the placeholder and roles/spark-llm-profile
+            # NOT a failure by default: the pin arms SHIP with the placeholder and roles/spark-llm-profile
             # refuses them until a real substring is authored (a placeholder that matches
             # nothing is an invisible no-op; one that matches everything is a pool leak).
             # scripts/gate/check_spark_llm_gate.py canary-proves the refusal.
-            notes.append("pin-placeholder(gated)")
+            notes.append(PIN_PLACEHOLDER_NOTE)
+        if notes:
+            gated_rows[name] = notes
         # the composed coordinates must be observable — a silently missing flag is the bug
         want = cat["spark_llm_profiles"][name]
         if want.get("draft_vocab") and not (f["draft"] and f["mtp_draft_vocab"]):
@@ -267,16 +281,26 @@ def main():
             print("  · " + b)
         return 1
     if strict:
+        # The deployability question. A gated arm is the designed state for `validate-all.sh` (which
+        # runs this script WITHOUT the flag), but under `--strict` it is not deployable, so it fails
+        # HERE — a run that printed a gated row must never print an all-clear (CONVENTIONS §6: a
+        # tool that reports the opposite of its own table is worse than one that stays silent).
+        if gated_rows:
+            print(f"\n--strict: {len(gated_rows)} gated arm(s) — renders, but not deployable:")
+            for name, markers in gated_rows.items():
+                print(f"  · {name}: {'; '.join(markers)}")
+            return 1
         print("\n--strict: every profile renders, parses, and carries a non-empty image pin.")
     else:
         print("\nAll profiles render and parse.")
         # Derived from the table above, never hardcoded here: which arms still resolve to an EMPTY
         # image pin is a fact about versions.yml, and a sentence that names them by hand goes stale
         # the moment a pin lands or a new gated arm is authored (CONVENTIONS §6).
-        if gated_names:
+        empty_pin = [n for n, markers in gated_rows.items() if EMPTY_PIN_NOTE in markers]
+        if empty_pin:
             print(f"Arms whose image pin is EMPTY, by design (CONVENTIONS §7 — an empty pin IS the "
                   f"refusal, and roles/spark-llm-profile enforces it at converge): "
-                  f"{', '.join(gated_names)}")
+                  f"{', '.join(empty_pin)}")
         else:
             print("Every profile names a pinned image.")
     return 0
