@@ -65,7 +65,7 @@ def die(msg, code=2):
 def sh(argv, timeout=120, stdin_null=True):
     """Run argv, capture. Never shell=True: no quoting surprises, no secret expansion."""
     try:
-        p = subprocess.run(argv, capture_output=True, text=True, timeout=timeout,
+        p = subprocess.run(argv, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout,
                            stdin=subprocess.DEVNULL if stdin_null else None)
         return p.returncode, p.stdout.strip(), p.stderr.strip()
     except FileNotFoundError:

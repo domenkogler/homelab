@@ -421,7 +421,7 @@ def render_seal(fields: dict, sites: list[Site]) -> str:
 
 def git_run(args: list[str], cwd: Path) -> subprocess.CompletedProcess:
     env = {k: v for k, v in os.environ.items() if k not in GIT_VARS}
-    return subprocess.run(args, cwd=str(cwd), env=env, capture_output=True, text=True)
+    return subprocess.run(args, cwd=str(cwd), env=env, capture_output=True, text=True, encoding="utf-8", errors="replace")
 
 
 def git_rev(cwd: Path) -> str:

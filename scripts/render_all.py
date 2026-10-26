@@ -299,7 +299,7 @@ def _check_target(name: str, *, write: bool = True) -> bool:
     try:
         def differs(dest: Path) -> bool:
             rc = subprocess.run(["git", "diff", "--exit-code", "--", str(dest)],
-                                capture_output=True, text=True).returncode
+                                capture_output=True, text=True, encoding="utf-8", errors="replace").returncode
             return rc != 0
         return _report(produced, differs)
     finally:
@@ -396,14 +396,14 @@ def _git(repo: Path, *args: str) -> subprocess.CompletedProcess:
     """git inside the fixture only. `commit.gpgsign=false` because a signing key an agent has to
     ask about would BLOCK the fixture commit — the trap CONVENTIONS §6 records for real commits."""
     return subprocess.run(["git", *_GIT_BASE, *args], cwd=str(repo),
-                          capture_output=True, text=True)
+                          capture_output=True, text=True, encoding="utf-8", errors="replace")
 
 
 def _run_self(args: list[str], repo: Path) -> subprocess.CompletedProcess:
     """One run of THIS entry point against a fixture root ($REPO is the fixture hook)."""
     return subprocess.run([sys.executable, str(Path(__file__).resolve()), *args],
                           cwd=str(repo), env={**os.environ, "REPO": str(repo)},
-                          capture_output=True, text=True)
+                          capture_output=True, text=True, encoding="utf-8", errors="replace")
 
 
 def _fixture(repo: Path) -> None:

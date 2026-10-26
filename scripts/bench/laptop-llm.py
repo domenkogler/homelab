@@ -335,7 +335,7 @@ def server_base(cfg, from_wsl=None):
     # `native_only: true`, and probe-client honours that.
     if from_wsl and not _listening("127.0.0.1", port):
         try:
-            out = subprocess.run(["ip", "route", "show", "default"], capture_output=True, text=True).stdout
+            out = subprocess.run(["ip", "route", "show", "default"], capture_output=True, text=True, encoding="utf-8", errors="replace").stdout
             gw = re.search(r"default via (\S+)", out)
             if gw:
                 return f"http://{gw.group(1)}:{port}/v1"

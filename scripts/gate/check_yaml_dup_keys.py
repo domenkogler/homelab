@@ -129,7 +129,7 @@ def tracked_yaml(root: str = ""):
     root = root or str(_hl_root())
     try:
         out = subprocess.run(["git", "ls-files"], cwd=root or ".",
-                             capture_output=True, text=True, check=True).stdout.splitlines()
+                             capture_output=True, text=True, encoding="utf-8", errors="replace", check=True).stdout.splitlines()
         files = [f for f in out if f.endswith(YAML_SUFFIXES)
                  and not f.startswith(ARCHIVE_PREFIXES)]
         return [f if os.path.isabs(f) else os.path.join(root or ".", f) for f in sorted(files)]

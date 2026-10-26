@@ -871,7 +871,7 @@ def expand(repo, args, listfile):
     for a in args:
         if os.path.isdir(os.path.join(repo, a)):       # a directory = every tracked file in it
             out += [p for p in subprocess.run(["git", "-C", repo, "ls-files", "--", a],
-                       capture_output=True, text=True).stdout.split("\n") if p]
+                       capture_output=True, text=True, encoding="utf-8", errors="replace").stdout.split("\n") if p]
         else:
             out.append(a)
     return sorted(set(p for p in out if p))
@@ -910,7 +910,7 @@ class Refused(Exception):
 
 def _git_out(repo, *args):
     """-> stdout of one git call, raising Refused when git refuses."""
-    got = subprocess.run(["git", "-C", repo, *args], capture_output=True, text=True)
+    got = subprocess.run(["git", "-C", repo, *args], capture_output=True, text=True, encoding="utf-8", errors="replace")
     if got.returncode:
         raise Refused(f"git {' '.join(args)}: {got.stderr.strip() or 'failed'}")
     return got.stdout
@@ -1069,7 +1069,7 @@ def report(repo, ref, paths, accept_path=None, now_ref=None, quiet=False):
     # which files a lane was pointed at.
     sel_src = {r: g[0] for r, (g, _) in texts.items() if g}
     for rel in subprocess.run(["git", "-C", repo, "ls-tree", "-r", "--name-only", ref],
-                              capture_output=True, text=True).stdout.split("\n"):
+                              capture_output=True, text=True, encoding="utf-8", errors="replace").stdout.split("\n"):
         if rel.endswith((".rsc", ".rsc.j2")) and rel not in sel_src:
             got, _ = git_text(repo, ref, rel)
             if got:
@@ -1172,7 +1172,7 @@ def keys_report(repo, paths):
             texts[rel] = raw.decode("utf-8", "surrogateescape")
     sel = dict(texts)                      # the join also needs the delta scripts outside `paths`
     for rel in subprocess.run(["git", "-C", repo, "ls-files"], capture_output=True,
-                              text=True).stdout.split("\n"):
+                              text=True, encoding="utf-8", errors="replace").stdout.split("\n"):
         if rel.endswith((".rsc", ".rsc.j2")) and rel not in sel:
             try:
                 raw = open(os.path.join(repo, rel), "rb").read()
@@ -1539,7 +1539,7 @@ class _FixtureRepo:
 
     def _run(self, *args, check=True):
         got = subprocess.run(["git", "-C", self.dir, *args], env=self.env,
-                             capture_output=True, text=True)
+                             capture_output=True, text=True, encoding="utf-8", errors="replace")
         if check and got.returncode:
             raise RuntimeError(f"git {args}: {got.stderr}")
         return got.stdout

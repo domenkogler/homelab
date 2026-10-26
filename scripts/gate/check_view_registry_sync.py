@@ -348,7 +348,7 @@ def mutation_test() -> int:
             mutant = fake / "gate" / "view-mutant.py"
             mutant.write_text(mutated, encoding="utf-8")
             r = subprocess.run([sys.executable, str(mutant), "--self-test"], capture_output=True,
-                               text=True, env=dict(os.environ, VIEW_GATE_MUTANT="1", REPO=str(ROOT)),
+                               text=True, encoding="utf-8", errors="replace", env=dict(os.environ, VIEW_GATE_MUTANT="1", REPO=str(ROOT)),
                                stdin=subprocess.DEVNULL)
         broke = sorted({ln.split(" arm ")[1].split(":")[0] for ln in (r.stdout or "").splitlines()
                         if ": FAIL" in ln})

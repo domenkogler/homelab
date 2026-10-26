@@ -34,7 +34,7 @@ Usage: bash scripts/gate/check-vault-items.sh [--root DIR] [--fake-vault FILE] [
   --root DIR         operate on DIR as the repo root (default: this repo); used by the
                      self-test fixture in scripts/testdata/check-vault-items/fixture/
   --fake-vault FILE  treat FILE (one item title per line) as the vault contents instead
-                     of querying 1Password; skips the SA-token source + op CLI call
+                     of querying the vault through the shared reader (lib/vault_read.py)
   --strict           exit 1 if any required item is MISSING and not glue-seeded
                      (default: informational listing, always exit 0)
 EOF
@@ -159,22 +159,36 @@ sort -u "$TMP/needed.txt" -o "$TMP/needed.txt"
 if [ -n "$FAKE_VAULT" ]; then
     sort -u "$FAKE_VAULT" > "$TMP/have.txt"
 else
-    # ONE credential rule for the whole tree (lib/vault-env.sh): the ambient env, then this seat's 0600
-    # install, then — Win11 seat only — the Debian engine's install across the WSL door. Reaching `op`
-    # with nothing exported is NOT the fallback: on the Win11 seat that is the 1Password desktop app,
-    # which answers in a consent dialog per read rather than in an error. A seat with no reachable
-    # credential is a boundary (rc 2) that names the routes it tried; `--fake-vault` is the flag that
-    # judges the parse without the vault.
+    # The names come off the ONE reader (lib/vault_read.py): the Server-SDK list answers in a
+    # handful of requests, the labelled `op` FALLBACK in one list — either way the reader prints
+    # `route=`/requests to stderr, so this leg's quota price is in the log, not a guess. The
+    # credential rule (lib/vault-env.sh) answers behind it; reaching `op` with nothing exported is
+    # NOT the fallback: on the Win11 seat that is the 1Password desktop app, which answers in a
+    # consent dialog per read rather than in an error. A seat with no reachable credential is a
+    # boundary (rc 2) that names itself; `--fake-vault` is the flag that judges the parse without
+    # the vault.
     # shellcheck disable=SC1091
     hl_source_lib "${BASH_SOURCE[0]}" vault-env.sh
+    hl_source_lib "${BASH_SOURCE[0]}" python.sh
     if ! hl_vault_env; then
         echo "check-vault-items.sh: no vault credential reachable here — $HL_VAULT_WHY" >&2
         echo "                      pass --fake-vault FILE to diff the catalog against a list instead." >&2
         exit 2
     fi
-    echo "== vault read: route=$HL_VAULT_ROUTE sha256[:12]=$HL_VAULT_SHA =="
-    op item list --vault Homelab-ansible --format json 2>/dev/null |
-        python3 -c "import json,sys; [print(i['title']) for i in json.load(sys.stdin)]" | sort -u > "$TMP/have.txt"
+    if ! hl_python; then
+        echo "check-vault-items.sh: no python interpreter answers on this seat — the vault reader "
+             "(lib/vault_read.py) cannot run. Environment boundary, not a verdict." >&2
+        exit 2
+    fi
+    # --list prints title<TAB>id<TAB>version — names, never values; the title column is the HAVE-list.
+    if ! "${HL_PYTHON[@]}" "$REPO/scripts/lib/vault_read.py" --list --vault Homelab-ansible \
+            | cut -f1 > "$TMP/have.raw"; then
+        echo "check-vault-items.sh: the vault read failed — see the route=/reason above. Pass " >&2
+        echo "                      --fake-vault FILE to diff the catalog against a list instead." >&2
+        exit 2
+    fi
+    sort -u "$TMP/have.raw" > "$TMP/have.txt"
+    rm -f -- "$TMP/have.raw"
 fi
 
 # items the deploy-time glues auto-create/auto-seed (skip them):

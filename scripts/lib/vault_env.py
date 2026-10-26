@@ -275,7 +275,7 @@ def self_test() -> int:
                                  'printf "%s|%s" "$(hl_vault_id Test-vault)" '
                                  '"$(hl_vault_item_id Test-vault item_one)"',
                      "x", str(_lib())],
-                    capture_output=True, stdin=subprocess.DEVNULL, text=True, timeout=60,
+                    capture_output=True, stdin=subprocess.DEVNULL, text=True, encoding="utf-8", errors="replace", timeout=60,
                     env=dict(os.environ, PATH=f"{stub}{os.pathsep}{os.environ.get('PATH', '')}",
                              VAULT_STUB_CALLS=str(calls), HL_VAULT_FILE="/nonexistent"))
                 clean = r.returncode == 0 and not calls.read_text(encoding="utf-8")

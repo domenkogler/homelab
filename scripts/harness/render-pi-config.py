@@ -95,7 +95,7 @@ import yaml  # noqa: E402
 sys.path.insert(0, str(next(p for p in Path(__file__).resolve().parents
                             if p.name == "scripts") / "lib"))
 from repo_root import root as _hl_root, script_path as _hl_script  # noqa: E402
-from vault_env import ensure as _vault_ensure  # noqa: E402
+from vault_read import Boundary as _ReadBoundary, read_vault as _read_vault  # noqa: E402
 REPO = _hl_root(__file__)
 # Resolved by NAME, not by `scripts/harness/pi/`: HD-1118 Stage 3 moved this spec next to the
 # renderer that owns it (harness/pi/), and a data path written as a folder literal is the same
@@ -130,11 +130,28 @@ def check_thinking_levels(spec: dict) -> None:
                  "does nothing — and a thinking level that silently does nothing is thinking left on.")
 
 
-def sa_token() -> None:
-    """Resolve the service-account token through the ONE rule — env, then this seat's 0600 install,
-    then (Win11 only) the Debian engine's install across the WSL door: lib/vault-env.sh. The CR of a
-    Windows-side value is stripped there, which is what makes an `op.exe` read usable here."""
-    _vault_ensure()
+_VAULT_READ: dict[str, dict] | None = None   # title -> item rows; PROCESS MEMORY ONLY — this
+_VAULT_REQUESTS = 0                          # render performs no vault write and caches nothing
+
+
+def _vault_load(vault: str) -> None:
+    """ONE batched read per render, through the ONE reader (lib/vault_read.py). The renderer used
+    to pay an addressed get per credential row; the shared read answers the whole spec for a
+    handful of requests and PRINTS the count, so a render's quota price is in the log."""
+    global _VAULT_READ, _VAULT_REQUESTS
+    if _VAULT_READ is not None:
+        return
+    try:
+        vr = _read_vault(vault)
+    except (_ReadBoundary, OSError, ValueError) as exc:
+        sys.exit(f"FAIL: the vault read failed: {exc}\n"
+                 "      Render on a seat with a headless vault read (scripts/lib/vault-env.sh --check),\n"
+                 "      or mark the provider `unmanaged: true` and run with --keep-legacy-credentials.")
+    _VAULT_REQUESTS = vr.requests
+    _VAULT_READ = {row["title"]: row for row in vr.items.values()}
+    print(f"render-pi-config: vault requests this render: {vr.requests} — ONE batched read "
+          f"route={vr.route}, {len(vr.items)} item(s) held in memory only (lib/vault_read.py)",
+          file=sys.stderr)
 
 
 def mask(v: str) -> str:
@@ -142,23 +159,17 @@ def mask(v: str) -> str:
 
 
 def op_secret(vault: str, item: str, field: str) -> str:
-    """Resolve one field. Fails LOUD with the item name — a missing credential is the finding,
-    not something to default() around (the HD-399 rule)."""
-    sa_token()
-    if not shutil.which("op"):
-        sys.exit("FAIL: the `op` CLI is not installed on this machine — render on a host that has\n"
-                 "      access and ship the result: python3 scripts/harness/render-pi-config.py\n"
-                 "      --vendor all --out /tmp/models.json && scp /tmp/models.json <seat>:.pi/agent/models.json")
-    r = subprocess.run(["op", "item", "get", item, "--vault", vault, "--format", "json"],
-                       capture_output=True, text=True)
-    if r.returncode != 0:
-        why = (r.stderr or r.stdout).strip().splitlines()
-        sys.exit(f"FAIL: cannot read op://{vault}/{item} (field '{field}'): "
-                 f"{why[-1] if why else 'op failed'}\n"
+    """Resolve one field off the shared read. Fails LOUD with the item name — a missing credential
+    is the finding, not something to default() around (the HD-399 rule)."""
+    _vault_load(vault)
+    row = (_VAULT_READ or {}).get(item)
+    if row is None:
+        sys.exit(f"FAIL: cannot read op://{vault}/{item} (field '{field}'): the vault read answered "
+                 f"no item with that title\n"
                  f"      Either mint/record that item, or mark the provider `unmanaged: true` and "
                  f"run with --keep-legacy-credentials.")
-    for f in json.loads(r.stdout).get("fields", []):
-        if field in (f.get("id"), f.get("label")) and f.get("value"):
+    for f in row["fields"]:
+        if field in (f["id"], f["label"]) and f["value"]:
             return str(f["value"])
     sys.exit(f"FAIL: op://{vault}/{item} has no non-empty field '{field}'")
 
@@ -235,7 +246,7 @@ def render_pi(spec: dict, target: Path, keep_legacy: bool, host: str = "") -> tu
     prev_existing = {}
     if target.is_file():
         try:
-            prev_existing = json.loads(target.read_text()).get("providers", {})
+            prev_existing = json.loads(target.read_text(encoding="utf-8")).get("providers", {})
         except Exception:
             notes.append(f"existing {target} is not valid JSON — legacy values cannot be preserved")
 
@@ -336,7 +347,7 @@ def render_piauth(spec: dict, target: Path) -> tuple[str, list[str]]:
                               "key": op_secret(cred["vault"], cred["item"], cred.get("field", "credential"))}
     if target.is_file():
         try:
-            cur = json.loads(target.read_text())
+            cur = json.loads(target.read_text(encoding="utf-8"))
         except Exception:
             cur = {}
         for k, v in cur.items():
@@ -387,7 +398,7 @@ def main() -> int:
                          "Pass the TARGET's name when rendering for another box, e.g. --host oldsrv.")
     args = ap.parse_args()
 
-    spec = yaml.safe_load(Path(args.spec).read_text())
+    spec = yaml.safe_load(Path(args.spec).read_text(encoding="utf-8"))
     if spec.get("version") != 1:
         sys.exit(f"FAIL: unsupported spec version {spec.get('version')!r}")
     check_thinking_levels(spec)
@@ -428,7 +439,7 @@ def main() -> int:
             spec_obj = (json.loads(text) if name in ("pi", "pi_auth")
                         else yaml.safe_load(text.split("\n", 4)[-1]))
             try:
-                cur = json.loads(target.read_text()) if name == "pi" else yaml.safe_load(target.read_text())
+                cur = json.loads(target.read_text(encoding="utf-8")) if name == "pi" else yaml.safe_load(target.read_text(encoding="utf-8"))
             except Exception as e:
                 print(f"DRIFT {name}: {target} is unreadable ({e.__class__.__name__})")
                 rc = 1
@@ -441,13 +452,13 @@ def main() -> int:
                       "hand-edit the target and call it converged (HD-388).")
                 rc = 1
             else:
-                same = "" if name == "continue" else f" (byte-identical: {text == target.read_text()})"
+                same = "" if name == "continue" else f" (byte-identical: {text == target.read_text(encoding="utf-8")})"
                 print(f"OK {name}: {target} matches the spec{same}")
             continue
 
         target.parent.mkdir(parents=True, exist_ok=True)
         if target.is_file() and not args.no_backup:
-            stamp = subprocess.run(["date", "+%Y%m%d-%H%M%S"], capture_output=True, text=True).stdout.strip()
+            stamp = subprocess.run(["date", "+%Y%m%d-%H%M%S"], capture_output=True, text=True, encoding="utf-8", errors="replace").stdout.strip()
             shutil.copy2(target, target.with_name(f"{target.name}.pre-render-{stamp}"))
         fd, tmp = tempfile.mkstemp(dir=target.parent, prefix=".render-")
         with os.fdopen(fd, "w") as fh:

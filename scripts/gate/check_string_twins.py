@@ -856,7 +856,7 @@ def _assert_local_git(repo: Path, env: dict) -> None:
     """Prove the fixture owns its own `.git` — a fixture whose git-dir resolves outside its temp
     directory is writing into somebody's real tree, so it must die before its first commit."""
     got = subprocess.run(["git", "-C", str(repo), "rev-parse", "--absolute-git-dir"],
-                         env=env, capture_output=True, text=True)
+                         env=env, capture_output=True, text=True, encoding="utf-8", errors="replace")
     target = Path(got.stdout.strip()) if got.returncode == 0 else None
     here, root = Path(repo).resolve(), (target.resolve() if target else None)
     if root is None or here != root and here not in root.parents:

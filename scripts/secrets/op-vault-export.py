@@ -45,7 +45,7 @@ def get_item(name, vault=None):
     argv = ["op", "item", "get", name, "--format=json", "--reveal"]
     if vault:
         argv += ["--vault", vault]
-    p = subprocess.run(argv, capture_output=True, text=True)
+    p = subprocess.run(argv, capture_output=True, text=True, encoding="utf-8", errors="replace")
     if p.returncode != 0:
         return {"__error__": f"op item get failed for {name!r}: {p.stderr.strip()}"}
     try:

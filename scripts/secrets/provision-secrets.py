@@ -63,7 +63,7 @@ def _bcrypt_ok(py: list[str]) -> bool:
     """Return True if `py` can actually `import bcrypt`."""
     try:
         r = subprocess.run(py + ["-c", "import bcrypt"],
-                           capture_output=True, text=True, timeout=30)
+                           capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30)
     except (OSError, subprocess.TimeoutExpired):
         return False
     return r.returncode == 0
@@ -343,7 +343,7 @@ def gen_token(n: int = 32) -> str:
 
 
 def op(*args: str) -> subprocess.CompletedProcess:
-    return subprocess.run(["op", *args], capture_output=True, text=True)
+    return subprocess.run(["op", *args], capture_output=True, text=True, encoding="utf-8", errors="replace")
 
 
 def require_write_token() -> int:
@@ -379,7 +379,7 @@ def bcrypt_hash(password: str) -> str:
     r = subprocess.run(
         py + ["-c",
               "import bcrypt,sys; print(bcrypt.hashpw(sys.stdin.read().encode(), bcrypt.gensalt(rounds=12)).decode())"],
-        input=password, capture_output=True, text=True)
+        input=password, capture_output=True, text=True, encoding="utf-8", errors="replace")
     if r.returncode != 0:
         raise RuntimeError(f"bcrypt failed: {r.stderr.strip()}")
     return r.stdout.strip()
@@ -403,7 +403,7 @@ def create(category: str, title: str, fields: list[str]) -> bool:
     r = subprocess.run(
         ["op", "item", "create", "--category", category,
          "--title", title, "--vault", VAULT] + fields,
-        capture_output=True, text=True, stdin=subprocess.DEVNULL)
+        capture_output=True, text=True, encoding="utf-8", errors="replace", stdin=subprocess.DEVNULL)
     if r.returncode != 0:
         print(f"FAILED {title}: {r.stderr.strip()}", file=sys.stderr)
         return False
@@ -418,7 +418,7 @@ def rotate(title: str, category: str, fields_builder):
         return False
     fields = fields_builder()
     edit_args = ["op", "item", "edit", title, "--vault", VAULT] + fields
-    r = subprocess.run(edit_args, capture_output=True, text=True)
+    r = subprocess.run(edit_args, capture_output=True, text=True, encoding="utf-8", errors="replace")
     if r.returncode != 0:
         print(f"FAILED rotate {title}: {r.stderr.strip()}", file=sys.stderr)
         return False

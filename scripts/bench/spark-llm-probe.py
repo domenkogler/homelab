@@ -71,7 +71,7 @@ def read_key():
     try:
         out = subprocess.run(
             ["op", "read", f"op://{VAULT_VAULT}/{VAULT_ITEM}/credential"],
-            capture_output=True, text=True, timeout=30, stdin=subprocess.DEVNULL)
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30, stdin=subprocess.DEVNULL)
     except FileNotFoundError:
         die("op CLI not found — install 1Password CLI or pass --token-env NAME")
     if out.returncode != 0 or not out.stdout.strip():

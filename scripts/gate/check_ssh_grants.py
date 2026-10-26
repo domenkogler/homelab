@@ -8,8 +8,9 @@ found by sweeping every authorized_keys BY HAND. An inventory nothing checks is 
 WHAT IT DOES — read-only, by construction:
   * collects, per host and per account, `ssh-keygen -lf <file>` output (FINGERPRINT + COMMENT only);
   * builds the NAMED set from two authoritative sources, never a re-typed copy:
-      1. the vault itself — `op` reads the `public_key` field of every `*_ssh` item and computes the
-         fingerprint locally (authoritative, current, no prose involved);
+      1. the vault itself — the ONE shared batched read (`scripts/lib/vault_read.py`) answers with
+         every `*_ssh` item's `public_key` field and the fingerprint is computed locally
+         (authoritative, current, no prose involved); the leg prints the request count it paid;
       2. docs/deployment-secrets.md §Who is authorized where — the hand-made grants that have no
          vault item, plus the per-host placement and any `retired` verdict;
   * FAILS (rc 1) on a live grant no source names, on a grant marked retired that is still present,
@@ -58,8 +59,7 @@ from pathlib import Path
 sys.path.insert(0, str(next(p for p in Path(__file__).resolve().parents
                             if p.name == "scripts") / "lib"))
 from repo_root import root as _hl_root  # noqa: E402
-from vault_env import ensure as _vault_ensure  # noqa: E402
-from vault_env import item_ref as _vault_item_ref  # noqa: E402
+from vault_read import Boundary as _ReadBoundary, read_vault as _read_vault  # noqa: E402
 REPO = _hl_root(__file__)
 DOC = REPO / "docs" / "deployment-secrets.md"
 SECTION = "Who is authorized where"
@@ -99,33 +99,29 @@ def core(fp: str) -> str:
 
 
 def vault_named() -> list[dict]:
-    """Authoritative named entries: fingerprints computed from the vault's public halves."""
-    # One credential rule for the whole tree — env, then this seat's 0600 install, then (Win11 only)
-    # the Debian engine's install across the WSL door: lib/vault-env.sh via lib/vault_env.py. Without
-    # this the audit silently loses its authoritative source and falls back to the doc's 7-char
-    # prefixes — still useful, but weaker — and on the Win11 seat an unresolved `op` is a desktop-app
-    # consent dialog rather than an error.
-    _vault_ensure()
+    """Authoritative named entries: fingerprints computed from the vault's public halves.
+
+    The read is the ONE shared batched read (lib/vault_read.py): the whole vault for a handful of
+    requests instead of one addressed get per item, and the leg PRINTS what it paid — a run's quota
+    price belongs in the log, not in a guess. No credential is a named boundary here rather than a
+    crash: an `op` called without one is the Win11 desktop-app route (a dialog per read), so the
+    audit degrades to the doc's short prefixes WITH a warning instead of waiting for a human."""
+    try:
+        vr = _read_vault(VAULT)
+    except (_ReadBoundary, OSError, ValueError) as exc:
+        print(f"WARN: {exc} — the vault half of the named set is missing; keys the doc does not "
+              "name will read UNKNOWN", file=sys.stderr)
+        return []
+    vr.print_cost("check_ssh_grants.py")
     out = []
     for item in VAULT_SSH_ITEMS:
-        # IDs, not names: a name-addressed `op item get` costs 3 of an ACCOUNT ceiling of 1000
-        # requests/24 h shared by every service account on the account (lib/vault_env.py `item_ref`).
-        v_arg, i_arg, form = _vault_item_ref(VAULT, item)
-        if form.startswith("names"):
-            print(f"NOTE: {item} resolved by name — {form}", file=sys.stderr)
-        r = subprocess.run(["op", "item", "get", i_arg, "--vault", v_arg, "--format", "json"],
-                           capture_output=True, text=True)
-        if r.returncode != 0:
-            print(f"WARN: op could not read {item} ({r.stderr.strip().splitlines()[-1] if r.stderr.strip() else 'op failed'})"
-                  " — that key will be reported as UNKNOWN unless the doc names it", file=sys.stderr)
+        row = vr.by_title(item)
+        if row is None:
+            print(f"WARN: the vault read holds no item titled {item} — that key will be reported "
+                  "as UNKNOWN unless the doc names it", file=sys.stderr)
             continue
-        import json
-        try:
-            data = json.loads(r.stdout)
-        except Exception:
-            continue
-        for f in data.get("fields", []):
-            if f.get("id") == "public_key" and f.get("value"):
+        for f in row["fields"]:
+            if "public_key" in (f["id"], f["label"]) and f["value"]:
                 fp = fp_of_pubkey(str(f["value"]))
                 if fp:
                     out.append({"fp": core(fp), "identity": item, "hosts": None,
@@ -235,11 +231,13 @@ def parse_doc(path: Path = DOC) -> list[dict]:
 
 
 def collect(hosts: list[str], accounts: list[str]) -> tuple[dict, list[str]]:
-    """live[(host, file)][(fingerprint, comment)] — ssh is read-only; failures are collected."""
+    """live[(host, file)][(fingerprint, comment)] — ssh is read-only; failures are collected.
+    Explicit UTF-8: the far side prints UTF-8 key comments and the Win11 locale default (cp1252)
+    would decode them differently on the two seat planes (the HD-1202 class)."""
     live, errors = {}, []
     for h in hosts:
         r = subprocess.run(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", h, REMOTE],
-                           capture_output=True, text=True)
+                           capture_output=True, text=True, encoding="utf-8", errors="replace")
         if r.returncode != 0:
             errors.append(f"{h}: ssh rc={r.returncode} {r.stderr.strip().splitlines()[-1] if r.stderr.strip() else ''}")
             continue

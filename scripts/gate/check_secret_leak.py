@@ -22,10 +22,14 @@ The four requirements, each one a lesson from those three leaks:
     asserts this on the tool's own output: a canary planted in a fixture may not appear in the text
     the run prints, and neither may its length.
 
-(c) **A vault that cannot be read is a boundary, never a green.** No `op`, an unauthenticated `op`,
-    or a `list` that answers nothing → exit 2 with the reason. This check only READS, so a
-    read-scoped token is sufficient and is NOT a reason to skip: what gets probed is the read, because
-    the read is what the check needs — scope is measured here, never inherited from prose
+(c) **A vault that cannot be read is a boundary, never a green.** No `op`, no importable Server
+    SDK, an unreachable credential, or a read that answers nothing → exit 2 with the reason. The
+    whole-vault read is the SHARED batched one — `scripts/lib/vault_read.py` is the ONE reader for
+    the tree (Server SDK `items.list` + `items.get_all` in 50-ID chunks; a labelled `op item get`
+    fan-out FALLBACK where the SDK will not import), values held in this process's memory only,
+    and every run prints the request count and the route it took. This check only READS, so a
+    read-scoped token is sufficient and is NOT a reason to skip: what gets probed is the read,
+    because the read is what the check needs — scope is measured here, never inherited from prose
     (docs/deployment-secrets.md §"Token scope: PROBE it, do not inherit it").
 
 (d) **Bounded, and honest about rotated values.** File sizes are capped, binaries are skipped, and
@@ -62,7 +66,11 @@ actually looking at. A ledger line in a class this run did not read prints `NOT 
     reason (`--tree-only`/`--no-captures`, `--no-history`, or a class whose scan set resolved to zero
     files), the OK line carries `PARTIAL`, and a ledger line in an unread class prints `NOT JUDGED`
     rather than `STALE` — a class this run never read cannot prove a debt closed, and it cannot delete
-    that class's lines either (see `--update-ledger`).
+    that class's lines either (see `--update-ledger`). The `run-capture` class is decided per STORE,
+    not per corpus: every run names the stores it read (`pi-transcripts`, `pi-subagents-scratch`,
+    `session-dir`), and the class is judged only when the PERSISTENT transcript store was READ — the
+    `/tmp` scratch roots are wiped, so their presence says nothing about a debt recorded in `$HOME`
+    and a checkout without the store cannot call such a debt closed.
 
 Scan set (the class today's leaks landed in):
   * `repo-tree` — `git ls-files --cached --others --exclude-standard`, plus repo `logs/*.log`;
@@ -101,15 +109,24 @@ import subprocess
 import sys
 import tempfile
 import time
-from concurrent.futures import ThreadPoolExecutor
 from contextlib import redirect_stdout
 from pathlib import Path
 from typing import NamedTuple
 
 sys.path.insert(0, str(next(p for p in Path(__file__).resolve().parents
                             if p.name == "scripts") / "lib"))
+# On a Win11 seat the locale default is cp1252, so the em-dashes in this file's own verdict lines
+# encode as bytes the READER of a captured subprocess cannot decode (the sibling checkers pin
+# themselves the same way — the HD-1202 class: the same leg must ask the same question on both
+# seat planes). Pin stdout/stderr to UTF-8; a no-op where the locale already is.
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+except (AttributeError, ValueError):
+    pass
 from repo_root import root as _hl_root  # noqa: E402
-from vault_env import ensure as _vault_ensure, provenance as _vault_provenance  # noqa: E402
+from vault_read import Boundary as _ReadBoundary, read_vault as _read_vault  # noqa: E402
+from vault_env import provenance as _vault_provenance  # noqa: E402
 
 ROOT = _hl_root(__file__)
 VAULT = "Homelab-ansible"
@@ -135,8 +152,6 @@ SECRET_FIELD_KEYS = ("password", "old-password", "credential", "token", "secret"
 # values are COUNTED and named by item rather than matched. The shape scanner is the instrument there.
 MIN_VALUE_LEN = 8
 DEFAULT_MAX_FILE_MB = 64
-# The documented 1Password fan-out budget (docs/deployment-secrets.md §5): never exceed ~6.
-PARALLEL_MAX = 6
 # Run-capture patterns under the pi temp roots and $SESSION_DIR.
 CAPTURE_PATTERNS = ("output-*.log", "events.jsonl", "session.jsonl", "logs/*.log")
 # A ceiling on printed findings: 200 lines of the same item is a wall, not a report.
@@ -155,30 +170,11 @@ class Boundary(Exception):
 
 
 # --------------------------------------------------------------------------- vault read
-# The ceilings are SEAT-SHAPED and measured, not guessed. On the Win11 Git-Bash seat `op item list`
-# answers in ~11 s WARM (measured 2026-10-25, two runs) against a couple of seconds on the Debian
-# seats, and it crossed a flat 60 s ceiling under the pool's 49 in-flight legs — where the only
-# output was a TimeoutExpired traceback. A vault that answers slowly is not a vault that is absent;
-# a vault that never answers is a Boundary, printed as a named SKIP, never a stack trace.
-# Override with LEAK_GATE_OP_TIMEOUT / LEAK_GATE_OP_GET_TIMEOUT for a one-off probe.
-_OP_COLD = 4 if os.name == "nt" else 1
-OP_LIST_TIMEOUT = int(os.environ.get("LEAK_GATE_OP_TIMEOUT", 60 * _OP_COLD))
-OP_GET_TIMEOUT = int(os.environ.get("LEAK_GATE_OP_GET_TIMEOUT", 90 * _OP_COLD))
-
-
-def _op(args: list[str], timeout: int = OP_LIST_TIMEOUT) -> subprocess.CompletedProcess:
-    # `text=True` decodes with the LOCALE default, which on the Win11 seat is cp1252: one
-    # non-decodable byte leaves stdout None and every JSON leg below dies on NoneType (docs/harness-pi-seats.md §1).
-    # Bytes in, one explicit UTF-8 decode out — the form that asks the same question on any seat.
-    try:
-        r = subprocess.run(["op", *args], capture_output=True,
-                           stdin=subprocess.DEVNULL, timeout=timeout)
-    except subprocess.TimeoutExpired as exc:
-        raise Boundary(f"`op {args[0]}` did not answer within {timeout}s on a {os.name} seat "
-                       f"— a slow vault is an environment boundary, not a crash of this checker") from exc
-    return subprocess.CompletedProcess(r.args, r.returncode,
-                                       (r.stdout or b"").decode("utf-8", "replace"),
-                                       (r.stderr or b"").decode("utf-8", "replace"))
+# The whole-vault read is the SHARED batched one — scripts/lib/vault_read.py is the ONE reader for
+# the tree (Server SDK: `items.list` + `items.get_all` in 50-ID chunks; labelled FALLBACK: the
+# ID-addressed `op item get` fan-out). This file holds no fan-out, no timeouts of its own and no
+# address book: the ceilings and the request counting belong to the reader, which prints `route=`,
+# the request count and the per-item versions digest on stderr for every read.
 
 
 def _secret_fields(raw: dict) -> list[str]:
@@ -192,85 +188,35 @@ def _secret_fields(raw: dict) -> list[str]:
     return out
 
 
-def _vault_id_of(rows: list[dict]) -> str:
-    """The vault's ID, from the answer the list already gave — no extra request to learn it.
-
-    It matters because `op item get` is billed for resolving a NAME: 1 request when the item and the
-    vault are both IDs, more when either is a name. The account shares 1000 requests across every
-    service account on it for 24 h, so an unreadable-to-us name is not a style choice (HD-1204).
-    """
-    return next((str((row.get("vault") or {}).get("id")) for row in rows
-                 if (row.get("vault") or {}).get("id")), "")
-
-
-def _get_argv(item_id: str, vault_arg: str) -> list[str]:
-    """One item read, addressed the cheap-but-still-correct way. Kept as a function so the self-test can
-    ASK the shape rather than trust a comment: the vault slot carrying a NAME is the 3-read path."""
-    return ["item", "get", item_id, "--vault", vault_arg, "--format", "json"]
-
-
-def load_values(parallel: int) -> tuple[dict[bytes, list[str]], dict[str, str], list[str], list[str], str]:
-    """The fleet's CURRENT secret values.
+def load_values() -> tuple[dict[bytes, list[str]], dict[str, str], list[str], list[str], str]:
+    """The fleet's CURRENT secret values, off the ONE shared read.
     Returns (needles, id→title, short-value item ids, read errors, vault version key)."""
-    # Resolve the credential through the ONE rule (lib/vault-env.sh) before the first `op`. A seat
-    # that reaches `op` with nothing exported is silently the 1Password desktop app, and on the Win11
-    # seat that is a consent dialog per read answered by a human — not a slow check, a blocked one.
-    ok, why = _vault_ensure()
-    if not ok:
-        raise Boundary(f"no vault credential reachable on this seat ({why}) — this check compares "
-                       "captured bytes against CURRENT values, so without a headless read it has no "
-                       "idea what a leak looks like; a desktop-app fallback is a dialog, not a verdict")
-    r = _op(["item", "list", "--vault", VAULT, "--format", "json"])
-    if r.returncode != 0:
-        raise Boundary(f"`op item list` rc {r.returncode}: {(r.stderr or '').strip()[:120]}")
     try:
-        rows = json.loads(r.stdout)
-    except json.JSONDecodeError as exc:
-        raise Boundary(f"`op item list` did not answer JSON: {exc}") from exc
-    if not rows:
-        raise Boundary("`op item list` answered ZERO items — an empty vault answer is not an empty fleet")
-    titles = {row["id"]: row.get("title", "?") for row in rows}
-    # Address the ITEMS by ID and the VAULT by ID: `op item get` costs 1 request when both are IDs, and
-    # 3 when either is a name (1Password bills the name resolution). The vault's own ID is already in the
-    # list answer, so this costs nothing to know — and the account ceiling is 1000 requests per 24 h
-    # SHARED BY EVERY service account on it, which is what `op service-account ratelimit` shows.
-    vvid = _vault_id_of(rows)
-
-    def one(row: dict) -> tuple[str, list[str], str]:
-        g = _op(_get_argv(row["id"], vvid or VAULT), timeout=OP_GET_TIMEOUT)
-        if g.returncode != 0:
-            return row["id"], [], (g.stderr or "").strip()[:100]
-        try:
-            return row["id"], _secret_fields(json.loads(g.stdout)), ""
-        except json.JSONDecodeError as exc:
-            return row["id"], [], f"unparsable item JSON: {exc}"
-
+        vr = _read_vault(VAULT)
+    except (_ReadBoundary, OSError, ValueError) as exc:
+        raise Boundary(str(exc)) from exc
     needles: dict[bytes, list[str]] = {}
     short: list[str] = []
     errs: list[str] = []
-    with ThreadPoolExecutor(max_workers=max(1, min(parallel, PARALLEL_MAX))) as ex:
-        for iid, vals, err in ex.map(one, rows):
-            if err:
-                errs.append(err)
-            for v in vals:
-                if len(v) < MIN_VALUE_LEN:
-                    short.append(iid)
-                    continue
-                needles.setdefault(v.encode("utf-8", "surrogateescape"), []).append(iid)
-    reads = 2 + len(rows) * (1 if vvid else 2)
-    print(f"vault reads this run: ~{reads} — {len(rows)} items at "
-          f"{'1 each (item + vault ID)' if vvid else '2 each (vault answered by NAME: 3 per item if the item were named too)'}"
-          f" + 2 for the list; the account ceiling is 1000 requests/24 h across ALL its service accounts"
-          f" (`op service-account ratelimit`)")
+    titles = {iid: row.get("title", "?") for iid, row in vr.items.items()}
+    for iid, row in vr.items.items():
+        for v in _secret_fields(row):
+            if len(v) < MIN_VALUE_LEN:
+                short.append(iid)
+                continue
+            needles.setdefault(v.encode("utf-8", "surrogateescape"), []).append(iid)
+    print(f"vault reads this run: {vr.requests} request(s) route={vr.route} — ONE batched read, "
+          f"{len(vr.items)} items held in memory only (nothing on disk); the account ceiling is "
+          "1000 requests/24 h across ALL its service accounts (`op service-account ratelimit`); "
+          "the reader is scripts/lib/vault_read.py")
     if not needles:
         raise Boundary("the vault read produced ZERO secret values — a vault that answers nothing "
                        "is an environment boundary, not a clean fleet")
-    # The history cache's value half. An item's `version` bumps on every save, so a rotation — the only
-    # event that changes what a history hit MEANS — invalidates the cache. Deliberately NOT a digest of
-    # the values: a digest of an 8-char secret is a dictionary oracle, and the provenance line prints.
-    vkey = hashlib.sha256("\n".join(f"{row['id']}\t{row.get('version')}"
-                                    for row in sorted(rows, key=lambda r: r["id"])).encode()).hexdigest()
-    return needles, titles, short, errs, vkey
+    # vr.vkey is the sha256 of the per-item `id<TAB>version` rows — deliberately NOT a digest of
+    # the values: a digest of an 8-char secret is a dictionary oracle, and the version bump is the
+    # only event that changes what a history hit MEANS. The formula lives in the reader so every
+    # leg's cache key moves together or not at all.
+    return needles, titles, short, errs, vr.vkey
 
 
 # --------------------------------------------------------------------------- scan set
@@ -287,25 +233,73 @@ def repo_tree_files() -> list[str]:
     return out
 
 
-def capture_files() -> list[str]:
+def capture_files(home: Path | None = None) -> list[str]:
+    """Flat view of every store — the scan set. The VERDICT view is `capture_stores()`; a run that
+    decides per class on "is the corpus non-empty" without naming its stores is the HD-1181 failure
+    shape (scratch keeping a store-less checkout green)."""
+    return sorted({p for s in capture_stores(home).values() for p in s["files"]})
+
+
+# The run-capture class is not one corpus, it is STORES, and they are not interchangeable:
+# `pi-transcripts` (~/.pi/agent/sessions) is the PERSISTENT store the ledger debts sit in — it
+# survives a reboot, so its ABSENCE proves nothing while its PRESENCE proves absence of a hit;
+# `pi-subagents-*` scratch roots and a per-session `$SESSION_DIR` live under /tmp, so they are
+# wiped (their absence can be evidence of closure, their presence is no evidence about the
+# persistent store at all). A guard that judges the class on "corpus non-empty" lets scratch keep
+# the corpus non-empty when the transcript store is absent — that is how a store-less checkout
+# exits 0 and prints live debts as STALE. So: every run-capture verdict NAMES the stores it read,
+# and the class is JUDGED only when the persistent store was READ.
+def capture_stores(home: Path | None = None) -> dict[str, dict]:
+    """store name -> {files, read, why}. READ means the store's root exists and was scanned — zero
+    files in a READ store still proves absence there; a root that is not there was NOT READ and
+    cannot close a debt recorded in it."""
+    home = Path(home) if home else Path.home()
+    stores: dict[str, dict] = {}
+    sess = home / ".pi" / "agent" / "sessions"
+    files = [str(p) for p in sess.rglob("*.jsonl")] if sess.is_dir() else []
+    stores["pi-transcripts"] = {
+        "files": files,
+        "read": sess.is_dir(),
+        "why": f"scanned {sess}" if sess.is_dir() else f"no store at {sess} on this seat",
+    }
+    scratch: list[str] = []
     roots: list[str] = []
-    if os.environ.get("SESSION_DIR"):
-        roots.append(os.environ["SESSION_DIR"])
     tmp = os.environ.get("TMPDIR", "/tmp")
     roots += sorted(glob.glob(os.path.join(tmp, "pi-subagents-*")))
     if tmp != "/tmp":
         roots += sorted(glob.glob("/tmp/pi-subagents-*"))
-    sess = Path.home() / ".pi" / "agent" / "sessions"
-    files: list[str] = []
     for root in roots:
-        if not os.path.isdir(root):
-            continue
         for pat in CAPTURE_PATTERNS:
-            files += [p for p in glob.glob(os.path.join(root, "**", pat), recursive=True)
-                      if os.path.isfile(p)]
-    if sess.is_dir():
-        files += [str(p) for p in sess.rglob("*.jsonl")]
-    return files
+            scratch += [p for p in glob.glob(os.path.join(root, "**", pat), recursive=True)
+                        if os.path.isfile(p)]
+    stores["pi-subagents-scratch"] = {
+        "files": sorted(set(scratch)),
+        "read": bool(roots),
+        "why": f"scanned {len(roots)} root(s)" if roots else f"no pi-subagents-* root under {tmp}",
+    }
+    if os.environ.get("SESSION_DIR"):
+        sd = os.environ["SESSION_DIR"]
+        sfiles: list[str] = []
+        if os.path.isdir(sd):
+            for pat in CAPTURE_PATTERNS:
+                sfiles += [p for p in glob.glob(os.path.join(sd, "**", pat), recursive=True)
+                           if os.path.isfile(p)]
+        stores["session-dir"] = {"files": sorted(set(sfiles)), "read": os.path.isdir(sd),
+                                 "why": f"scanned {sd}" if os.path.isdir(sd)
+                                        else f"SESSION_DIR points nowhere ({sd})"}
+    return stores
+
+
+def stores_note(stores: dict[str, dict]) -> str:
+    """The line that makes the verdict name its stores — a run must say WHERE it looked, because
+    'checked the captures' is false whenever only scratch answered."""
+    read = [f"{name} ({len(s['files'])} file(s); {s['why']})" for name, s in sorted(stores.items())
+            if s["read"]]
+    unread = [f"{name} ({s['why']})" for name, s in sorted(stores.items()) if not s["read"]]
+    line = "run-capture stores read: " + (", ".join(read) or "NONE")
+    if unread:
+        line += " — NOT READ: " + ", ".join(unread)
+    return line
 
 
 def expand(paths: list[str]) -> list[str]:
@@ -411,12 +405,23 @@ def scan_run(files_by_class: dict[str, list[str]], needles: dict[bytes, list[str
     return sorted(findings), counts, corpus
 
 
-def class_verdict(corpus: dict[str, int], skipped: dict[str, str]) -> tuple[set[str], dict[str, str]]:
-    """Which classes this run may JUDGE. A class whose scan set resolved to zero files was NOT scanned:
-    an empty capture root is not a clean capture set, and a run that read nothing must not get to call a
-    debt closed — nor to delete that debt's ledger line next run."""
+def class_verdict(corpus: dict[str, int], skipped: dict[str, str],
+                  stores: dict[str, dict] | None = None) -> tuple[set[str], dict[str, str]]:
+    """Which classes this run may JUDGE — with the run-capture class decided by its PERSISTENT
+    store, not by the corpus: a scratch root can keep a corpus non-empty while the store the debts
+    live in was never read, and a class you cannot see cannot prove a debt closed — nor delete that
+    debt's ledger line next run."""
     judged, not_scanned = set(), dict(skipped)
     for cls, n in corpus.items():
+        if cls == "run-capture" and stores is not None:
+            gate = stores["pi-transcripts"]
+            if gate["read"]:
+                judged.add(cls)
+            else:
+                not_scanned[cls] = ("the persistent transcript store was NOT read "
+                                    f"({gate['why']}) — scratch roots say nothing about it, so no "
+                                    "run-capture debt is proven closed here")
+            continue
         if n:
             judged.add(cls)
         else:
@@ -934,7 +939,8 @@ def self_test() -> int:
     # (6) an unreachable vault is a boundary: rc 2 with SKIP, never rc 0.
     with tempfile.TemporaryDirectory() as td:
         r = subprocess.run([sys.executable, str(Path(__file__).resolve())],
-                           capture_output=True, text=True, env=dict(os.environ, PATH=td),
+                           capture_output=True, text=True, encoding="utf-8", errors="replace",
+                           env=dict(os.environ, PATH=td),
                            stdin=subprocess.DEVNULL)
         detail = f"rc {r.returncode}: {(r.stdout + r.stderr).strip()[:90]}"
         check("vault-unreachable prints SKIP and exits 2",
@@ -1035,18 +1041,106 @@ def self_test() -> int:
         check("a run without the history leg cannot clear a git-history line",
               rc == 1 and led.read_text() == book, f"rc {rc}: {led.read_text()[-80:]}")
 
-    # (24) the read-budget half, asked of the code rather than of a comment: an ID-addressed get is 1
-    # request where a name-addressed one is 3, against an ACCOUNT ceiling of 1000 requests/24 h.
-    check("item gets are addressed by item ID",
-          _get_argv("aaaaaaaaaaaaaaaaaaaaaaaaaa", "xvh7vv7aaaaaaaaaaaaaaaaaaaaaaaaaa")[2]
-          == "aaaaaaaaaaaaaaaaaaaaaaaaaa")
-    check("the vault slot carries the vault ID when the list answered one",
-          _get_argv("x", "xvh7vv7aaaaaaaaaaaaaaaaaaaaaaaaaa")[4] == "xvh7vv7aaaaaaaaaaaaaaaaaaaaaaaaaa")
-    check("a list answer with no vault ID falls back to the NAME, and says so by costing more",
-          _vault_id_of([{"id": "a", "title": "t"}]) == "")
-    check("the vault ID is read from the list answer the run already paid for",
-          _vault_id_of([{"id": "a", "title": "t", "vault": {"id": "xvh7vv7aaaaaaaaaaaaaaaaaaaaaaaaaa"}}])
-          == "xvh7vv7aaaaaaaaaaaaaaaaaaaaaaaaaa")
+    # (24) the read-budget half moved to the ONE reader (lib/vault_read.py --self-test proves the
+    # ID-addressed fallback and the get_all chunking there). What THIS file pins is that its needle
+    # grammar runs on the shared read: the fixture route (ZERO requests) must produce the needles,
+    # the titles, the short-value list and a versions key the history cache can key on.
+    with tempfile.TemporaryDirectory() as td:
+        fx = Path(td) / "vault-fixture.json"
+        secret_v, short_v, login_v = _mint(), _mint(5), _mint()
+        fx.write_text(json.dumps({"items": {
+            "aaaaaaaaaaaaaaaaaaaaaaaaaa": {"title": "item_secret", "version": 7, "fields": [
+                {"id": "password", "label": "password", "value": secret_v,
+                 "type": "Concealed", "section": ""}]},
+            "bbbbbbbbbbbbbbbbbbbbbbbbbb": {"title": "item_short", "version": 2, "fields": [
+                {"id": "credential", "label": "credential", "value": short_v,
+                 "type": "Concealed", "section": ""}]},
+            "cccccccccccccccccccccccccc": {"title": "item_login", "version": 9, "fields": [
+                {"id": "username", "label": "username", "value": login_v,
+                 "type": "Text", "section": ""},
+                {"id": "password", "label": "password", "value": login_v,
+                 "type": "Password", "section": ""}]}}}), encoding="utf-8")
+        prev_fx_env = os.environ.get("HL_VAULT_READ_FIXTURE")
+        os.environ["HL_VAULT_READ_FIXTURE"] = str(fx)
+        try:
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                n2, t2, short2, errs2, vkey2 = load_values()
+            out2 = buf.getvalue()
+            check("the shared read feeds the needle grammar at ZERO requests",
+                  {tuple(v) for v in n2.values()} == {("aaaaaaaaaaaaaaaaaaaaaaaaaa",),
+                                                      ("cccccccccccccccccccccccccc",)}
+                  and short2 == ["bbbbbbbbbbbbbbbbbbbbbbbbbb"]
+                  and t2.get("cccccccccccccccccccccccccc") == "item_login"
+                  and "route=fixture" in out2 and "0 request(s)" in out2,
+                  f"needles={[v for vv in n2.values() for v in vv]} short={short2} out={out2[:120]!r}")
+            check("the versions key the history cache keys on comes from the reader's version rows",
+                  vkey2 == hashlib.sha256("\n".join(
+                      f"{i}\t{v}" for i, v in sorted({"aaaaaaaaaaaaaaaaaaaaaaaaaa": 7,
+                                                      "bbbbbbbbbbbbbbbbbbbbbbbbbb": 2,
+                                                      "cccccccccccccccccccccccccc": 9}.items())
+                  ).encode()).hexdigest(), vkey2[:20])
+        finally:
+            if prev_fx_env is None:
+                os.environ.pop("HL_VAULT_READ_FIXTURE", None)
+            else:
+                os.environ["HL_VAULT_READ_FIXTURE"] = prev_fx_env
+
+    # (25) HD-1181: the run-capture class must NAME the stores it read, and a checkout whose
+    # transcript store is absent must not report live debts STALE — even when scratch keeps the
+    # corpus non-empty. Three arms, one per store shape; the ledger line is the live debt.
+    with tempfile.TemporaryDirectory() as td:
+        prev_tmp = os.environ.get("TMPDIR")
+        led = Path(td) / "led.txt"
+        book = "# book\naaaa\trun-capture\titem_a\n"
+        tmp_root = Path(td) / "tmp"
+        tmp_root.mkdir()
+        os.environ["TMPDIR"] = str(tmp_root)
+
+        def store_case(name: str, make_scratch: bool, want_judged: bool) -> None:
+            home = Path(td) / f"home-{name}"
+            scratch = tmp_root / f"pi-subagents-{name}"
+            if make_scratch:
+                (scratch / "run-0").mkdir(parents=True)
+                (scratch / "run-0" / "output-0.log").write_text("clean scratch line\n", encoding="utf-8")
+            os.environ["TMPDIR"] = str(tmp_root)
+            if name == "present":
+                sess = home / ".pi" / "agent" / "sessions"
+                sess.mkdir(parents=True)
+                (sess / "session.jsonl").write_text("clean transcript\n", encoding="utf-8")
+            stores = capture_stores(home)
+            corpus = {"repo-tree": 1,
+                      "run-capture": sum(len(s["files"]) for s in stores.values())}
+            judged, not_scanned = class_verdict(corpus, {}, stores)
+            note = stores_note(stores)
+            led.write_text(book, encoding="utf-8")
+            rc, out = verdict(ScanRun([], zero_counts(), corpus["run-capture"], judged, not_scanned,
+                                      [note]), led)
+            named = "pi-transcripts" in note
+            no_stale = ("STALE" not in out) if not want_judged else True
+            check(f"run-capture names its stores and judges per store: {name}",
+                  named and no_stale and (("run-capture" in judged) == want_judged)
+                  and ("NOT JUDGED" in out) == (not want_judged),
+                  f"judged={sorted(judged)} rc {rc} out {out[-160:]!r}")
+
+        store_case("present", make_scratch=False, want_judged=True)
+        store_case("absent", make_scratch=False, want_judged=False)
+        store_case("absent-but-scratch", make_scratch=True, want_judged=False)
+        # the STALE half stays alive: with the store READ and the hit gone, the debt prints STALE
+        home = Path(td) / "home-stale"
+        sess = home / ".pi" / "agent" / "sessions"
+        sess.mkdir(parents=True)
+        (sess / "session.jsonl").write_text("clean transcript\n", encoding="utf-8")
+        stores = capture_stores(home)
+        judged, not_scanned = class_verdict({"run-capture": 1}, {}, stores)
+        led.write_text(book, encoding="utf-8")
+        rc, out = verdict(ScanRun([], zero_counts(), 1, judged, not_scanned, [stores_note(stores)]), led)
+        check("a store-READ run with the hit gone still prints the debt STALE (the guard has teeth both ways)",
+              rc == 0 and "STALE" in out and "aaaa run-capture" in out, out[-160:])
+        if prev_tmp is None:
+            os.environ.pop("TMPDIR", None)
+        else:
+            os.environ["TMPDIR"] = prev_tmp
 
     print(f"check_secret_leak.py --self-test: {fails} failing arm(s)")
     if fails:
@@ -1074,8 +1168,8 @@ MUTATIONS = [
      'findings.append((path, line, iid, needle.decode("utf-8", "replace"), _class_of(path)))',
      "disclosure arm"),
     ("no `op` on PATH reads green",
-     '              "Environment boundary, not a green.")\n        return 2',
-     '              "Environment boundary, not a green.")\n        return 0',
+     'is. Environment boundary, not a green.")\n            return 2',
+     'is. Environment boundary, not a green.")\n            return 0',
      "vault-unreachable"),
     ("the ledger is ignored",
      "    fresh = [f for f in findings if ledger_key(f) not in known]",
@@ -1164,12 +1258,13 @@ def mutation_test() -> int:
             fake = Path(td) / "scripts"
             (fake / "lib").mkdir(parents=True)
             (fake / "gate").mkdir()
-            for _lib in ("repo_root.py", "vault_env.py"):
+            for _lib in ("repo_root.py", "vault_env.py", "vault_read.py"):
                 shutil.copy(ROOT / "scripts" / "lib" / _lib, fake / "lib" / _lib)
             mutant = fake / "gate" / "leak-mutant.py"
             mutant.write_text(mutated, encoding="utf-8")
             r = subprocess.run([sys.executable, str(mutant), "--self-test"], capture_output=True,
-                               text=True, env=dict(os.environ, LEAK_GATE_MUTANT="1", REPO=str(ROOT)),
+                               text=True, encoding="utf-8", errors="replace",
+                               env=dict(os.environ, LEAK_GATE_MUTANT="1", REPO=str(ROOT)),
                                stdin=subprocess.DEVNULL)
         broke = sorted({ln.split(" arm ")[1].split(":")[0] for ln in (r.stdout or "").splitlines()
                         if ": FAIL" in ln})
@@ -1189,13 +1284,16 @@ def build_run(needles: dict[bytes, list[str]], titles: dict[str, str], vkey: str
     and a green one."""
     by_class: dict[str, list[str]] = {"repo-tree": repo_tree_files() + expand(args.path)}
     skipped: dict[str, str] = {}
+    stores: dict[str, dict] | None = None
+    notes: list[str] = []
     if args.tree_only:
         skipped["run-capture"] = ("--tree-only/--no-captures: no capture file was opened, so a value in a "
                                   "session transcript or a pi run log is invisible to this run")
     else:
-        by_class["run-capture"] = capture_files()
+        stores = capture_stores()
+        by_class["run-capture"] = sorted({p for s in stores.values() for p in s["files"]})
+        notes.append(stores_note(stores))
     findings, counts, corpus = scan_run(by_class, needles, args.max_file_mb, titles)
-    notes: list[str] = []
     if args.no_history:
         skipped["git-history"] = ("--no-history: no history blob was read, so a value that was in the tree "
                                   "once and was edited out stays invisible — the HD-1170 gap, on purpose "
@@ -1205,7 +1303,7 @@ def build_run(needles: dict[bytes, list[str]], titles: dict[str, str], vkey: str
         findings += hist
         corpus["git-history"] = hinfo["blobs"]
         notes.append(history_note(hinfo))
-    judged, not_scanned = class_verdict(corpus, skipped)
+    judged, not_scanned = class_verdict(corpus, skipped, stores)
     if not judged:
         raise Boundary("every scan set resolved to ZERO files — nothing to read is not a clean fleet")
     files = sorted({p for group in by_class.values() for p in group})
@@ -1219,7 +1317,6 @@ def main() -> int:
     ap.add_argument("--strict", action="store_true", help="ignore the exposure ledger")
     ap.add_argument("--retired-file", help="0600 file of SUPERSEDED values, reported as INFO only")
     ap.add_argument("--max-file-mb", type=int, default=DEFAULT_MAX_FILE_MB)
-    ap.add_argument("--parallel", type=int, default=PARALLEL_MAX)
     ap.add_argument("--tree-only", "--no-captures", dest="tree_only", action="store_true",
                     help="scan the working tree only — the flag that replaces the "
                          "`HOME=/tmp/empty-home TMPDIR=…` trick. The run-capture class is then NOT read, "
@@ -1238,10 +1335,20 @@ def main() -> int:
         print("check_secret_leak.py --self-test")
         return self_test()
 
+    # The reader needs SOME vault route: the CLI or an importable Server SDK. Neither is an
+    # environment boundary (rc 2), printed — the check compares captured bytes against CURRENT
+    # values, so without a headless read it has no idea what a leak looks like, and a desktop-app
+    # fallback is a dialog, not a verdict.
     if shutil.which("op") is None:
-        print("SKIP: no `op` on PATH — a leak check needs the vault to know what a leak is. "
-              "Environment boundary, not a green.")
-        return 2
+        import importlib.util
+        from vault_read import sdk_probe
+        launcher, probe_log = (None, []) if importlib.util.find_spec("onepassword") else sdk_probe()
+        if launcher is None and importlib.util.find_spec("onepassword") is None:
+            for line in probe_log:
+                print(f"SKIP note: {line}")
+            print("SKIP: no `op` on PATH and no interpreter imports the onepassword SDK — a leak "
+                  "check needs the vault to know what a leak is. Environment boundary, not a green.")
+            return 2
     if set(args.classes) - set(CLASSES):
         print(f"SKIP: unknown class(es) {sorted(set(args.classes) - set(CLASSES))} — the classes are "
               f"{list(CLASSES)}. An unrecognised scope is an environment mistake, not a verdict")
@@ -1259,7 +1366,7 @@ def main() -> int:
         retired = [ln.strip() for ln in rf.read_bytes().splitlines() if ln.strip()]
 
     try:
-        needles, titles, short, errs, vkey = load_values(args.parallel)
+        needles, titles, short, errs, vkey = load_values()
         res, files = build_run(needles, titles, vkey, args)
         if args.update_ledger:
             return update_ledger(LEDGER, res.findings, res.scanned, args.classes)

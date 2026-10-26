@@ -94,14 +94,30 @@ Two ceilings apply to every service-account request AT ONCE, and `op service-acc
 both: the token's own 1000 reads/hour, and — the one that binds a lab like this — **1000 requests per
 24 h for the whole 1Password account, shared by every service account on it** (Families/Personal;
 Teams 5 000, Business 50 000). Waiting for the hourly reset does not help an exhausted daily bucket,
-and a second service account does not either: the daily bucket is per account, not per token.
+and a second service account does not either: the daily bucket is per account, not per token. The
+failure looks like `Too many requests. Your client has been rate-limited. Try again in  seconds` —
+with the seconds blank, because the CLI has no retry-after for this class.
+
+**The whole-vault read is ONE batched read that the legs share**
+([`../scripts/lib/vault_read.py`](../scripts/lib/vault_read.py), HD-1206): where the Server SDK is
+importable it answers `items.list` once plus `items.get_all` in 50-ID chunks — single-digit requests
+for the vault's ~143 items — and where it is not, the same reader runs a clearly labelled
+`op item get` FALLBACK costing 1 list + 1 read per item (~1 + N requests). Every leg prints its
+request count (`route=`/`requests=` on stderr), so the log, not a comment, states what a run paid;
+the ID-addressed fallback replaced an earlier name-addressed fan-out that cost 3 requests per item —
+~429 requests, three runs to an exhausted day.
+
+Seat step — the SDK wheel is tagged cp39–cp313, so an interpreter newer than the wheel set cannot
+import it and the reader answers through the fallback until this runs on a supported interpreter:
+
+```bash
+python3 scripts/lib/vault_read.py --probe         # which interpreter imports onepassword, and which half failed where it does not
+python3 scripts/lib/vault_read.py --install-sdk   # pip install onepassword-sdk into the probed interpreter — an explicit seat act; nothing installs by itself
+```
 
 A **name** is not a free address. `op item get` and `op read` resolve the name first and 1Password bills
 the resolving — 3 requests for a name-addressed read, 1 for an ID-addressed one (CLI docs, "Commands
-that make multiple requests"). So the leak gate's 143 items were ~429 of those 1000: **three gate runs
-empty the day** for every other automation on the account, and the failure looks like
-`Too many requests. Your client has been rate-limited. Try again in  seconds` — with the seconds blank,
-because the CLI has no retry-after for this class. The legs therefore address by **ID**: the vault ID comes
+that make multiple requests"). The legs therefore address by **ID**: the vault ID comes
 out of the `op item list` answer the run already paid for, and titles come from the map
 [`../scripts/lib/vault-env.sh`](../scripts/lib/vault-env.sh) keeps in the seat's state dir. A title the map
 does not know keeps the NAME and prints a NOTE — a guessed ID is a wrong answer, not a cheap one — and one

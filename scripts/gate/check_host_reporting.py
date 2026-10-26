@@ -46,7 +46,8 @@ Transport — the endpoint is IaC `victoria_backend_host` (:8428), reachable ove
 no route, so two forms, and neither is guessed:
   VM_SSH_HOST=<host>   default `oldsrv` — run the curl THERE, the hop that answers from this seat
   VM_URL=http://h:8428 direct form, for a seat that does have the route
-  creds: 1Password `Homelab-ansible/victoria-metrics_api` via `op`, else VM_USERNAME + VM_PASSWORD.
+  creds: 1Password `Homelab-ansible/victoria-metrics_api` via the ONE reader
+  (`scripts/lib/vault_read.py`, one ID-addressed read, its count printed), else VM_USERNAME + VM_PASSWORD.
   Values never reach argv, stdout or git — lengths only, per CONVENTIONS §6.
 
 Flags: `--show` prints the expected set; `--inventory DIR` points at another tree (the self-test);
@@ -72,8 +73,7 @@ from pathlib import Path
 sys.path.insert(0, str(next(p for p in Path(__file__).resolve().parents
                             if p.name == "scripts") / "lib"))
 from repo_root import root as _hl_root  # noqa: E402
-from vault_env import ensure as _vault_ensure  # noqa: E402
-from vault_env import item_ref as _vault_item_ref  # noqa: E402
+from vault_read import Boundary as _ReadBoundary, read_item as _read_item  # noqa: E402
 
 ROOT = _hl_root(__file__)
 INVENTORY = "IaC/ansible/inventory.ini"
@@ -154,27 +154,27 @@ def creds() -> tuple[str, str]:
     u, p = os.environ.get("VM_USERNAME", ""), os.environ.get("VM_PASSWORD", "")
     if u and p:
         return u, p
-    # No ambient credentials: resolve the vault credential through the ONE rule (lib/vault-env.sh) and
-    # say so when it is unreachable — an `op` called with nothing exported is the desktop-app route on
-    # the Win11 seat, which answers in consent dialogs rather than in an error.
-    ok, why = _vault_ensure()
-    if not ok:
-        raise RuntimeError(f"no vault credential reachable on this seat ({why}) and "
-                           "VM_USERNAME/VM_PASSWORD are unset")
-    if not shutil.which("op"):
-        raise RuntimeError("no op CLI and VM_USERNAME/VM_PASSWORD unset")
-    got = {}
-    # The op:// reference carries IDs for the same quota reason — 1 read instead of 3 (see
-    # lib/vault_env.py `item_ref`); the name form stays as the fallback so a renamed item still reads.
-    v_arg, i_arg, form = _vault_item_ref("Homelab-ansible", "victoria-metrics_api")
-    if form.startswith("names"):
-        print(f"NOTE: victoria-metrics_api resolved by name — {form}", file=sys.stderr)
-    for field in ("username", "password"):
-        r = subprocess.run(["op", "read", f"op://{v_arg}/{i_arg}/{field}"],
-                           capture_output=True, text=True)
-        if r.returncode != 0 or not r.stdout.strip():
-            raise RuntimeError(f"victoria-metrics_api/{field} unreadable: {r.stderr.strip()[:120]}")
-        got[field] = r.stdout.strip()
+    # One ID-addressed read of the one item this leg needs, through the ONE reader
+    # (scripts/lib/vault_read.py): no ambient pair, no vault write, and the request count is
+    # printed — a run's quota price belongs in the log, not in a guess. No credential is a named
+    # boundary: an `op` called without one is the Win11 desktop-app route, a consent dialog per
+    # read rather than an error.
+    try:
+        item, requests = _read_item("victoria-metrics_api", "Homelab-ansible")
+    except (_ReadBoundary, OSError, ValueError) as exc:
+        raise RuntimeError(f"{exc} and VM_USERNAME/VM_PASSWORD are unset") from exc
+    print(f"check_host_reporting.py: vault requests this leg: {requests} — one ID-addressed read "
+          "of victoria-metrics_api (lib/vault_read.py)", file=sys.stderr)
+    got: dict[str, str] = {}
+    for f in item["fields"]:
+        key = f["id"] if f["id"] in ("username", "password", "credential") else f["label"]
+        if key in ("username", "password", "credential") and f["value"]:
+            got.setdefault(key, f["value"])
+    if "password" not in got and "credential" in got:
+        got["password"] = got["credential"]
+    if not got.get("username") or not got.get("password"):
+        raise RuntimeError("victoria-metrics_api username/password unreadable through the shared "
+                           "read — the item holds no field named for either")
     return got["username"], got["password"]
 
 
@@ -210,7 +210,8 @@ def query_live(expr: str, url: str, hop: str, u: str, p: str) -> list[dict]:
                   'curl -sS -m 20 -K "$c" -G --data-urlencode "query=$q" "$url/api/v1/query"; '
                   'rc=$?; rm -f "$c"; exit $rc')
         r = subprocess.run(["ssh", "-T", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", hop, script],
-                           input=f"{u}\n{p}\n{url}\n{expr}\n", capture_output=True, text=True)
+                           input=f"{u}\n{p}\n{url}\n{expr}\n", capture_output=True, text=True,
+                           encoding="utf-8", errors="replace")
     else:
         cfg = ""
         try:
@@ -219,7 +220,7 @@ def query_live(expr: str, url: str, hop: str, u: str, p: str) -> list[dict]:
                 fh.write(f'user = "{u}:{p}"\n')
             r = subprocess.run(["curl", "-s", "-m", "20", "-K", cfg, "-G",
                                 "--data-urlencode", f"query={expr}", f"{url}/api/v1/query"],
-                               capture_output=True, text=True)
+                               capture_output=True, text=True, encoding="utf-8", errors="replace")
         finally:
             if cfg:
                 os.unlink(cfg)
@@ -375,7 +376,7 @@ def self_test() -> int:
             fp.write_text(raw if raw is not None else json.dumps(store), encoding="utf-8")
             r = subprocess.run([sys.executable, str(Path(__file__).resolve()),
                                 "--inventory", str(where), "--fixture", str(fp)],
-                               capture_output=True, text=True)
+                               capture_output=True, text=True, encoding="utf-8", errors="replace")
             out = r.stdout + r.stderr
             if r.returncode == want_rc and says in out:
                 print(f"  ok    {name}  (rc {r.returncode})")

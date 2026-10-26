@@ -214,7 +214,7 @@ def self_test() -> int:
                 "print(root(__file__))\n",
                 encoding="utf-8",
             )
-            got = subprocess.run([sys.executable, str(d / "caller.py")], capture_output=True, text=True)
+            got = subprocess.run([sys.executable, str(d / "caller.py")], capture_output=True, text=True, encoding="utf-8", errors="replace")
             want = str(fake)
             if (got.stdout or "").strip() == want:
                 print(f"ok: python root resolves from {rel} (structure-neutral)")
@@ -230,7 +230,7 @@ def self_test() -> int:
             "print(find_root(__file__))\n",
             encoding="utf-8",
         )
-        got = subprocess.run([sys.executable, str(stray / "caller.py")], capture_output=True, text=True)
+        got = subprocess.run([sys.executable, str(stray / "caller.py")], capture_output=True, text=True, encoding="utf-8", errors="replace")
         if got.returncode != 0 and "no repo root" in got.stderr:
             print("ok: a non-repo directory fails loud (python)")
         else:
