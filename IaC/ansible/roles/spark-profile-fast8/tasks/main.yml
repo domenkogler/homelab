@@ -332,9 +332,10 @@
 
 # ---- The deliberate red, placed where the lineage's work is actually finished ----
 # tasks/build_lineage.yml ends with this fail and the live lineage stops there — it has no post-build
-# legs. This lineage has six reads of the built artifact after the build, so it switches that one off
-# (bl_fail_unpinned: false) and fails here instead: a red that arrives BEFORE the CPU gates and the
-# artifact reads would leave the one run that builds also the one run that proves nothing.
+# legs. This lineage has its own after the build: the three CPU gates, the in-proj GEMV import, the
+# artifact anchor reads, the day-0 symbol read and the live-tag re-read. So it switches that one off
+# (bl_fail_unpinned: false) and fails here instead — a red that arrives BEFORE those legs would leave
+# the one run that builds also the one run that proves nothing.
 - name: Refuse to continue while the spark-profile-fast8 image ID is unpinned
   when:
     - spark_profile_fast8_will_build | bool
