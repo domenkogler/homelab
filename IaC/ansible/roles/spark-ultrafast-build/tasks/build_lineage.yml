@@ -54,10 +54,13 @@
 - name: Ask whether the {{ bl_key }} lineage's built image ID is already present
   # The LINEAGE'S OWN pin decides whether there is anything to build. Reading another lineage's pin
   # here would skip this build and call the run green.
+  # check_mode: false so --check answers the same question instead of leaving the legs below to run
+  # on an undefined read.
   ansible.builtin.command:
     cmd: "docker image inspect --format '{{ '{{' }}.Id{{ '}}' }}' {{ bl_pin if bl_pin | length > 0 else bl_tag }}"
   changed_when: false
   failed_when: false
+  check_mode: false
   register: bl_inspect
   tags: [spark, spark-ultrafast-build, llm]
 
@@ -94,9 +97,12 @@
   tags: [spark, spark-ultrafast-build, llm]
 
 - name: Re-read the built image ID
+  # check_mode: false, because the assert beside it compares this read with the pin: without it a
+  # --check run skips the read and then fails on an undefined `bl_built`.
   ansible.builtin.command:
     cmd: "docker image inspect --format '{{ '{{' }}.Id{{ '}}' }}' {{ bl_tag }}"
   changed_when: false
+  check_mode: false
   register: bl_built
   tags: [spark, spark-ultrafast-build, llm]
 

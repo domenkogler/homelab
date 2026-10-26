@@ -73,7 +73,7 @@ vars, so a second lineage cannot inherit the first one's values by accident. The
 | a red that reads like a mistake instead of like "wrong artifact" | the assert pair compares the built ID with **that lineage's** pin and names the var to record (`bl_pin_var`) |
 | a rebuild **retagging the live `fast` image** | a lineage declares `reserved_tags` and the build refuses if its own tag is one of them; `port_v32.py` deletes upstream's `build.sh`/`Dockerfile.iter6c`/`Dockerfile.iter6d` from the v32 build directory (they hardcode both live tags), and after the build every reserved tag is re-read and must still resolve |
 | a **hand-edited checkout** passing `HEAD == pin` | `git status --porcelain -uno` must be clean in the checkout (`checkout_pinned.yml`) — tracked files, because those are what the build compiles and untracked residue is not — and the port is applied to a staged copy under `/opt/homelab/ultrafast-v32-build` |
-| a **`sed` that matched nothing** shipping a green build | every `sed` in `Dockerfile.v32` counts its anchor before (`test "$(grep -c …)" -eq 1`) and greps its marker after; the same constants, the `Qwen4Exp*` names and the `ple_layer.py` path are also grepped **inside the base image** before the build and **inside the built image** after it, and `port_v32.py` fails on an anchor whose occurrence count is not the expected one |
+| a **`sed` that matched nothing** shipping a green build | every `sed` in `Dockerfile.v32` counts its anchor before (`test "$(grep -c …)" -eq 1`) and greps its marker after; the `Qwen4Exp*` names, their module paths and the three `sed` source constants are also grepped **inside the base image** before the build, and **inside the built image** after it the four step markers (`spark-fla-shmem`, `spark-fla-warps`, `_ple_mmap_apply(Qwen4ExpNGramEmbedding)`, `_mtp_draft_vocab_apply(Qwen4ExpMTP)`) plus the **absence** of the day-0 `Qwen3_8FlashNext` symbol in the installed `vllm_ple_mmap.py`; `port_v32.py` fails on an anchor whose occurrence count is not the expected one |
 | upstream's source set silently drifting | `port_v32.py` runs the checkout's own `md5sum --check` / `sha256sum --check` blocks (the same eleven + two lists `recipe/build/image/build.sh` enforces) before it stages anything |
 
 ## 5. Rollback state of the box, as it stands now
@@ -88,8 +88,6 @@ vars, so a second lineage cannot inherit the first one's values by accident. The
   `group_vars/all/versions.yml` (sets `b1-awq`, `ple-int4`, `ar-hybrid`, `ple-fp8`) and re-fetchable.
 * The archive is a copy, not a second engine: nothing about it changes what boots. Rollback is still
   `spark_llm_profile: fast` + a detached converge (~20 min cold boot).
-* Serving was never touched by any of this: `vllm-qwen-spark` read `img=4900c13edab9… started=2026-10-18T03:36:16Z
-  restarts=0 running=true` before the first `docker tag` and after the last byte landed.
 
 ## 6. Build order (each step one act, none of them a gamble on `fast`)
 
@@ -109,6 +107,9 @@ vars, so a second lineage cannot inherit the first one's values by accident. The
 4. Build detached (`--tags spark-profile-fast8 -e spark_profile_fast8_build=true`, async), with upstream's own CPU
    self-tests re-run against the built tag, then let the role **fail on purpose** after printing the ID — the pin
    is a human commit. The `mamba_utils` step refuses until its diff has been read (§7).
+   Every post-build leg runs `docker run --rm --network none --memory 8g` on the **same unified pool the live
+   engine serves from**, so this step is scheduled inside the owner window and not beside serving: an 8 GiB CPU
+   gate competes with the engine for the pool it budgets.
 5. Record the built ID as `spark_vllm_ultrafast_v32_image` **and** add `ultrafast-v32` to
    `spark_llm_fp8_kv_capable_images` in the same change (that list is what makes an fp8 profile legal at all).
 6. Offline: `check_spark_llm_gate.py`, `spark-llm-render-matrix.py`, `spark-llm-probe.py matrix`.

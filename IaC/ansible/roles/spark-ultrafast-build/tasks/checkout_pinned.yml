@@ -34,10 +34,12 @@
   tags: [spark, spark-ultrafast-build, llm]
 
 - name: Read back the checked-out commit
+  # check_mode: false so a --check run answers the same question instead of asserting on empty stdout.
   ansible.builtin.command:
     cmd: git rev-parse HEAD
     chdir: "{{ bc_src_dir }}"
   changed_when: false
+  check_mode: false
   become: true
   become_user: "{{ ansible_user }}"
   register: bc_head

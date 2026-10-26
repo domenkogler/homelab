@@ -221,9 +221,12 @@ def main() -> int:
     stage = args.stage.resolve()
     if not checkout.is_dir():
         fail(3, f"{checkout} is not a directory — the recipe checkout is missing")
-    if stage == checkout or checkout in stage.parents:
-        # Staging INTO the checkout is how the tree stops being the pin it claims to be.
-        fail(3, f"refusing to stage into {stage}: the checkout must stay byte-for-byte the pin")
+    # Either tree containing the other is the same accident the equality clause refuses: staging INTO
+    # the checkout is how the tree stops being the pin it claims to be, and a checkout nested INSIDE
+    # the build directory is deleted by the same cleanup that empties that directory before it copies.
+    if stage == checkout or checkout in stage.parents or stage in checkout.parents:
+        fail(3, f"refusing to stage into {stage}: the checkout ({checkout}) must stay byte-for-byte "
+                "the pin, and neither tree may contain the other")
 
     for line in verify_hashes(checkout):
         print(f"port_v32: {line}")
@@ -240,6 +243,16 @@ def main() -> int:
             if victim.exists():
                 victim.unlink()
                 print(f"port_v32: removed    {name} — {reason}")
+        # The deletion is verified, not assumed: `if exists` alone is silent about the one shape that
+        # matters, a day-0 build definition that reached the build directory under a name this table
+        # does not know yet. A directory that can run upstream's build.sh is a directory that can
+        # retag the live `fast` image, so "it was not there" and "nothing removed it" must not print
+        # the same way.
+        left = [name for name, _ in REMOVED if (stage / name).exists()]
+        if left:
+            fail(1, f"{', '.join(left)} still in {stage} after the removal step — this build "
+                    "directory can still write the live lineage's tags. If upstream renamed the file, "
+                    "read the recipe at the pin and extend REMOVED in its own commit.")
 
     # --check-only runs BEFORE anything is staged, and the build directory at that point holds only
     # this script and Dockerfile.v32. Reading it would report every anchor MISSING and hand the role a

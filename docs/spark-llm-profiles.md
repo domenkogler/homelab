@@ -223,9 +223,12 @@ sources reaches no layer — because a hand-edited tree still has the pinned `HE
 nobody can rebuild; the build writes exactly one name, `spark-ultrafast:v32-iter6d`, which cannot collide with the two
 `qwen38-flash-dgx:iter6c…`/`:iter6d…` tags that are the only names the live `fast` image has (a tag is
 `repository:tag`, and this one is a different repository) — and after the build every one of them is re-read
-and must still resolve; and every anchor a `sed` cannot report — both GB10 constants, the `Qwen4Exp*` names,
-the `ple_layer.py` path — is grepped in the base image before the build and in the built image after it,
-because `sed -i` exits 0 when it matches nothing. The porter stages out of the checkout into
+and must still resolve; and because `sed -i` exits 0 when it matches nothing, what it cannot report is read in
+the image rather than in the recipe: before the build, the base image at its digest is grepped for the anchors
+themselves — the `Qwen4Exp*` class names, their module paths, the three `sed` source constants — and after it, the
+built image is grepped for the marker each patched step leaves (`spark-fla-shmem`, `spark-fla-warps`,
+`_ple_mmap_apply(Qwen4ExpNGramEmbedding)`, `_mtp_draft_vocab_apply(Qwen4ExpMTP)`) and for the ABSENCE of the day-0
+`Qwen3_8FlashNext` symbol in the installed `vllm_ple_mmap.py`. The porter stages out of the checkout into
 `/opt/homelab/ultrafast-v32-build` and deletes upstream's `build.sh` there, so the directory that builds v32
 is not a directory that can retag `fast`. Like the live lineage, the role is opt-in
 (`spark_profile_fast8_build`, `--tags spark-ultrafast-build`) and the empty pin is still the gate.

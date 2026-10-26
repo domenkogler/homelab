@@ -14,6 +14,11 @@
       - (spark_ultrafast_upstream_commit | length) == 40
       - spark_profile_fast8_build_dir | length > 0
       - spark_profile_fast8_build_dir != spark_ultrafast_src_dir
+      # Containment is the same accident as equality, in either direction: staging INTO the checkout is
+      # how the tree stops being the pin, and a checkout nested INSIDE the build directory is deleted
+      # by the same cleanup that empties that directory before it copies.
+      - not (spark_profile_fast8_build_dir ~ '/').startswith(spark_ultrafast_src_dir ~ '/')
+      - not (spark_ultrafast_src_dir ~ '/').startswith(spark_profile_fast8_build_dir ~ '/')
     fail_msg: >-
       The v0.32 lineage is not specified separately enough to build:
       pin='{{ spark_vllm_ultrafast_v32_image | default("(undefined)") }}' (EMPTY is legal and IS the
@@ -21,8 +26,10 @@
       base='{{ spark_vllm_v32_base_image | default("") }}' (must be digest-pinned and arm64 — never a
       -cu129 tag), build_dir='{{ spark_profile_fast8_build_dir | default("") }}'. Its tag must not be
       one of the live lineage's ({{ spark_vllm_ultrafast_live_tags | join(', ') }}) — those names are
-      the only references the live `fast` image has — and its build directory must not be the
-      checkout ({{ spark_ultrafast_src_dir }}), which has to stay byte-for-byte the pin.
+      the only references the live `fast` image has — and its build directory must neither be the
+      checkout ({{ spark_ultrafast_src_dir }}) nor contain nor be contained by it: the checkout has to
+      stay byte-for-byte the pin, and staging a lineage's build directory on top of it (or the other
+      way round) is how one tree deletes the other.
   tags: [spark, spark-ultrafast-build, spark-profile-fast8, llm]
 
 - name: Prove the recipe checkout is the pinned commit and nothing else
