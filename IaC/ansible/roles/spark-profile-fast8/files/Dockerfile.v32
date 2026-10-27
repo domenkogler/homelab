@@ -149,6 +149,12 @@ RUN test -f ${MODEL_PY} && test -f ${MTP_PY} \
 # `grep -c -F` counts, i.e. what the live `fast` image answers today, so the port can be compared
 # against the guard that lineage runs on rather than trusted.
 ARG MAMBA_UTILS_GUARD=patch
+# The snapshot is `apply`'s input only, so the step ends by removing it: the finished layer keeps no
+# copy of a 1641-line file that `patch` never reads. A COPY cannot be gated on an ARG, so what that
+# does not buy is independence from the file's existence — if the checkout ever drops
+# `src/mamba_utils_guarded.py`, this COPY is where a `patch` build stops, not any check in the step
+# (which no longer touches the file in `patch` mode, and `test -f`s it in `apply`); the fix then is
+# to delete the hatch in its own commit, not to stub the COPY.
 COPY src/mamba_utils_guarded.py /tmp/mamba_utils_guarded.py
 COPY patch_mamba_guard_v32.py /tmp/patch_mamba_guard_v32.py
 RUN test -f ${MAMBA_UTILS} \
@@ -165,7 +171,8 @@ RUN test -f ${MAMBA_UTILS} \
       exit 1; \
     fi \
  && if [ "${MAMBA_UTILS_GUARD}" = "apply" ]; then \
-      cp ${MAMBA_UTILS} ${MAMBA_UTILS}.orig \
+      test -f /tmp/mamba_utils_guarded.py \
+      && cp ${MAMBA_UTILS} ${MAMBA_UTILS}.orig \
       && echo 'APPLY — the whole-file copy. It costs three layers at once:' \
       && echo '  1. it adds the guard, which IS what is owed (this base has 0 occurrences of it),' \
       && echo '  2. it reinstalls the day-0 *_mamba_all* pair that v0.32 deleted, and' \
@@ -189,7 +196,7 @@ RUN test -f ${MAMBA_UTILS} \
       && echo 'mamba_utils.py: guard ported onto this base, day-0 pair still absent, v0.32 kernels intact'; \
     fi \
  && python3 -c "import ast; ast.parse(open('${MAMBA_UTILS}').read()); print('mamba_utils.py parses')" \
- && rm /tmp/patch_mamba_guard_v32.py
+ && rm /tmp/patch_mamba_guard_v32.py /tmp/mamba_utils_guarded.py
 
 # ---- 8–10. The three host-side patchers upstream runs verbatim ----
 # Each targets model-agnostic vllm paths that exist at the tag (kv_cache_coordinator,

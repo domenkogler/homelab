@@ -105,14 +105,17 @@ spark_profile_fast8_artifact_probes:
   # in the finished artifact, which is the only place a build-time check cannot reach. The day-0
   # recipe's single `grep -c` over BOTH files would also pass on a patch that landed in one file
   # only, which is why model.py and mtp.py carry their own rows rather than one shared claim.
+  # The base count is what makes either row a claim at all: `grep -F -c` the same pattern against
+  # the BASE image answers 0 in both files, so this is not presence-only over a whole file — the
+  # line exists in the artifact only because the sed wrote it.
   - path: /usr/local/lib/python3.12/dist-packages/vllm/models/qwen4_exp/nvidia/mtp.py
     pattern: quant_config=vllm_config.quant_config
     evidence: vllm/models/qwen4_exp/nvidia/mtp.py:432 region (20-space indent, vllm_config in scope
-      at :421) — Dockerfile.v32 step 6
+      at :421) — Dockerfile.v32 step 6; 0 occurrences in the base image at the pin digest
   - path: /usr/local/lib/python3.12/dist-packages/vllm/models/qwen4_exp/nvidia/model.py
     pattern: quant_config=vllm_config.quant_config
     evidence: vllm/models/qwen4_exp/nvidia/model.py:740 (12-space indent, vllm_config in scope at
-      :730) — Dockerfile.v32 step 6
+      :730) — Dockerfile.v32 step 6; 0 occurrences in the base image at the pin digest
   # The ported guard, read in the artifact like every other patched site: step 7's own greps run
   # mid-build, and the invariant is what the FINISHED image contains.
   - path: /usr/local/lib/python3.12/dist-packages/vllm/v1/worker/mamba_utils.py

@@ -282,7 +282,10 @@ pairs every inserted parameter with the argument the call passes at the same pos
 patch touches (`SLOT_PAIRS` / `slot_problems`), and exits 1 with nothing written when the two indices differ — a
 skew is a step-7 build failure, not a boot failure. The pairing on the patched file: `_copy_mamba_state_block`
 #16 and #17 against its two call sites, `postprocess_mamba_fused_kernel` #15 and #16 against its two launches,
-`precopy_mamba_align_fused_kernel` #13 and #14 against its one launch.
+`precopy_mamba_align_fused_kernel` #13 and #14 against its one launch. Call-site completeness rides along in the
+same read — the expected number of call sites is part of the pairing — and `_copy_mamba_state_block` itself
+(1 def, 2 call sites, 1 docstring mention = 4 lines) sits in `MUST_STAY` beside v0.32's own kernels, so a third,
+differently-shaped call reddens the build rather than reaching a boot.
 
 What lands is byte-identical to the guard in the snapshot: the 31 lines naming `guard_hits` or `state_num_blocks`
 appear in both files and in neither direction, so `grep -c -F guard_hits` = **19** and `state_num_blocks` = **12**,
@@ -295,7 +298,31 @@ apply `rc 2`, one perturbed anchor `rc 1` naming `:262`/`:313` with the target b
 step 7's eight greps land on 19 / 12 / 4 / 0 / 0 / 0 / 2 / 2 with `ast.parse` clean, `py_compile` clean on the
 patcher and `sh -n` clean on all 20 RUN bodies of `Dockerfile.v32`. The slot check exits 1 on the file the
 pre-fix anchors produce, naming the def index and the call index that disagree, and exits 1 on a mutant that
-swaps the two launch arguments — it reports the skew in both directions, not just the one this file had.
+swaps the two launch arguments — it reports the skew in both directions, not just the one this file had. The
+same read on the same file with the def anchor applied after the `idx_mapping_ptr,` pair instead of before it
+names the skew and writes nothing, which is the construction that proves the check has teeth.
+
+**Three counts that make the remaining claims claims.** Two names the guard's lines use are not proven by any
+anchor count, because no anchor contains them: `state_idx`, which the bounds check reads from
+`_copy_mamba_state_block`'s own parameter list (`:192`), answers `grep -F -c state_idx` = **76** lines in the base,
+and `logger.`, which the reporter calls, answers **2** (`logger = init_logger(__name__)` at `:31`). Both are
+recorded beside their anchors in `files/patch_mamba_guard_v32.py`. `_copy_mamba_state_block` answers **4** —
+1 def (`:191`), 2 call sites (`:479`, `:610`) and one docstring mention (`:581`) — and that is the number
+`MUST_STAY` carries, so a third call site on a newer base reddens the build instead of reaching a boot.
+`quant_config=vllm_config.quant_config`, which two `spark_profile_fast8_artifact_probes` read in the finished
+image, answers **0** in `model.py` and **0** in `mtp.py` in the base image at the pin digest: those two rows are
+claims about the sed, not presence-only reads over a whole file.
+
+Two reads in the role changed shape rather than being added. `Dockerfile.v32` step 7 now deletes
+`/tmp/mamba_utils_guarded.py` in the step that copied it, so a `patch` layer carries no snapshot it never reads,
+and its `apply` branch `test -f`s the snapshot before copying it; a `COPY` cannot be gated on an ARG, so a
+`patch` build still stops if the checkout drops that file — nothing in the step reads it in `patch` mode, and
+deleting the `apply` hatch in its own commit is the fix when that day comes. And the `Qwen3_8FlashNext` absence
+read (`tasks/main.yml`) no longer rides on `will_build`: the installed artifact is exactly what a run that skipped
+the build boots, so the read now runs on every converge (`check_mode: false`, `--rm`, `--network none`,
+`--entrypoint grep` — no engine touched), and its assert wants `rc == 1`: the image answered and the answer was
+"no such name". `rc 0` is the day-0 name still installed; `rc 125` (tag not in this store) and `rc 2` (file not
+in the image) prove nothing, which is why the assert does not accept "not 0".
 
 What the build session no longer owes on this step: no `--build-arg MAMBA_UTILS_GUARD`, no diff read inside the
 base (the file the build patches is the one just read, at the same digest) and no decision commit — the port is

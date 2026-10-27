@@ -87,7 +87,10 @@ ANCHORS: list[tuple[str, str, int, str, str]] = [
         "        return\n",
         1,
         "mamba_utils.py:251 — the file's only destination-block-id load, and the definition of "
-        "`num_blocks` that the three source-side checks below reuse.",
+        "`num_blocks` that the three source-side checks below reuse. The name that load reads, "
+        "`state_idx`, is `_copy_mamba_state_block`'s first parameter (:192) and "
+        "`grep -c -F state_idx` against this base answers 76 lines, so it is this file's own name and "
+        "not a day-0 local.",
         "",
     ),
     (
@@ -231,7 +234,10 @@ ANCHORS: list[tuple[str, str, int, str, str]] = [
         "mamba_utils.py:1244-1246 — the tail of the `precopy_mamba_align_fused_kernel` launch that "
         "closes `run_fused_precopy` (`def` at :1202), the step that runs on every forward pass of "
         "this box's align + spec-decode arm. That 3-line tail occurs exactly once in the file, so the "
-        "reporter lands in the method that was read instead of in whichever launch shares the shape.",
+        "reporter lands in the method that was read instead of in whichever launch shares the shape. "
+        "`logger` is bound at :31 (`logger = init_logger(__name__)`) and "
+        "`grep -c -F 'logger.'` against this base answers 2 lines, so `logger.error(` names a name "
+        "this file already has.",
         "",
     ),
 ]
@@ -253,6 +259,12 @@ MUST_STAY = {
     "get_aligned_state_indices_multi_group_kernel": 2,
     "_reinterpret_u64_as_i64": 4,
     "compute_aligned_state_indices": 2,
+    # The kernel this patch adds two parameters to: 1 def (:191), its 2 call sites (:479, :610) and
+    # one docstring mention (:581). The count is the call-site completeness the launch anchors cannot
+    # give: `self.state_dim_row_stride,` alone decides which launches get the new arguments, so a
+    # third `_copy_mamba_state_block` call on a newer base must redden the build (rc 1) rather than
+    # reach a boot as an argument-count mismatch.
+    "_copy_mamba_state_block": 4,
 }
 # What must stay absent: the day-0 fork pair the snapshot still carries, and the day-0 batch class
 # the snapshot's signature names. This base has none of them; a hit here means a copy, not a patch.

@@ -283,7 +283,13 @@
   # If the port had silently not applied, the installed vllm_ple_mmap.py would still import the
   # day-0 module path inside its `except ImportError: warn` block — a prefetch hook that disables
   # itself and a build that stays green. rc 0 here means the day-0 name is STILL in the file.
-  when: spark_profile_fast8_will_build | bool
+  # NOT gated on will_build: the property is about the INSTALLED artifact, and a run that skipped
+  # the build is exactly the run that boots it. The tag exists on both paths — either this run built
+  # it, or the inspect above found this lineage's pin already in the store and skipped for that
+  # reason — and the read is a `--rm` `grep` on a stopped image, so it touches no engine.
+  # check_mode: false because the assert below reads this rc: a skipped read must not become an
+  # assert on an undefined rc.
+  check_mode: false
   ansible.builtin.command:
     cmd: >-
       docker run --rm --network none --memory 2g --entrypoint grep
@@ -295,14 +301,19 @@
   tags: [spark, spark-ultrafast-build, spark-profile-fast8, llm]
 
 - name: Assert no day-0 symbol survived the port
-  when: spark_profile_fast8_will_build | bool
+  # rc 1 is the only passing answer: it means the IMAGE replied and the reply was "no such name".
+  # rc 0 is the day-0 name still installed; rc 125/2 means the image or the file did not answer, so
+  # the read proved nothing — which is why this does not simply test `rc != 0`.
   ansible.builtin.assert:
     that:
-      - fast8_stale_name.rc != 0
+      - fast8_stale_name.rc == 1
     fail_msg: >-
-      {{ spark_vllm_ultrafast_v32_tag }} still contains a Qwen3_8FlashNext symbol in
-      vllm_ple_mmap.py, so the port did not reach the installed copy even though port_v32.py
-      reported its anchors. The build is a day-0 patch stack on a v0.32 base and must not be pinned.
+      The day-0 read on {{ spark_vllm_ultrafast_v32_tag }} answered rc
+      {{ fast8_stale_name.rc | default('(the read did not run)') }}, want 1. rc 0 = that tag still
+      carries a Qwen3_8FlashNext symbol in vllm_ple_mmap.py, so the port never reached the installed
+      copy even though port_v32.py reported its anchors, and this build is a day-0 patch stack on a
+      v0.32 base that must not be pinned. rc 125 = the tag is not in this host's store, rc 2 = the
+      file is not in the image: either way the read proved nothing, so the run is not green.
   tags: [spark, spark-ultrafast-build, spark-profile-fast8, llm]
 
 # ---- The property this lineage exists to not break ----
