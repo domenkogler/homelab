@@ -20,6 +20,18 @@
 # whose journal is volatile declares `journald_system_max_use: ""` (the `System*` keys do not apply
 # to `/run/log/journal`): see host_vars/pi.kogler.si.yml, whose `Storage=volatile` is owned by
 # roles/home_assistant and is not restated here.
+- name: "Journald: the drop-in directory exists"
+  # ⚠ `directory_mode` on the copy does NOT create the parent: on Debian 13
+  # /etc/systemd/journald.conf.d does not exist out of the box, and `--check` reported `changed=1`
+  # for the copy while the real run died with "Destination directory … does not exist". A check-mode
+  # pass over a write task is not evidence the write can land.
+  ansible.builtin.file:
+    path: /etc/systemd/journald.conf.d
+    state: directory
+    mode: '0755'
+  when: journald_system_max_use | length > 0
+  tags: [common, base, journald]
+
 - name: "Journald: set the persistent journal ring size"
   ansible.builtin.copy:
     dest: /etc/systemd/journald.conf.d/60-homelab.conf
