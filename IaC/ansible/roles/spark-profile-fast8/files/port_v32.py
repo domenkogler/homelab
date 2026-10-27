@@ -119,7 +119,8 @@ ANCHORS: list[tuple[str, str, str, int, str]] = [
     ),
 
 # patch_never_evict.py -- Dockerfile.v32 step 5, restored by the owner's port-everything
-# ruling (report §7b), which reverses the f42638e2 drop. Only the scheduler call site moved:
+# ruling (spark/reports/hd1206-v32-port-20261026/README.md §7b), which reverses the f42638e2
+# drop. Only the scheduler call site moved:
 # v0.32 inserted enable_mamba_shared_prefix_checkpoint=( … ), between the watermark
 # argument and the closing paren, so the patcher's two-line anchor is a five-line one.
 # The flag itself stays REJECTED and every spark_llm_never_evict_prompt stays empty:

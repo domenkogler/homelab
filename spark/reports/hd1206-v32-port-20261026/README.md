@@ -463,3 +463,42 @@ an open question: `logger = init_logger(__name__)` has to be introduced where th
 What the ruling does **not** buy: any anchor re-anchored from a count rather than from a read of the
 base's own text. A `sed`-shaped no-op that matches nothing is the failure this census exists to make
 loud, and it is silent in exactly the two GB10 constants §2 names.
+
+#### R3 — step 14's `patch_low_latency_gemm_sm12x`: the fatal row, left open — **awaiting owner ruling**
+
+`Dockerfile.v32` step 14 runs the patcher, so a build with R3 unanswered stops there and prints no
+image ID. The step stays fatal rather than guessed at: of the §7b ruling's two dispositions, rule 1
+needs a read of the base's post-state and rule 2 needs to re-decide what upstream has already
+decided, and this row is where that line falls. The one build this lineage owes is the build with R3
+answered, not a build that discovers R3 for 12 G of cache.
+
+The evidence, every line of it read in the base image at `6ff5ff0d…` by
+[`r3_step14_reads.py`](r3_step14_reads.py) — one read-only `docker run`, output in
+[`raw/r3-step14-base-reads.txt`](raw/r3-step14-base-reads.txt):
+
+| read at the base | result |
+|---|---|
+| the day-0 gate — `def _is_sm103() -> bool:`, `_llg_sm12x = _llg_sm12x_enabled()`, `if dtype != torch.bfloat16 or not _is_sm103():` | **0 each** in `vllm/models/qwen4_exp/nvidia/low_latency_gemm.py`: the predicate the day-0 patcher hooks is not in this file. It is not an invented shape either — the same idiom is upstream's own in two sibling packages, `vllm/models/deepseek_v32/nvidia/glm52_low_latency_gemm.py:88` (gate at `:147`, `:180`) and `vllm/models/kimi_k3/nvidia/low_latency_gemm.py:662`. `qwen4_exp` is the one file that moved to the plan table |
+| the base's own gate | `enable_qwen4_exp_low_latency_gemm` at `:375`, its condition at `:382` — `if dtype != torch.bfloat16 or not plans:` — bf16-only, exactly like the day-0 one |
+| what stands in place of the capability predicate | a **plan table keyed by device capability**: `QWEN4_EXP_GEMM_PLANS_BY_CAPABILITY:294-300`, whose `(12, 1)` entry is `QWEN4_EXP_SM121_GEMM_PLANS` (`:172`, introduced at `:171` as "DGX Spark (GB10) plans for TP=1 and TP=2 local shapes"), reached through `_runtime_ok:308-317` — `x.dtype == torch.bfloat16` and `weight.dtype == torch.bfloat16` |
+| the second target, `model_executor/kernels/linear/cute_dsl/skinny_gemm.py` | `warmup_configs: set[SkinnyGemmConfig] = set()` **0**, `warmup_configs.update(plan.values())` **0**, `_cutedsl_available: bool \| None = None` **1** — the warm-up block the day-0 patcher appends to is a plan dict here |
+| the dial | `grep -rl QWEN38NEXT_LOW_LATENCY_GEMM` over the installed tree: **0 files**. `IaC/ansible/group_vars/spark.yml:1379` renders it in `spark_llm_ple_dispatch_env`, which reaches a container only when the profile sets `ple_dispatch: true` (`IaC/ansible/templates/docker_services/spark-ai/docker-compose.yml.j2:141-144`; `fast8` does, `group_vars/spark.yml:1076`; `:1130-1131` records the `ple_dispatch: false` arm rendering none of it) — the knob is set and unread |
+
+**Both dispositions, since neither is decided here:**
+
+1. **Subsumed — apply nothing, guard the post-state.** The base gates the same effect on device
+   capability and the GB10 plan the day-0 patcher existed to install is already in the table, so step
+   14 becomes step 12's shape: grep the `(12, 1): QWEN4_EXP_SM121_GEMM_PLANS` entry and the bf16
+   condition at `:382`, and a base that ever drops the Spark plan stops the build. This is the shape
+   the evidence points at, it keeps the one re-anchor the file already carries (the `qwen3_8_flash_next`
+   → `qwen4_exp` path constant), and it writes no new anchor.
+2. **Ported — re-anchor the day-0 gate onto the base's own gate.** `_is_sm103()` becomes the capability
+   lookup at `:348-351`/`:379-382`, the `_llg_sm12x_enabled()` latch goes where that table is read, and
+   the `skinny_gemm.py` warm-up pair moves onto the plan dict. Four or five new `port_v32.py` anchors,
+   each readable at the base — with `glm52_low_latency_gemm.py:88,147` as the in-tree template for the
+   predicate's shape — and each one a place to re-decide a shape upstream chose, the class of error
+   §7b exists to make loud.
+
+What is **not** a third disposition: the env route. Rendering `QWEN38NEXT_LOW_LATENCY_GEMM=1` cannot
+re-create a gate nothing reads at this base — the knob's meaning is a property of the patched build,
+which is what the `ar-blk-lean` arm measures by removing it.

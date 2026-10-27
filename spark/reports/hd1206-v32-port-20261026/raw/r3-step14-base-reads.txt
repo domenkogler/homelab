@@ -1,0 +1,74 @@
+HD-1206 — R3: the step-14 reads, taken in the base image at the pin digest
+
+Every number in README.md §7b's R3 row and in the step-10/13 rows of the census table, from ONE
+read-only act. The script is [`../r3_step14_reads.py`](../r3_step14_reads.py); the base sits in
+spark's store by DIGEST only, so the reference below is the digest half of
+`spark_vllm_v32_base_image` (`vllm/vllm-openai:v0.32.0-aarch64` does not resolve under
+`--network none`). Nothing here writes, builds, or touches a container.
+
+$ docker run --rm --network none --memory 1g \
+    -v $PWD/r3_step14_reads.py:/r3.py:ro --entrypoint python3 \
+    vllm/vllm-openai@sha256:6ff5ff0ddf3658d2c2d677dac5ca2d4726ce0156b4371166d918181b210bd4bc /r3.py
+  --- v1/worker/gpu/model_runner.py
+      1  class GPUModelRunner
+      0  _step_profile
+  --- v1/worker/gpu/spec_decode/rejection_sampler.py
+      1  class RejectionSampler:
+      1  processed_logits = self.sampler.apply_sampling_params(
+      1  return processed_logits, sampled, num_sampled
+  --- model_executor/layers/fused_moe/experts/marlin_moe.py
+      1  sorted_token_ids, expert_ids, num_tokens_post_padded = moe_align_block
+      1  def fused_marlin_moe(
+  --- model_executor/kernels/linear/cute_dsl/skinny_gemm.py
+      0  warmup_configs: set[SkinnyGemmConfig] = set()
+      0  warmup_configs.update(plan.values())
+      1  _cutedsl_available: bool | None = None
+  --- models/qwen4_exp/nvidia/low_latency_gemm.py
+      0  def _is_sm103() -> bool:
+      0  if dtype != torch.bfloat16 or not _is_sm103():
+      0  _llg_sm12x = _llg_sm12x_enabled()
+      1  enable_qwen4_exp_low_latency_gemm
+      0  QWEN38NEXT_LOW_LATENCY_GEMM
+  
+  --- models/qwen4_exp/nvidia/low_latency_gemm.py, the gate and its plan table
+       27  QWEN4_EXP_SM103_GEMM_PLANS: dict[tuple[int, int], dict[int, SkinnyGemmConfig]] = {
+       72  QWEN4_EXP_SM90_GEMM_PLANS: dict[tuple[int, int], dict[int, SkinnyGemmConfig]] = {
+      122  QWEN4_EXP_SM100_GEMM_PLANS: dict[tuple[int, int], dict[int, SkinnyGemmConfig]] = {
+      171  # DGX Spark (GB10) plans for TP=1 and TP=2 local shapes.
+      172  QWEN4_EXP_SM121_GEMM_PLANS: dict[tuple[int, int], dict[int, SkinnyGemmConfig]] = {
+      294  QWEN4_EXP_GEMM_PLANS_BY_CAPABILITY: dict[
+      297      (10, 3): QWEN4_EXP_SM103_GEMM_PLANS,
+      298      (10, 0): QWEN4_EXP_SM100_GEMM_PLANS,
+      299      (9, 0): QWEN4_EXP_SM90_GEMM_PLANS,
+      300      (12, 1): QWEN4_EXP_SM121_GEMM_PLANS,
+      308  def _runtime_ok(
+      316          and x.dtype == torch.bfloat16
+      317          and weight.dtype == torch.bfloat16
+      348      plans = QWEN4_EXP_GEMM_PLANS_BY_CAPABILITY.get(
+      349          current_platform.get_device_capability(), {}
+      351      plan = plans.get((weight.shape[0], weight.shape[1]))
+      375  def enable_qwen4_exp_low_latency_gemm(
+      379      plans = QWEN4_EXP_GEMM_PLANS_BY_CAPABILITY.get(
+      380          current_platform.get_device_capability(), {}
+      382      if dtype != torch.bfloat16 or not plans:
+      402          plan = plans.get((weight.shape[0], weight.shape[1]))
+  
+  --- where the day-0 predicate shape lives at this base (sibling model packages)
+    models/kimi_k3/nvidia/low_latency_gemm.py:662: def _is_sm103() -> bool:
+    models/kimi_k3/nvidia/low_latency_gemm.py:672: if _is_sm103() or _is_sm107():
+    models/deepseek_v32/nvidia/glm52_low_latency_gemm.py:88: def _is_sm103() -> bool:
+    models/deepseek_v32/nvidia/glm52_low_latency_gemm.py:147: if dtype != torch.bfloat16 or not _is_sm103():
+    models/deepseek_v32/nvidia/glm52_low_latency_gemm.py:180: if dtype != torch.bfloat16 or not _is_sm103():
+    5 lines across the model packages; the qwen4_exp file contributes none of them
+  
+  --- the dial, tree-wide
+    files reading QWEN38NEXT_LOW_LATENCY_GEMM: 0 []
+  RC=0
+
+The env side of the same question is in this repository, not in the image:
+`IaC/ansible/group_vars/spark.yml:1379` renders `QWEN38NEXT_LOW_LATENCY_GEMM=1` in
+`spark_llm_ple_dispatch_env`, which the compose template emits only for a profile with
+`ple_dispatch: true` (`IaC/ansible/templates/docker_services/spark-ai/docker-compose.yml.j2:141-144`;
+`fast8` sets it at `group_vars/spark.yml:1076`, and `group_vars/spark.yml:1130-1131` records the
+`ple_dispatch: false` arm rendering none of the knobs). Set, and unread at this base — which is why
+the dial is not a third disposition for R3.
