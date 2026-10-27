@@ -12,7 +12,7 @@
 #
 # WHAT IS OPT-IN HERE: everything that touches the engine. The role is pulled by
 # `playbooks/spark.yml` only when `spark_profile_fast8_build` is true (group_vars/spark.yml), exactly
-# like the live lineage's switch, because a v0.32 build pulls a ~10 GB base image and runs a
+# like the live lineage's switch, because a v0.32 build pulls a 35.3 GB base image and runs a
 # third party's code on this box.
 
 # The lineage as data — the same shape roles/spark-ultrafast-build uses for the live lineage, and

@@ -65,8 +65,9 @@
 
 - name: Pull the v0.32 base image into this host's store
   # `--pull=false` downstream means the base must already be HERE, at this digest, so pull it as its
-  # own visible leg instead of letting the build fail on an absent layer. A ~10 GB pull, and the
-  # digest in the name is what keeps it from resolving a floating tag later.
+  # own visible leg instead of letting the build fail on an absent layer. 35.3 GB on disk, of which about
+  # 10.3 GB reports as shared — plan headroom for the 35.3. The digest in the name is what keeps it from
+  # resolving a floating tag later.
   when: spark_profile_fast8_will_build | bool
   ansible.builtin.command:
     cmd: "docker pull {{ spark_vllm_v32_base_image }}"

@@ -102,8 +102,9 @@ vars, so a second lineage cannot inherit the first one's values by accident. The
 1. ✅ Done offline: `roles/spark-ultrafast-build` parameterized (§4), the v32 lineage authored, offline gates green.
    What that cannot settle is in §7.
 2. ✅ **Done: the base is in spark's store** — `vllm/vllm-openai:v0.32.0-aarch64@sha256:6ff5ff0ddf3658d2c2d677dac5ca2d4726ce0156b4371166d918181b210bd4bc`,
-   image ID `6ff5ff0ddf36`, `arm64`/`linux`, 35.3 GB (`spark_vllm_v32_base_image`; the registry manifest for that
-   digest is a single `arm64/linux` image, never a `-cu129` tag). Downtime: none, and `--pull=false` means this step
+   image ID `6ff5ff0ddf36`, `arm64`/`linux`, 35.3 GB on disk (`spark_vllm_v32_base_image`; the registry manifest for that
+   digest is a single `arm64/linux` image, never a `-cu129` tag). Headroom after it: 188 G free of 442 G on spark
+   (measured 2026-10-27) — the build adds layers on top of this. Downtime: none, and `--pull=false` means this step
    is the whole of the base's availability — the role's own pull leg is a no-op while it holds.
 3. ✅ **Done: the read-only pre-flight inside that image** — the `ple_layer.py` path, the `Qwen4Exp*` names, the two
    `sed` anchor strings and the `mamba_utils` step, all read at the digest (§7). These are
