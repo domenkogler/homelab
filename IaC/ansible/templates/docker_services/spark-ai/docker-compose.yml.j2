@@ -48,9 +48,10 @@
 {% if profile.image == 'ultrafast' %}
 {%   set engine_image = spark_vllm_ultrafast_image %}
 {% elif profile.image == 'ultrafast-v32' %}
-{#  The fp8-KV lineage: the same patch stack rebuilt on the v0.32 base. Its pin is EMPTY until the
-    built image ID is recorded, and roles/spark-llm-profile refuses the profile long before this
-    line renders — it must NEVER fall through to the `else` below, which would render the BASE
+{#  The fp8-KV lineage: the same patch stack rebuilt on the v0.32 base. Its pin holds the built image
+    ID, so what gates the arms that name it is `certified: false` + the uncertified override, and
+    roles/spark-llm-profile still refuses them long before this line renders — it must NEVER fall
+    through to the `else` below, which would render the BASE
     digest under an fp8 profile (EngineCore dies on the BF16-only QSA guard, restart loop). #}
 {%   set engine_image = spark_vllm_ultrafast_v32_image %}
 {% elif profile.image == 'sglang' %}
@@ -85,8 +86,9 @@
 services:
   vllm-engine:
     # image comes from profile.image → the pins in group_vars/all/versions.yml.
-    # `ultrafast` resolves EMPTY until the patched lineage's image ID is pinned there, and
-    # the gate refuses the profile long before this line renders (never a mutable tag).
+    # Every name resolves through a pin in group_vars/all/versions.yml. An EMPTY pin (sglang) makes
+    # the gate refuse the profile long before this line renders, and a served reference is always an
+    # immutable ID or digest — never a mutable tag.
     image: "{{ engine_image }}"
     container_name: "{{ spark_vllm_container }}"
     cap_drop:

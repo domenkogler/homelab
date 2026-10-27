@@ -780,9 +780,9 @@ spark_llm_profiles:
   # an arm that clears gates 0–7 (spark/llm-profiles/README.md) becomes `certified: true`.
   #
   # EVERY arm here is UNCERTIFIED behind spark_llm_allow_uncertified, and every one of them
-  # names `image: ultrafast`, whose pin is EMPTY in versions.yml ⇒ the gate refuses ALL of
-  # them until the patched lineage has been built and its image ID recorded. Authored ≠
-  # bootable, and that is the design (the fast-sglang precedent).
+  # names `image: ultrafast`, whose pin holds a built image ID ⇒ what refuses ALL of
+  # them is `certified: false` + spark_llm_allow_uncertified, not an empty pin. Authored ≠
+  # certified, and that is the design (the EMPTY-pin case is the fast-sglang precedent).
   #
   # `_x` is a YAML MERGE ANCHOR, not a profile (the `_` prefix is the skip convention in
   # scripts/bench/spark-llm-probe.py + scripts/gate/check_spark_llm_gate.py; the gate's valid-name list
@@ -1119,10 +1119,11 @@ spark_llm_profiles:
       that has a pinned image underneath it."
     certified: false
     uncertified_reason: >-
-      (a) THE LINEAGE IT WAITS ON: the upstream patch stack rebuilt on a registry-verified v0.32.0
-      arm64 build, its built image ID then recorded as spark_vllm_ultrafast_v32_image in
-      group_vars/all/versions.yml — the empty pin IS the refusal, on the fast-sglang and ultrafast
-      precedent (CONVENTIONS §7). Nothing about this arm can be measured before that commit exists.
+      (a) THE LINEAGE IT BOOTS: the upstream patch stack rebuilt on a registry-verified v0.32.0
+      arm64 build, its built image ID recorded as spark_vllm_ultrafast_v32_image in
+      group_vars/all/versions.yml — so the pin gate is open and this arm is bootable-and-UNCERTIFIED
+      (CONVENTIONS §7: the served reference is the ID, never the build tag). What is unmeasured is the
+      boot: gates 0–7 on this lineage, then 8–9 below.
       (b) fp8 IS GATED BY GATES 8–9, not by 0–7 alone: MTP acceptance read old-dtype-vs-new from
       /metrics on the same prompt class (every published fp8 measurement ran with speculative decode
       OFF, and our arms run spec_method: mtp), and quality against the model's own noise floor — the
@@ -1150,9 +1151,10 @@ spark_llm_profiles:
   # It claims no fp8 dtype, so it owes the 0–7 ladder only, never 8–9 (spark/llm-profiles/README.md).
   fast-v32-bf16:
     <<: *u_x
-    label: "UNCERTIFIED — `fast`'s coordinates on the v0.32 lineage at bf16 KV (the base-lineage control; gated on the unpinned v32 image)"
-    image: ultrafast-v32          # the SAME pin `fast8` waits on — spark_vllm_ultrafast_v32_image, EMPTY =
-                                  # the gate. Bumping `base` or `ultrafast` instead would re-engine the
+    label: "UNCERTIFIED — `fast`'s coordinates on the v0.32 lineage at bf16 KV (the base-lineage control; built v0.32 lineage, gates 0–7 unmeasured)"
+    image: ultrafast-v32          # the SAME pinned ID `fast8` boots — spark_vllm_ultrafast_v32_image, which
+                                  # is what makes both arms bootable-and-UNCERTIFIED. Bumping `base` or
+                                  # `ultrafast` instead would re-engine the
                                   # certified `reasoning` lane and the LIVE certified `fast`, which is
                                   # the rollback target (docs/spark-llm-profiles.md §7).
     models_root: os
@@ -1203,11 +1205,10 @@ spark_llm_profiles:
       falsify rather than confirm — which is a further reason this arm is a control and not a rollout"
     certified: false
     uncertified_reason: >-
-      (a) THE LINEAGE IT WAITS ON, shared with `fast8`: the upstream patch stack rebuilt on a
-      registry-verified v0.32.0 arm64 build, its built image ID then recorded as
-      spark_vllm_ultrafast_v32_image in group_vars/all/versions.yml — the empty pin IS the refusal
-      (CONVENTIONS §7, the fast-sglang and ultrafast precedent). Nothing here is measurable before that
-      commit exists. (b) WHAT IT WOULD HAVE TO PROVE, and it is a small list: the same 644,599-slot
+      (a) THE LINEAGE IT BOOTS, shared with `fast8`: the upstream patch stack rebuilt on a
+      registry-verified v0.32.0 arm64 build, its built image ID recorded as
+      spark_vllm_ultrafast_v32_image in group_vars/all/versions.yml — the pin gate is open, so this arm
+      is bootable-and-UNCERTIFIED (CONVENTIONS §7). What is unmeasured is the boot. (b) WHAT IT WOULD HAVE TO PROVE, and it is a small list: the same 644,599-slot
       boot line `fast` prints (the dtype is unchanged, so a different number means the pool arithmetic
       moved under the port), the 0–7 ladder, and a decode/ITL read against `fast`'s 39.7 tok/s on the
       same prompt class. (c) WHAT IT IS NOT: it is not a capacity arm and not a quality arm. It buys
@@ -1497,9 +1498,10 @@ spark_llm_image_pins:
 spark_llm_profile_images:
   base: "{{ spark_vllm_image }}"
   ultrafast: "{{ spark_vllm_ultrafast_image }}"
-  # The v0.32 lineage: the patch stack rebuilt on `spark_vllm_v32_base_image`. Its pin is EMPTY by
-  # design, which is what gates BOTH arms that name it — `fast-v32-bf16` (bf16 KV, the base-lineage
-  # control) and `fast8` (fp8 KV, the capacity arm). CONVENTIONS §7 — an empty pin IS the refusal.
+  # The v0.32 lineage: the patch stack rebuilt on `spark_vllm_v32_base_image`. Its pin holds the built
+  # image ID, which is what makes BOTH arms that name it bootable — `fast-v32-bf16` (bf16 KV, the
+  # base-lineage control) and `fast8` (fp8 KV, the capacity arm) — while `certified: false` is what still
+  # gates them. CONVENTIONS §7 — an empty pin would BE the refusal; this one is a value.
   ultrafast-v32: "{{ spark_vllm_ultrafast_v32_image }}"
   sglang: "{{ spark_sglang_image }}"
 

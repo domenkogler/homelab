@@ -19,7 +19,7 @@
 # deliberately NOT a copy of it: every field is this lineage's own.
 spark_profile_fast8_lineage:
   key: spark-profile-fast8
-  pin: "{{ spark_vllm_ultrafast_v32_image }}"          # "" is the designed state: the empty pin IS the gate
+  pin: "{{ spark_vllm_ultrafast_v32_image }}"          # "" is legal and IS the gate; it now holds the built ID, so what gates the arms is `certified: false`
   pin_var: spark_vllm_ultrafast_v32_image
   tag: "{{ spark_vllm_ultrafast_v32_tag }}"            # its own name; never one of the two below
   # The tags this lineage must never write. They are the ONLY names the live `fast` image has, and

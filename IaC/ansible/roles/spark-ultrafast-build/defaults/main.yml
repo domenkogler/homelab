@@ -26,8 +26,9 @@
 #     to pin itself by accident.
 #
 # DEPLOY-GATED like the rest of the lane: every profile that needs this output references
-# `image: ultrafast`, whose pin is empty until the ID above lands, so roles/spark-llm-profile
-# refuses them all until then (docs/spark-llm-profiles.md §7. The ultra-fast funnel).
+# `image: ultrafast`, whose pin IS the ID above once a human records it — until then an empty pin makes
+# roles/spark-llm-profile refuse them all, and after it `certified: false` is what keeps an uncertified
+# arm behind spark_llm_allow_uncertified (docs/spark-llm-profiles.md §7. The ultra-fast funnel).
 
 # THE LINEAGE AS DATA — the (pin, tag, commit, build command) set tasks/build_lineage.yml drives.
 # This is the LIVE lineage: what the certified `fast` profile boots, so its commands are the ones
