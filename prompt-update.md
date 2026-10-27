@@ -24,6 +24,18 @@
 - spark: kernel `7.0.0-1019-nvidia`, driver `580.178.04`, DGX OS OTA level 7.6.0, `/` 165 G free, up 5+ weeks. The offered OTA `OTA2610` moves no kernel image and no GPU driver; its delta is `dgx-dashboard`, `dgx-oobe{,-desktop}`, `nvidia-dgx-telemetry`, `nvidia-spark-mlnx-firmware-manager`, `nvidia-disable-aqc-nic` + two NEW packages (`nvidia-spark-grub-kho` adds `kho=off` to the kernel command line; `nvidia-spark-cloud-init` configures a NoCloud `OEMDATA` datasource). A reboot-scoped platform act.
 - **The v0.32 lineage is built and pinned** — `spark_vllm_ultrafast_v32_image` = `sha256:72eb432f…`, `spark_llm_fp8_kv_capable_images` = `[ultrafast-v32]`, so `fast8` and `fast-v32-bf16` boot today and what is owed on them is certification, not a build (HD-1206, [spark/reports/hd1206-v32-port-20261026/](spark/reports/hd1206-v32-port-20261026/README.md)). It was built on the toolchain this window replaces: **ruled (owner) — use it as built, no rebuild here**; the certification measures the platform, not the build toolchain.
 - ⚠ §2 and §4 are **not implemented**; §3 is **not committed**. Phases 0–1 exist to close that.
+- **No phase of this window has run** — nothing converged, `versions.yml` untouched. One sitting on the WSL seat
+  proved the legs that need no apply: every one of the five hosts answers SSH, and `~/ansible-venv` +
+  `ansible-playbook` are present there, so that SKIP names the other seats and not this one (live-verified
+  2026-10-27). The `wsl` delegation plane is still unverified (HD-1180), and a spark-served sitting bars its own
+  Phase 6 (Rule 0).
+- **Rotated already — ⛔ do not rotate again inside this window:** `radarr_api` + `sonarr_api` (the instance's own
+  `config.xml` issued the key, the vault holds the copy), `op_api`, `entrim_api`, `openrouter_api`,
+  `opencode-go_api`. What they owe is **propagation**: `litellm` + `lan-litellm` render a retired openrouter value
+  until they converge, the harness renders still hold the old provider keys, and four `op_api` installs wait a
+  re-seat ([docs/1password.md](docs/1password.md) §Rotating the control-node token). Of the 19 items the register
+  still names, these need no device in front: `litellm_api`, the NUT pair, `authentik_db`/`forgejo_db`/`immich_db`.
+  Not rotatable, recorded: `pppoe_login` (ISP-provisioned) and `slskd_login`/`soulseek_login` (no reset e-mail).
 
 ## 2. Prerequisites — the pins session's deliverable (the window does not run without them)
 
@@ -172,7 +184,9 @@ closed by definition, not by a change. ⛔ Never shred or delete a transcript (H
 
 - [ ] `prompt-laptop-wsl.md` §0 pre-flight in full; record the gate count with `validate-all.sh --list | wc -l` and name every SKIP (tmux, the font plane, `ansible-playbook`, `rsync`, the venv symlink arms — HD-1202).
 - [ ] Driver clone fast-forwarded: `git fetch origin && git merge --ff-only origin/main`. oldsrv will report `STALE-CLONE` from here until its **own** clone is fast-forwarded on oldsrv — not fixed from the laptop.
-- [ ] `~/ansible-venv` present and `ansible-playbook` on PATH (a named SKIP class on this seat), and `ansible all -m ping` answers for all five hosts before any apply.
+- [ ] `~/ansible-venv` present and `ansible-playbook` on PATH — **true on the WSL seat**, so that SKIP names the
+  other seats only (live-verified 2026-10-27, together with SSH reachability to all five hosts); `ansible all -m
+  ping` still has to answer from the driver before any apply.
 - [ ] `echo "seat=$(uname -n) provider=$PI_PROVIDER"` — if the session is **spark-served**, Phase 6 cannot run in it (Rule 0: no engine restart, no `spark-ai` re-render): take it in an externally-served session, stated by the owner in-session (README §3).
 - [ ] Delegation plane: `wsl` is unverified (HD-1180) ⇒ lanes run **foreground-sequential**, or pay the two acts (push the `settings` plane + `pi install npm:pi-subagents@0.80.0` FROM this seat, accepted by its own `async: true` launch).
 - [x] ⏭ `python3 scripts/gate/check_secret_leak.py` **from this seat** — read taken (HD-1181 leg 3); with the oldsrv and win11 reads it is the rotation list for Phase 2.
@@ -184,14 +198,24 @@ closed by definition, not by a change. ⛔ Never shred or delete a transcript (H
 - [ ] §2(b) `image-pin-probe.py` `DEFAULT_ROOT` fix (+ a note if the `docker_*` SOURCES entries stay absent).
 - [ ] §4 tombstone mask, registry entry deleted, `docs/hardware-spark.md` sentence rewritten.
 - [ ] §3 pin commit — versions plus the re-fetched `tailscale_host_deb_sha256_by_arch` in the same change.
-- [ ] `bash scripts/validate-all.sh` green **except** `check_secret_leak.py` (red by design until Phase 2).
+- [ ] `bash scripts/validate-all.sh` green **except two named leak-gate reds**: `check_secret_leak.py --self-test`
+  on a seat that imported the onepassword SDK (**HD-1211** — Phase 2 does not clear it; the fix lives in
+  `scripts/gate/**`, WIP on a branch), and the live-value debts the pi-dev seat's own transcripts hold, which only
+  those rotations close (HD-1181). Measured on the WSL seat: 134 items, 1 red = HD-1211. A seat whose reader has no
+  SDK spends ~143 vault requests per gate run instead of 4 — the seat act is `python3
+  scripts/lib/vault_read.py --install-sdk` ([docs/1password.md](docs/1password.md) §What a gate run costs the vault).
 - [ ] `todo.md` — only if a prerequisite row of its own exists; otherwise nothing.
 
 ### Phase 2 — rotations that need no device in front (pile 1 + `op_api`)
 
 - [x] `op_api` **rotated — done**; re-seats deferred to Phase 7 (the owner-set grace covers the window — 3 days for this rotation). Re-confirm the Forgejo Actions holder on the day.
-- [ ] Pile 1 catalog items, one by one, `--rotate <item> --yes`.
-- [ ] The `db_role_sync: true` `*_db` items — vault only; the converges do the ALTER.
+- [ ] The pile-1 items the register still names — `litellm_api`, `nut_password`, `nut-exporter_password` — one by
+  one, `--rotate <item> --yes`. `entrim_api`/`openrouter_api`/`opencode-go_api` are rotated already: they owe the
+  harness re-render, not another rotation.
+- [ ] The exposed `db_role_sync: true` items — `authentik_db`, `forgejo_db`, `immich_db` — a vault write only (⛔
+  `--rotate` refuses them, they are `NOT_AUTO_ROTATABLE`); the converge does the `ALTER ROLE` against its own
+  `pgsync:<sha256>` marker, and a hand-run `ALTER ROLE` desyncs that marker. `pgvector_db` has no IaC consumer:
+  retire the item or name what reads it.
 - [ ] NUT as one act across `nas` + `oldsrv` + `pi` (a vault-only edit loses the clients the master).
 - [ ] `todo.md` — the rows whose rotation landed.
 
@@ -229,7 +253,9 @@ never `--diff` (§7).
 
 ### Phase 6 — spark, last and solo (one slot; not in a spark-served session)
 
-- [ ] Preflight: no other converge in flight, every lane worktree idle, `/` free-space number recorded.
+- [ ] Preflight: no other converge in flight, every lane worktree idle, `/` free-space number recorded. **Phase 6
+  is unrun** — `spark-llm_api` and `litellm-engine_api` are still the values the fleet runs, and the engine's
+  accepted-key list means neither can be rotated without this phase.
 - [ ] OTA `OTA2610` → **reboot** → the boot checks: `kho=off` in `/proc/cmdline`, the `nvidia-spark-cloud-init` drop-ins, `nvidia-spark-mlnx-firmware-manager` ran its boot pass, the headless masks and `multi-user.target` survived, `spark-gpu-clock-cap.service` ran, `jupyterlab_ports.yaml` still maps admin → `11002`, and `dgx-dashboard.service` is still the only dashboard unit, loopback-bound and now **masked**.
 - [ ] Re-derive [docs/hardware-spark.md](docs/hardware-spark.md) §Identity from the box: kernel, OTA level, dashboard version, UEFI date, QSFP delta #2.
 - [ ] The pin converge (`docker`), then `curl -sf localhost:8000/health` **on the box** — the edge 502s for reasons that are not the engine's, and `traefik-spark` restarts with the daemon regardless of its restart-guard exclusion.
