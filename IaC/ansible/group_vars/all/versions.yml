@@ -510,7 +510,7 @@ spark_vllm_v32_base_image: "vllm/vllm-openai:v0.32.0-aarch64@sha256:6ff5ff0ddf36
 # spark_ultrafast_upstream_commit, tagged spark_vllm_ultrafast_v32_tag and re-read by ID.
 # NO spark_llm_overlays re-anchoring belongs with this change: `fast8` sets `ple_overlay: false`, so
 # its module paths arrive through the build, not through a bind over the day-0 module tree.
-spark_vllm_ultrafast_v32_image: "sha256:72eb432fd87c4cda565547d21d9fc4ea2d3c9ac230988adfc5c9b67ef34843ed"   # built image ID, 2026-10-27; built FROM spark_vllm_v32_base_image (sha256:6ff5ff0d…b210bd4bc) at recipe commit 0c391a3e74b6…; evidence spark/reports/hd1206-v32-port-20261026/build-20261027.md
+spark_vllm_ultrafast_v32_image: "sha256:72eb432fd87c4cda565547d21d9fc4ea2d3c9ac230988adfc5c9b67ef34843ed"   # built image ID; as-built provenance: spark/reports/hd1206-v32-port-20261026/build-20261027.md; built FROM spark_vllm_v32_base_image (sha256:6ff5ff0d…b210bd4bc) at recipe commit 0c391a3e74b6…; evidence spark/reports/hd1206-v32-port-20261026/build-20261027.md
 
 # The BUILD-OUTPUT TAG of that lineage. Why this shape cannot collide: `docker build -t` writes the
 # one name it is given, and a tag is `repository:tag` — both day-0 names live in the

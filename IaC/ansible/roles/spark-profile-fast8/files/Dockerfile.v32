@@ -274,7 +274,7 @@ RUN python3 /tmp/patch_measure_draft_mass.py && rm /tmp/patch_measure_draft_mass
 # QWEN4_EXP_GEMM_PLANS_BY_CAPABILITY (:294-300), whose (12, 1) entry is QWEN4_EXP_SM121_GEMM_PLANS
 # (:171-172, its own comment: "DGX Spark (GB10) plans for TP=1 and TP=2 local shapes"), reached
 # through _runtime_ok (:308-317) and gated bf16-only by enable_qwen4_exp_low_latency_gemm (:375,
-# condition :382). RULED A+ (owner, 2026-10-27, report §7b): subsumed, so this step applies NOTHING
+# condition :382). RULED A+ (owner; report §7b): subsumed, so this step applies NOTHING
 # and guards the POST-state — §7b's rule 1, the shape step 12 uses — which is why a patcher that is
 # still staged is named here and run nowhere. That is the sanctioned short_conv shape, not a drop,
 # so the port-everything ruling holds.
