@@ -114,17 +114,20 @@ not this list, holds the steps, the file ownership and the converge host. Waves,
    upstream any more** — the fp8 main-KV merge ships in vLLM `v0.31.0`/`v0.32.0`, so it waits on the ref choice
    + the re-cert it costs. **HD-380 needs no external model** — it is a `/metrics` read. Gate 7, B10's 6/8/9,
    B9 · B5 · B8 are closed — do not re-run.
-   ⏳ **HD-1206 — the v0.32 lineage is authored and merged; what is left is a PORT, and the next act is a read.**
+   ⏳ **HD-1206 — the v0.32 lineage is authored and its patch set is re-anchored; what is left is ONE build, gated on R3.**
    `roles/spark-profile-fast8` (on a lineage-as-data `spark-ultrafast-build` body: per-lineage pin/tag/commit, a
    `git status --porcelain -uno` dirty-checkout assert, `port_v32.py` + `patch_mamba_guard_v32.py` as the in-repo patch
    set) is in `main`, and `spark_vllm_ultrafast_v32_image` is still EMPTY — that empty value IS what refuses `fast8`.
-   The v0.32 base (`6ff5ff0ddf36`, arm64, 35.3 GB on disk, 188 G headroom left on spark) is **already in the store**, and
-   every base probe, the porter plan and the `mamba_utils` read are proven against it, one build, not a survey of attempts, is what the
-   anchor census in
-   [`spark/reports/hd1206-v32-port-20261026/README.md`](spark/reports/hd1206-v32-port-20261026/README.md) §7b: 87 anchors read at the base
-   digest, and one build attempt answers exactly ONE of them for ~12 G of cache (RULED 2026-10-27: **port everything, drop nothing** — every absent
+   The v0.32 base (`6ff5ff0ddf36`, arm64, 35.3 GB on disk, 164 G free on spark) is **already in the store**, and every
+   base probe, the porter plan and the `mamba_utils` read are proven against it. The port is landed: the census now
+   derives its patchers from `Dockerfile.v32` itself
+   ([`spark/reports/hd1206-v32-port-20261026/README.md`](spark/reports/hd1206-v32-port-20261026/README.md) §7b — 13
+   names in step order, 101 anchors, 44 holding), and under the RULED **port everything, drop nothing** every absent
    anchor is re-anchored in `files/port_v32.py`, including `patch_never_evict`, whose drop is reversed and whose dial
-   stays rejected and empty). **Order:** detached `ansible-playbook IaC/ansible/playbooks/spark.yml -l spark --tags
+   stays rejected and empty. One gate is left: **step 14's `patch_low_latency_gemm_sm12x` (R3), fatal by design
+   pending the owner's ruling** (§7b's R3 row: the base's plan table already carries the GB10 shapes, so subsume-or-port
+   is an owner call, not a lane's).
+   **Order:** detached `ansible-playbook IaC/ansible/playbooks/spark.yml -l spark --tags
    spark-profile-fast8 -e spark_profile_fast8_build=true` (prints the image ID, then fails on purpose — the pin is a
    human commit) → `python3 scripts/bench/spark-fp8-image-probe.py --image <built tag> --skip-registry` → on
    `REACHABLE`, record the ID **and** add `ultrafast-v32` to `spark_llm_fp8_kv_capable_images` in the SAME commit (that
