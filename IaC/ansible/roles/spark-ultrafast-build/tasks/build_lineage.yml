@@ -1,0 +1,192 @@
+---
+# The build body of ONE image lineage, driven entirely by the vars below — a lineage is DATA, so
+# there is exactly ONE copy of the inspect/skip, build, re-read and assert pair in this role. A
+# second lineage (roles/spark-profile-fast8) is a new var set pointed at this file, never a fork of
+# these tasks: a forked copy is how a v0.32 build ends up inspected against the LIVE lineage's pin
+# (it would be skipped, the run would report success) and asserted against it (a red that reads
+# like a mistake instead of like "this lineage has its own artifact").
+#
+# Required vars — the first task refuses a partial set rather than defaulting one:
+#   bl_key            the lineage key, quoted in every message below
+#   bl_pin            the lineage's OWN built-image ID pin; "" is legal and IS the gate
+#   bl_pin_var        the versions.yml name that holds bl_pin, so a fail_msg names a file
+#   bl_tag            the lineage's OWN build-output tag — the only name this build writes
+#   bl_reserved_tags  tags owned by ANOTHER lineage; writing one would untag a live image
+#   bl_commit         the 40-char upstream recipe commit this lineage ports from
+#   bl_src_dir        the pinned upstream checkout the patch sources are read from
+#   bl_chdir          where bl_plan_cmd / bl_build_cmd run
+#   bl_build_cmd      the command that performs the build
+#   bl_plan_cmd       a command that prints the build plan ("" = this lineage has none)
+#   bl_build_drafter  whether this lineage converts the T80 drafter directory (see the task below)
+#   bl_fail_unpinned  whether THIS body ends the lineage with the unpinned-ID fail (default true).
+#                     A lineage with post-build legs of its own sets it false and places the same
+#                     fail AFTER them: this body's copy sits right after the build, so firing it
+#                     here would end the run that builds before any of those legs ran.
+
+- name: Assert the {{ bl_key }} lineage parameters are complete
+  # A lineage with a missing field would inherit the other lineage's value by accident, which is
+  # the failure this split exists to remove; refuse it here, before any engine is touched.
+  ansible.builtin.assert:
+    that:
+      - bl_key | length > 0
+      - bl_tag | length > 0
+      - bl_pin_var | length > 0
+      - (bl_commit | length) == 40
+      - bl_src_dir | length > 0
+      - bl_chdir | length > 0
+      - bl_build_cmd | length > 0
+      - bl_reserved_tags is defined     # required, not defaulted: an unset list silently loses the
+      - bl_build_drafter is defined     # tag-collision guard below, which is the live image's only shield
+      - bl_tag not in bl_reserved_tags
+    fail_msg: >-
+      The lineage '{{ bl_key }}' is not fully specified: pin_var='{{ bl_pin_var | default('') }}',
+      tag='{{ bl_tag | default('') }}', commit='{{ bl_commit | default('') }}' (must be a full
+      40-char sha), chdir='{{ bl_chdir | default('') }}',
+      reserved_tags={{ (bl_reserved_tags if bl_reserved_tags is defined else ['(UNSET — required)']) | join(', ') }},
+      build_drafter={{ bl_build_drafter | default('(UNSET — required)') }}. The tag it builds to must
+      also NOT be one of the tags another lineage owns: a tag is the ONLY reference some live images
+      have, so a build that writes a name it does not own silently untags them and makes them
+      prune-able, which is why reserved_tags is required rather than defaulted to an empty list. A
+      lineage's (pin, tag, commit) triple lives in that lineage's own defaults, and the pin itself in
+      group_vars/all/versions.yml.
+  tags: [spark, spark-ultrafast-build, llm]
+
+- name: Ask whether the {{ bl_key }} lineage's built image ID is already present
+  # The LINEAGE'S OWN pin decides whether there is anything to build. Reading another lineage's pin
+  # here would skip this build and call the run green.
+  # check_mode: false so --check answers the same question instead of leaving the legs below to run
+  # on an undefined read.
+  ansible.builtin.command:
+    cmd: "docker image inspect --format '{{ '{{' }}.Id{{ '}}' }}' {{ bl_pin if bl_pin | length > 0 else bl_tag }}"
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  register: bl_inspect
+  tags: [spark, spark-ultrafast-build, llm]
+
+- name: Print the build plan before building anything
+  when:
+    - not (bl_inspect.rc == 0 and bl_pin | length > 0)
+    - bl_plan_cmd | default('', true) | length > 0
+  ansible.builtin.command:
+    cmd: "{{ bl_plan_cmd }}"
+    chdir: "{{ bl_chdir }}"
+  become: true
+  become_user: "{{ ansible_user }}"
+  register: bl_plan
+  tags: [spark, spark-ultrafast-build, llm]
+
+- name: Show the build plan
+  when: bl_plan.stdout is defined and bl_plan.stdout | length > 0
+  ansible.builtin.debug:
+    msg: "{{ bl_plan.stdout_lines }}"
+  tags: [spark, spark-ultrafast-build, llm]
+
+- name: Build the {{ bl_key }} image lineage (async)
+  # --network none per upstream: the build compiles nothing from the network, and a build that
+  # silently fetches something is not the build whose hashes were verified.
+  when: not (bl_inspect.rc == 0 and bl_pin | length > 0)
+  ansible.builtin.command:
+    cmd: "{{ bl_build_cmd }}"
+    chdir: "{{ bl_chdir }}"
+  become: true
+  become_user: "{{ ansible_user }}"
+  async: 7200
+  poll: 60
+  register: bl_build
+  tags: [spark, spark-ultrafast-build, llm]
+
+- name: Re-read the built image ID
+  # check_mode: false, because the assert beside it compares this read with the pin: without it a
+  # --check run skips the read and then fails on an undefined `bl_built`.
+  ansible.builtin.command:
+    cmd: "docker image inspect --format '{{ '{{' }}.Id{{ '}}' }}' {{ bl_tag }}"
+  changed_when: false
+  check_mode: false
+  register: bl_built
+  tags: [spark, spark-ultrafast-build, llm]
+
+# The pin is written by a HUMAN, in its own commit. This role deliberately does not edit
+# group_vars: an image ID that pins itself because a playbook ran is an unreviewed pin, and the
+# whole value of the pin lane is that the pin change is the review surface.
+- name: Refuse to continue while the {{ bl_key }} image ID is unpinned
+  # bl_fail_unpinned is this body's own default: the live lineage ends here, because it has no
+  # post-build legs. A lineage that does has the same fail at the end of its own tasks, and turns
+  # this one off — otherwise the run that builds would exit before those legs ever ran.
+  when:
+    - bl_pin | length == 0
+    - bl_fail_unpinned | default(true) | bool
+  ansible.builtin.fail:
+    msg: >-
+      Lineage '{{ bl_key }}' built. Its immutable ID is {{ bl_built.stdout | trim }}.
+      Record it as {{ bl_pin_var }} in IaC/ansible/group_vars/all/versions.yml (one commit, note the
+      base digest it was built FROM), then the profiles that name this lineage unlock by themselves
+      and roles/spark-llm-profile stops refusing them. Until then the build tag {{ bl_tag }} exists
+      on the box but is NEVER served — a tag is a mutable alias (CONVENTIONS §7).
+  tags: [spark, spark-ultrafast-build, llm]
+
+- name: Assert the built image matches the pinned ID
+  when: bl_pin | length > 0
+  ansible.builtin.assert:
+    that:
+      - bl_built.stdout | trim == bl_pin
+    fail_msg: >-
+      The lineage tagged {{ bl_tag }} has ID {{ bl_built.stdout | trim }}, but versions.yml pins
+      {{ bl_pin_var }} = {{ bl_pin }}. Either the tag was rebuilt (a rebuild is a NEW artifact and
+      needs its own pin commit — docker rebuilds are not byte-reproducible) or the pin is stale.
+      Do NOT retag to make this pass.
+  tags: [spark, spark-ultrafast-build, llm]
+
+# ---- The T80 dense-MTP drafter directory (tier 3 inputs) ----
+# Converted, not downloaded: nine drafter modules at group size 32 out of the AR-hybrid checkpoint
+# (+4.8 GiB). Upstream's builder self-tests first (three CPU test suites), then refuses to run
+# twice, verifies its own sha256s of the base index, and writes dense-mtp-build-report.json — which
+# is the marker the `built` artifact kind checks.
+#
+# bl_build_drafter is false for a lineage that shares the checkpoint with another lineage: the
+# output directory is ONE directory named by both profiles, so a second lineage converting it would
+# rewrite an artifact a CERTIFIED profile boots — for no benefit, since the conversion is a weight
+# transform and not an image feature.
+- name: Check whether the drafter directory was already built
+  when: bl_build_drafter | bool
+  ansible.builtin.stat:
+    path: "{{ spark_models_dir_os }}/{{ spark_ultrafast_drafter_subdir }}/{{ spark_ultrafast_drafter_marker }}"
+  register: bl_drafter
+  tags: [spark, spark-ultrafast-build, llm]
+
+- name: Convert the T80 drafter directory (async)
+  when:
+    - bl_build_drafter | bool
+    - not bl_drafter.stat.exists
+  ansible.builtin.command:
+    cmd: bash recipe/build/model/build.sh --run
+    chdir: "{{ bl_src_dir }}"
+  environment:
+    MODELS_ROOT: "{{ spark_models_dir_os }}"
+    MODEL_DIR: "{{ spark_models_dir_os }}/{{ spark_ultrafast_base_subdir }}"
+    OUT_DIR: "{{ spark_models_dir_os }}/{{ spark_ultrafast_drafter_subdir }}"
+    IMAGE: "{{ bl_tag }}"
+  become: true
+  become_user: "{{ ansible_user }}"
+  async: 3600
+  poll: 30
+  register: bl_drafter_build
+  tags: [spark, spark-ultrafast-build, llm]
+
+- name: Assert the drafter conversion left its report
+  when: bl_build_drafter | bool
+  ansible.builtin.stat:
+    path: "{{ spark_models_dir_os }}/{{ spark_ultrafast_drafter_subdir }}/{{ spark_ultrafast_drafter_marker }}"
+  register: bl_drafter2
+  failed_when: not bl_drafter2.stat.exists
+  tags: [spark, spark-ultrafast-build, llm]
+
+- name: Summary
+  ansible.builtin.debug:
+    msg:
+      - "lineage        : {{ bl_key }}"
+      - "upstream pin   : {{ bl_commit }}"
+      - "checkout       : {{ bl_src_dir }} @ {{ bl_head | default('') | trim }}"
+      - "built image    : {{ bl_built.stdout | trim }} (tag {{ bl_tag }}, served only via the ID pin)"
+      - "versions.yml pin: {{ bl_pin if bl_pin | length > 0 else '(EMPTY — profiles stay gated until the ID above is recorded)' }}"
+  tags: [spark, spark-ultrafast-build, llm]

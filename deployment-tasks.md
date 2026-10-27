@@ -724,9 +724,9 @@ HD-358 (Seerr → \*arr link — IaC-seeded by `roles/docker_services/tasks/arr-
 - `scripts/harness/pi-seat-sync.sh --check` prints one line per declared plane for the cockpit seat.
 
 **Deploy-gated verification (Phase 4c — oldsrv cockpit):**
-- [ ] **HD-444** — the phone→oldsrv crossing: the path and the page are proven from the phone on mobile
-      data, the leg still owed is **one chat round-trip in a real session** — token gate + session list +
-      turn, all three, before the row closes. · [services-ai.md](docs/services-ai.md) §9b-1
+- [x] **HD-444** — the phone→oldsrv cockpit crossing, live-verified 2026-10-26: token gate, session
+      list and one chat round-trip, driven from the phone on mobile data over the tailnet name.
+      · [services-ai.md](docs/services-ai.md) §9b-1
 - [ ] **HD-411** — the second surface of this same account: the Paseo daemon is **not installed**, so its
       tailnet bind, its password, its hostnames and its one 1Password item still wait on an owner verdict
       taken with a hand on the phone. · [services-ai.md](docs/services-ai.md) §9b

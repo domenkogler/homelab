@@ -951,7 +951,9 @@ so `pi --list-models` there is produced from git rather than copied by hand; the
 above and the tailnet path is proven from a real peer (below). The tailnet leg stays **unprovable in the
 negative direction** from inside this fleet, because every node reachable from a session is itself
 ACL-scoped away from oldsrv (the VPS `tailscale-sidecar` answers `tailscale ping <oldsrv>` with
-`no matching peer`, which is the ACL working, not a fault); the phone is the first genuine client by design.
+`no matching peer`, which is the ACL working, not a fault); a **phone on the tailnet is the genuine
+client**, and the crossing is proven end to end there — token gate, session list and one chat
+round-trip, taken from cellular, live-verified 2026-10-26.
 Two known costs of choosing beta software: `@ygncode/pi-web` ships **no
 README in the npm registry** (the GitHub README is the only contract), and the binary **hard-fails** when
 `~/.pi/agent/sessions/` does not exist instead of creating it — so the directory is a documented prerequisite.

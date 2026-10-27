@@ -38,5 +38,11 @@
     - role: spark-ultrafast-build
       when: spark_ultrafast_build | bool
       tags: [spark-ultrafast-build]
+    # builds the v0.32 lineage: the SAME patch stack re-anchored on spark_vllm_v32_base_image, with
+    # its own (pin, tag, commit) and its own build directory. Its own switch because it pulls a ~10 GB
+    # base image; its own tags because a rebuild of one lineage must never be a rebuild of the other.
+    - role: spark-profile-fast8
+      when: spark_profile_fast8_build | bool
+      tags: [spark-ultrafast-build, spark-profile-fast8]
     - monitoring      # Alloy node exporter → VPS Victoria backend (per-node model)
     - docker_services # spark-ai (vLLM B1 + llm-d router) via the spark group_vars; deploy-gated by `enabled`

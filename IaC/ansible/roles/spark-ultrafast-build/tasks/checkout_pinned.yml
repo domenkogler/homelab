@@ -1,0 +1,90 @@
+---
+# The provenance half of a lineage: get the pinned upstream recipe and prove the tree a build is
+# about to read IS that pin. Driven by vars so every lineage runs the SAME proof:
+#   bc_repo    the upstream git URL
+#   bc_commit  the 40-char commit this lineage ports from
+#   bc_src_dir the checkout directory
+#
+# TWO asserts, because one is not enough. `HEAD == pin` proves which commit the checkout is on; it
+# cannot see an edit, because editing a TRACKED file does not move HEAD. A dirty tree at the right
+# HEAD is therefore the shape that buys an image nobody can rebuild — the pin claims upstream, the
+# bytes are somebody's local patch — so the tracked worktree has to be clean too (`-uno`: untracked
+# build residue is not compiled into the image, and upstream's own md5/sha gates tolerate it). If the
+# tracked files are not clean, the answer is a patch set in this repository (where a port is
+# reviewable and re-runnable), never an edit in the checkout.
+
+- name: Ensure the build-input directory exists
+  ansible.builtin.file:
+    path: "{{ bc_src_dir | dirname }}"
+    state: directory
+    mode: "0775"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  tags: [spark, spark-ultrafast-build, llm]
+
+- name: Check out the pinned upstream recipe
+  ansible.builtin.git:
+    repo: "{{ bc_repo }}"
+    dest: "{{ bc_src_dir }}"
+    version: "{{ bc_commit }}"
+    force: false
+  become: true
+  become_user: "{{ ansible_user }}"
+  register: bc_git
+  tags: [spark, spark-ultrafast-build, llm]
+
+- name: Read back the checked-out commit
+  # check_mode: false so a --check run answers the same question instead of asserting on empty stdout.
+  ansible.builtin.command:
+    cmd: git rev-parse HEAD
+    chdir: "{{ bc_src_dir }}"
+  changed_when: false
+  check_mode: false
+  become: true
+  become_user: "{{ ansible_user }}"
+  register: bc_head
+  tags: [spark, spark-ultrafast-build, llm]
+
+- name: Assert the checkout is exactly the pinned commit
+  ansible.builtin.assert:
+    that:
+      - bc_head.stdout | trim == bc_commit
+    fail_msg: >-
+      {{ bc_src_dir }} is at {{ bc_head.stdout | trim }}, not the pinned {{ bc_commit }}. The
+      build's own source-hash gates would still refuse a modified tree, but a checkout that is not
+      the pin means the provenance claim in versions.yml is not the thing that ran. Resolve it
+      deliberately: bump the pin in its own commit, or reset the checkout.
+  tags: [spark, spark-ultrafast-build, llm]
+
+- name: Read back the checkout's worktree state
+  # `-uno`, because the hazard this guard exists for is a port COMPILED INTO THE IMAGE, and that is a
+  # change to a TRACKED file. Untracked residue — a __pycache__, a lock file, a log the recipe's own
+  # build writes next to its sources — reaches no layer, and upstream's build refuses a modified tree
+  # by hash while writing exactly that residue, so counting it would redden a build that was green
+  # before this guard existed.
+  # check_mode: false so a --check run makes this read too, instead of asserting on empty stdout.
+  ansible.builtin.command:
+    cmd: git status --porcelain -uno
+    chdir: "{{ bc_src_dir }}"
+  changed_when: false
+  check_mode: false
+  become: true
+  become_user: "{{ ansible_user }}"
+  register: bc_status
+  tags: [spark, spark-ultrafast-build, llm]
+
+- name: Assert the checkout carries no local edit
+  ansible.builtin.assert:
+    that:
+      - bc_status.stdout | trim | length == 0
+    fail_msg: >-
+      {{ bc_src_dir }} is at the pinned commit but TRACKED FILES IN ITS WORKTREE ARE MODIFIED
+      (`git status --porcelain -uno` — untracked build residue is deliberately not counted, because
+      it is not compiled into the image):
+      {{ bc_status.stdout_lines | join(' | ') }}. A dirty tree at the right HEAD is the one
+      provenance failure `HEAD == pin` cannot see: the build would compile these local edits into an
+      image whose pin claims upstream {{ bc_commit }}, and nobody could rebuild it. Do not clear it
+      with `git checkout -- .` when the edit is a port worth keeping — a port belongs in this
+      repository as a lineage's own patch set, where it is reviewable and re-runnable
+      (roles/spark-profile-fast8/files/ is that shape).
+  tags: [spark, spark-ultrafast-build, llm]

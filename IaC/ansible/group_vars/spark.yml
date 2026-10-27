@@ -80,12 +80,22 @@ spark_ultrafast_drafter_marker: dense-mtp-build-report.json
 # (`--tags spark-ultrafast-build` with this flipped, or -e spark_ultrafast_build=true),
 # not because a converge happened to touch spark.
 spark_ultrafast_build: false
+# The v0.32 lineage's own opt-in switch (roles/spark-profile-fast8). Separate from the one above on
+# purpose: this build pulls a ~10 GB base image and runs a third party's patch stack on this box, so
+# it is an act, not a side effect of building the live lineage. Nothing about it can flip a profile:
+# `fast8` stays gated by the empty `spark_vllm_ultrafast_v32_image` pin whatever this is set to.
+spark_profile_fast8_build: false
 spark_models_roots:
   xfs: "{{ spark_models_dir }}"
   os: "{{ spark_models_dir_os }}"
 # Upstream clone + built-image build tree (roles/spark-ultrafast-build). Kept off the data
 # store on purpose: it is build input, not serving data, and it must survive artifact pruning.
 spark_ultrafast_src_dir: /opt/homelab/ultrafast-src
+# The v0.32 lineage's BUILD directory — a copy of the recipe's build inputs, re-anchored by
+# roles/spark-profile-fast8/files/port_v32.py. Never the checkout above: the checkout has to stay
+# byte-for-byte the pinned commit for the provenance assert to mean anything, and a build definition
+# that edits it would also leave upstream's build.sh in place, writing the live lineage's tags.
+spark_profile_fast8_build_dir: /opt/homelab/ultrafast-v32-build
 spark_draft_vocab_dir: "{{ spark_xfs_mount }}/draft_vocab"
 spark_draft_vocab_host_file: "{{ spark_draft_vocab_dir }}/draft-vocab-ids-K65536.txt"
 spark_draft_vocab_container: /draft-vocab/ids.txt
@@ -93,6 +103,13 @@ spark_draft_vocab_container: /draft-vocab/ids.txt
 # the roles/spark-llm-profile staged-artifacts gate — three mounts duplicated in two
 # places is how a gate starts approving a render that cannot boot). Source file
 # names = the `files:` manifest entry in spark_artifact_sets.ple-int4.
+# ⚠ THESE BIND TARGETS BELONG TO THE `ultrafast` BUILD (the qwen38-flash-next / iter6d lineage,
+# `spark_vllm_ultrafast_image`). Stock v0.32.0 has no `vllm/v1/ple_offload/` package at all and moved
+# the model package `vllm/models/qwen3_8_flash_next/…` → `vllm/models/qwen4_exp/…`, so a build on
+# `spark_vllm_v32_base_image` needs these three container paths re-anchored to that build's own tree
+# BEFORE an arm that overlays can boot it — an overlay bind onto a path the image does not have is a
+# new file at a new path, not a patch. The paths below are correct for the live `reasoning`/`fast`
+# pins and are NOT to be "modernised" for a lineage that is not built yet.
 spark_llm_overlays:
   - host: worker_image_quant.py
     container: /usr/local/lib/python3.12/dist-packages/vllm/v1/ple_offload/worker.py
@@ -343,6 +360,25 @@ spark_llm_never_evict_max_fraction: &nevf "0.25"   # unused while the pin is emp
 # vLLM 0.1.dev20073+g8e685d198) has no such argument. A profile with a non-empty pin whose
 # image is not listed here is refused by roles/spark-llm-profile AND check_spark_llm_gate.py.
 spark_llm_never_evict_capable_images: [ultrafast]
+
+# ---- Image lineages whose build can actually WRITE AND READ an fp8 main KV cache ----
+# Same shape as the list above, same reason: a flag the build cannot execute is a profile bug, not a
+# runtime condition. The dtype guard lives in the image's own `qsa.py`: the build pinned as `base`
+# (and the `ultrafast` lineage built on it) declares `supported_kv_cache_dtypes = ["auto",
+# "bfloat16"]` and raises, so an fp8 arm there dies at EngineCore init with
+# `NotImplementedError: Qwen3.8-Flash-Next QSA requires a BF16 main KV cache` and Docker restart-loops
+# the engine while every other gate stays green. The upstream fix (vllm#55557) ships in vLLM v0.31.0 /
+# v0.32.0, whose `vllm/models/qwen4_exp/nvidia/qsa.py` declares `"fp8_e4m3"` and carries no such raise
+# (spark/reports/hd473-pin-check-20261025/README.md) — but a stock release CANNOT serve the AR-hybrid
+# checkpoint at all (the `VLLM_FP8_HYBRID` dispatch is installed only by the patched lineage), so the
+# ONLY name allowed here is the patch stack rebuilt on a v0.32 base.
+# TO ADD A NAME HERE: run the box leg of scripts/bench/spark-fp8-image-probe.py against that image's
+# own qsa.py — an `UNDECIDED` probe is not a verdict (CONVENTIONS §7: the pin is the evidence).
+# EMPTY until that probe returns REACHABLE, and deliberately not pre-registered: the list is the fp8
+# claim's EVIDENCE, and a name entered before the box leg ran makes every offline gate green BY
+# ASSERTION — an authored-but-unbuilt lineage already satisfies both a listed name and a non-empty pin.
+# With the name absent the arm reads GATED ("no fp8 main-KV read path in that build"), which is the truth.
+spark_llm_fp8_kv_capable_images: []
 
 # ---- Checkpoint identity + the PLE pairing table ----------
 # WHY these two maps exist. A profile names TWO artifacts — a checkpoint (`model_subdir`) and a
@@ -1001,6 +1037,95 @@ spark_llm_profiles:
     # → docs/spark-incidents.md §Incidents #4/#5/#6 — the projected reserve never existed
     generation_config_override: '{"temperature":1,"top_p":0.95,"top_k":20}'   # client-owned temp NOT possible: AR loader needs temperature present
 
+  # ── fast8: the AR-hybrid arm on fp8 KV — the pool arm, gate-blocked ──────────
+  # WHY AN fp8 ARM EXISTS AT ALL: four concurrent full windows do not exist on this box in bf16 —
+  # `fast` holds 2.46 × the 262,144 window and `reasoning` 1.97 ×. fp8 KV is the only thing that
+  # changes that, and what it buys is SLOTS INSIDE THE SAME 20 GB, not a bigger pool: the measured
+  # fixed cost already caps the pool (device_hold_ceiling 112.70e9 − fixed 92.13e9 ≈ 20.57 GB, so
+  # `pool_max` is what `fast` already takes). The next GiB is not for sale at any price; only the
+  # bytes per token are, and 31,027 → 18,251 is the whole of this arm's claim.
+  # TWO SHAPES THIS ARM IS NOT, each refused by an assert rather than by a comment:
+  #   * `image: base` or `image: ultrafast` with `kv_cache_dtype: fp8` dies at EngineCore init on
+  #     the BF16-only QSA dtype guard (`NotImplementedError: … requires a BF16 main KV cache`) and
+  #     Docker restart-loops the engine with every other gate green. That is what
+  #     spark_llm_fp8_kv_capable_images refuses; `graded` is the record of it happening.
+  #   * a STOCK v0.32.0 release cannot serve THIS checkpoint at all. `VLLM_FP8_HYBRID` and the
+  #     drafter-expert dispatch it drives, plus the `VLLM_PLE_MMAP` table path, are installed only
+  #     by the patched lineage, and the AR-hybrid checkpoint WITHOUT that env dies at the first
+  #     safetensors shard (`ar-blk-lean`: docs/spark-llm-profiles.md §7 +
+  #     spark/reports/hd489-legs-20261006-1228/raw/b9-crash.txt). So fp8 KV and the patch stack are
+  #     BOTH load-bearing here: `fast8` names one lineage — the patch stack rebuilt ON a v0.32 base
+  #     (`spark_vllm_v32_base_image`) — and no stock-release AR-hybrid arm is authored.
+  fast8:
+    <<: *u_x
+    label: "UNCERTIFIED — AR AutoRound-hybrid + FP8 PLE mmap + MTP3-block on fp8 KV (4.18 × the window; gated on the unpinned v0.32 lineage)"
+    image: ultrafast-v32          # the patch stack rebuilt ON spark_vllm_v32_base_image, pin EMPTY
+                                  # in versions.yml = the gate. Bumping `base` or `ultrafast` instead
+                                  # would silently re-engine the certified `reasoning` lane and the
+                                  # LIVE certified `fast` profile — a third name is the only safe edit.
+    models_root: os
+    model_subdir: Qwen3.8-Flash-Next-W4A16-AutoRound-hybrid
+    ple_offload: false
+    ple_overlay: false
+    ple_host_base: models
+    ple_host_root: os
+    ple_host_subdir: ple-table-fp8
+    ple_container_dir: /ple-table
+    ple_staged_marker: ".hf-staged"
+    ple_mmap: true
+    ple_dispatch: true            # constitutive on this checkpoint, exactly as in `fast`: without the
+                                  # dispatch env this checkpoint dies at the first safetensors shard,
+                                  # so the fp8 read path alone is not a bootable arm.
+    kv_cache_dtype: fp8           # THE one variable this arm turns. 1.70–1.89×, never 2× (main K/V
+                                  # only — the QSA side-caches + GDN state stay bf16), and the
+                                  # constant is spark_llm_kv_bytes_per_token.fp8 = 18,251 B/token.
+    kv_cache_memory: "20000000000"  # = 1,095,830 slots = 4.18 × the 262,144 window = 136,978
+                                    # tokens/stream at the seqs-8 ceiling, projected at 18,251
+                                    # B/token. Same 20 GB `fast` occupies, different bytes/token.
+    pool_ceiling_bytes: 20000000000 # per-profile, like `fast`. The CERTIFIED 16 GiB global stays the
+                                    # ceiling for every other profile (hardware-spark.md §Chosen governor).
+    max_num_seqs: 8               # max_cudagraph_capture_size deliberately NOT restated: it inherits
+                                  # `_x`'s 4, which keeps the ≤ max_num_seqs assert honest. A copy of
+                                  # an anchor value is how a shared default stops being shared.
+    enforce_eager: true           # mmap × CUDA-graph pinning — the same path `fast` runs
+    spec_config:
+      method: mtp
+      num_speculative_tokens: 3
+      rejection_sample_method: block
+      draft_sample_method: probabilistic
+    health_start_period: 2400s    # PREWARM reads the whole FP8 table at boot, as in `fast`
+    reasoning_surface: binary     # certified against THIS engine surface (harness-pi-engines.md §2)
+    artifact_sets: [ar-hybrid, ple-fp8]   # both already staged for `fast` — this arm downloads nothing
+    # Host-floor EXCEPTION: the same named one `fast` carries, because this arm changes the KV DTYPE
+    # and not the weights, so the AR-hybrid checkpoint's measured non-KV hold is what binds. The
+    # global (113.000e9, the measured rest floor) is priced from terms that do not hold for this
+    # checkpoint. → docs/hardware-spark.md §The GLOBAL ceiling
+    device_hold_ceiling_bytes: 112700000000
+    fixed_cost_bytes: 92130000000
+    fixed_cost_basis: "DERIVED — inherited from `fast` and NOT re-measured on this arm: `fast`'s
+      MemAvailable-jump figure (docs/spark-incidents.md §Incidents #4/#5/#6, the only method that
+      reports what the engine HOLDS). The KV dtype does not move the non-KV hold, so the figure
+      carries over; gate 7 is what falsifies a DERIVED fixed_cost_bytes
+      (spark/llm-profiles/README.md), and this arm's own watchdog curve replaces it on the boot
+      that has a pinned image underneath it."
+    certified: false
+    uncertified_reason: >-
+      (a) THE LINEAGE IT WAITS ON: the upstream patch stack rebuilt on a registry-verified v0.32.0
+      arm64 build, its built image ID then recorded as spark_vllm_ultrafast_v32_image in
+      group_vars/all/versions.yml — the empty pin IS the refusal, on the fast-sglang and ultrafast
+      precedent (CONVENTIONS §7). Nothing about this arm can be measured before that commit exists.
+      (b) fp8 IS GATED BY GATES 8–9, not by 0–7 alone: MTP acceptance read old-dtype-vs-new from
+      /metrics on the same prompt class (every published fp8 measurement ran with speculative decode
+      OFF, and our arms run spec_method: mtp), and quality against the model's own noise floor — the
+      reference fp8 implementation went 6/6 to 2/6 on the long-reasoning battery while the needles
+      still passed, because quantised keys perturb what the indexer selects.
+      (c) THE ARITHMETIC IT PROMISES: 20,000,000,000 B / 18,251 B/token = 1,095,830 token slots =
+      4.18 × the 262,144 window, 136,978 tokens/stream on the seqs-8 ceiling. That is a PROJECTION
+      from the conservative 1.70× constant; the engine's own 'GPU KV cache size' boot line is the
+      number of record and it outranks this line completely (spark/llm-profiles/README.md, "a
+      projected slot count is not a measurement").
+    certified_evidence: ""
+
   # ── B9: ar-blk WITHOUT the kernel-dispatch env ──────────────
   # Same checkpoint + FP8 mmap table + spec as ar-blk, but ple_dispatch: false ⇒ the
   # QWEN38NEXT_*/VLLM_*_GEMM/VLLM_FP8_HYBRID knobs are NOT rendered, so this varies exactly one
@@ -1283,6 +1408,9 @@ spark_llm_image_pins:
 spark_llm_profile_images:
   base: "{{ spark_vllm_image }}"
   ultrafast: "{{ spark_vllm_ultrafast_image }}"
+  # The fp8-KV lineage: the patch stack rebuilt on `spark_vllm_v32_base_image`. Its pin is EMPTY by
+  # design, which is what gates `fast8` (CONVENTIONS §7 — an empty pin IS the refusal).
+  ultrafast-v32: "{{ spark_vllm_ultrafast_v32_image }}"
   sglang: "{{ spark_sglang_image }}"
 
 # Resolve the active profile for roles (roles/spark-llm-profile reads this as a real

@@ -420,12 +420,17 @@ Certified state and its costs, stated plainly:
 - **16 GiB is the practical bf16 ceiling — do not raise it further.** The headroom arithmetic is runtime
   **+5.5 GiB** vs boot-side **+5.4 GiB (binding)**. The next KV byte cannot come from
   `--kv-cache-dtype fp8`: fp8 buys **1.70–1.89×** tokens for the same GiB — not 2×, since it halves the
-  main K/V only while the QSA indexer side-caches and the GDN state stay bf16 — and on the pinned image
-  it **cannot boot at all** (`NotImplementedError: QSA requires a BF16 main KV cache`,
-  [`../spark/reports/hd469-graded/README.md`](../spark/reports/hd469-graded/README.md)). That is the
-  **build**, not the model: the upstream fix (vllm#55557) is merged and **ships in vLLM v0.31.0+** (arm64
-  manifests, CUDA 13), while the ref pinned here predates it ([`image-probe-20260928.md`](../spark/reports/hd469-graded/image-probe-20260928.md)
-  · [`pin check`](../spark/reports/hd473-pin-check-20261025/README.md)). Reaching it is the engine-pin lane.
+  main K/V only while the QSA indexer side-caches and the GDN state stay bf16 — and fp8 main KV is a
+  property of the **build**, not of the flag: it needs the read path vllm#55557 merged, which **ships in
+  vLLM v0.31.0+** (arm64 manifests, CUDA 13). **Neither image pin on this box is such a build** — both
+  the pinned ref and the lineage built on it carry the `qsa.py` dtype guard
+  (`supported_kv_cache_dtypes = ["auto", "bfloat16"]`), so an fp8 profile on either dies at EngineCore
+  init with `NotImplementedError: QSA requires a BF16 main KV cache`
+  ([`../spark/reports/hd469-graded/README.md`](../spark/reports/hd469-graded/README.md)), and v0.30.0
+  still carries the raise. The profile that names a build with the read path is **`fast8`** — the patch
+  stack rebuilt on a v0.32 base, gated by an empty image pin until that build exists
+  ([`image-probe-20260928.md`](../spark/reports/hd469-graded/image-probe-20260928.md)
+  · [`pin check`](../spark/reports/hd473-pin-check-20261025/README.md)); reaching it is the engine-pin lane.
   Profile-level arithmetic + the host-floor gate: [spark-llm-profiles.md](spark-llm-profiles.md).
 - **Costs paid:** idle `usable` **18.5 GiB** (margin to the 12 GiB reserve target is 6.5 GiB), and
   `NV_ERR_NO_MEMORY` occurrences rise slightly under load (boot-load burst unchanged in character). Under
