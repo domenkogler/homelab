@@ -161,7 +161,8 @@ them can pass silently:
 * every **multi-line code anchor** inside the unchanged patchers (`patch_block_drop.py`,
   `patch_measure_draft_mass.py`, `patch_verify_topk_pivot.py`, …). The files they edit exist at the tag and in the
   image; the exact surrounding text is not something a read of the base can settle. The build decides, and it
-  fails loudly — which is how `patch_never_evict.py` was settled (row above).
+  fails loudly — which is how `patch_never_evict.py` was settled (row above). **§7b now settles the whole
+  set in one read instead of one build attempt per surprise.**
 * the `vllm_inproj_ba_gemv.py` docstring's `model.py:208-212` / `:636` **line pointers**: the module path is
   re-anchored, the numbers are day-0.
 * the **fp8-KV half of this lineage**: `scripts/bench/spark-fp8-image-probe.py`'s box leg must read the built
@@ -359,3 +360,62 @@ them detached):
 5. `python3 scripts/gate/check_spark_llm_gate.py && python3 scripts/bench/spark-llm-render-matrix.py && \
    python3 scripts/bench/spark-llm-probe.py matrix`.
 6. the owner-window flip and the gate order: §6 step 7.
+
+## 7b. The anchor census: every unchanged patcher, read at the base in one act
+
+Two build attempts proved the build is a **serial oracle**: it answers one anchor per run, costs
+~2–6 min and ~12 G of build cache each time, and the disk moves 188 G → 176 G → 164 G free. The census
+answers all of them in one read-only act inside the base image, and it is the instrument that decides
+what the remaining port work is.
+
+`anchor_census.py` reads the staged day-0 patchers, pulls their anchors out of the source with `ast`
+(the `edit()` call arguments and the `EDITS = [(PATH, sentinel, [(old, new), …]), …]` tables), and
+counts each one against the base image's own copy of that file. Nothing is written; the patchers are
+mounted `:ro` and only `str.count` runs.
+
+```bash
+# on spark, from the lineage's staged tree; the base image is the pin, never a tag
+docker run --rm --network none --memory 2g \
+    -v $PWD/anchor_census.py:/census.py:ro -v /opt/homelab/ultrafast-v32-build/src:/src:ro \
+    --entrypoint python3 vllm/vllm-openai:v0.32.0-aarch64@sha256:6ff5ff0ddf36… /census.py /src
+```
+
+| patcher | anchors | hold | already there | absent | reading the census |
+|---|---|---|---|---|---|
+| `patch_block_drop` | 16 | 3 | 1 | 12 | stops the build |
+| `patch_hit_debug` | 6 | 4 | 0 | 0 | stops the build — see the per-file note below: 2 of its 5 target files have no day-0 logger line |
+| `patch_in_proj_ba_gemv` | 4 | 3 | 0 | 0 | every anchor holds; applies as written |
+| `patch_mamba_align_split` | 2 | 1 | 0 | 1 | stops the build |
+| `patch_measure_draft_mass` | 6 | 2 | 0 | 3 | stops the build |
+| `patch_never_evict` | 15 | 12 | 0 | 1 | **dropped, with a guard** — class 3, ruled (§7) |
+| `patch_ple_rendezvous` | 10 | 0 | 0 | 10 | stops the build |
+| `patch_r7_logger` | 5 | 0 | 0 | 4 | stops the build |
+| `patch_short_conv_async_h2d` | 16 | 5 | 0 | 11 | **not applied, with a guard** — class 1, the base already does it (§7) |
+| `patch_step_profile` | 1 | 0 | 0 | 1 | stops the build |
+| `patch_verify_topk_pivot` | 6 | 3 | 0 | 3 | stops the build |
+
+87 anchors, 35 holding, 1 already present, 46 absent at `6ff5ff0d…`. Raw rows:
+[`raw/anchor-census-20261027.txt`](raw/anchor-census-20261027.txt).
+
+**The one weakness to read before using a row.** Where a patcher applies the same edit through a loop
+(`for path in FILES.values(): add_gate(path)`), the census cannot resolve which file a call means and
+counts over the whole installed tree — such a row is marked `(loop-built target)` and is NOT a verdict.
+`patch_hit_debug` is that shape, so its five target files were counted by hand at the base: the day-0
+`logger = init_logger(__name__)` line is present in `kv_cache_manager.py`, `block_pool.py` and
+`sched/scheduler.py` (1 each) and **absent in `kv_cache_coordinator.py` and
+`single_type_kv_cache_manager.py` (0 each)** — the first of those is the `[14/38]` red.
+
+### The disposition rule the census feeds
+
+Per anchor, in this order:
+
+1. **the base already has the post-state** → the patcher is a no-op here; keep it out and guard the
+   **post**-state, not the day-0 anchor (`patch_short_conv_async_h2d`, done).
+2. **the effect is absent AND something in the repo reads it** — a dial, a template branch, a gate, a
+   bench script, a certified constant → re-anchor it in the in-repo patch set (`port_v32.py` anchor
+   entries, counted before and after), never in `/opt/homelab/ultrafast-src`.
+3. **the effect is absent AND nothing reads it** → not a lane's call: dropping it changes what the
+   artifact contains, which is a §7 pin decision. Parked per row for the owner.
+
+`patch_never_evict` was class 3 **with** a ruling (`docs/services-ai-rejected.md`), so its disposition
+was mechanical. `patch_hit_debug` is class 3 **without** one — OPEN, owner disposition.
