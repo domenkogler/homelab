@@ -86,3 +86,9 @@ monitoring_hygiene_certs:
 # converge's fail-loud client leg makes, on every scrape. → docs/observability.md §Silent-failure hygiene
 monitoring_hygiene_nut_masters:
   - "{{ nut_host }}"
+
+# This box writes its journal to /run/log/journal (`Storage=volatile`, owned by
+# roles/home_assistant/tasks/pi.yml, because the root device is microSD), so the persistent-ring
+# drop-in in roles/common/tasks/journald.yml would be inert here — `RuntimeMaxUse=` is the knob for
+# a volatile journal. Empty string = "this host has no persistent ring to size", not "unset".
+journald_system_max_use: ""

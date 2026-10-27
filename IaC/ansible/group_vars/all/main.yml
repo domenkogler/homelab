@@ -10,6 +10,14 @@ home_longitude: 15.6355
 ntp_servers:
   - 0.si.pool.ntp.org
   - 1.si.pool.ntp.org
+
+# The persistent systemd journal ring (roles/common/tasks/journald.yml writes it as a drop-in).
+# 8 G, NOT smaller: upstream's own cap is 4 G (10 % of the fs, capped at 4 G) and is already in
+# force, so the number is a retention horizon, not a disk saving — a traceback flood writes
+# ~95 MB/minute and turns a 4 G ring over in hours, evicting the "hour before the crash" window.
+# "" disables the leg on a host whose journal is volatile (pi). docs/observability.md
+# §Microservice Notes.
+journald_system_max_use: "8G"
 op_vault: Homelab-ansible
 domain_public: kogler.si
 domain_local: kogler.si    # the LAN search suffix: rendered as `Domains=` / `dns-search=` on host

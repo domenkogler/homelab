@@ -1,0 +1,45 @@
+---
+# The persistent systemd journal ring.
+#
+# Upstream already caps the journal: `SystemMaxUse=` defaults to 10 % of the filesystem and
+# `SystemKeepFree=` to 15 %, each capped at 4 G, and journald keeps the smaller — so a box drifts to
+# 4 G and stops. There is no disk-space problem here and this leg does not claim one. What the default
+# buys is a retention HORIZON, and a horizon is what runs out: one chatty unit wrote ~95 MB of
+# traceback every few minutes on `nas`, which turns a 4 G ring over in hours. The read that matters
+# after a crash is "what was in the journal in the hour before it died" — that is the read `oldsrv`
+# could not get, and the read a repeat of a crash-loop depends on.
+#
+# 8 G sizes the ring so a flood cannot evict that window: 1.6 % of `nas`'s root at 7 % full, under
+# 2 % even on the box that is 61 % full. Rate limiting (`RateLimitIntervalSec`/`RateLimitBurst`,
+# upstream 30 s / 10 000) is deliberately NOT set: it would trade the traceback for a
+# "suppressed N messages" line, and this ring is the only copy of host unit logs that exists — the
+# Alloy log pipeline tails container logs and RouterOS syslog, not the journal.
+# docs/observability.md §Microservice Notes.
+#
+# `SystemMaxUse=` is read at journald start, so the file below is inert without the restart. A host
+# whose journal is volatile declares `journald_system_max_use: ""` (the `System*` keys do not apply
+# to `/run/log/journal`): see host_vars/pi.kogler.si.yml, whose `Storage=volatile` is owned by
+# roles/home_assistant and is not restated here.
+- name: "Journald: set the persistent journal ring size"
+  ansible.builtin.copy:
+    dest: /etc/systemd/journald.conf.d/60-homelab.conf
+    content: |
+      # ANSIBLE MANAGED — persistent journal ring; roles/common/tasks/journald.yml
+      # Delete this file (or set journald_system_max_use: "") for upstream defaults.
+      [Journal]
+      SystemMaxUse={{ journald_system_max_use }}
+    mode: '0644'
+    directory_mode: '0755'
+  register: journald_ring
+  when: journald_system_max_use | length > 0
+  tags: [common, base, journald]
+
+- name: "Journald: restart so the new ring is the loaded ring"
+  ansible.builtin.systemd:
+    name: systemd-journald
+    state: restarted
+  when:
+    - journald_system_max_use | length > 0
+    - journald_ring is changed
+    - not ansible_check_mode
+  tags: [common, base, journald]

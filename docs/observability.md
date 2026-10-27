@@ -1032,6 +1032,17 @@ OLDSRV Dozzle HUB (llogs.kogler.si, :8081, traefik-internal edge — WAN-out sur
 - ⚠ **The Victoria images are tool-less** (`/victoria-*-prod` only — no `sh`, `wget`, `curl`, `nc`), so a
   `CMD` healthcheck **cannot work** and Docker would mark the container unhealthy forever. Cover them with an
   external probe (Alloy scrape / blackbox), not a container healthcheck.
+- **The persistent journal ring is 8 G — a horizon, not a disk saving.** Upstream already caps the journal at
+  min(10 % of the filesystem, 4 G) (`SystemKeepFree=` is min(15 %, 4 G); the smaller wins), so 4 G is the default
+  ceiling and space is not the argument. The argument is that one chatty unit writes ~95 MB of traceback per minute
+  and turns a 4 G ring over in hours, which erases exactly the window an unresolved death needs — "what was in the
+  journal in the hour before it died". The value is `journald_system_max_use` (`group_vars/all/main.yml` →
+  `roles/common/tasks/journald.yml`, applied by `--tags journald`); it is a **drop-in plus a `systemd-journald`
+  restart**, because the limit is read at start and a written file is not an applied value. The host journal is NOT
+  shipped to VictoriaLogs — the Alloy log pipeline tails container logs and RouterOS syslog — so this ring is the
+  only copy of host unit logs that exists, which is also why journald's own rate limiting is left at upstream
+  (30 s / 10 000): suppressing duplicates would keep less, not more. The Pi carries no such cap; its journal is
+  volatile (§Pi SD-card wear strategy).
 - **Pi keeps only a tiny bounded local log buffer.** The Raspberry Pi primary holds **no durable log store** — Docker uses log driver `local` (`max-size: 10m, max-file: 2`) as RAM/disk resilience when oldsrv/VictoriaLogs is down; the durable, searchable copy lives in VictoriaLogs. Host OS logs run on tmpfs (`journald Storage=volatile` + `/var/log` tmpfs). See [Pi SD-card wear strategy](#pi-sd-card-wear-strategy).
 - **HA exporter** on the HA instance (Raspberry Pi 4 primary; cold-standby container on oldsrv — see [`smart-home-failover.md`](smart-home-failover.md)). Only the live instance is scraped (via the VIP); on failover the same URL resumes with no replay.
 - **Conventions that are settled:** the Alloy `instance` label is `{{ inventory_hostname }}` per host, so

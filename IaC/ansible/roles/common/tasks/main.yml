@@ -27,3 +27,9 @@
 - name: "Mrežje: Naslovna družina adres (gai.conf)"
   include_tasks: address-family.yml
   tags: [common, base, address-family]
+
+# Same reason for its own line: `--tags journald` applies the journal ring and nothing else.
+# Restarting systemd-journald is the only unit restart this role performs.
+- name: "Sistemska priprava: Velikost trajnega dnevnika (journald ring)"
+  include_tasks: journald.yml
+  tags: [common, base, journald]
