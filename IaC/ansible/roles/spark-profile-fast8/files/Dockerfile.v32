@@ -45,6 +45,10 @@ ARG FLA_CDH=${SP}/vllm/third_party/flash_linear_attention/ops/chunk_delta_h.py
 ARG MAMBA_UTILS=${SP}/vllm/v1/worker/mamba_utils.py
 # The scheduler's KV-config call site — step 5's guard reads it, nothing else in this file does.
 ARG SCHED=${SP}/vllm/v1/core/sched/scheduler.py
+# The low-latency GEMM's own gate — step 14's guard reads it, nothing else in this file does. Evidence:
+#   vllm/models/qwen4_exp/nvidia/low_latency_gemm.py -> HTTP 200 at the tag; gate def :375, its
+#   condition :382, the capability-keyed plan table :294-300, the GB10 entry's own dict :171-172
+ARG LLG=${SP}/vllm/models/qwen4_exp/nvidia/low_latency_gemm.py
 
 # ---- 1. PLE n-gram table from disk (VLLM_PLE_MMAP=1) ----
 # src/vllm_ple_mmap.py here is the STAGED copy, already re-anchored by port_v32.py: its
@@ -253,17 +257,42 @@ RUN grep -q 'spec_req_idx = async_tensor_h2d(' ${SP}/vllm/v1/attention/backends/
  && echo "short-conv async H2D: already upstream at this base, patcher not applied"
 
 # ---- 13–17. The rest of upstream's patchers, verbatim ----
-# patch_low_latency_gemm_sm12x.py is the STAGED copy: its target path constant
-# `.../vllm/models/qwen3_8_flash_next/nvidia/low_latency_gemm.py` (:9-11) is re-anchored by
-# port_v32.py to `qwen4_exp`, whose file exists at the tag (HTTP 200). Its second target,
-# vllm/model_executor/kernels/linear/cute_dsl/skinny_gemm.py, is model-agnostic (HTTP 200).
+# Each is the STAGED copy of a day-0 file: the one target path v0.32 moved is re-anchored in
+# port_v32.py and everything else runs as the recipe wrote it. Step 14 is the exception, and it is
+# written up in its own block below — a plain comment, not a step header, so the census keeps
+# attributing these four patchers to 13–17.
 # patch_in_proj_ba_gemv.py appends `_in_proj_ba_gemv_apply(QwenGatedDeltaNetAttention)` to
 # vllm/model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py — class proven at that file:454.
 COPY src/patch_measure_draft_mass.py /tmp/patch_measure_draft_mass.py
 RUN python3 /tmp/patch_measure_draft_mass.py && rm /tmp/patch_measure_draft_mass.py
 
-COPY src/patch_low_latency_gemm_sm12x.py /tmp/patch_low_latency_gemm_sm12x.py
-RUN python3 /tmp/patch_low_latency_gemm_sm12x.py && rm /tmp/patch_low_latency_gemm_sm12x.py
+# 14. The SM12x low-latency GEMM gate — SUBSUMED by this base's plan table, and the build proves it
+# (a comment, not a step header: these legs still belong to the 13–17 block the census reads)
+# Upstream's patch_low_latency_gemm_sm12x.py widened a gate this base does not have. Its day-0 side
+# was `if dtype != torch.bfloat16 or not _is_sm103():` with `_is_sm103()` = `is_device_capability((10,
+# 3))`; at v0.32.0 that whole shape is replaced by a plan table keyed on device capability —
+# QWEN4_EXP_GEMM_PLANS_BY_CAPABILITY (:294-300), whose (12, 1) entry is QWEN4_EXP_SM121_GEMM_PLANS
+# (:171-172, its own comment: "DGX Spark (GB10) plans for TP=1 and TP=2 local shapes"), reached
+# through _runtime_ok (:308-317) and gated bf16-only by enable_qwen4_exp_low_latency_gemm (:375,
+# condition :382). RULED A+ (owner, 2026-10-27, report §7b): subsumed, so this step applies NOTHING
+# and guards the POST-state — §7b's rule 1, the shape step 12 uses — which is why a patcher that is
+# still staged is named here and run nowhere. That is the sanctioned short_conv shape, not a drop,
+# so the port-everything ruling holds.
+#
+# Subsumption is a fact about this box, read not inferred: `nvidia-smi --query-gpu=compute_cap`
+# answers 12.1 on the GB10, so the day-0 predicate (10, 3) was never true here and day-0 `fast` took
+# the F.linear fallback on every call — R3's block could not fire on this hardware even at day 0.
+# What the base keys its plans by is the capability this box actually reports, so the effect the
+# patcher existed to install is already the code path. Whether the (12, 1) plan is TAKEN at runtime
+# is a dispatch question, and the flip window owes a check for it; a build cannot answer it.
+# The three counts are that claim read in the layer: drop the (12, 1) entry, rename its plan dict, or
+# re-widen the bf16 return and the build stops here instead of shipping an image whose GEMM path is
+# a mystery. The `QWEN38NEXT_LOW_LATENCY_GEMM` dial is deliberately NOT read here — 0 files in the
+# installed tree name it (report §7b), so it is set by the profile and unread at this base.
+RUN test "$(grep -c -F 'if dtype != torch.bfloat16 or not plans:' ${LLG})" -eq 1 \
+ && test "$(grep -c -F '(12, 1): QWEN4_EXP_SM121_GEMM_PLANS' ${LLG})" -eq 1 \
+ && test "$(grep -c -F 'QWEN4_EXP_SM121_GEMM_PLANS: dict' ${LLG})" -eq 1 \
+ && echo "R3 subsumed (GB10 12.1 ⊄ (10,3); plans keyed by capability): bf16-only return + the (12, 1) GB10 plan entry present, patcher not applied"
 
 COPY src/vllm_inproj_ba_gemv.py ${SP}/vllm_inproj_ba_gemv.py
 COPY src/patch_in_proj_ba_gemv.py /tmp/patch_in_proj_ba_gemv.py
