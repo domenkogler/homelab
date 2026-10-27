@@ -113,7 +113,32 @@ not this list, holds the steps, the file ownership and the converge host. Waves,
    [spark/reports/external-window-card.md](spark/reports/external-window-card.md). **HD-473 does not wait on
    upstream any more** — the fp8 main-KV merge ships in vLLM `v0.31.0`/`v0.32.0`, so it waits on the ref choice
    + the re-cert it costs. **HD-380 needs no external model** — it is a `/metrics` read. Gate 7, B10's 6/8/9,
-   B9 · B5 · B8 are closed — do not re-run. → [prompt-spark-llm.md](prompt-spark-llm.md) (one spark slot; HD-359 · 367 ride it)
+   B9 · B5 · B8 are closed — do not re-run.
+   ⏳ **HD-1206 — the v0.32 lineage is authored and merged; what is left is a build, not a survey.**
+   `roles/spark-profile-fast8` (on a lineage-as-data `spark-ultrafast-build` body: per-lineage pin/tag/commit, a
+   `git status --porcelain -uno` dirty-checkout assert, `port_v32.py` + `patch_mamba_guard_v32.py` as the in-repo patch
+   set) is in `main`, and `spark_vllm_ultrafast_v32_image` is still EMPTY — that empty value IS what refuses `fast8`.
+   The v0.32 base (`6ff5ff0ddf36`, arm64, 35.3 GB on disk, 188 G headroom left on spark) is **already in the store**, and
+   every base probe, the porter plan and the `mamba_utils` read are proven against it, so legs 1–3 of
+   [`spark/reports/hd1206-v32-port-20261026/README.md`](spark/reports/hd1206-v32-port-20261026/README.md) §7 are DONE:
+   start at the build. **Order:** detached `ansible-playbook IaC/ansible/playbooks/spark.yml -l spark --tags
+   spark-profile-fast8 -e spark_profile_fast8_build=true` (prints the image ID, then fails on purpose — the pin is a
+   human commit) → `python3 scripts/bench/spark-fp8-image-probe.py --image <built tag> --skip-registry` → on
+   `REACHABLE`, record the ID **and** add `ultrafast-v32` to `spark_llm_fp8_kv_capable_images` in the SAME commit (that
+   list is `[]` deliberately: a name entered before the probe ran makes every offline fp8 check green by assertion) →
+   `check_spark_llm_gate.py` · `spark-llm-render-matrix.py` · `spark-llm-probe.py matrix` → the owner-window flip, then
+   gates 0–7 and the dtype gates 8–9. ⛔ the converge needs a **non-spark-served** seat (rule 0 / O11 — a model-axis
+   bar, not a host lock), and the three in-image CPU gates take 8 GiB from the same unified pool the engine serves
+   from, so they belong inside the window, not beside serving. The flip is one ~20-min cold boot and it is the ONLY
+   downtime in the sequence; rollback = `spark_llm_profile: fast` + a detached converge, with `4900c13edab9…` held by
+   `spark-rollback:fast` and archived twice on the NAS (`host-images/spark/`, sha256 + `zstd -t` verified 2026-10-26).
+   ⚠ Three traps this line exists to carry: `spark-fp8-image-probe.py` run **bare** resolves `spark_vllm_image` — the
+   BASE pin — so it hands a verdict about the wrong lineage unless you pass `--image`; `mamba_utils` uses an anchored
+   **patch** now, and its AST slot check is what stops a def/call arg skew from becoming a first-boot failure (the
+   whole-file `apply` knob is a three-layer reversion — leave it unset); and a rebuild must never retag
+   `qwen38-flash-dgx:iter6c|iter6d` — the lineage declares `reserved_tags` and re-reads them after building, so do not
+   "simplify" that away. Still unproven: Triton has never compiled the patched kernel, and no image exists yet, so
+   every artifact probe is unrun. → [prompt-spark-llm.md](prompt-spark-llm.md) (one spark slot; HD-359 · 367 ride it)
 2. ⏳ **The transport / answer plane** — **HD-436** owes ONLY the live half: the two converges in the parked table
    below, both still PARKED. **HD-477** — make the resolver actually float with the VIP; the row carries the three
    gates. **HD-487** — config-manager truth is DECLARED per host in `host_vars/<host>.yml`, held by
