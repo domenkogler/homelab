@@ -104,7 +104,7 @@ RUN test -f ${GPTQ_PY} \
 # and spark_llm_never_evict_capable_images names `ultrafast` alone, so roles/spark-llm-profile and
 # scripts/gate/check_spark_llm_gate.py refuse the flag on any other lineage. A re-decide edits that
 # list in review; it does not inherit a patcher from this step.
-# The RULED port (owner 2026-10-27, report §7b: port everything, drop nothing) ships the patch set as
+# The RULED port (owner ruling, report §7b: port everything, drop nothing) ships the patch set as
 # it stands, so the image carries the plumbing and nothing renders the dial — a statement about the
 # artifact, not a revival of the flag: `spark_llm_never_evict_prompt` stays "" and stays rejected.
 # Its one moved anchor is re-anchored in port_v32.py: v0.32 inserted

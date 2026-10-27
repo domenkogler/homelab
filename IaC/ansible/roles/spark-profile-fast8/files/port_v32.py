@@ -118,8 +118,8 @@ ANCHORS: list[tuple[str, str, str, int, str]] = [
         "the CPU self-test's own target path; HTTP 200 for the qwen4_exp file at the tag",
     ),
 
-# patch_never_evict.py -- Dockerfile.v32 step 5, restored by the port-everything ruling
-# (2026-10-27), which reverses the f42638e2 drop. Only the scheduler call site moved:
+# patch_never_evict.py -- Dockerfile.v32 step 5, restored by the owner's port-everything
+# ruling (report §7b), which reverses the f42638e2 drop. Only the scheduler call site moved:
 # v0.32 inserted enable_mamba_shared_prefix_checkpoint=( … ), between the watermark
 # argument and the closing paren, so the patcher's two-line anchor is a five-line one.
 # The flag itself stays REJECTED and every spark_llm_never_evict_prompt stays empty:
