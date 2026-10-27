@@ -624,7 +624,7 @@ endpoint key a file-provisioned rule by its **TITLE**, so grepping either for a 
 rule is loaded.
 
 ✅ **2026-10-27 — the same rule reads the designed healthy state on all five hosts.** `nas` publishes again
-(§hardware-nas.md: the collector starts and stays up), so `up{job="alloy",instance="nas.kogler.si"}` = **1**
+([hardware-nas.md](hardware-nas.md): the collector starts and stays up), so `up{job="alloy",instance="nas.kogler.si"}` = **1**
 and this rule's expression — `absent_over_time(… [10m])` — evaluates to nothing, which is `Normal (NoData)`
 under `noDataState: OK`. The offline `check_host_reporting.py --check` answers `ok` on all five.
 
