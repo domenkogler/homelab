@@ -184,6 +184,48 @@ ANCHORS: list[tuple[str, str, str, int, str]] = [
         "vllm/v1/core/kv_cache_coordinator.py:30 (from vllm.v1.request import Request, 1 hit; grep -F -c 'logger = init_logger(__name__)' answers 0 in that file at 6ff5ff0d)",
     ),
 
+
+# patch_mamba_align_split.py -- Dockerfile.v32 step 9. The scheduler half still holds
+# (sched/scheduler.py:469, one occurrence). The worker half is upstream at this base:
+# v1/worker/gpu/model_states/mamba_hybrid.py:121-124 resolves mamba_block_size from
+# cache_config.mamba_block_size and divides by it, so the pair becomes a post-state
+# guard on that line instead of a reimplementation of it.
+    (
+        "src/patch_mamba_align_split.py",
+        (
+        '                (new_req_data.num_computed_tokens - 1) // self.cache_config.block_size\n' +
+        ''
+    ),
+        (
+        '                (new_req_data.num_computed_tokens - 1) // mamba_block_size\n' +
+        ''
+    ),
+        1,
+        "vllm/v1/worker/gpu/model_states/mamba_hybrid.py:124 -- this base already divides by mamba_block_size (:121 `mamba_block_size = self.cache_config.mamba_block_size`), the day-0 fix is upstream, so the anchor becomes that line and the pair guards it",
+    ),
+    (
+        "src/patch_mamba_align_split.py",
+        (
+        '                (new_req_data.num_computed_tokens - 1)\n' +
+        '                # block_size is the MIN across KV groups; the state slot is\n' +
+        '                # per MAMBA block (blazux/qwen3.8-Flash-DGX#2, 8347e7c).\n' +
+        '                // (\n' +
+        '                    self.cache_config.mamba_block_size\n' +
+        '                    or self.cache_config.block_size\n' +
+        '                )\n' +
+        ''
+    ),
+        (
+        '                # spark-v32: seeding the state column with the MAMBA block size is\n' +
+        '                # upstream at this base (mamba_hybrid.py:121-124), so this pair\n' +
+        '                # rewrites the line as it stands -- a post-state guard, not a fix.\n' +
+        '                (new_req_data.num_computed_tokens - 1) // mamba_block_size\n' +
+        ''
+    ),
+        1,
+        "same file :121-124; the day-0 replacement text would re-derive the value the base already resolved, so the new side is the base's own line plus this note",
+    ),
+
 ]
 
 # Removed from the staged tree, with the reason each one is dangerous in a v32 build directory.
