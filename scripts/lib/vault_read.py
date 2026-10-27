@@ -22,6 +22,10 @@ THE ROUTES, in order (the LAST RESORT is the OLD one, kept honest by its name):
                   read crosses to the first candidate interpreter that imports it and takes the
                   JSON back over a PIPE; `--probe` prints what the probe found. A NAMES-ONLY read
                   stops after that one `items.list` — a leg that wants titles pays 1 request, not 4.
+                  Both modes address the vault by **ID**, because the SDK answers a TITLE with
+                  `invalid user input: … the provided ID is not in a valid format`: the ID comes from
+                  the map the CLI legs share (free when warm), or from ONE `vaults.list` when the map
+                  is cold — a count that includes it, never one that hides it.
   3. `op-fanout` — the FALLBACK, labelled as one: the `op` CLI, `item list` once and one
                   ID-addressed `item get` per item — a request per item against the same account
                   bucket, which is exactly why it is the fallback and not the plan. Used when the
@@ -263,11 +267,16 @@ def _read_via_launcher(launcher: list[str], vault: str,
         argv.append("--names-only")
     r = subprocess.run(argv, capture_output=True, stdin=subprocess.DEVNULL)
     err = (r.stderr or b"").decode("utf-8", "replace")
+    # Quote the child's FAILURE, not the head of its stack: the first 140 bytes of a traceback are
+    # "Traceback (most recent call last):" plus file names, which is how a live SDK failure looked on
+    # a seat for a whole session without ever saying what failed. The last line is the exception.
+    tail = next((ln.strip() for ln in reversed(err.strip().splitlines()) if ln.strip()),
+                "(the child answered nothing)")
     if r.returncode == 4:
-        raise Boundary(f"{shlex_join(launcher)} refused the SDK read: {err.strip()[:140]}")
+        raise Boundary(f"{shlex_join(launcher)} refused the SDK read: {tail[:200]}")
     if r.returncode != 0:
         raise Boundary(f"the SDK reader ({shlex_join(launcher)}) answered rc {r.returncode}: "
-                       f"{err.strip()[:140]}")
+                       f"{tail[:200]}")
     try:
         data = json.loads((r.stdout or b"").decode("utf-8", "replace"))
     except json.JSONDecodeError as exc:
@@ -278,6 +287,29 @@ def _read_via_launcher(launcher: list[str], vault: str,
                    "fields": _norm_fields(row.get("fields", []))}
              for iid, row in data.get("items", {}).items()}
     return items, requests, errs
+
+
+async def _sdk_vault_id(vault: str, client) -> tuple[str, int]:
+    """The vault ID the Server SDK demands, and what finding it cost THIS run (0 warm, 1 cold).
+
+    `items.list` and `items.get_all` take a vault **ID**; a title answers
+    `invalid user input: … the provided ID is not in a valid format` — the CLI accepts a name only
+    because `op` resolves it first, so a name-addressed SDK read is not a cheap read, it is a broken
+    one (HD-1207, found the first time the batched route ran against the live vault). The answer comes
+    from the SAME map the CLI legs share: `cached_vault_id` never refreshes, so a warm seat pays
+    NOTHING for it; a cold map pays ONE `vaults.list`, and the returned count carries it, because
+    the quota proof in docs/1password.md reads that number."""
+    from vault_env import cached_vault_id
+    vid = cached_vault_id(vault)
+    if vid:
+        return vid, 0
+    found = next((str(v.id) for v in await client.vaults.list()
+                  if getattr(v, "title", None) == vault), "")
+    if not found:
+        raise Boundary(f"the SDK's vault list has no vault titled {vault!r} — a name the account does "
+                       f"not answer is not a fleet; `bash scripts/lib/vault-env.sh --map {vault}` "
+                       "warms the ID map the CLI legs share")
+    return found, 1
 
 
 def _names_sdk(vault: str) -> tuple[dict, int, list[str]]:
@@ -295,9 +327,10 @@ def _names_sdk(vault: str) -> tuple[dict, int, list[str]]:
     async def _main():
         from onepassword import Client
         client = await Client.authenticate(token, INTEGRATION_NAME, INTEGRATION_VERSION)
-        rows = await client.items.list(vault)
+        vid, extra = await _sdk_vault_id(vault, client)
+        rows = await client.items.list(vid)
         return {r.id: {"title": r.title, "version": getattr(r, "version", None)}
-                for r in rows}, 1, []
+                for r in rows}, 1 + extra, []
 
     entries, requests, errs = asyncio.run(_main())
     if not entries:
@@ -328,10 +361,11 @@ def _read_sdk(vault: str) -> tuple[dict, int, list[str]]:
     async def _main():
         from onepassword import Client
         client = await Client.authenticate(token, INTEGRATION_NAME, INTEGRATION_VERSION)
-        rows = await client.items.list(vault)
+        vid, extra = await _sdk_vault_id(vault, client)
+        rows = await client.items.list(vid)
         ids = [r.id for r in rows]
-        vid = rows[0].vault_id if rows else vault
-        items, requests, errs = {}, 1, []
+        vid = rows[0].vault_id if rows else vid    # the list answer is the authority, and it is free
+        items, requests, errs = {}, 1 + extra, []
         for i in range(0, len(ids), GET_ALL_CAP):
             resp = await client.items.get_all(vid, ids[i:i + GET_ALL_CAP])
             requests += 1
@@ -396,8 +430,8 @@ def _read_op_fanout(vault: str) -> tuple[dict, int]:
 
     The count is what the ACCOUNT pays, not what the loop ran: a list addressed by vault ID is 1
     request and by NAME 2 (the name resolution is billed), a get addressed by ID is 1 and by NAME 3,
-    and a cold ID map is answered by THIS list instead of a separate discovery list — HD-1204's
-    parked quota proof is measured against this number, so a printed cost that lies is worse than no
+    and a cold ID map is answered by THIS list instead of a separate discovery list; the quota proof
+    in docs/1password.md is measured against this number, so a printed cost that lies is worse than no
     printed cost."""
     argv = _op_argv()
     from vault_env import cached_vault_id as _cached_vault_id
@@ -787,7 +821,18 @@ def main() -> int:
                   "only; the install itself writes the package to that interpreter's site-packages)",
                   file=sys.stderr)
             r = subprocess.run([*cand, "-m", "pip", "install", "onepassword-sdk"],
-                               stdin=subprocess.DEVNULL)
+                               stdin=subprocess.DEVNULL, capture_output=True)
+            sys.stderr.write((r.stderr or b"").decode("utf-8", "replace"))
+            if r.returncode != 0 and b"externally-managed-environment" in (r.stderr or b""):
+                # A Debian seat marks its system python PEP-668, so the plain install is REFUSED and
+                # the seat act is a USER-site one: nothing in the OS package set moves, `python3`
+                # still imports the SDK, and that is what the probe's candidate list needs. Said out
+                # loud because it is not the command the caller typed.
+                print("vault-read: PEP 668 (externally-managed-environment) — retrying as a USER-site "
+                      "install into the same interpreter; no system package changes", file=sys.stderr)
+                r = subprocess.run([*cand, "-m", "pip", "install", "--user", "--break-system-packages",
+                                    "onepassword-sdk"], stdin=subprocess.DEVNULL, capture_output=True)
+                sys.stderr.write((r.stderr or b"").decode("utf-8", "replace"))
             return 0 if r.returncode == 0 and _sdk_available(cand) else 1
         print("no candidate interpreter exists on this seat to install into", file=sys.stderr)
         return 1
@@ -959,31 +1004,55 @@ def self_test() -> int:
         pkg.mkdir(parents=True)
         (pkg / "__init__.py").write_text(
             "import os\n"
+            "import sys\n"
             "CALLS = []\n"
+            "SEEN = []\n"
             "class _F:\n"
             "    def __init__(s, i): s.id, s.title, s.value, s.field_type, s.section_id = 'password', 'password', 'stubvalue' + str(i), 'Concealed', None\n"
             "class _I:\n"
             "    def __init__(s, i): s.id, s.title, s.version, s.fields, s.vault_id = 'iid' + str(i).zfill(26), 'item_' + str(i), 1 + i, [_F(i)], 'vaultid'\n"
+            "class _V:\n"
+            "    def __init__(s, i, t): s.id, s.title = i, t\n"
             "class _R:\n"
             "    def __init__(s, c, e=None): s.content, s.error = c, e\n"
             "class _Resp:\n"
             "    def __init__(s, rs): s.individual_responses = rs\n"
             "class _Items:\n"
             "    async def list(s, v, *f):\n"
-            "        CALLS.append('list'); return [_I(i) for i in range(55)]\n"
+            "        CALLS.append('list'); SEEN.append(v)\n"
+            "        if os.environ.get('STUB_TRACEBACK'):\n"
+            "            sys.stderr.write('Traceback (most recent call last):\\n  File \"stub.py\", "
+            "line 1, in <module>\\nException: invalid user input: the provided ID is not in a valid "
+            "format\\n')\n"
+            "            raise SystemExit(1)\n"
+            "        assert v not in ('V', 'V2'), 'the SDK route must address items.list by vault "
+            "ID, never by name'\n"
+            "        return [_I(i) for i in range(55)]\n"
             "    async def get_all(s, v, ids):\n"
             "        assert len(ids) <= 50, 'a chunk over the API cap is a request the server refuses'\n"
-            "        CALLS.append('get_all')\n"
+            "        CALLS.append('get_all'); SEEN.append(v)\n"
             "        bad = os.environ.get('STUB_FAIL_ONE', '')\n"
             "        return _Resp([_R(None, 'item unavailable (stub)') if bad == i else _R(_I(int(i[3:])))\n"
             "                      for i in ids])\n"
+            "class _Vaults:\n"
+            "    async def list(s):\n"
+            "        CALLS.append('vaults.list')\n"
+            "        return [_V('vaultid', 'V'), _V('vaultid2' + 'b' * 17, 'V2')]\n"
             "class Client:\n"
             "    items = _Items()\n"
+            "    vaults = _Vaults()\n"
             "    @classmethod\n"
             "    async def authenticate(cls, token, name, version):\n"
             "        assert token\n"
             "        return cls()\n",
             encoding="utf-8")
+        # The SDK route addresses the vault by ID (see _sdk_vault_id): warm the SAME ID map the CLI
+        # legs share, in the temp state dir, so these arms count what a WARM seat pays — an arm that
+        # silently took the cold-map path would print a request count this suite never spends.
+        (tdp / "state").mkdir(parents=True, exist_ok=True)
+        (tdp / "state" / "op-map-V.tsv").write_text("# vault_id=vaultid\n", encoding="utf-8")
+        st_before = os.environ.get("HL_VAULT_STATE_DIR")
+        os.environ["HL_VAULT_STATE_DIR"] = str(tdp / "state")
         sys.path.insert(0, str(tdp / "stublib"))
         for m in [k for k in sys.modules if k.startswith("onepassword")]:
             sys.modules.pop(m, None)
@@ -1045,6 +1114,84 @@ def self_test() -> int:
         check("the SDK read keys versions by item ID like every other route",
               ok6 and _vkey(items_s) == _vkey({k: {"version": v["version"]}
                                                for k, v in items_s.items()}))
+
+        # (6d) THE VAULT ADDRESS. `items.list`/`items.get_all` take a vault ID and answer a TITLE with
+        # `invalid user input: … the provided ID is not in a valid format`; `op` hides that by
+        # resolving names, the SDK does not. This is the arm that would have caught the first live
+        # batched read failing on every seat at once (HD-1207), so it asserts the ADDRESS, not a count.
+        tok6d = os.environ.get("OP_SERVICE_ACCOUNT_TOKEN")
+        os.environ["OP_SERVICE_ACCOUNT_TOKEN"] = "x" * 48     # stub auth only; these arms read no vault
+        try:
+            import onepassword as _op2
+            _op2.CALLS.clear()
+            _op2.SEEN.clear()
+            try:
+                _n_e, _n_r, _n_errs = _names_sdk("V")
+                ok6d = _n_r == 1 and "vaults.list" not in _op2.CALLS and "V" not in _op2.SEEN
+                detail6d = f"requests {_n_r} calls {_op2.CALLS} seen {_op2.SEEN}"
+            except Exception as exc:
+                ok6d, detail6d = False, f"{type(exc).__name__}: {str(exc)[:140]}"
+            check("the SDK names route addresses items.list by vault ID; a warm ID map costs nothing",
+                  ok6d, detail6d)
+
+            # (6e) a COLD map resolves the name once, through the SDK itself, and the count carries
+            # the request it spent — a route that hides a request is worse than one that never made it.
+            _op2.CALLS.clear()
+            _op2.SEEN.clear()
+            try:
+                _c_e, _c_r, _c_errs = _names_sdk("V2")
+                ok6e = (_c_r == 2 and _op2.CALLS.count("vaults.list") == 1
+                        and "V2" not in _op2.SEEN)
+                detail6e = f"requests {_c_r} calls {_op2.CALLS} seen {_op2.SEEN}"
+            except Exception as exc:
+                ok6e, detail6e = False, f"{type(exc).__name__}: {str(exc)[:140]}"
+            check("a cold ID map costs the SDK route ONE vaults.list, and says so in the count",
+                  ok6e, detail6e)
+
+            # (6f) and a vault the account does not answer is a Boundary that names the remedy — never
+            # an empty fleet, and never a guessed ID.
+            try:
+                _names_sdk("NoSuchVault")
+                ok6f, detail6f = False, "no Boundary raised"
+            except Boundary as exc:
+                ok6f, detail6f = "no vault titled" in str(exc), str(exc)[:140]
+            except Exception as exc:
+                ok6f, detail6f = False, f"{type(exc).__name__}: {str(exc)[:140]}"
+            check("an unknown vault name is a Boundary that names the ID map, never an empty fleet",
+                  ok6f, detail6f)
+
+            # (6g) a failing child must name the FAILURE. Quoting the head of its stderr is how a live
+            # SDK failure read as `Traceback (most recent call last):` for a whole session and never
+            # said what broke; the last line is the exception, so that is the line a Boundary carries.
+            pp6g = os.environ.get("PYTHONPATH")
+            os.environ["PYTHONPATH"] = str(tdp / "stublib")
+            os.environ["STUB_TRACEBACK"] = "1"
+            try:
+                _read_via_launcher([sys.executable], "V")
+                ok6g, detail6g = False, "no Boundary raised"
+            except Boundary as exc:
+                ok6g = ("not in a valid format" in str(exc)
+                        and "Traceback (most recent call last)" not in str(exc))
+                detail6g = str(exc)[:180]
+            except Exception as exc:
+                ok6g, detail6g = False, f"{type(exc).__name__}: {str(exc)[:140]}"
+            finally:
+                os.environ.pop("STUB_TRACEBACK", None)
+                if pp6g is None:
+                    os.environ.pop("PYTHONPATH", None)
+                else:
+                    os.environ["PYTHONPATH"] = pp6g
+            check("a failing SDK child names its exception, not the word Traceback", ok6g, detail6g)
+        finally:
+            if tok6d is None:
+                os.environ.pop("OP_SERVICE_ACCOUNT_TOKEN", None)
+            else:
+                os.environ["OP_SERVICE_ACCOUNT_TOKEN"] = tok6d
+            if st_before is None:
+                os.environ.pop("HL_VAULT_STATE_DIR", None)
+            else:
+                os.environ["HL_VAULT_STATE_DIR"] = st_before
+
         sys.path.remove(str(tdp / "stublib"))
         for m in [k for k in sys.modules if k.startswith("onepassword")]:
             sys.modules.pop(m, None)
@@ -1072,7 +1219,7 @@ def self_test() -> int:
             "                           'value': 'vvvvvvvvvv', 'type': 'Concealed'}]}, sys.stdout)\n",
             encoding="utf-8")
         log = tdp / "op.log"; log.write_text("", encoding="utf-8")
-        mmap = tdp / "state"; mmap.mkdir()
+        mmap = tdp / "state"; mmap.mkdir(exist_ok=True)   # the SDK arms above create it to warm a map
         (mmap / "op-map-V.tsv").write_text("# vault_id=vaultid00000000000000000\n"
                                            + "".join(f"{r['title']}\t{r['id']}\n" for r in rows),
                                            encoding="utf-8")
@@ -1271,10 +1418,10 @@ def self_test() -> int:
         print(f"vault_read.py --self-test: FAILED — {fails} arm(s)")
         return 1
     print(f"vault_read.py --self-test: OK ({n_arms} arms — the fixture path costs ZERO requests, the "
-          "SDK path counts list + get_all chunks, the FALLBACK counts what the account pays and is "
-          "ID-addressed, the digest is of versions and never of values, the value pipe is ASCII and "
-          "byte-exact whatever the seat locale, and both refusals (no credential, a tty for values) "
-          "hold)")
+          "SDK path counts list + get_all chunks and addresses the VAULT by ID, the FALLBACK counts "
+          "what the account pays and is ID-addressed, the digest is of versions and never of values, "
+          "the value pipe is ASCII and byte-exact whatever the seat locale, and both refusals "
+          "(no credential, a tty for values) hold)")
     return 0
 
 

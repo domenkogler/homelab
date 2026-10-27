@@ -131,7 +131,7 @@ def cached_vault_id(vault: str) -> str | None:
 
     A reader that is about to run its own `op item list` must ask this, not `vault_id()`: asking
     whether the map is warm must not cost a discovery read of its own, or the read reports a
-    cheaper count than the account was billed (HD-1204's quota proof reads that number)."""
+    cheaper count than the account was billed (the quota proof in docs/1password.md reads it)."""
     return _read_map(vault)[0]
 
 

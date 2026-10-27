@@ -105,7 +105,19 @@ for the vault's ~143 items — and where it is not, the same reader runs a clear
 `op item get` FALLBACK costing 1 list + 1 read per item (~1 + N requests). Every leg prints its
 request count (`route=`/`requests=` on stderr), so the log, not a comment, states what a run paid;
 the ID-addressed fallback replaced an earlier name-addressed fan-out that cost 3 requests per item —
-~429 requests, three runs to an exhausted day.
+~429 requests, three runs to an exhausted day. Measured against the live vault (143 items): **1
+request** for the names mode, **4** for every value (`items.list` + 3 × `get_all`) — the fallback
+price for the same read is ~144. A **full `validate-all`** on a seat where the SDK route answers moves
+the account bucket by **one** (`op service-account ratelimit` read either side of the run) where the
+same run on the fallback spent ~480; the printed `requests=` is the ceiling of the calls the reader
+made, and the account's own counter comes in at or below it, so treat the printed number as the worst
+case and the bucket as the fact.
+
+**A vault NAME is not a valid SDK address.** `items.list` / `items.get_all` take a vault **ID** and
+answer a title with `invalid user input: … the provided ID is not in a valid format`; `op` hides that
+by resolving names, the SDK does not. The SDK route therefore asks the same ID map the CLI legs use
+(warm ⇒ free, cold ⇒ ONE `vaults.list`, counted in the printed `requests=`), and a vault the account
+does not answer is a boundary that names `vault-env.sh --map`, never an empty fleet.
 
 A leg that needs the vault's **names and versions only** — the catalog check's HAVE-list — asks the
 reader's names mode (`--list`, or `read_names()`), which stops after the list on BOTH routes: ONE
@@ -118,6 +130,12 @@ import it and the reader answers through the fallback until this runs on a suppo
 python3 scripts/lib/vault_read.py --probe         # which interpreter imports onepassword, and which half failed where it does not
 python3 scripts/lib/vault_read.py --install-sdk   # pip install onepassword-sdk into the probed interpreter — an explicit seat act; nothing installs by itself
 ```
+
+On a seat whose python is PEP-668-managed (every Debian seat, and oldsrv's `python3`) the plain
+install is refused, and `--install-sdk` retries it as a **user-site** install (`--user
+--break-system-packages`) — no OS package moves, and plain `python3` imports the SDK, which is what
+the probe needs. The Win11 seat needs it on `py -3.13` specifically, because its `py -3` is 3.14 and
+outside the wheel set. A seat that has not had this act still works — it pays the labelled fallback.
 
 A **name** is not a free address. `op item get` and `op read` resolve the name first and 1Password bills
 the resolving — 3 requests for a name-addressed read, 1 for an ID-addressed one (CLI docs, "Commands

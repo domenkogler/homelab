@@ -53,7 +53,7 @@ the ACL with `git push --dry-run`, then retry, and never conclude the commit is 
 
 **Git identity:** signing is RETIRED — commit plainly, ⛔ never `git commit -s`; `git log -1 --format='%G?'`
 → `N` is the expected value and is not a failure. A Win11 seat signs and pushes without a 1Password window once
-`bash scripts/git/git-bootstrap-win11.sh --git-identity` has run (`--check` shows the route, `--1password` opts back); the **vault** legs are modal-free there too and address items **by ID** (`scripts/lib/vault-env.sh --check`, `--map <vault>`) — a NAME-addressed `op item get` costs 3 of the ACCOUNT's 1000 requests/24 h where the ID form costs 1, so ask `op service-account ratelimit` before chasing transport (**HD-1204**).
+`bash scripts/git/git-bootstrap-win11.sh --git-identity` has run (`--check` shows the route, `--1password` opts back); the **vault** legs are modal-free there too and address items **by ID** (`scripts/lib/vault-env.sh --check`, `--map <vault>`) — a NAME-addressed `op item get` costs 3 of the ACCOUNT's 1000 requests/24 h where the ID form costs 1, so ask `op service-account ratelimit` before chasing transport ([docs/1password.md](docs/1password.md) §What a gate run costs the vault).
 The seat file map and the one vault item left in this area (`GitHub auth`, the transport key):
 [docs/deployment-secrets.md](docs/deployment-secrets.md) §What actually raises a 1Password prompt and
 [docs/1password.md](docs/1password.md) §GitHub signing + auth keys. The two `.env.op` files that reference items and hold
