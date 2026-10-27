@@ -180,12 +180,13 @@ it would silently pull down every other package whose pin lags its box. The fix 
 `versions.yml`: raise the pin to the highest release **already running** somewhere in the fleet, then
 converge (which costs one Alloy restart per host).
 
-✅ **Live-verified 2026-10-19, every collector that reaches the store**: `alloy_build_info` reports
-`version` == the pin on the four `monitoring` hosts the backend can see (`oldsrv`, `vps`, `pi`, `spark`),
-with `up{job="alloy"}` = **1** on each. A fifth host in the group is on the pin and reports **nothing at
-all** — `dpkg` will happily confirm the pinned deb while the process ships no series, which is the gap
-between "installed", "running" and "scraping"; see §Silent-failure hygiene for the class and the
-instrument that names it.
+✅ **Live-verified 2026-10-27, every collector the group declares**: `alloy_build_info` reports
+`version` == the pin on all five `monitoring` hosts (`oldsrv`, `vps`, `pi`, `spark`, `nas`), with
+`up{job="alloy"}` = **1** on each — the read that proves the set at once is
+`scripts/gate/check_host_reporting.py --check`, because the read that does NOT prove it is the package:
+`dpkg` will happily confirm the pinned deb while the process ships no series. That gap between
+"installed", "running" and "scraping" is §Silent-failure hygiene's class, and `nas` sat in it for eight
+days with the deb in place and the collector stopped.
 
 The standing, automated version of the same comparison — per package, read on the box, no ssh in the way —
 is §Pin-lag report (`homelab_pkg_pin_result`). The table above is the manual read that stands behind it, and
@@ -622,6 +623,11 @@ healthy state. The reads that answer are `/api/prometheus/grafana/api/v1/rules` 
 endpoint key a file-provisioned rule by its **TITLE**, so grepping either for a `uid` finds nothing while every
 rule is loaded.
 
+✅ **2026-10-27 — the same rule reads the designed healthy state on all five hosts.** `nas` publishes again
+(§hardware-nas.md: the collector starts and stays up), so `up{job="alloy",instance="nas.kogler.si"}` = **1**
+and this rule's expression — `absent_over_time(… [10m])` — evaluates to nothing, which is `Normal (NoData)`
+under `noDataState: OK`. The offline `check_host_reporting.py --check` answers `ok` on all five.
+
 What is NOT retired is the offline tool: it still answers **which of the four shapes** a page means, which no
 rule can, and its teeth are still measured by `--self-test` — remove one instance's series from a fixture store
 and it must redden, and re-run that same healthy store against an inventory declaring one host more, which must
@@ -634,15 +640,21 @@ against a socket in `LISTEN`, one `systemd state: restarted` ran, the listener a
 `fatal error: traceback did not unwind completely` on Go 1.26.7, preceded by `runtime: gN: frame.sp=…
 top=…` (a frame pointer ABOVE the stack top, which no application-level panic produces), and the restart
 counter ran 99 → 107 in 41 s at load 2.07. The unit was then **stopped** to end the CPU churn — not
-masked, no drop-in, still `enabled`, so a boot brings it back; the restore line is `systemctl start alloy`
-on that host. So the class this section names is now closed by the instruments, while the cause on that
-one host is a hardware/firmware question owned by [hardware-nas.md](hardware-nas.md), not by this section:
-the repo is excluded (the rendered file validates rc 0, the converge found the template unchanged, the
-same pin runs on two other hosts of the same arch and OS without dying) and so is memory corruption
-(`edac` `ce_count`/`ue_count` are 0, no `mce` lines, and the `DMAR: ERROR: DMA PTE … already set` traces
-— which carry `Comm: alloy` and look like the smoking gun — are that box's documented benign VT-d quirk).
-Until it publishes again, the expected-set check reads **red for that host and that is the correct
-signal**: it is naming a real hole in what the fleet can see, and the fix is not to soften the set.
+masked, no drop-in, still `enabled`, so a boot brings it back.
+
+✅ **The restart leg is no longer the open question on that host: the collector runs.** `systemctl start
+alloy` on 2026-10-27 came up `active (running)` with `NRestarts=0` and `/metrics` answering `200`, the
+expected-set check is green on all five hosts, and the death signature does **not** reproduce — three
+bounded foreground runs (minimal config, real config with a fresh storage path, real config against
+`/var/lib/alloy/data`) ran 90–100 s each with zero `fatal error` / `frame.sp` lines. What the hunt had
+excluded still stands (the repo: the rendered file validates rc 0 and the same pin is healthy on two other
+hosts of the same arch and OS; memory corruption: `edac` 0/0, no `mce` lines, and the `DMAR: … already set`
+traces carrying `Comm: alloy` are that box's documented benign VT-d quirk) — and what it did not know then
+is that every one of those deaths was measured at **load 1.00 → 2.16 on a box running a spinlocked `pv`**
+from a wedged `zfs send` ([storage.md](storage.md) §A wedged syncoid send). Same deb, kernel, config, Go
+build and storage directory, load 0.01–0.09, no deaths. Cause unresolved and owned by
+[hardware-nas.md](hardware-nas.md); the firmware/memtest window is what to reach for **if the deaths return
+at low load**, not the next act.
 
 ⚠ **`active` is not `serving`, on any collector host.** The reads that answer are the collector's own`/metrics` on the box and `up{job="alloy"}` in the store; `systemctl is-active` answers a different
 question and, in the case above, answered it wrongly for 19 hours.
@@ -837,12 +849,12 @@ pages `nas` forever), and it takes `noDataState: OK` because a filtered-empty re
 (§Operational gotchas) — `Alerting` here would page every evaluation on a fleet that is entirely in sync.
 
 **What the fleet reads** (`count by (instance, result) (homelab_pkg_pin_result)` out of VictoriaMetrics,
-cross-checked against each host's own `:9098`):
+cross-checked against each host's own `:9098`; live-verified 2026-10-27):
 
 | Host | `match` | `differ` | `missing` | `unknown` |
 | --- | --- | --- | --- | --- |
-| oldsrv | **no series** — the host publishes nothing (§Silent-failure hygiene), and silence is not sync | — | — | — |
-| nas | **no series** while the Alloy crash-loop keeps it blind (§Silent-failure hygiene); when it does report it reads `missing` for the docker family + `tailscale`, because it runs neither | — | — | — |
+| oldsrv | 8 (`alloy`, `tailscale` + the docker family) | — | — | — |
+| nas | 1 (`alloy`) | — | 7 (`missing` for the docker family + `tailscale`, because it runs neither) | — |
 | pi | 8 (`alloy`, `tailscale` + the docker family) | — | — | — |
 | spark | 7 (`alloy` + the docker family) | — | 1 (`tailscale`) | — |
 | vps | 7 (`alloy` + the docker family) | — | 1 (`tailscale`) | — |

@@ -50,26 +50,43 @@ tags: [hardware, nas, zfs]
 > the kernel/firmware level first; `intel_iommu=off` remains an experiment worth one reboot window, not
 > a fix to reach for blind.
 >
-> **The kernel half of that hunt is closed as a measurement, not as an opinion.** All five hosts run the
-> same pinned collector (`alloy 1.20.1-1`, `alloy v1.20.1`) and this is what each carries under it:
+> ✅ **The collector runs.** `alloy` is `active (running)` on the fleet pin, `NRestarts=0`,
+> `curl 127.0.0.1:12345/metrics` answers `200`, and the fleet's expected-set read
+> (`scripts/gate/check_host_reporting.py --check`) is green with `instance=nas.kogler.si` carrying
+> ~1.2 k series again. **Live-verified 2026-10-27.** Nothing in the repo fixed it.
 >
-> | Host | `uname -r` | collector |
+> **The crash-loop does not reproduce, and the one variable that moved is this box's own load.** Three
+> bounded foreground runs (`timeout`-capped, `runuser -u alloy`, loopback listeners, storage paths under
+> `/tmp` and the real `/var/lib/alloy/data`) — a minimal `prometheus.exporter.unix` config, the real
+> `/etc/alloy/config.alloy` with a fresh storage path, and the real config against the real storage
+> directory — ran 90–100 s each with **zero** `fatal error` / `frame.sp` lines and `/metrics` answering
+> `200` at every 20 s sample; the unit itself then came up clean and stayed up. The 2026-10-19
+> measurements that found the deaths were taken at **load 1.00 → 2.16 on a box running a spinlocked `pv`**
+> from the wedged replication leg ([storage.md](storage.md) §A wedged syncoid send — that wedge billed
+> `1w 1d 8h 59min` of one core). The same deb, kernel, rendered config, Go build and storage directory now
+> run at load 0.01–0.09. Correlation, not mechanism — but it is the only difference the hunt has produced,
+> and it retires the "hardware/firmware, prove it with a reboot" framing that this note used to carry.
+>
+> What the hunt ruled out stands, restated as state: all five hosts run the same pin, and `nas` is on the
+> same kernel build as the two x86 hosts that never died.
+>
+> | Host | `uname -r` | collector (`alloy 1.20.1-1`) |
 > |---|---|---|
-> | **nas** | `6.12.107+deb13-amd64` | `1.20.1-1` — **dies every ~6 s** |
-> | oldsrv | `6.12.107+deb13-amd64` | `1.20.1-1` — healthy |
-> | vps | `6.12.107+deb13-amd64` | `1.20.1-1` — healthy |
-> | pi | `6.18.34+rpt-rpi-v8` | `1.20.1-1` — healthy |
-> | spark | `7.0.0-1019-nvidia` | `1.20.1-1` — healthy |
+> | **nas** | `6.12.107+deb13-amd64` | healthy at the same pin since 2026-10-27 |
+> | oldsrv | `6.12.107+deb13-amd64` | healthy |
+> | vps | `6.12.107+deb13-amd64` | healthy |
+> | pi | `6.18.34+rpt-rpi-v8` | healthy |
+> | spark | `7.0.0-1019-nvidia` | healthy |
 >
-> So this box is on the **same kernel build as the two x86 hosts that run the same deb without dying**: a
-> different kernel is not the finding, and "same pin, same kernel, one box dies" leaves the
-> firmware/microcode/memory level — the iLO 2.55 + memtest window this row already asks for, which is an
-> owner act because the box holds the NFS media export, the Kopia agent and the replication leg.
-> Restart-shaped numbers from a supervised `systemctl start alloy` (12:34:25 → stopped 12:46:02 on
-> 2026-10-19): `NRestarts` 4,847 → 0 at the start (a start resets the counter) → **119 at the stop**, ≈10
-> restarts/min against `Restart=always RestartUSec=100ms` and `StartLimitIntervalUSec=10s`/`Burst=5`, load
-> 1.00 → 2.16 → 1.00, `curl 127.0.0.1:12345/metrics` answering `200` only in the gaps between crashes.
-> The collector is **left stopped** (`enabled`, unmasked, no drop-in; restore line `systemctl start alloy`).
+> A Go-toolchain cut was looked for and is not the discriminator either: the two other Go binaries on this
+> box (`nut_exporter` go1.23.12, `zfs_exporter` go1.24.2) ran throughout the deaths while the go1.26.7
+> build of Alloy was dying — and that same go1.26.7 build now runs here without dying, so "1.26 vs this
+> CPU" is unsupported too.
+>
+> The firmware/microcode/memory window (iLO 2.55, memtest, `intel_iommu=off`) is therefore **not the next
+> act**. It is what to reach for if the deaths come back **at low load**, which is a read, not a judgement:
+> `systemctl show alloy -p NRestarts` climbing while `uptime`'s 1-min load sits under 0.5. `intel_iommu=off`
+> stays a one-reboot experiment with the owner in the room, never a blind fix.
 
 ---
 
