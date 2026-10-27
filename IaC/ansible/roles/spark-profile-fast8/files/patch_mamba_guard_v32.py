@@ -260,10 +260,10 @@ MUST_STAY = {
     "_reinterpret_u64_as_i64": 4,
     "compute_aligned_state_indices": 2,
     # The kernel this patch adds two parameters to: 1 def (:191), its 2 call sites (:479, :610) and
-    # one docstring mention (:581). The count is the call-site completeness the launch anchors cannot
-    # give: `self.state_dim_row_stride,` alone decides which launches get the new arguments, so a
-    # third `_copy_mamba_state_block` call on a newer base must redden the build (rc 1) rather than
-    # reach a boot as an argument-count mismatch.
+    # one docstring mention (:581). The line is the call-site completeness the anchors cannot give on
+    # their own — `self.state_dim_row_stride,` alone decides which launches get the new arguments —
+    # and the slot pairing below reads the same fact; a third `_copy_mamba_state_block` call on a
+    # newer base reddens the build (rc 1) instead of reaching a boot as an argument-count mismatch.
     "_copy_mamba_state_block": 4,
 }
 # What must stay absent: the day-0 fork pair the snapshot still carries, and the day-0 batch class
@@ -279,13 +279,13 @@ GUARD_MARKERS = ["guard_hits", "state_num_blocks"]
 # The slot contract, which no count above can state. Triton binds kernel arguments POSITIONALLY, so a
 # def anchor and its call anchor may both match byte-for-byte, every count above may land, `ast.parse`
 # may be clean, and the inserted parameters can still sit a slot apart in the two signatures. One slot
-# is enough: `idx_mapping_ptr` then receives the guard counter, or the counter receives the batch
-# index-mapping tensor, and the guard's `tl.atomic_add` writes through a tensor of batch indices with
-# no TypeError to announce it, because both sides still pass the same number of arguments. Byte-
-# identity is not slot-identity — the two anchors are lines of two different signatures, and only the
-# AST says whether they name the same slot. So the patched text is read back through `ast` and every
-# inserted parameter is paired with the argument the call passes at the same index, which turns a
-# future skew into a build failure instead of a boot failure.
+# is enough: `idx_mapping_ptr` then receives the guard counter and `guard_hits_ptr` receives the batch
+# index-mapping tensor, so the guard's `tl.atomic_add` writes through a tensor of batch indices — with
+# no TypeError to announce it, because both sides still pass the same number of arguments.
+# Byte-identity is not slot-identity: the two anchors are lines of two different signatures, and only
+# the AST says whether they name the same slot. So the patched text is read back through `ast` and
+# every inserted parameter is paired with the argument the call passes at the same index, which turns
+# a future skew into a build failure instead of a boot failure.
 # (kernel def, call sites expected in this file, (parameter the patch adds, expression the call passes))
 SLOT_PAIRS: list[tuple[str, int, tuple[tuple[str, str], ...]]] = [
     ("_copy_mamba_state_block", 2,
