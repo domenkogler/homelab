@@ -144,6 +144,46 @@ ANCHORS: list[tuple[str, str, str, int, str]] = [
         "vllm/v1/core/sched/scheduler.py:342-345 -- v0.32 inserted the mamba shared-prefix kwarg between the watermark argument and the closing paren, so the day-0 two-line sequence is now a five-line one; 2 = the patcher's old side and its new side",
     ),
 
+
+# patch_hit_debug.py -- Dockerfile.v32 step 8. Two of the four gate targets carry no
+# module logger at this base, so for kv_cache_coordinator.py the logger is INTRODUCED
+# rather than searched for: grep -F -c 'logger = init_logger(__name__)' answers 0 in
+# v1/core/kv_cache_coordinator.py and in v1/core/single_type_kv_cache_manager.py at
+# 6ff5ff0d, while block_pool.py, kv_cache_manager.py and sched/scheduler.py answer 1
+# (README 7b: the [14/38] red). The single_type target already introduced its own.
+    (
+        "src/patch_hit_debug.py",
+        (
+        'for key in ("coord", "pool", "sched"):\n' +
+        '    add_gate(FILES[key])\n' +
+        ''
+    ),
+        (
+        'for key in ("pool", "sched"):\n' +
+        '    add_gate(FILES[key])\n' +
+        '\n' +
+        '# spark-v32 re-anchor: kv_cache_coordinator.py carries no module logger at this\n' +
+        '# base -- no `logger = init_logger(__name__)` line and no vllm.logger import -- so\n' +
+        "# the gate is INTRODUCED here instead of searched for. The anchor is the file's own\n" +
+        '# import of Request (v1/core/kv_cache_coordinator.py:30, one occurrence).\n' +
+        'edit(\n' +
+        '    FILES["coord"],\n' +
+        '    """from vllm.v1.request import Request\n' +
+        '""",\n' +
+        '    """from vllm.v1.request import Request\n' +
+        '\n' +
+        'from vllm.logger import init_logger\n' +
+        '\n' +
+        'logger = init_logger(__name__)\n' +
+        '"""\n' +
+        '    + GATE,\n' +
+        ')\n' +
+        ''
+    ),
+        1,
+        "vllm/v1/core/kv_cache_coordinator.py:30 (from vllm.v1.request import Request, 1 hit; grep -F -c 'logger = init_logger(__name__)' answers 0 in that file at 6ff5ff0d)",
+    ),
+
 ]
 
 # Removed from the staged tree, with the reason each one is dangerous in a v32 build directory.
