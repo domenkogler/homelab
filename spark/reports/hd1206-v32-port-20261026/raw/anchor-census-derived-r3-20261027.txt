@@ -1,0 +1,138 @@
+derived patcher set, read out of the Dockerfile in step order:
+  step     5  patch_never_evict.py               applied      (src/, :119) — The never-evict plumbing — applied here, while the f
+  step     7  patch_mamba_guard_v32.py           applied      ((build dir), :181) — The mamba state-copy guard, ported onto this base's 
+  step  8–10  patch_hit_debug.py                 applied      (src/, :228) — The three host-side patchers upstream runs verbatim
+  step  8–10  patch_mamba_align_split.py         applied      (src/, :231) — The three host-side patchers upstream runs verbatim
+  step  8–10  patch_step_profile.py              applied      (src/, :234) — The three host-side patchers upstream runs verbatim
+  step    12  patch_short_conv_async_h2d.py      guard-only   (src/, :250) — The short-conv async H2D patch — NOT applied, and th
+  step 13–17  patch_measure_draft_mass.py        applied      (src/, :266) — The rest of upstream's patchers, verbatim
+  step 13–17  patch_low_latency_gemm_sm12x.py    guard-only   (src/, :271) — The rest of upstream's patchers, verbatim
+  step 13–17  patch_in_proj_ba_gemv.py           applied      (src/, :298) — The rest of upstream's patchers, verbatim
+  step 13–17  patch_ple_rendezvous.py            applied      (src/, :301) — The rest of upstream's patchers, verbatim
+  step 13–17  patch_verify_topk_pivot.py         applied      (src/, :304) — The rest of upstream's patchers, verbatim
+  step 18–19  patch_block_drop.py                applied      (src/, :308) — What Dockerfile.iter6d added on top (merged into thi
+  step 18–19  patch_r7_logger.py                 applied      (src/, :311) — What Dockerfile.iter6d added on top (merged into thi
+  13 names derived · 11 applied · 2 guard-only · 12 patch_*.py present in /src
+  integrity: the derived set and the staged corpus describe the same patch set
+
+ step patcher                             old  new  anchor (first line)                             verdict
+    5 patch_never_evict.py                  1    0  KV offloading is only activated when kv_offloa  anchor holds  [whole tree (loop-built target)]
+    5 patch_never_evict.py                  1    0  "prefix_caching_hash_algo",                     anchor holds  [whole tree (loop-built target)]
+    5 patch_never_evict.py                  1    0  kv_offloading_backend: KVOffloadingBackend = C  anchor holds  [whole tree (loop-built target)]
+    5 patch_never_evict.py                  1    0  cache_group.add_argument(                       anchor holds  [whole tree (loop-built target)]
+    5 patch_never_evict.py                  1    0  kv_offloading_backend=self.kv_offloading_backe  anchor holds  [whole tree (loop-built target)]
+    5 patch_never_evict.py                  1    0  self.null_block = self.free_block_queue.poplef  anchor holds  [whole tree (loop-built target)]
+    5 patch_never_evict.py                  1    0  # Blocks to reuse first are prepended to the f  anchor holds  [whole tree (loop-built target)]
+    5 patch_never_evict.py                  1    0  if block.ref_cnt == 0 and not block.is_null:    anchor holds  [whole tree (loop-built target)]
+    5 patch_never_evict.py                  1    0  num_used_blocks = self.num_gpu_blocks - self.g  anchor holds  [whole tree (loop-built target)]
+    5 patch_never_evict.py                  1    0  return self.free_block_queue.num_free_blocks    anchor holds  [whole tree (loop-built target)]
+    5 patch_never_evict.py                  2    0  from vllm.v1.core.kv_cache_utils import KVCach  anchor NOT unique  [whole tree (loop-built target)]
+    5 patch_never_evict.py                  1    0  class Scheduler(SchedulerInterface):            anchor holds  [whole tree (loop-built target)]
+    5 patch_never_evict.py                  1    0  watermark=self.scheduler_config.watermark,      anchor holds  [whole tree (loop-built target)]
+    5 patch_never_evict.py                  1    0  if self.log_stats:                              anchor holds  [whole tree (loop-built target)]
+    5 patch_never_evict.py                  2    0  def finish_requests(                            anchor NOT unique  [whole tree (loop-built target)]
+    7 patch_mamba_guard_v32.py              -    -  (staged at the build-dir root)                  not read: its anchors are self-measured in the in-repo patcher
+ 8–10 patch_hit_debug.py                   42    0  from vllm.v1.request import Request             anchor NOT unique  [whole tree (loop-built target)]
+ 8–10 patch_hit_debug.py                   42    0  from vllm.v1.request import Request             anchor NOT unique  [whole tree (loop-built target)]
+ 8–10 patch_hit_debug.py                    1    0  num_uncached_common_prefix_tokens = longest_hi  anchor holds  [whole tree (loop-built target)]
+ 8–10 patch_hit_debug.py                    1    0  num_cached_blocks_after = self.num_cached_bloc  anchor holds  [whole tree (loop-built target)]
+ 8–10 patch_hit_debug.py                    1    0  evicted_hashes = self._remove_cached_block_has  anchor holds  [whole tree (loop-built target)]
+ 8–10 patch_hit_debug.py                    1    0  # Stop at the earliest mandatory position stri  anchor holds  [whole tree (loop-built target)]
+ 8–10 patch_hit_debug.py                  885    0  logger = init_logger(__name__)                  anchor NOT unique  [whole tree (loop-built target)]
+ 8–10 patch_mamba_align_split.py            1    0  block_size = self.cache_config.block_size       anchor holds  [whole tree (loop-built target)]
+ 8–10 patch_mamba_align_split.py            1    0  (new_req_data.num_computed_tokens - 1) // mamb  anchor holds  [whole tree (loop-built target)]
+ 8–10 patch_step_profile.py                 0    0  On-demand torch.profiler around GPUModelRunner  absent at this base  [whole tree (loop-built target)]
+   12 patch_short_conv_async_h2d.py         0    0  Backport of vLLM PR #55054 to this image's sho  absent at this base  [whole tree (loop-built target)]
+   12 patch_short_conv_async_h2d.py         1    0  non_spec_req_idx: torch.Tensor | None = None    anchor holds  [whole tree (loop-built target)]
+   12 patch_short_conv_async_h2d.py         0    0  spec_req_idx = spec_req_idx_cpu.to(query_start  absent at this base  [whole tree (loop-built target)]
+   12 patch_short_conv_async_h2d.py         0    0  spec_req_idx = async_tensor_h2d(                absent at this base  [whole tree (loop-built target)]
+   12 patch_short_conv_async_h2d.py         1    0  req_group = torch.full(                         anchor holds  [whole tree (loop-built target)]
+   12 patch_short_conv_async_h2d.py         1    0  non_spec_req_idx = async_tensor_h2d(            anchor holds  [whole tree (loop-built target)]
+   12 patch_short_conv_async_h2d.py         0    0  req_group[decode_req_idx_cpu.to(query_start_lo  absent at this base  [whole tree (loop-built target)]
+   12 patch_short_conv_async_h2d.py         0    0  req_group[decode_req_idx] = 1                   absent at this base  [whole tree (loop-built target)]
+   12 patch_short_conv_async_h2d.py         0    0  num_accepted_tokens = num_accepted_tokens[      absent at this base  [whole tree (loop-built target)]
+   12 patch_short_conv_async_h2d.py         1    0  num_accepted_tokens = num_accepted_tokens[spec  anchor holds  [whole tree (loop-built target)]
+   12 patch_short_conv_async_h2d.py         0    0  if non_spec_req_idx_cpu is not None:            absent at this base  [whole tree (loop-built target)]
+   12 patch_short_conv_async_h2d.py         1    0  assert non_spec_req_idx is not None             anchor holds  [whole tree (loop-built target)]
+   12 patch_short_conv_async_h2d.py         0    0  spec_req_idx_cpu.to(                            absent at this base  [whole tree (loop-built target)]
+   12 patch_short_conv_async_h2d.py         0    0  decode_req_idx_cpu.to(                          absent at this base  [whole tree (loop-built target)]
+   12 patch_short_conv_async_h2d.py         0    0  non_spec_req_idx_cpu.to(                        absent at this base  [whole tree (loop-built target)]
+   12 patch_short_conv_async_h2d.py         0    0  patch_short_conv_async_h2d.py applied OK (vllm  absent at this base  [whole tree (loop-built target)]
+13–17 patch_measure_draft_mass.py           0    0  M1-prime (counterfactual draft-mask) + M4 (dis  absent at this base  [whole tree (loop-built target)]
+13–17 patch_measure_draft_mass.py           1    0  processed_logits = self.sampler.apply_sampling  anchor holds  [whole tree (loop-built target)]
+13–17 patch_measure_draft_mass.py           4    0  sorted_token_ids, expert_ids, num_tokens_post_  anchor NOT unique  [whole tree (loop-built target)]
+13–17 patch_measure_draft_mass.py           1    0  def fused_marlin_moe(                           anchor holds  [whole tree (loop-built target)]
+13–17 patch_measure_draft_mass.py           0    0  do not build with VLLM_MEASURE_DRAFT_MASS=1 in  absent at this base  [whole tree (loop-built target)]
+13–17 patch_measure_draft_mass.py           0    0  wrote %s (%d bytes)                             absent at this base  [whole tree (loop-built target)]
+13–17 patch_low_latency_gemm_sm12x.py       2    0  def _is_sm103() -> bool:                        anchor NOT unique  [whole tree (loop-built target)]
+13–17 patch_low_latency_gemm_sm12x.py       0    0  def _is_sm103() -> bool:                        absent at this base  [whole tree (loop-built target)]
+13–17 patch_low_latency_gemm_sm12x.py       0    0  if dtype != torch.bfloat16 or not _is_sm103():  absent at this base  [whole tree (loop-built target)]
+13–17 patch_low_latency_gemm_sm12x.py       0    0  _llg_sm12x = _llg_sm12x_enabled()               absent at this base  [whole tree (loop-built target)]
+13–17 patch_low_latency_gemm_sm12x.py       0    0  low_latency_gemm.py: enable() gate text moved   absent at this base  [whole tree (loop-built target)]
+13–17 patch_low_latency_gemm_sm12x.py       2    0  warmup_configs: set[SkinnyGemmConfig] = set()   anchor NOT unique  [whole tree (loop-built target)]
+13–17 patch_low_latency_gemm_sm12x.py       0    0  warmup_configs: set[SkinnyGemmConfig] = set()   absent at this base  [whole tree (loop-built target)]
+13–17 patch_low_latency_gemm_sm12x.py       1    0  warmup_configs.update(plan.values())            anchor holds  [whole tree (loop-built target)]
+13–17 patch_low_latency_gemm_sm12x.py       0    0  warmup_configs.update(plan.values())            absent at this base  [whole tree (loop-built target)]
+13–17 patch_low_latency_gemm_sm12x.py       1    0  @staticmethod                                   anchor holds  [whole tree (loop-built target)]
+13–17 patch_low_latency_gemm_sm12x.py       0    0  @staticmethod                                   absent at this base  [whole tree (loop-built target)]
+13–17 patch_low_latency_gemm_sm12x.py       2    0  _cutedsl_available: bool | None = None          anchor NOT unique  [whole tree (loop-built target)]
+13–17 patch_low_latency_gemm_sm12x.py       0    0  _cutedsl_available: bool | None = None          absent at this base  [whole tree (loop-built target)]
+13–17 patch_in_proj_ba_gemv.py              1    0  class QwenGatedDeltaNetAttention(               anchor holds  [whole tree (loop-built target)]
+13–17 patch_in_proj_ba_gemv.py              1    0  self.in_proj_ba = self.create_ba_proj(          anchor holds  [whole tree (loop-built target)]
+13–17 patch_in_proj_ba_gemv.py              4    0  ba, _ = self.in_proj_ba(hidden_states)          anchor NOT unique  [whole tree (loop-built target)]
+13–17 patch_in_proj_ba_gemv.py              1    0  def create_ba_proj(                             anchor holds  [whole tree (loop-built target)]
+13–17 patch_ple_rendezvous.py               0    0  ids_np = ids.detach().to("cpu", non_blocking=F  absent at this base  [whole tree (loop-built target)]
+13–17 patch_ple_rendezvous.py               0    0  ids_np = (                                      absent at this base  [whole tree (loop-built target)]
+13–17 patch_ple_rendezvous.py               0    0  def forward(self, ids: torch.Tensor) -> torch.  absent at this base  [whole tree (loop-built target)]
+13–17 patch_ple_rendezvous.py               0    0  def _pinned_ids(self, n: int) -> "torch.Tensor  absent at this base  [whole tree (loop-built target)]
+13–17 patch_ple_rendezvous.py               0    0  _MS_PATCHED = False                             absent at this base  [whole tree (loop-built target)]
+13–17 patch_ple_rendezvous.py               0    0  _MS_PATCHED = False                             absent at this base  [whole tree (loop-built target)]
+13–17 patch_ple_rendezvous.py               0    0  vllm_ple_mmap.py: more than one `def forward(s  absent at this base  [whole tree (loop-built target)]
+13–17 patch_ple_rendezvous.py               0    0  class _MmapNgramEmbedding(nn.Module):           absent at this base  [whole tree (loop-built target)]
+13–17 patch_ple_rendezvous.py               0    0  def _pinned_buf(self, rows: int, row_bytes: in  absent at this base  [whole tree (loop-built target)]
+13–17 patch_ple_rendezvous.py               0    0  uniq, inverse = np.unique(ids_np, return_inver  absent at this base  [whole tree (loop-built target)]
+13–17 patch_verify_topk_pivot.py            1    0  def apply_top_k_top_p(                          anchor holds  [vllm/v1/sample/ops/topk_topp_sampler.py]
+13–17 patch_verify_topk_pivot.py            1    0  if HAS_TRITON:                                  anchor holds  [vllm/v1/sample/ops/topk_topp_sampler.py]
+13–17 patch_verify_topk_pivot.py            1    0  def apply_top_k_top_p(                          anchor holds  [vllm/v1/worker/gpu/sample/states.py]
+13–17 patch_verify_topk_pivot.py            1    0  expanded_local_pos: torch.Tensor,               anchor holds  [vllm/v1/worker/gpu/sample/sampler.py]
+13–17 patch_verify_topk_pivot.py            1    0  # Apply top_k and/or top_p. This might or migh  anchor holds  [vllm/v1/worker/gpu/sample/sampler.py]
+13–17 patch_verify_topk_pivot.py            1    0  processed_logits = self.sampler.apply_sampling  anchor holds  [vllm/v1/worker/gpu/spec_decode/rejection_sampler.py]
+18–19 patch_block_drop.py                   1    0  logger = init_logger(__name__)                  anchor holds  [vllm/config/speculative.py]
+18–19 patch_block_drop.py                   1    0  disable_eagle_block_drop: bool = False          anchor holds  [vllm/config/speculative.py]
+18–19 patch_block_drop.py                   1    0  return self.use_eagle() and not self.disable_e  anchor holds  [vllm/config/speculative.py]
+18–19 patch_block_drop.py                   0    0  speculative_config = vllm_config.speculative_c  absent at this base  [vllm/v1/core/sched/scheduler.py]
+18–19 patch_block_drop.py                   0    0  self.use_eagle = speculative_config.use_eagle(  absent at this base  [vllm/v1/core/sched/scheduler.py]
+18–19 patch_block_drop.py                   1    0  # Create the KV cache manager.                  anchor holds  [vllm/v1/core/sched/scheduler.py]
+18–19 patch_block_drop.py                   0    0  enable_caching=self.cache_config.enable_prefix  absent at this base  [vllm/v1/core/sched/scheduler.py]
+18–19 patch_block_drop.py                   0    0  last_cache_position = request.num_tokens - req  absent at this base  [vllm/v1/core/sched/scheduler.py]
+18–19 patch_block_drop.py                   0    0  spec_config = vllm_config.speculative_config    absent at this base  [vllm/v1/core/kv_cache_utils.py]
+18–19 patch_block_drop.py                   0    0  _HIT_DEBUG = _os_hitdbg.environ.get("VLLM_HIT_  absent at this base  [vllm/v1/core/single_type_kv_cache_manager.py]
+18–19 patch_block_drop.py                   1    0  # Sliding-window cache hits must stay at the g  anchor holds  [vllm/v1/core/single_type_kv_cache_manager.py]
+18–19 patch_block_drop.py                   0    0  spec_config = vllm_config.speculative_config    absent at this base  [vllm/v1/simple_kv_offload/manager.py]
+18–19 patch_block_drop.py                   0    1  max_in_flight_tokens=vllm_config.max_in_flight  no-op at this base  [vllm/v1/simple_kv_offload/manager.py]
+18–19 patch_block_drop.py                   0    0  use_eagle = (                                   absent at this base  [vllm/distributed/kv_transfer/kv_connector/v1/offloading/scheduler.py]
+18–19 patch_block_drop.py                   1    0  self.coord = MooncakeStoreCoordinator.from_kv_  anchor holds  [vllm/distributed/kv_transfer/kv_connector/v1/mooncake/store/worker.py]
+18–19 patch_block_drop.py                   1    0  hash_block_size=hash_block_size,                anchor holds  [vllm/distributed/kv_transfer/kv_connector/v1/mooncake/store/worker.py]
+18–19 patch_r7_logger.py                  886    0  logger = init_logger(__name__)                  anchor NOT unique  [whole tree (loop-built target)]
+18–19 patch_r7_logger.py                    0    0  logger = logging.getLogger("vllm.inproj_ba_gem  absent at this base  [whole tree (loop-built target)]
+18–19 patch_r7_logger.py                    0    0  vllm_ple_mmap.py no longer binds logging.getLo  absent at this base  [whole tree (loop-built target)]
+18–19 patch_r7_logger.py                    0    0  logger = logging.getLogger("vllm.ple_mmap")     absent at this base  [whole tree (loop-built target)]
+18–19 patch_r7_logger.py                    0    0  logger.info("iter6 R7 disabled")                absent at this base  [whole tree (loop-built target)]
+
+per-patcher summary, step order (13 patchers derived from /Dockerfile):
+ step patcher                            kind         anchors      anchor holds  no-op at this ba  absent at this b  anchor NOT uniqu  unreadable targe   reads the build applies it?
+    5 patch_never_evict.py               applied           15                13                 0                 0                 2                 0   yes
+    7 patch_mamba_guard_v32.py           applied            0                 0                 0                 0                 0                 0   not read here
+ 8–10 patch_hit_debug.py                 applied            7                 4                 0                 0                 3                 0   yes
+ 8–10 patch_mamba_align_split.py         applied            2                 2                 0                 0                 0                 0   yes
+ 8–10 patch_step_profile.py              applied            1                 0                 0                 1                 0                 0   yes
+   12 patch_short_conv_async_h2d.py      guard-only        16                 5                 0                11                 0                 0   no — guard only
+13–17 patch_measure_draft_mass.py        applied            6                 2                 0                 3                 1                 0   yes
+13–17 patch_low_latency_gemm_sm12x.py    guard-only        13                 2                 0                 8                 3                 0   no — guard only
+13–17 patch_in_proj_ba_gemv.py           applied            4                 3                 0                 0                 1                 0   yes
+13–17 patch_ple_rendezvous.py            applied           10                 0                 0                10                 0                 0   yes
+13–17 patch_verify_topk_pivot.py         applied            6                 6                 0                 0                 0                 0   yes
+18–19 patch_block_drop.py                applied           16                 7                 1                 8                 0                 0   yes
+18–19 patch_r7_logger.py                 applied            5                 0                 0                 4                 1                 0   yes
+
+absent at this base: 45  anchor NOT unique: 11  anchor holds: 44  no-op at this base: 1   — 101 anchors read in the base image at the pin digest, 12 of 13 derived patchers read.

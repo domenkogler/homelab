@@ -83,8 +83,8 @@ spark_ultrafast_build: false
 # The v0.32 lineage's own opt-in switch (roles/spark-profile-fast8). Separate from the one above on
 # purpose: this build pulls a ~10 GB base image and runs a third party's patch stack on this box, so
 # it is an act, not a side effect of building the live lineage. Nothing about it can flip a profile:
-# both arms that name this lineage (`fast-v32-bf16`, `fast8`) stay gated by the empty
-# `spark_vllm_ultrafast_v32_image` pin whatever this is set to.
+# the built lineage's reference is the ID pinned in versions.yml, and this flag only decides whether
+# a converge is allowed to build a new candidate for that pin.
 spark_profile_fast8_build: false
 spark_models_roots:
   xfs: "{{ spark_models_dir }}"
@@ -374,12 +374,15 @@ spark_llm_never_evict_capable_images: [ultrafast]
 # checkpoint at all (the `VLLM_FP8_HYBRID` dispatch is installed only by the patched lineage), so the
 # ONLY name allowed here is the patch stack rebuilt on a v0.32 base.
 # TO ADD A NAME HERE: run the box leg of scripts/bench/spark-fp8-image-probe.py against that image's
-# own qsa.py — an `UNDECIDED` probe is not a verdict (CONVENTIONS §7: the pin is the evidence).
-# EMPTY until that probe returns REACHABLE, and deliberately not pre-registered: the list is the fp8
-# claim's EVIDENCE, and a name entered before the box leg ran makes every offline gate green BY
-# ASSERTION — an authored-but-unbuilt lineage already satisfies both a listed name and a non-empty pin.
-# With the name absent the arm reads GATED ("no fp8 main-KV read path in that build"), which is the truth.
-spark_llm_fp8_kv_capable_images: []
+# own qsa.py — an `UNDECIDED` probe is not a verdict (CONVENTIONS §7: the pin is the evidence), and a
+# name entered before that leg ran would make every offline gate green BY ASSERTION. With the name
+# absent the arm reads GATED ("no fp8 main-KV read path in that build"), which is the truth.
+# `ultrafast-v32` is the one name, and its evidence is that leg's REACHABLE verdict on the built
+# image: `vllm/models/qwen4_exp/nvidia/qsa.py` declares "fp8_e4m3" in supported_kv_cache_dtypes
+# (:154-158) and takes the fp8 branch at :236, with no BF16-only raise anywhere in the file
+# (spark/reports/hd1206-v32-port-20261026/build-20261027.md). A stock v0.32 release stays unlisted on
+# purpose: it cannot serve this checkpoint at all (the `VLLM_FP8_HYBRID` dispatch is patch-stack only).
+spark_llm_fp8_kv_capable_images: [ultrafast-v32]
 
 # ---- Checkpoint identity + the PLE pairing table ----------
 # WHY these two maps exist. A profile names TWO artifacts — a checkpoint (`model_subdir`) and a
@@ -1062,11 +1065,13 @@ spark_llm_profiles:
   # attributable to the dtype instead of to the port.
   fast8:
     <<: *u_x
-    label: "UNCERTIFIED — AR AutoRound-hybrid + FP8 PLE mmap + MTP3-block on fp8 KV (4.18 × the window; gated on the unpinned v0.32 lineage)"
-    image: ultrafast-v32          # the patch stack rebuilt ON spark_vllm_v32_base_image, pin EMPTY
-                                  # in versions.yml = the gate. Bumping `base` or `ultrafast` instead
-                                  # would silently re-engine the certified `reasoning` lane and the
-                                  # LIVE certified `fast` profile — a third name is the only safe edit.
+    label: "UNCERTIFIED — AR AutoRound-hybrid + FP8 PLE mmap + MTP3-block on fp8 KV (4.18 × the window; built v0.32 lineage, gates 0–7 + 8–9 unmeasured)"
+    image: ultrafast-v32          # the patch stack rebuilt ON spark_vllm_v32_base_image; its built
+                                  # image ID is pinned in versions.yml, which is what makes this arm
+                                  # bootable-and-UNCERTIFIED rather than gate-blocked. Bumping `base`
+                                  # or `ultrafast` instead would silently re-engine the certified
+                                  # `reasoning` lane and the LIVE certified `fast` profile — a third
+                                  # name is the only safe edit.
     models_root: os
     model_subdir: Qwen3.8-Flash-Next-W4A16-AutoRound-hybrid
     ple_offload: false
