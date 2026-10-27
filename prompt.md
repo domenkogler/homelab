@@ -100,6 +100,9 @@ a row out of the brief that owns it.
 **Model brief (not a seat):** [prompt-external.md](prompt-external.md) — work gated by *which model serves the session*,
 not by the box: the Rule-0 legs a spark-served session may not run, and the whole-corpus rows a 262k context can't hold.
 
+**Window brief (not a wave):** [prompt-update.md](prompt-update.md) — the fleet pin bump + host-package window: phases
+0–8 driven from the WSL seat, the secret rotations scheduled into it, no rows carried, and it dies with the window.
+
 Ranked by what unblocks the most. Each line is the item + **the domain brief that carries its order of work** — the brief,
 not this list, holds the steps, the file ownership and the converge host. Waves, pairing and the host/slot rule are
 [docs/orchestration.md](docs/orchestration.md) §4 (O1–O11); the row→brief index is [todo-table.md](todo-table.md) §B0.
