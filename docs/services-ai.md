@@ -318,7 +318,7 @@ driver. Nothing here adds a scrape target or a dashboard.
 
 | Item | type → `field=` | Used by |
 |------|-----------------|---------|
-| `openrouter_api` | api → `credential` | LiteLLM (all external LLM generation) |
+| `openrouter_api` | api → `credential` | LiteLLM (all external LLM generation, both instances — the value is rendered into each container's `OPENROUTER_API_KEY`) **and** the pi harness's `auth.json` render (`../scripts/harness/pi/models-spec.yml`), so a rotation owes a converge AND a client re-render |
 | `litellm_api` | api → `credential` | admin/bootstrap ONLY — **this IS the master key** (`LITELLM_MASTER_KEY`); there is no `litellm_master_key` item, despite how the name gets typed |
 | `litellm_db` | db → `password` | litellm-db runtime DB (models-in-DB) |
 | scoped keys (`owui-public-chat_api`, `owui-public-rag_api`, `owui-int-wife_api`, `owui-int-owner_api`, `dsh_api`, `openclaw-litellm_api`, `rag-int-svc_api`) | api → `credential` | per-consumer minted keys |

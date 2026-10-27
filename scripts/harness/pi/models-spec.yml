@@ -261,16 +261,17 @@ providers:
 
 # pi's provider auth file (vendor `pi-auth`). Same rule as everywhere else in this repo: the spec
 # NAMES the item, the renderer resolves the value at render time, no key material in git.
-# Both vault `credential` values hash-match what a hand-kept client file carries (openrouter
-# 5ceea2ce6c / 73 B, opencode-go 9f31a67976 / 67 B), so adopting the render is a no-op on a working
-# machine — the only safe way to take over a hand-kept credential file.
+# The render is a no-op on a working machine only while the vault holds the value the file already
+# carries — the values published 2026-10-27 are openrouter 2466ffdfc7 / 73 B and opencode-go_api
+# 767310bb25 / 51 B, so a provider rotation makes the next render an event on every seat rather than
+# a takeover of a hand-kept file.
 auth:
   - provider: openrouter
     type: api_key
     credential: {vault: Homelab-ansible, item: openrouter_api, field: credential}
   - provider: opencode-go
     type: api_key
-    credential: {vault: Homelab-ansible, item: opencode-go, field: credential}
+    credential: {vault: Homelab-ansible, item: opencode-go_api, field: credential}
 
 # Workstation-local keys are NOT here and must not be added: harness-pi-seats.md §5 keeps theme,
 # packages, lastChangelogVersion and the rest of settings.json on the machine. This spec renders

@@ -115,3 +115,4 @@ tags: [network, rejected, decision-log]
 | Winbox `*-wb` LocalForward aliases / Pi-dial pattern | superseded | Winbox binds VLAN 99; use the on-site Mgmt leg |
 | WireGuard on the router for user devices | superseded | Headscale serves the family; one owner WG peer adds a VPS-free path |
 | WSL bridged Mgmt99 route-through as the default | superseded | Durable state is NAT plus generated resolv.conf; Mgmt99 is opt-in on-site |
+| Rotating `pppoe_login` | dropped | The ISP provisions the credential; no device here changes it |

@@ -114,8 +114,10 @@ defined anywhere in IaC (`act_runner` / `forgejo-runner` appear in zero files), 
 runner env override in the live `forgejo` instance's `app.ini`, zero runner containers on vps / spark / nas /
 pi, no `act_runner` binary on the control node — and `origin` is GitHub, so this repo's history never reached a
 Forgejo runner either. `op_api`'s only live holder is the **control node** (the `op` CLI, via
-`scripts/ansible/bootstrap-runner.sh`), whose token file predates none of this: it was re-seeded on the rotation day and
-a 1Password-resolved converge since then proves it works. Phase 5 still has to CREATE a runner before it can
+`scripts/ansible/bootstrap-runner.sh`) plus the seats that source the same file path. A rotation does NOT reach that
+file by itself — `bootstrap-runner.sh` is create-only, so the re-seat is its own act, proven by the `op whoami`
+Integration ID + `sha256(token)[:12]` and never by `[ -f ]` (docs/1password.md §Rotating the control-node token); while
+a rotation's re-seats are open, this holder is still presenting the superseded value. Phase 5 still has to CREATE a runner before it can
 have a runner secret; do not wire a secret for a holder that is not there.
 
 #### B) Account / connection refs — NOT consumed by Ansible (human maintenance / break-glass)
@@ -765,8 +767,8 @@ HD-358 (Seerr → \*arr link — IaC-seeded by `roles/docker_services/tasks/arr-
    (`vps.yml` for VPS, `home_servers.yml` for oldsrv).
 - [ ] **1Password for the runner** — `op_api` as a Forgejo secret, runner resolving secrets at render time.
    **Do this as part of creating the runner, not before it** (HD-396, closed 2026-09-25: no runner exists today, so
-   there is nothing to hold the secret and nothing to renew). Seed it with the POST-2026-09-19 SA value — the token
-   an older registration would have carried is superseded and its vault access 403s.
+   there is nothing to hold the secret and nothing to renew). Seed it at seed time with `op read`, never from a copy —
+   a superseded SA token 403s, and the grace window that keeps one valid is owner-set.
 - [ ] **Trigger** — no webhook; you click the **deploy button** on Forgejo (Dependency Dashboard / Actions tab).
 - [ ] **Deploy-button wiring for Renovate PRs** — Renovate itself is live (Phase 3) and opens PRs; what is missing is applying them through the button.
 - [ ] **Metrics** — none from the deploy path (no Doco-CD exporter). The **VictoriaMetrics** scrape set

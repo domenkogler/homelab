@@ -105,6 +105,7 @@ tags: [services, rejected, decision-log]
 | Readarr books tier                                                 | dropped    | Readarr effectively unmaintained                                   |
 | Recyclarr profile-policy switch                                    | dropped    | rewrites live profiles, no cost yet                                |
 | `remote-pi` client + WebSocket relay                               | rejected   | Payload not end-to-end encrypted in the current version            |
+| Rotating the Soulseek network login (`slskd_login`, `soulseek_login`)  | dropped    | Upstream reset e-mail never arrives; no change path from a seat    |
 | Rotating the Soulseek password from the diagnosis                  | dropped    | Risk accepted; transcript deleted, one account exposed             |
 | Router-side per-IP P2P cap                                         | dropped    | never implemented, container env caps                              |
 | RustDesk server on oldsrv                                          | rejected   | A rescue tool must not sit behind what it rescues                  |

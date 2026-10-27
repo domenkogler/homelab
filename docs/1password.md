@@ -164,12 +164,14 @@ passes — so scope a seat only from `op_api/credential`, and prove it by Integr
 
 | Item / install | value | service account |
 |---|---|---|
-| `op_api` — **current** | `6a1342f44e65` | Integration `DUW6UPKY5JGG3MM6WF3HBHQWGQ` (read) |
+| `op_api` — **current** | `d633b4f9190e` | Integration `DUW6UPKY5JGG3MM6WF3HBHQWGQ` (read) |
 | `op-write_api` — **current** | `af0e1cffc9e4` | Integration `WN7FJT54IVHDDC4XR3YJ73R2CY` (read+write) |
 
-The superseded `op_api` value stays valid until its grace window closes on **~2026-10-15**. The
-write item's current value belongs to a **different integration** than the value it was replaced
-with, so the two facts are not interchangeable: the **value hash** is what identifies a holder (the
+The grace window on a superseded `op_api` value is **owner-set at the rotation**, not a product
+default: the superseded generation expires **~2026-10-30**, and every holder must re-seat inside that
+window (§Rotating the control-node token). A re-seat proven after that date is a re-seat of a dead
+token. The write item's current value belongs to a **different integration** than the value it was
+replaced with, so the two facts are not interchangeable: the **value hash** is what identifies a holder (the
 sweep below), the **Integration ID** is what proves scope. An install whose `op whoami` answers a
 write-scoped ID other than the row above is running a superseded credential.
 

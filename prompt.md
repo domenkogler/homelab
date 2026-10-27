@@ -73,7 +73,7 @@ onto their **Home leg**; the **Mgmt plane (VLAN 99) is same-site only** (`router
 
 **Docs hygiene:** [`CONVENTIONS.md`](CONVENTIONS.md) §8.6 (`sensitivity:` + the egress rule) and §8.3 (open questions are
 `Options` sections keyed `OQ-<n>`); a **size-ratchet growth red means the station owes `--reseal`**. Open: `HD-1197`
-(read-list check at launch, `scripts/harness/`).
+(read-list check at launch, `scripts/harness/`) and `HD-1211` (the leak gate's vault-unreachable arm on an SDK seat — WIP on branch `homelab-wt-20261027-2322`, commit 48a2e8dc, **do not merge as-is**).
 
 ## 2. Next tasks (the rows are the authority; this is only the ranked pointer list)
 
@@ -192,8 +192,8 @@ not this list, holds the steps, the file ownership and the converge host. Waves,
 4. ⏳ **The media / music ladder** — **HD-362**: what Lidarr is missing is APP state, not a secret — one indexer and
    one download-client entry (the seed-in-IaC question); Aurral → Lidarr is a **browser** leg (the add is a click on a
    recommendation card; its URL+key are encrypted inside `aurral.db` and the API 404s on the obvious routes). ⛔ probe
-   slskd with `docker exec slskd /slskd/slskd --envars`, never by grepping a rendered compose; the Soulseek password
-   rotation is **DECLINED and risk-accepted on record** — do not re-open either. **HD-1090** owes one grab started in
+   slskd with `docker exec slskd /slskd/slskd --envars`, never by grepping a rendered compose; the Soulseek **network**
+   login is **not rotatable from a seat** — the upstream reset e-mail never arrives — risk accepted, do not re-open. **HD-1090** owes one grab started in
    Prowlarr's own UI. **HD-1091** is authored and **ARMED**: one vault item (`soulseek-internal_api`) renders into BOTH
    ends, so neither side can be armed alone; what it owes is **one album crossed end-to-end**, which needs a peer to
    finish one inside the poll window, and the **`lidarr_api` rotation** (`NOT_AUTO_ROTATABLE` — parked below).
@@ -326,15 +326,15 @@ not this list, holds the steps, the file ownership and the converge host. Waves,
     an existing router window rather than needing one of its own · **HD-1175** a human at `oldsrv`'s console —
     **recovered, not closed**: the row owes the root-only read of the previous boot's journal and `pstore`, which no
     rule reaches from a user session, and there is no out-of-band power path at all (the posture **HD-454** rules; its
-    WoL re-test has never been run) · **1170 · 1171 · 1150** the three secret-close windows: rotate `spark-llm_api` and
-    rule on `radarr_api`/`sonarr_api`; rotate `op_api` and re-seat all four installs; re-seat
-    `vps:/etc/op/provision-token` with the `matrix_password` ruling — none of these closes with a repo change ·
+    WoL re-test has never been run) · **1170 · 1171 · 1150** the three secret-close windows: rotate `spark-llm_api`;
+    re-seat the four `op_api` installs before the superseded token dies **~2026-10-30**; re-seat
+    `vps:/etc/op/provision-token` with the `matrix_password` ruling — `radarr_api`/`sonarr_api` are closed; none of this closes with a repo change ·
     **HD-1181** the vault values this seat's pi transcripts hold: the rotation is the owner's and it **differs per
     item**, so act from the row's per-item list, not from memory. ⚠ **`check_secret_leak.py` — and with it
     `validate-all.sh` — is RED on this seat BY DESIGN until that rotation lands**: no ledger line was added and the
-    checker was not edited to quiet a live value, so a green leak read on this seat would mean the register was muted,
-    not that the exposure is gone; deleting or shredding transcripts closes nothing — a rotated value stops being a
-    finding, an unrotated one never does — and the register is **per seat**, so win11 and wsl owe the same read.
+    checker was not edited to quiet a live value, so a green leak read here means the register was muted; a rotated
+    value stops being a finding, an unrotated one never does, and the register is **per seat** — the list is the union of
+    the seat reads.
     **HD-1160** owes one owner-present **router window** (global slot) — ⛔ never from a docs lane, never `--diff`
     (parked below). ⏸ **HD-454 is ruled, not pending** — nothing is purchased and no out-of-band path is scheduled, so
     a switched-off `oldsrv` waits for presence, and the one owner-side leg left is a WoL re-test at a planned power-off

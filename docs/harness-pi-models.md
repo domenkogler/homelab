@@ -36,8 +36,9 @@ Two properties worth knowing before you reach for the file:
   to switch a workstation from hand-maintenance to rendering.
 * **Credentials are resolved at render time**, so no key is in git, in the spec, or in the `--check` output
   (masked): `models.json` ← `spark-llm_api` + `entrim_api`; `auth.json` (vendor `pi-auth`) ←
-  `openrouter_api` + `opencode-go`. Every one of those items hash-matches what the machine already holds,
-  which is why adopting the render is a no-op rather than an event. `--check` covers both files:
+  `openrouter_api` + `opencode-go_api`. A render matches what the machine already holds only while the
+  vault still carries that value — a provider rotation makes the next render an event, not a no-op.
+  `--check` covers both files:
   `--vendor all` renders them together.
 * **Takeover rule for a credential file**: if the target holds a provider the spec does not name, the
   render **preserves it and prints why**. A silent drop in `auth.json` is a lockout you discover by

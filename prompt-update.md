@@ -115,8 +115,8 @@ value never in a transcript: `OP_SERVICE_ACCOUNT_TOKEN="$(op read 'op://Homelab-
 **Derive the list from the gate on every seat, not from the ledger, not from this file:** `python3
 scripts/gate/check_secret_leak.py` prints `KNOWN-EXPOSED` (ledgered), `STALE ledger lines` (hit gone — delete the line
 by hand; `--update-ledger` will not drop it), and `FAIL: … hit(s) outside the ledger` — the actionable list. ⚠ **The
-register is per seat**: the oldsrv read names 15 items, the win11 read names 22, and the **wsl seat still owes its
-read** (HD-1181). The rotation list is the **union of the three**, taken in Phase 0.
+register is per seat**, so the rotation list is the **union of the three reads** (HD-1181) and all three are
+taken — oldsrv, win11, wsl. The wsl register carries one extra item that no IaC file reads: `slskd slskd@kogler.si`.
 
 **Pile 1 — vault + converge is enough** (catalog items, propagation exists): the arr/media tokens, the Victoria
 basic-auth pair, `soulseek-internal_api`, `qbittorrent_api`, `crowdsec-*`, `immich-ml-internal_api`, `n8n-webhook_api`; and
@@ -125,14 +125,19 @@ the `*_db` items whose service carries `db_role_sync: true` (`authentik_db`, `on
 `pgsync:<sha256>` and ALTERs. ⛔ A hand-run `ALTER ROLE` is out of band and is NOT repaired — it desyncs the marker.
 `pgvector_db` has no IaC consumer; confirm which item the live role carries.
 
-**Pile 2 — the value must change at the OTHER end first, by hand** (`NOT_AUTO_ROTATABLE`): the arr instance keys
-(`sonarr_api`, `radarr_api`, `lidarr_api` — the instance's own `config.xml` `ApiKey`), `network-snmp_api` (re-apply on
-router + switch), `kopia-server_fingerprint` (regenerate the cert, re-pin both sides), `pppoe_login`,
-`openrouter_api`/`entrim_api`/`opencode-go` (provider console, then re-render **every** harness client),
-`wg_password`, the Soulseek network login. A vault-only write here is a divergence, not a rotation.
+**Pile 2 — the value must change at the OTHER end first, by hand** (`NOT_AUTO_ROTATABLE`): the arr instance key
+`lidarr_api` (the instance's own `config.xml` `ApiKey`) — `radarr_api`/`sonarr_api` are CLOSED, the vault holds the key
+their own instance issued, so ⛔ nothing re-rotates them — plus `network-snmp_api` (re-apply on router + switch),
+`kopia-server_fingerprint` (regenerate the cert, re-pin both sides), `pppoe_login` (ISP-provisioned, not rotatable
+from here — recorded in [docs/network-rejected.md](docs/network-rejected.md)), `wg_password`, and the Soulseek network
+login (blocked: the reset e-mail never arrives). `openrouter_api`/`entrim_api`/`opencode-go_api` are **rotated at the
+provider and in the vault**: what they owe is the propagation — every harness client re-rendered, and for
+`openrouter_api` a converge of `litellm` **and** `lan-litellm`, whose rendered env holds the retired value until it
+runs. A vault-only write here is a divergence, not a rotation.
 
-**Pile 3 — ordered fleet items.** `op_api` **first** — 1Password keeps the old token live 3 h, so the grace window
-makes every converge safe and the re-seats batch at the end (HD-1171); prove a re-seat by the `op whoami`
+**Pile 3 — ordered fleet items.** `op_api` **first** — a superseded token stays live for an **owner-set** grace
+window (the current superseded one expires **~2026-10-30**), so it makes every converge safe and the re-seats batch
+at the end (HD-1171: rotated, four installs still owed); prove a re-seat by the `op whoami`
 **Integration ID** + `sha256(token)[:12]`, never by `[ -f ]` (`bootstrap-runner.sh` is create-only, and a running
 shell's exported value beats the file). `spark-llm_api`/`litellm-engine_api` are **guard-listed** (the accepted-key
 list lives in vLLM's argv): rotate → converge spark → prove the second key live by hand → converge both gateways
@@ -147,16 +152,14 @@ agent re-connected** (its `repository.config` caches the credential) and verify 
 @radarr`, `admin @media`, `bazarr_api`) change inside the app, then the vault, then re-converge — `--rotate` there
 writes a value the app never issued.
 
-**Soulseek, ruled (owner): in the window, with the account risk named.** `soulseek_api` (the slskd web-UI password,
-catalog-generated) is ours: `--rotate` + converge. `slskd_login`/`soulseek_login` are the **Soulseek network** account
-and are hand-seeded (no CATALOG entry): the only change path is the upstream web reset, which needs an e-mail address
-on the account, and Soulseek **recycles usernames after 30 days without a successful login**. So read the two item
-*names* first (`op item list` — names only) and establish which is live; change it upstream, then the vault, then
-re-render, and prove slskd re-connected the same day — a rotation that cannot reconnect is a countdown on the username,
-its shares and its buddy lists, which supersedes the earlier risk acceptance (`docs/services-rejected.md`, "one
-account exposed"): the record gets a dated line either way. Probe slskd with `docker exec slskd /slskd/slskd
---envars`, never by grepping a rendered compose; the converge recreates the container and drops the session, so
-HD-1091's one-album proof comes after it.
+**Soulseek.** `soulseek_api` (the slskd web-UI password, catalog-generated) is ours: a vault write + converge.
+`slskd_login`/`soulseek_login` are the **Soulseek network** account, hand-seeded (no CATALOG entry), and the only
+change path is the upstream web reset — which needs an e-mail address on the account, and that e-mail never arrives
+here ⇒ **not rotatable from a seat** (`docs/services-rejected.md`; the exposure stays a ledger debt). Soulseek
+**recycles usernames after 30 days without a successful login**, so a login that cannot be changed must at least stay
+connected: prove slskd is on the network, and probe it with `docker exec slskd /slskd/slskd --envars`, never by grepping
+a rendered compose. The `soulseek_api` converge recreates the container and drops the session, so HD-1091's one-album
+proof comes after it.
 
 **After the rotations:** `python3 scripts/gate/check_secret_leak.py --update-ledger --class run-capture`, delete the
 STALE lines by hand, commit the shrunk ledger — that commit is what makes the gate green again. A deleted item
@@ -172,7 +175,7 @@ closed by definition, not by a change. ⛔ Never shred or delete a transcript (H
 - [ ] `~/ansible-venv` present and `ansible-playbook` on PATH (a named SKIP class on this seat), and `ansible all -m ping` answers for all five hosts before any apply.
 - [ ] `echo "seat=$(uname -n) provider=$PI_PROVIDER"` — if the session is **spark-served**, Phase 6 cannot run in it (Rule 0: no engine restart, no `spark-ai` re-render): take it in an externally-served session, stated by the owner in-session (README §3).
 - [ ] Delegation plane: `wsl` is unverified (HD-1180) ⇒ lanes run **foreground-sequential**, or pay the two acts (push the `settings` plane + `pi install npm:pi-subagents@0.80.0` FROM this seat, accepted by its own `async: true` launch).
-- [ ] ⏭ `python3 scripts/gate/check_secret_leak.py` **from this seat** (HD-1181 leg 3) and take the **union of the three seat reads** as the rotation list for Phase 2.
+- [x] ⏭ `python3 scripts/gate/check_secret_leak.py` **from this seat** — read taken (HD-1181 leg 3); with the oldsrv and win11 reads it is the rotation list for Phase 2.
 - [ ] `todo.md`: record the window start (one line in the rows this file rides; no new ids).
 
 ### Phase 1 — prerequisites (the pins session's commits, consumed here)
@@ -186,7 +189,7 @@ closed by definition, not by a change. ⛔ Never shred or delete a transcript (H
 
 ### Phase 2 — rotations that need no device in front (pile 1 + `op_api`)
 
-- [ ] `op_api` **first**; re-seats deferred to Phase 7 (3 h grace covers the window). Re-confirm the Forgejo Actions holder on the day.
+- [x] `op_api` **rotated — done**; re-seats deferred to Phase 7 (the owner-set grace covers the window — 3 days for this rotation). Re-confirm the Forgejo Actions holder on the day.
 - [ ] Pile 1 catalog items, one by one, `--rotate <item> --yes`.
 - [ ] The `db_role_sync: true` `*_db` items — vault only; the converges do the ALTER.
 - [ ] NUT as one act across `nas` + `oldsrv` + `pi` (a vault-only edit loses the clients the master).
@@ -194,13 +197,13 @@ closed by definition, not by a change. ⛔ Never shred or delete a transcript (H
 
 ### Phase 3 — rotations with an app or device at the other end (pile 2/3, owner hands)
 
-- [ ] The arr instance keys: mint → the instance's `config.xml` → restart → re-render the consumers. ⏭ `radarr_api` / `sonarr_api` — **owner rotates by hand in this window** (public-history exposure). ⏭ `lidarr_api` — in the window, forced order (HD-1091): mint → Lidarr `config.xml` → restart → soularr `config.ini` → Seerr.
+- [ ] The arr instance keys: mint → the instance's `config.xml` → restart → re-render the consumers. ✅ `radarr_api` / `sonarr_api` **done** — the instance issued the key and the vault holds the copy, so ⛔ nothing re-rotates them for this window. ⏭ `lidarr_api` — in the window, forced order (HD-1091): mint → Lidarr `config.xml` → restart → soularr `config.ini` → Seerr.
 - [ ] `network-snmp_api` re-applied on router + switch by hand; `kopia_server_fingerprint` cert + both pins.
 - [ ] `kopia_password` — rotate **and re-connect** the agent, then verify the repository (HD-1174).
 - [ ] `n8n_password` (`N8N_ENCRYPTION_KEY`) with the stored workflow credentials re-entered.
 - [ ] `oldsrv-domen_login` on the host + in the vault together, second session open.
-- [ ] `privado-vpn_api` at the provider, written back. `openrouter_api`/`entrim_api`/`opencode-go` at the console, then **every** harness client re-rendered, not just LiteLLM restarted.
-- [ ] Soulseek: names read, upstream change, vault, re-render, re-connection proven (or a dated risk line written into `services-rejected.md` instead of a silent skip).
+- [ ] `privado-vpn_api` at the provider, written back. `openrouter_api`/`entrim_api`/`opencode-go_api` are **rotated and in the vault**; what they owe is **every** harness client re-rendered, not just LiteLLM restarted — a converge leg, not a rotation.
+- [ ] Soulseek: ⛔ blocked — the upstream reset e-mail never arrives, so the network login cannot change here; the record is [docs/services-rejected.md](docs/services-rejected.md) and the exposure stays a ledger debt. `soulseek_api` (the slskd web-UI password) is still ours: a write + converge, with HD-1091's album proof after it.
 - [ ] `spark_login` on the box then the vault, fresh `ssh spark` proven in a second session.
 - [ ] `todo.md` — the rotation rows' `⏳` tails, once.
 
@@ -286,7 +289,7 @@ tombstone's boot unit masked, `llm.kogler.si/health` 200.
 
 Mask-then-delete for the tombstone (§4) · patch + minor for the pin sweep with the flagged rows decided individually
 (§3) · rotate everything the gate names, the n8n/kopia consequences scheduled rather than avoided (§5) · `op_api`
-rotated first, re-seats batched at the end, on the 3 h grace (§5) · `radarr_api`/`sonarr_api`/
+rotated first, re-seats batched at the end, on the owner-set grace window (§5) · `radarr_api`/`sonarr_api`/
 `lidarr_api`/`n8n_password` **in** this window (§3, Phase 3) · the v32 artifact **used as built** on the pre-bump
 toolchain, no rebuild (§1) · converges driven from the WSL seat (§10) · **Wi-Fi PSKs out of this window** (§11), with
 the accepted consequence that the leak gate stays red on exactly those items (§0, Phase 7) · no row minted for any of

@@ -182,7 +182,7 @@ OP_SERVICE_ACCOUNT_TOKEN="$(op read 'op://Homelab-ansible/op-write_api/credentia
 
 - **`litellm_api`** is admin/bootstrap-only: consumers hold SCOPED virtual keys instead. Rotating it breaks only the admin UI + bootstrap glue (re-run after rotation); consumer keys are independent — rotate/revoke per-key in the Admin UI, then update the matching 1P item (or clear it and let the glue re-mint).
 - **Scoped keys** are hashed at rest server-side: a lost/rotated key can NEVER be re-read. Remediation = delete server key by alias + clear the item's credential field + re-run the glue (it re-mints create-if-absent).
-- **`openrouter_api` / `cohere_api`** are upstream keys only LiteLLM holds — rotate at the provider dashboard, then update the 1Password item; no compose change needed (LiteLLM reads via env).
+- **`openrouter_api`** is an upstream key with two consumer classes: the LiteLLM gateways hold it as the rendered `OPENROUTER_API_KEY` env value (`litellm` on the VPS, `lan-litellm` on oldsrv), so rotate at the provider dashboard, update the 1Password item, **then converge both** — a vault-only write leaves a gateway that was never re-rendered sending the retired key. The pi harness's `auth.json` render is the second consumer, so every client owes a render too (`deployment-secrets.md` §Item catalogue).
 - **OIDC client secrets** (`openwebui_api`) are rotated in Authentik; both provider and 1Password item must be updated together or the redirect/login breaks.
 
 **Audit before you rotate.** A credential with several bearers and no reconciliation step drifts, and drift
