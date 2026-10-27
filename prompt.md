@@ -176,15 +176,13 @@ not this list, holds the steps, the file ownership and the converge host. Waves,
    and the `prometheus.scrape "llama_cpp"` leg are ONE change that recreates two serving containers, so it waits an
    owner window (parked below). **HD-1120** is unchanged: totals are known for every caller and attribution comes from
    the **edge access log** (spec + the XFF trap: [docs/observability.md](docs/observability.md) §LLM token accounting).
-   **HD-1163** names a dark monitoring host instead of discovering it in a forum post; its paging half is authored,
-   loaded and watched red. ⚠ **A rule that is authored is not a rule that is loaded** — prove it with
-   `GET /api/v1/provisioning/alert-rules`, never the repo file. ⚠ **Retiring a probe target can be the cheaper half of
-   a fix: check what the rule was actually watching.** The `ha-unreachable` target and rule are retired, and **HA
-   liveness has no firing rule** until the gated `ha_exporter` job → **HD-1182**; the owner-present VPS `--tags
-   monitoring` converge that applies the retirement is the row's only live tail. **HD-1164** is a firmware/kernel
-   question, not a repo question: the `nas` unit stays **stopped on purpose** until the owner schedules the look plus
-   a memory test (parked below). ⚠ `check_host_reporting.py --check` reads RED for `nas` — that is the instrument
-   working; do not soften the expected set to make it green. The **boot-time DB-dump push race** is
+   ⚠ **A rule that is authored is not a rule that is loaded** — prove it with
+   `GET /api/v1/provisioning/alert-rules`, never the repo file. ⚠ **Retiring a probe target can be the cheaper half
+   of a fix: check what the rule was actually watching.** The `ha-unreachable` target and rule are retired, and
+   **HA liveness has no firing rule** until the gated `ha_exporter` job → **HD-1182**; the owner-present VPS
+   `--tags monitoring` converge that applies the retirement is the row's only live tail. ⛔ The blind-host expected
+   set is the inventory's `[monitoring]` group, and `check_host_reporting.py --check` reads against it — green on
+   all five hosts today. The **boot-time DB-dump push race** is
    **storage**'s unit — the storage item below names the id and the fix; here only its paging half is ours, the
    HD-450 canary class: adding the unit to
    `monitoring_hygiene_units` so a failure changes a series, not only a log line. ⚠ What *arrives* in the channel is a
@@ -418,7 +416,6 @@ action so no lane re-derives it. An entry marked RULED is AI work, not an owner 
 | **HD-1160** | render + `routeros-apply-delta.sh` for the converge template's twin of the retagged `#`-comment (a `#`-line IS rendered output — [network-dns.md](docs/network-dns.md) §Host-side resolver); ⛔ never `--diff`, never from a docs lane, and **no converge is behind it** | router window, global slot | [prompt-dns-transport.md](prompt-dns-transport.md) |
 | **HD-384** step 2 | point the two LiteLLM gateways at `litellm-engine_api` — only AFTER spark reboots with it in its accepted-key list; inverting the order 401s every upstream call | spark window (PLE load, ~20 min) | [prompt-litellm-consumers.md](prompt-litellm-consumers.md) |
 | **HD-1122** | flip `ai_tier_metrics_publish: true` and converge `--tags docker_services,monitoring` — ONE change that recreates two serving containers, so not at night | **oldsrv** | [prompt-observability-alerting.md](prompt-observability-alerting.md) |
-| **HD-1164** | an `intel_iommu=off` experiment plus a memory test on the Gen8; restore line `systemctl start alloy`, the unit stays stopped until then | **nas** (HP Gen8) | [prompt-observability-alerting.md](prompt-observability-alerting.md) |
 | **HD-1088** | register oldsrv's public key on the live Box — port 23 is key-auth-only, there is no other way in; then `storage_push_music.enabled: true`, converge `--tags storage --limit oldsrv.kogler.si`, `systemctl start push-music.service` once | **oldsrv** | [prompt-media-arrs.md](prompt-media-arrs.md) |
 | **HD-1091** | rotate `lidarr_api` — the order is forced: mint → Lidarr's own `config.xml` → restart lidarr → re-render soularr's `config.ini` → re-point Seerr | **oldsrv** | [prompt-media-arrs.md](prompt-media-arrs.md) |
 | **HD-1093** | land the rotated family SMB passwords with `storage_samba_password_force` — a vault rotate alone changes nothing on the box | **nas** | [prompt-storage-backup.md](prompt-storage-backup.md) |
