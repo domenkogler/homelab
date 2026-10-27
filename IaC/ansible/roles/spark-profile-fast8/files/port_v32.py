@@ -226,6 +226,91 @@ ANCHORS: list[tuple[str, str, str, int, str]] = [
         "same file :121-124; the day-0 replacement text would re-derive the value the base already resolved, so the new side is the base's own line plus this note",
     ),
 
+
+# patch_verify_topk_pivot.py -- Dockerfile.v32 step 17. Three anchors moved, all of them
+# readable at the base: topk_topp_sampler.py:466 dropped the 'logits.shape[0] >= 8'
+# heuristic and now returns to Triton for every shape (:469-470 also gained
+# allow_cpu_sync), sampler.py:234-236 gained seq_lens_upper_bound_np between
+# expanded_local_pos and skip_top_k_top_p, and rejection_sampler.py:265 passes it too.
+# The base therefore already takes the Triton path L5a existed to force.
+    (
+        "src/patch_verify_topk_pivot.py",
+        (
+        '    if HAS_TRITON and logits.shape[0] >= 8:\n' +
+        '        return apply_top_k_top_p_triton(logits, k, p)\n' +
+        ''
+    ),
+        (
+        '    if HAS_TRITON:\n' +
+        '        return apply_top_k_top_p_triton(logits, k, p)\n' +
+        ''
+    ),
+        2,
+        "vllm/v1/sample/ops/topk_topp_sampler.py:466 -- the >= 8 batch heuristic is gone; the base returns to Triton for every shape, so L5a's verify-path branch is plumbing on top of an already-Triton path. 2 = the patcher's old side and its new side",
+    ),
+    (
+        "src/patch_verify_topk_pivot.py",
+        (
+        '    # Use pytorch sort implementation for small batch sizes.\n' +
+        '    return apply_top_k_top_p_pytorch(logits, k, p)'
+    ),
+        (
+        '    is_cpu = current_platform.is_cpu()\n' +
+        '    return apply_top_k_top_p_pytorch(logits, k, p, allow_cpu_sync=is_cpu)'
+    ),
+        2,
+        "vllm/v1/sample/ops/topk_topp_sampler.py:469-470 -- the pytorch fallback now takes allow_cpu_sync; 2 = the patcher's old side and its new side",
+    ),
+    (
+        "src/patch_verify_topk_pivot.py",
+        (
+        '        expanded_local_pos: torch.Tensor,\n' +
+        '        skip_top_k_top_p: bool = False,'
+    ),
+        (
+        '        expanded_local_pos: torch.Tensor,\n' +
+        '        seq_lens_upper_bound_np: np.ndarray,\n' +
+        '        skip_top_k_top_p: bool = False,'
+    ),
+        2,
+        "vllm/v1/worker/gpu/sample/sampler.py:234-236 -- apply_sampling_params gained seq_lens_upper_bound_np between expanded_local_pos and skip_top_k_top_p; 2 = both sides",
+    ),
+    (
+        "src/patch_verify_topk_pivot.py",
+        (
+        '            expanded_local_pos,\n' +
+        '        )'
+    ),
+        (
+        '            expanded_local_pos,\n' +
+        '            seq_lens_upper_bound_np,\n' +
+        '        )'
+    ),
+        1,
+        "vllm/v1/worker/gpu/spec_decode/rejection_sampler.py:265-266 -- the verify call passes the new argument; this is the patcher's old side (the new side carries the L5a comment)",
+    ),
+    (
+        "src/patch_verify_topk_pivot.py",
+        (
+        '            expanded_local_pos,\n' +
+        '            # L5a: ask for the sort-free pivot truncation. Honoured only when\n' +
+        '            # VLLM_VERIFY_TOPK_TRITON=1 (topk_topp_sampler.py).\n' +
+        '            prefer_triton=True,\n' +
+        '        )'
+    ),
+        (
+        '            expanded_local_pos,\n' +
+        '            seq_lens_upper_bound_np,\n' +
+        '            # L5a: ask for the sort-free pivot truncation. Honoured only when\n' +
+        '            # VLLM_VERIFY_TOPK_TRITON=1 (topk_topp_sampler.py).\n' +
+        '            prefer_triton=True,\n' +
+        '        )\n' +
+        ''
+    ),
+        1,
+        "same call site: the new side must build the base's argument list plus prefer_triton",
+    ),
+
 ]
 
 # Removed from the staged tree, with the reason each one is dangerous in a v32 build directory.
