@@ -311,6 +311,206 @@ ANCHORS: list[tuple[str, str, str, int, str]] = [
         "same call site: the new side must build the base's argument list plus prefer_triton",
     ),
 
+
+# patch_block_drop.py -- Dockerfile.v32 step 18. Upstream merged vllm#53388 into this
+# base, so most of R8 is already there: disable_eagle_block_drop at
+# config/speculative.py:452, use_eagle_block_drop() at :1950-1952, and the
+# use_eagle_block_drop call sites in sched/scheduler.py, v1/core/kv_cache_utils.py,
+# v1/simple_kv_offload/manager.py and the offloading connector scheduler -- which the
+# patcher's own sentinels already skip. What is owed is the env disjunct, plus two
+# re-reads: the sliding-window precondition (single_type_kv_cache_manager.py:973-975)
+# and the Mooncake worker, where no use_eagle call site exists at all.
+    (
+        "src/patch_block_drop.py",
+        (
+        '            (\n' +
+        '                """    use_local_argmax_reduction: bool = False\n' +
+        '    \\"\\"\\"Use vocab-parallel local argmax instead of all-gathering full logits\n' +
+        '""",\n' +
+        '                """    disable_eagle_block_drop: bool = False\n' +
+        '    \\"\\"\\"Disable dropping the trailing prefix-cache block for EAGLE-like\n' +
+        '    speculative methods. This is an experimental option for measuring the\n' +
+        '    acceptance-rate impact of reusing that block. It does not disable the\n' +
+        '    speculative drafter itself.\\"\\"\\"\n' +
+        '    use_local_argmax_reduction: bool = False\n' +
+        '    \\"\\"\\"Use vocab-parallel local argmax instead of all-gathering full logits\n' +
+        '""",\n' +
+        '            ),'
+    ),
+        (
+        '            (\n' +
+        '                """    disable_eagle_block_drop: bool = False\n' +
+        '""",\n' +
+        '                """    disable_eagle_block_drop: bool = False  # spark-v32: the field\n' +
+        '    # is upstream at this base (config/speculative.py:452); this patch owes only the\n' +
+        '    # env disjunct in use_eagle_block_drop() below, never the field.\n' +
+        '""",\n' +
+        '            ),'
+    ),
+        1,
+        "vllm/config/speculative.py:452 -- disable_eagle_block_drop already ships at this base, so the pair is a post-state guard on that field instead of an insertion",
+    ),
+    (
+        "src/patch_block_drop.py",
+        (
+        '            (\n' +
+        '                """        return self.method in ("eagle", "eagle3", "mtp", "dflash", "dspark")\n' +
+        '\n' +
+        '    def use_dflash(self) -> bool:\n' +
+        '""",\n' +
+        '                """        return self.method in ("eagle", "eagle3", "mtp", "dflash", "dspark")\n' +
+        '\n' +
+        '    def use_eagle_block_drop(self) -> bool:\n' +
+        '        \\"\\"\\"Whether volatile trailing cache blocks should be discarded.\\"\\"\\"\n' +
+        '        # Upstream vllm#53388 is exactly:\n' +
+        '        #     return self.use_eagle() and not self.disable_eagle_block_drop\n' +
+        '        # The `or _KEEP_DRAFT_BLOCKS` disjunct is ours: it lets the harness gate\n' +
+        '        # the arm on an env name instead of a sixth --speculative-config key.\n' +
+        '        # With VLLM_KEEP_DRAFT_BLOCKS unset it is False and this is upstream.\n' +
+        '        return self.use_eagle() and not (\n' +
+        '            self.disable_eagle_block_drop or _KEEP_DRAFT_BLOCKS\n' +
+        '        )\n' +
+        '\n' +
+        '    def use_dflash(self) -> bool:\n' +
+        '""",\n' +
+        '            ),'
+    ),
+        (
+        '            (\n' +
+        '                """        return self.use_eagle() and not self.disable_eagle_block_drop\n' +
+        '\n' +
+        '    def use_dflash(self) -> bool:\n' +
+        '""",\n' +
+        '                """        # spark-v32 re-anchor: upstream merged vllm#53388 at this base\n' +
+        '        # (use_eagle_block_drop() at config/speculative.py:1950-1952), so only the\n' +
+        '        # env disjunct is owed here.\n' +
+        '        return self.use_eagle() and not (\n' +
+        '            self.disable_eagle_block_drop or _KEEP_DRAFT_BLOCKS\n' +
+        '        )\n' +
+        '\n' +
+        '    def use_dflash(self) -> bool:\n' +
+        '""",\n' +
+        '            ),'
+    ),
+        1,
+        "vllm/config/speculative.py:1948-1954 -- the method exists, the day-0 insertion site (`use_dflash` adjacency) moved; the predicate line is the anchor",
+    ),
+    (
+        "src/patch_block_drop.py",
+        (
+        '            (\n' +
+        '                """        # Fine-grained partial hits are not supported for sliding window now\n' +
+        '        assert alignment_tokens % kv_cache_spec.block_size == 0, (\n' +
+        '            "SlidingWindowManager does not support fine-grained (partial) cache hits"\n' +
+        '        )\n' +
+        '""",\n' +
+        '                """        # R8 (vllm#53388). Upstream DELETES this precondition outright, with the\n' +
+        '        # comment "Sliding-window cache hits must stay at the group\'s physical\n' +
+        '        # block granularity. resolve_block_hashes() converts finer-grained\n' +
+        '        # hashes to that view when the hybrid-cache alignment is smaller than\n' +
+        '        # block_size." We keep it whenever the knob is off, so that with\n' +
+        '        # VLLM_KEEP_DRAFT_BLOCKS unset this file is behaviourally identical\n' +
+        '        # rather than merely identical in practice. Inert on this model: no\n' +
+        '        # SlidingWindowSpec group is built for Qwen3.8-Flash-Next.\n' +
+        '        assert _KEEP_DRAFT_BLOCKS or alignment_tokens % kv_cache_spec.block_size == 0, (\n' +
+        '            "SlidingWindowManager does not support fine-grained (partial) cache hits"\n' +
+        '        )\n' +
+        '""",\n' +
+        '            ),'
+    ),
+        (
+        '            (\n' +
+        '                """        # Sliding-window cache hits must stay at the group\'s physical block\n' +
+        '        # granularity. resolve_block_hashes() converts finer-grained hashes to\n' +
+        '        # that view when the hybrid-cache alignment is smaller than block_size.\n' +
+        '""",\n' +
+        '                """        # Sliding-window cache hits must stay at the group\'s physical block\n' +
+        '        # granularity. resolve_block_hashes() converts finer-grained hashes to\n' +
+        '        # that view when the hybrid-cache alignment is smaller than block_size.\n' +
+        '        # R8 (vllm#53388): upstream DELETES the fine-grained precondition\n' +
+        '        # outright; the recipe keeps it whenever VLLM_KEEP_DRAFT_BLOCKS is unset, so\n' +
+        '        # with the knob off this file is behaviourally the day-0 file rather than\n' +
+        '        # merely identical in practice. Inert on this model: no SlidingWindowSpec\n' +
+        '        # group is built for this checkpoint.\n' +
+        '        assert _KEEP_DRAFT_BLOCKS or alignment_tokens % kv_cache_spec.block_size == 0, (\n' +
+        '            "SlidingWindowManager does not support fine-grained (partial) cache hits"\n' +
+        '        )\n' +
+        '""",\n' +
+        '            ),'
+    ),
+        1,
+        "vllm/v1/core/single_type_kv_cache_manager.py:973-975 -- the assert the day-0 patch rewrote is gone at this base and its place is upstream's comment; RESIDUAL RISK: this re-installs a precondition upstream deleted, armed only for sliding-window groups",
+    ),
+    (
+        "src/patch_block_drop.py",
+        (
+        '            (\n' +
+        '                """        use_eagle = bool(\n' +
+        '            spec_cfg.use_eagle()\n' +
+        '            if spec_cfg is not None and callable(getattr(spec_cfg, "use_eagle", None))\n' +
+        '            else False\n' +
+        '        )\n' +
+        '""",\n' +
+        '                """        # R8 (vllm#53388), verbatim. Inert here: no Mooncake connector.\n' +
+        '        use_eagle_block_drop = bool(\n' +
+        '            spec_cfg.use_eagle_block_drop()\n' +
+        '            if spec_cfg is not None\n' +
+        '            and callable(getattr(spec_cfg, "use_eagle_block_drop", None))\n' +
+        '            else False\n' +
+        '        )\n' +
+        '""",\n' +
+        '            ),'
+    ),
+        (
+        '            (\n' +
+        '                """        self.coord = MooncakeStoreCoordinator.from_kv_cache_config(\n' +
+        '            kv_cache_config, vllm_config, self.block_size, self.hash_block_size\n' +
+        '        )\n' +
+        '""",\n' +
+        '                """        # spark-v32: R8 has no use_eagle call site in this file at this\n' +
+        '        # base -- grep -F -c use_eagle over v1/mooncake/ answers 0, and the store\n' +
+        '        # coordinator takes no eagle argument (:1512). Nothing to port, so this pair\n' +
+        '        # asserts the construction line and writes it back unchanged.\n' +
+        '        self.coord = MooncakeStoreCoordinator.from_kv_cache_config(\n' +
+        '            kv_cache_config, vllm_config, self.block_size, self.hash_block_size\n' +
+        '        )\n' +
+        '""",\n' +
+        '            ),'
+    ),
+        1,
+        "vllm/distributed/kv_transfer/kv_connector/v1/mooncake/store/worker.py:1512 -- the day-0 `use_eagle = bool(...)` block does not exist at this base (BLOCKED for R8 here)",
+    ),
+    (
+        "src/patch_block_drop.py",
+        (
+        '            (\n' +
+        '                """            hash_block_size=self.hash_block_size,\n' +
+        '            use_eagle=use_eagle,\n' +
+        '            retention_interval=envs.VLLM_PREFIX_CACHE_RETENTION_INTERVAL,\n' +
+        '""",\n' +
+        '                """            hash_block_size=self.hash_block_size,\n' +
+        '            use_eagle=use_eagle_block_drop,\n' +
+        '            retention_interval=envs.VLLM_PREFIX_CACHE_RETENTION_INTERVAL,\n' +
+        '""",\n' +
+        '            ),'
+    ),
+        (
+        '            (\n' +
+        '                """                    hash_block_size=hash_block_size,\n' +
+        '                    store_layout=store_layout,\n' +
+        '""",\n' +
+        '                """                    # spark-v32: the day-0 call that carried `use_eagle=use_eagle,`\n' +
+        '                    # beside hash_block_size is gone at this base; this argument list\n' +
+        '                    # is the nearest site and is asserted, not edited.\n' +
+        '                    hash_block_size=hash_block_size,\n' +
+        '                    store_layout=store_layout,\n' +
+        '""",\n' +
+        '            ),'
+    ),
+        1,
+        "vllm/.../mooncake/store/worker.py:1660-1663 (ChunkedTokenDatabase) -- the `hash_block_size=…, use_eagle=…, retention_interval=…` call is gone at this base",
+    ),
+
 ]
 
 # Removed from the staged tree, with the reason each one is dangerous in a v32 build directory.
