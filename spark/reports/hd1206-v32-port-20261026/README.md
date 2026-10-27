@@ -366,44 +366,79 @@ them detached):
 Two build attempts proved the build is a **serial oracle**: it answers one anchor per run, costs
 ~2–6 min and ~12 G of build cache each time, and the disk moves 188 G → 176 G → 164 G free. The census
 answers all of them in one read-only act inside the base image, and it is the instrument that decides
-what the remaining port work is.
+what the remaining port work is. For that claim to hold, the census has to walk the patch set the
+build walks, which is why the set is read out of `Dockerfile.v32` rather than kept beside it.
 
 `anchor_census.py` reads the staged day-0 patchers, pulls their anchors out of the source with `ast`
 (the `edit()` call arguments and the `EDITS = [(PATH, sentinel, [(old, new), …]), …]` tables), and
 counts each one against the base image's own copy of that file. Nothing is written; the patchers are
 mounted `:ro` and only `str.count` runs.
 
+**Which patchers get walked is derived, not listed.** The set comes out of `Dockerfile.v32` itself: the
+`COPY src/patch_*.py` lines stage — the destination name is remembered, so a patcher COPYed under
+another name still counts as the run it feeds — the `RUN python3 /tmp/patch_*.py` lines apply, and a
+step that names a patcher only in its prose is `guard-only`, which is step 12's shape. An integrity
+check reddens when the derived set and the staged `src/` disagree in either direction, so a patcher
+added upstream cannot be invisible to the census; `--self-test` breeds exactly that miss and requires
+the redden. The set is **13 names in step order — 12 applied, 1 guard-only** — and 12 of them are the
+day-0 patchers whose anchors are countable: `patch_mamba_guard_v32.py` is step 7's in-repo port, staged
+at the build-dir root and self-measured over its own 13 anchors (§7), not a day-0 file. A hand-kept
+table cannot say any of that, and the one this section carried held 11 names: step 14's
+`patch_low_latency_gemm_sm12x` was in no row at all, so "census clean" could not certify a build.
+
 ```bash
-# on spark, from the lineage's staged tree; the base image is the pin, never a tag
+# on spark. Stage first: the census reads the patchers this repository's port_v32.py produces, not the
+# day-0 copies an earlier build attempt left in /opt/homelab/ultrafast-v32-build/src.
+python3 port_v32.py --checkout /opt/homelab/ultrafast-src/recipe/build/image \
+    --stage /tmp/hd1206-census/stage                    # 23 anchors verified, the checkout untouched
+# The base sits in spark's store by DIGEST only: the tag form of the pin does not resolve under
+# --network none, so the reference below is the digest half of spark_vllm_v32_base_image.
 docker run --rm --network none --memory 2g \
-    -v $PWD/anchor_census.py:/census.py:ro -v /opt/homelab/ultrafast-v32-build/src:/src:ro \
-    --entrypoint python3 vllm/vllm-openai:v0.32.0-aarch64@sha256:6ff5ff0ddf36… /census.py /src
+    -v $PWD/anchor_census.py:/census.py:ro \
+    -v /tmp/hd1206-census/stage/src:/src:ro \
+    -v IaC/ansible/roles/spark-profile-fast8/files/Dockerfile.v32:/Dockerfile:ro \
+    --entrypoint python3 vllm/vllm-openai@sha256:6ff5ff0ddf36… /census.py /src
 ```
 
-| patcher | anchors | hold | already there | absent | reading the census |
-|---|---|---|---|---|---|
-| `patch_block_drop` | 16 | 3 | 1 | 12 | stops the build |
-| `patch_hit_debug` | 6 | 4 | 0 | 0 | stops the build — see the per-file note below: 2 of its 5 target files have no day-0 logger line |
-| `patch_in_proj_ba_gemv` | 4 | 3 | 0 | 0 | every anchor holds; applies as written |
-| `patch_mamba_align_split` | 2 | 1 | 0 | 1 | stops the build |
-| `patch_measure_draft_mass` | 6 | 2 | 0 | 3 | stops the build |
-| `patch_never_evict` | 15 | 12 | 0 | 1 | **re-anchor** — the drop in `f42638e2` is reversed by the §7b ruling; the dial stays rejected and empty |
-| `patch_ple_rendezvous` | 10 | 0 | 0 | 10 | stops the build |
-| `patch_r7_logger` | 5 | 0 | 0 | 4 | stops the build |
-| `patch_short_conv_async_h2d` | 16 | 5 | 0 | 11 | applies nothing, guards the post-state — the base already does it (§7b rule 1) |
-| `patch_step_profile` | 1 | 0 | 0 | 1 | stops the build |
-| `patch_verify_topk_pivot` | 6 | 3 | 0 | 3 | stops the build |
+| step | patcher, as the Dockerfile names it | anchors | hold | already there | absent | not unique | disposition |
+|---|---|---|---|---|---|---|---|
+| 5 | `patch_never_evict` | 15 | 13 | 0 | 0 | 2 | **re-anchored ×1** — `port_v32.py` → `vllm/v1/core/sched/scheduler.py:342-345` (count 2 = the pair's two sides). The dial stays `""` and rejected, so this is plumbing, not a revived flag |
+| 7 | `patch_mamba_guard_v32` | — | — | — | — | — | in-repo port, 13 anchors self-measured (`files/patch_mamba_guard_v32.py`); not a day-0 file, so the census lists it and reads no rows |
+| 8–10 | `patch_hit_debug` | 7 | 4 | 0 | 0 | 3 | **introduced ×1** — the base has no module logger in `v1/core/kv_cache_coordinator.py`, so `port_v32.py` introduces one on that file's own `from vllm.v1.request import Request` (:30); the `single_type_kv_cache_manager.py` half already introduces its own |
+| 8–10 | `patch_mamba_align_split` | 2 | 2 | 0 | 0 | 0 | **re-anchored ×2** — the worker half is upstream at `v1/worker/gpu/model_states/mamba_hybrid.py:121-124`, so the pair became a post-state guard there; the scheduler half still holds at `v1/core/sched/scheduler.py:469` |
+| 8–10 | `patch_step_profile` | 1 | 0 | 0 | 1 | 0 | applies as written — append-plus-assert, no anchor the census can read; the precondition is `class GPUModelRunner` **1** and `_step_profile` **0** in `v1/worker/gpu/model_runner.py` |
+| 12 | `patch_short_conv_async_h2d` | 16 | 5 | 0 | 11 | 0 | **base already holds the post-state, guard only** — `vllm/v1/attention/backends/short_conv_attn.py:334` and `:337` are both `async_tensor_h2d(`, so the step greps instead of applying (rule 1 below) |
+| 13–17 | `patch_measure_draft_mass` | 6 | 2 | 0 | 3 | 1 | applies as written — its five named anchors (`RS_ANCHORS`/`MM_ANCHORS`) each count **1** in `v1/worker/gpu/spec_decode/rejection_sampler.py` and `model_executor/layers/fused_moe/experts/marlin_moe.py`; its 3 `absent` rows are `MODULE_SRC` prose of the module it installs, not base anchors |
+| 13–17 | `patch_low_latency_gemm_sm12x` | 13 | 2 | 0 | 8 | 3 | **R3 — awaiting owner ruling.** Only the target-path constant is re-anchored (`qwen3_8_flash_next` → `qwen4_exp`); the gate and its plumbing are a different shape at this base. Evidence and both dispositions below |
+| 13–17 | `patch_in_proj_ba_gemv` | 4 | 3 | 0 | 0 | 1 | applies as written — every base anchor holds; `qwen_gdn_linear_attn.py:454` carries the class it wraps |
+| 13–17 | `patch_ple_rendezvous` | 10 | 0 | 0 | 10 | 0 | **census blind spot, not a verdict** — its target is `${SP}/vllm_ple_mmap.py`, a file this build installs at step 1, so nothing can be counted in the base image. Read against the staged artifact instead: all 6 anchors **1** each there |
+| 13–17 | `patch_verify_topk_pivot` | 6 | 6 | 0 | 0 | 0 | **re-anchored ×5 entries** — `vllm/sample/ops/topk_topp_sampler.py:466` (the `logits.shape[0] >= 8` heuristic is gone) and `:469-470` (`allow_cpu_sync`), `v1/worker/gpu/sample/sampler.py:234-236` and `v1/worker/gpu/spec_decode/rejection_sampler.py:265-266` (`seq_lens_upper_bound_np`) |
+| 18–19 | `patch_block_drop` | 16 | 7 | 1 | 8 | 0 | **re-anchored ×5** — `config/speculative.py:452`, `:1948-1954`, `v1/core/single_type_kv_cache_manager.py:973-975`, `…/mooncake/store/worker.py:1512`, `:1660-1663`. The 8 remaining `absent` rows are day-0 pairs upstream merged instead (vllm#53388): `use_eagle_block_drop` is already read at `v1/core/sched/scheduler.py:287,316-317,333`, `v1/core/kv_cache_utils.py:2066`, `v1/simple_kv_offload/manager.py:204-211` and the offloading connector's `:232-236`, and the patcher's own sentinels skip a file that already reads it |
+| 18–19 | `patch_r7_logger` | 5 | 0 | 0 | 4 | 1 | same blind spot as step 16 — both targets (`vllm_inproj_ba_gemv.py`, `vllm_ple_mmap.py`) are files this build COPYs, not base content; `logger = init_logger(__name__)` counts **1** in the staged `vllm_inproj_ba_gemv.py` |
 
-87 anchors, 35 holding, 1 already present, 46 absent at `6ff5ff0d…`. Raw rows:
-[`raw/anchor-census-20261027.txt`](raw/anchor-census-20261027.txt).
+101 anchors, 44 holding, 1 already present, 45 absent, 11 not unique at `6ff5ff0d…`, over 12 of the 13
+derived patchers. Raw rows, commands and the self-test transcript:
+[`raw/anchor-census-derived-20261027.txt`](raw/anchor-census-derived-20261027.txt);
+[`raw/anchor-census-20261027.txt`](raw/anchor-census-20261027.txt) is the same base read with the
+earlier hand-listed 11-name set and is kept because its `patch_low_latency_gemm_sm12x` rows are the
+ones the derived census re-derives.
 
-**The one weakness to read before using a row.** Where a patcher applies the same edit through a loop
-(`for path in FILES.values(): add_gate(path)`), the census cannot resolve which file a call means and
-counts over the whole installed tree — such a row is marked `(loop-built target)` and is NOT a verdict.
-`patch_hit_debug` is that shape, so its five target files were counted by hand at the base: the day-0
-`logger = init_logger(__name__)` line is present in `kv_cache_manager.py`, `block_pool.py` and
-`sched/scheduler.py` (1 each) and **absent in `kv_cache_coordinator.py` and
-`single_type_kv_cache_manager.py` (0 each)** — the first of those is the `[14/38]` red.
+**The two weaknesses to read before using a row.** (1) Where a patcher applies the same edit through a
+loop (`for path in FILES.values(): add_gate(path)`), the census cannot resolve which file a call means
+and counts over the whole installed tree — such a row is marked `(loop-built target)` and is NOT a
+verdict. `patch_hit_debug` is that shape, so its five target files were counted by hand at the base:
+the day-0 `logger = init_logger(__name__)` line is present in `kv_cache_manager.py`, `block_pool.py`
+and `sched/scheduler.py` (1 each) and **absent in `kv_cache_coordinator.py` and
+`single_type_kv_cache_manager.py` (0 each)** — the first of those is the `[14/38]` red. (2) A patcher
+whose target is a file **this build installs** — steps 1 and 11 COPY `vllm_ple_mmap.py`,
+`vllm_inproj_ba_gemv.py`, `vllm_measure_draft_mass.py` — has nothing to count in the base image, so
+its `absent` rows say "not in the base", which is true and irrelevant; those anchors must be counted
+against the staged artifact, and the numbers above are that second read. An `absent` count is
+therefore never by itself a prediction of where the build stops: of the 45, 18 are targets this build
+writes itself or prose the patcher carries (`patch_ple_rendezvous`, `patch_r7_logger`,
+`patch_measure_draft_mass`, `patch_step_profile`), 11 are the post-state rows inside the guard-only
+step 12, 8 are the `patch_block_drop` day-0 pairs upstream merged under another name, and the last 8
+are step 14 — R3, the one open question left.
 
 ### The disposition rule the census feeds — RULED (owner, 2026-10-27): **port everything, drop nothing**
 
