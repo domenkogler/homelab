@@ -295,11 +295,13 @@ async def _sdk_vault_id(vault: str, client) -> tuple[str, int]:
     `items.list` and `items.get_all` take a vault **ID**; a title answers
     `invalid user input: … the provided ID is not in a valid format` — the CLI accepts a name only
     because `op` resolves it first, so a name-addressed SDK read is not a cheap read, it is a broken
-    one (HD-1207, found the first time the batched route ran against the live vault). The answer comes
+    one (found the first time the batched route ran against the live vault). The answer comes
     from the SAME map the CLI legs share: `cached_vault_id` never refreshes, so a warm seat pays
-    NOTHING for it; a cold map pays ONE `vaults.list`, and the returned count carries it, because
-    the quota proof in docs/1password.md reads that number."""
-    from vault_env import cached_vault_id
+    NOTHING for it; a cold map pays ONE `vaults.list` and pins the answer so the NEXT run is free
+    (an unpinned resolution is a request bought every single run — measured on a seat whose `op`
+    never warmed the map: 2 per name list, 5 per value read, forever), and the count carries the
+    one it did spend, because the quota proof in docs/1password.md reads that number."""
+    from vault_env import cached_vault_id, record_vault_id
     vid = cached_vault_id(vault)
     if vid:
         return vid, 0
@@ -309,6 +311,7 @@ async def _sdk_vault_id(vault: str, client) -> tuple[str, int]:
         raise Boundary(f"the SDK's vault list has no vault titled {vault!r} — a name the account does "
                        f"not answer is not a fleet; `bash scripts/lib/vault-env.sh --map {vault}` "
                        "warms the ID map the CLI legs share")
+    record_vault_id(vault, found)    # pin it WITHOUT the `op item list` map_refresh would cost
     return found, 1
 
 
@@ -1037,7 +1040,8 @@ def self_test() -> int:
             "class _Vaults:\n"
             "    async def list(s):\n"
             "        CALLS.append('vaults.list')\n"
-            "        return [_V('vaultid', 'V'), _V('vaultid2' + 'b' * 17, 'V2')]\n"
+            "        return [_V('vaultid', 'V'), _V('vaultid2' + 'b' * 17, 'V2'),\n"
+            "                _V('vaultid3' + 'c' * 17, 'V3')]\n"
             "class Client:\n"
             "    items = _Items()\n"
             "    vaults = _Vaults()\n"
@@ -1118,7 +1122,7 @@ def self_test() -> int:
         # (6d) THE VAULT ADDRESS. `items.list`/`items.get_all` take a vault ID and answer a TITLE with
         # `invalid user input: … the provided ID is not in a valid format`; `op` hides that by
         # resolving names, the SDK does not. This is the arm that would have caught the first live
-        # batched read failing on every seat at once (HD-1207), so it asserts the ADDRESS, not a count.
+        # batched read failing on every seat at once, so it asserts the ADDRESS, not a count.
         tok6d = os.environ.get("OP_SERVICE_ACCOUNT_TOKEN")
         os.environ["OP_SERVICE_ACCOUNT_TOKEN"] = "x" * 48     # stub auth only; these arms read no vault
         try:
@@ -1147,6 +1151,38 @@ def self_test() -> int:
                 ok6e, detail6e = False, f"{type(exc).__name__}: {str(exc)[:140]}"
             check("a cold ID map costs the SDK route ONE vaults.list, and says so in the count",
                   ok6e, detail6e)
+
+            # (6e2) …and it is a ONE-Time cost: the resolution is PINNED into the same map the CLI
+            # legs read, written without `map_refresh()` (which would buy the `op item list` this
+            # route exists to avoid). Unpinned, a seat whose map `op` never warmed pays the
+            # resolution on every run — 2 per name list and 5 per value read, forever (measured on
+            # oldsrv). An existing map's item rows must survive the pin: a header rewrite that drops
+            # them silently turns every later `read_item` into a 3-read NAME address.
+            try:
+                _op2.CALLS.clear()
+                _p_e, _p_r, _p_errs = _names_sdk("V2")
+                pinned = (tdp / "state" / "op-map-V2.tsv").read_text(encoding="utf-8")
+                ok6e2 = (_p_r == 1 and "vaults.list" not in _op2.CALLS
+                         and "vaultid2" in pinned.splitlines()[0])
+                detail6e2 = f"requests {_p_r} calls {_op2.CALLS} map {pinned.splitlines()[:1]}"
+            except Exception as exc:
+                ok6e2, detail6e2 = False, f"{type(exc).__name__}: {str(exc)[:140]}"
+            check("the resolved vault ID is pinned, so the NEXT read is one request again", ok6e2,
+                  detail6e2)
+
+            # (6e3) pinning a map that already carries item rows keeps the rows.
+            try:
+                (tdp / "state" / "op-map-V3.tsv").write_text(
+                    "# vault_id=\nitem_7\t" + "z" * 26 + "\n", encoding="utf-8")
+                _q_e, _q_r, _q_errs = _names_sdk("V3")
+                kept = (tdp / "state" / "op-map-V3.tsv").read_text(encoding="utf-8")
+                ok6e3 = (_q_r == 2 and "vaultid3" in kept.splitlines()[0]
+                         and ("z" * 26) in kept)
+                detail6e3 = f"requests {_q_r} map {kept!r}"
+            except Exception as exc:
+                ok6e3, detail6e3 = False, f"{type(exc).__name__}: {str(exc)[:140]}"
+            check("pinning an existing map rewrites its header line and keeps its item rows", ok6e3,
+                  detail6e3)
 
             # (6f) and a vault the account does not answer is a Boundary that names the remedy — never
             # an empty fleet, and never a guessed ID.

@@ -99,7 +99,7 @@ failure looks like `Too many requests. Your client has been rate-limited. Try ag
 with the seconds blank, because the CLI has no retry-after for this class.
 
 **The whole-vault read is ONE batched read that the legs share**
-([`../scripts/lib/vault_read.py`](../scripts/lib/vault_read.py), HD-1207): where the Server SDK is
+([`../scripts/lib/vault_read.py`](../scripts/lib/vault_read.py)): where the Server SDK is
 importable it answers `items.list` once plus `items.get_all` in 50-ID chunks — single-digit requests
 for the vault's ~143 items — and where it is not, the same reader runs a clearly labelled
 `op item get` FALLBACK costing 1 list + 1 read per item (~1 + N requests). Every leg prints its
@@ -116,7 +116,9 @@ case and the bucket as the fact.
 **A vault NAME is not a valid SDK address.** `items.list` / `items.get_all` take a vault **ID** and
 answer a title with `invalid user input: … the provided ID is not in a valid format`; `op` hides that
 by resolving names, the SDK does not. The SDK route therefore asks the same ID map the CLI legs use
-(warm ⇒ free, cold ⇒ ONE `vaults.list`, counted in the printed `requests=`), and a vault the account
+(warm ⇒ free, cold ⇒ ONE `vaults.list`, counted in the printed `requests=` **and pinned in the map so
+the next run is free again** — an unpinned resolution is a request bought on every run, which is what a
+seat whose map `op` never warmed measured: 2 per name list, 5 per value read), and a vault the account
 does not answer is a boundary that names `vault-env.sh --map`, never an empty fleet.
 
 A leg that needs the vault's **names and versions only** — the catalog check's HAVE-list — asks the

@@ -116,6 +116,35 @@ def map_refresh(vault: str) -> tuple[bool, str]:
     return True, vid or "written"
 
 
+def record_vault_id(vault: str, vid: str) -> bool:
+    """Pin a resolved vault ID into the map, KEEPING the item rows it already knows.
+
+    The SDK route resolves the ID itself (one `vaults.list`) and has to be able to say so without
+    buying an `op item list` to remember it — `map_refresh()` is the `op` path and would cost the
+    read this exists to avoid, so a seat whose map was never warmed by `op` would pay the resolution
+    on EVERY run (measured on oldsrv: 2 requests for a name list, 5 for the values, forever).
+    A map that does not exist yet gets the header line alone — an empty item map is the existing cold
+    shape (`item_ref` refreshes once), never a wrong answer, and never a wipe of a map that had rows.
+    """
+    if not vid:
+        return False
+    f = map_file(vault)
+    try:
+        body = ""
+        if f.exists():
+            body = "".join(ln + "\n" for ln in
+                           f.read_text(encoding="utf-8", errors="replace").splitlines()
+                           if not ln.startswith("# vault_id="))
+        f.parent.mkdir(parents=True, exist_ok=True)
+        tmp = f.with_name(f".op-map-{os.getpid()}.tmp")
+        tmp.write_text(f"# vault_id={vid}\n{body}", encoding="utf-8")
+        os.replace(tmp, f)
+        os.chmod(f, 0o600)
+    except OSError:
+        return False     # a map that cannot be written costs the next run the same one read it cost
+    return True
+
+
 def vault_id(vault: str) -> str | None:
     """The vault's ID when the map knows it — None means the caller keeps the NAME."""
     vid, _ = _read_map(vault)
@@ -214,7 +243,7 @@ def ensure(timeout: int = 120) -> tuple[bool, str]:
 
 
 def self_test() -> int:
-    """Offline arms: the map is read, honored, and fallen back from WITHOUT a vault read.
+    """Offline arms: the map is read, honored, pinned, and fallen back from WITHOUT a vault read.
 
     These are the arms that matter on a day the account's request budget is spent: the cheapest correct
     address has to be provable from the fixture, because tomorrow it may not be provable from the vault.
@@ -224,9 +253,12 @@ def self_test() -> int:
     import tempfile
 
     fails = 0
+    n_arms = 0        # counted, not asserted: a footer that hard-codes the arm count lies quietly the
+                      # moment anyone adds an arm
 
     def check(label: str, ok: bool, detail: str = "") -> None:
-        nonlocal fails
+        nonlocal fails, n_arms
+        n_arms += 1
         fails += 0 if ok else 1
         print(f"  arm {label}: {'ok' if ok else 'FAIL'}{(' — ' + detail) if (detail and not ok) else ''}")
 
@@ -260,6 +292,19 @@ def self_test() -> int:
         check("an unknown title keeps the NAME and says the cost out loud",
               v_arg == "Test-vault" and i_arg == "never_named" and form.startswith("names"),
               f"{v_arg} {i_arg} {form}")
+
+        # The SDK route pins a vault ID it resolved itself (`vaults.list`) — the pin cannot go
+        # through `map_refresh`, which is the `op` path and would buy the very read the batch exists
+        # to avoid. So the pin writes the header line itself, and the rows the map already knew live.
+        f.write_text("# vault_id=\nitem_one\taaaaaaaaaaaaaaaaaaaaaaaaaa\n", encoding="utf-8")
+        check("a map whose header carries no ID is a COLD map (record_vault_id is the cheap pin)",
+              cached_vault_id("Test-vault") is None)
+        record_vault_id("Test-vault", "xvh7vv7aaaaaaaaaaaaaaaaaaaaaaaaaa")
+        vid_p, items_p = _read_map("Test-vault")
+        check("record_vault_id rewrites the header and keeps the item rows, at ZERO reads",
+              vid_p == "xvh7vv7aaaaaaaaaaaaaaaaaaaaaaaaaa"
+              and items_p.get("item_one") == "aaaaaaaaaaaaaaaaaaaaaaaaaa",
+              f"vid={vid_p!r} items={items_p!r}")
 
         # The cross-face arm: the bash lib must read what python wrote. It runs against a stub `op` that
         # MARKS the call and fails, so a read is both visible and fatal — and PATH stays real, because a
@@ -300,8 +345,8 @@ def self_test() -> int:
     if fails:
         print(f"vault_env.py --self-test: FAILED — {fails} arm(s)")
         return 1
-    print("vault_env.py --self-test: OK (5 arms — the map is read, honored, fallen back from, and shared "
-          "with the bash face; none of it needed a vault read)")
+    print(f"vault_env.py --self-test: OK ({n_arms} arms — the map is read, honored, pinned without a read, "
+          "fallen back from, and shared with the bash face; none of it needed a vault read)")
     return 0
 
 
