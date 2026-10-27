@@ -128,106 +128,77 @@ case a homelab loses <24 h of DB changes, acceptable.
   configured datasets. A green `failed=0` converge says nothing about either.
 - **syncoid** replicates `tank/data/* → bulk/data/*` (incremental `zfs send | zfs recv`). Timer checks
   every 15 min, sends only when a new source snapshot exists — effectively ≈ hourly for services/db-dumps.
-  ⏳ A send that never exits freezes this leg **and** retention: sanoid prints
-  `deferring pruning of <snap> — <dataset> is currently in zfs send or receive`, so a stuck send shows
-  up as a snapshot count that grows past the configured window (`hourly = 24` holding **43 on
-  `tank/data/services` as of 2026-10-19** — measured per dataset in §Reading the activating state below; the "100" was prose)
-  as a red unit. The read that separates the two causes is
+  A send that never exits freezes this leg **and** retention: sanoid prints
+  `deferring pruning of <snap> — <dataset> is currently in zfs send or receive`, so a wedged send shows up as a
+  snapshot count growing past the configured window on a green timer (`hourly = 24` holding 43 on
+  `tank/data/services`). The read that separates the two causes is
   `sanoid --prune-snapshots --readonly --verbose` next to `systemctl status storage-syncoid.service`
-  — a leg sitting in `activating` for days has not replicated since its start time.
-- **Replica datasets take NO autosnapshots of their own.** An incremental `zfs receive -F` cannot land on a
-  target holding snapshots the stream does not contain, so "the replica keeps its own snapshot history" and
-  "the replica is a syncoid target" are mutually exclusive on one dataset — with autosnapshots on the
-  target, replication stops dead at the send's base snapshot and the failure reads as a wedged send.
-  `bulk/data/services` and `bulk/data/db-dumps` therefore sit on a template with `autosnap = no` and the
-  rollback targets of record are the **source-side** `tank/data/*` snapshots. A replica dataset that is a
-  receive target never appears in the snapshotting template; a dataset that is a push target
+  — a leg sitting in `activating` for days has not replicated since its start time. The mechanism, the reap order
+  and the proof reads: §A wedged syncoid send.
+- **A replica dataset that is a `zfs receive` target never appears in the snapshotting template.** `bulk/data/services`
+  and `bulk/data/db-dumps` sit on `replica` (`autosnap: "no"`, `autoprune: "yes"`, every tier 0), and the rollback
+  targets of record are the **source-side** `tank/data/*` snapshots — the replicas are not themselves a rollback
+  target. What breaks the leg is a destination holding snapshots **the stream does not contain**: §A wedged syncoid
+  send covers why `zfs send -I` ships the source's intermediate `@autosnap_*` set (so the replica mirrors it, and
+  that is correct) and why an invented local set is not. A dataset that is a **push** target
   (`bulk/data/immich-thumbs`) keeps its own cadence, because nothing receives into it.
 - `bulk/data/immich-thumbs` and `bulk/media` are **push targets** — no syncoid definition.
 - Managed by **systemd timers** (`sanoid.timer`, `storage-syncoid.timer`) — journaling, randomized
   schedules, failure tracking. Not raw cron.
 
-### Reading the activating state — sanoid and syncoid, measured 2026-10-19 (read-only)
+### A wedged syncoid send — the mechanism, the reap, the proof reads
 
-Two causes were on the row: sanoid's retention, and a stuck `zfs receive`. **Neither explains the state on
-the box tonight.** The reads, in the order that settles it:
+`storage-syncoid.service` is a `Type=oneshot` whose `ExecStart` loops over `storage_replication`, and each `syncoid`
+call builds `zfs send -I … | mbuffer | pv … | zfs receive -s -F …` inside an `sh -c`. Three properties of that shape
+make a failed send permanent:
 
-| Read | Value |
-|---|---|
-| `systemctl cat sanoid.service` | `Type=oneshot`, `ExecStart=/usr/sbin/sanoid --cron` — the path the role generates |
-| `systemctl show sanoid.service -p Result,ExecMainStatus` | `Result=success`, `ExecMainStatus=0`, last fire `2026-10-19 01:25:00`, `sanoid.timer` next fire 01:30 — a 5-minute cadence that is a prune/snapshot check, as this section says |
-| `zfs list -t snapshot -o name \| grep -c _hourly$` | **134** policy snapshots, and the per-dataset counts are the honest ones: `tank/data/services` **43**, `tank/data/db-dumps` **24** (at window), and the same on the two `bulk/data/*` replicas — at that read `sanoid.conf` gave `bulk/data/services` and `bulk/data/db-dumps` a snapshotting template, which is the condition the "replica datasets take NO autosnapshots" bullet above rules out |
-| `systemctl show storage-syncoid.service` | `activating (start)` since **2026-10-18 06:45:04** (18 h 43 min at read time), `NRestarts=0`, `Job=3164`, `JobTimeoutUSec=infinity` — nothing will ever time this out |
-| `systemctl status` cgroup | 5 tasks: `bash storage-syncoid.sh` → `syncoid --force-delete tank/data/services bulk/data/services` → the syncoid tee helper → `sh -c "zfs send -I tank/data/services@syncoid_nas_2026-10-08:21:00:08 tank/data/services@syncoid_nas_2026-10-18:06:45:05 \| mbuffer \| pv -p -t -e -r -b -s 23712 \| zfs receive -s -F bulk/data/services"` → **`pv`** |
-| Is a receive running? | **No.** `zfs send`, `mbuffer` and `zfs receive` are absent from the process table and from the unit's cgroup; `zfs get receive_resume_token bulk/data/services` → empty |
-| `cat /proc/<pv>/io`, twice 6 s apart | `rchar: 4980  wchar: 0  syscr: 10  syscw: 0` — identical both times; `State: R (running)`, unit CPU `18 h 41 min` against 18 h 43 min of wall clock |
+- `zfs receive` exits non-zero and is gone, but **`pv` does not die on the EPIPE**: it sits in `R` at 100 % of one
+  core with `wchar: 0` and no completed write syscalls, and `/proc/<pv>/io` is identical across two reads.
+- `sh -c` waits for every pipeline member, so the send never returns and `syncoid` never returns; a `Type=oneshot`
+  whose main process has not exited sits in `activating (start)`, and with `JobTimeoutUSec=infinity` systemd never
+  ends it. Re-firing the timer into that unit does not help — it queues behind it.
+- sanoid's `iszfsbusy()` decides "in send or receive" by grepping `ps -Ao args=` for a `zfs send`/`zfs receive` line
+  naming the dataset. The **shell wrapper** keeps exactly that string in the process table for as long as the wedge
+  lives, so every dataset it names reads busy and every prune defers while no `zfs` process exists at all — which is
+  how a wedged send turns into a snapshot count that grows one per hour on a green timer.
 
-**The cause is the progress pipe, not the replication.** `zfs receive` exited (which is why the destination
-still reads `bulk/data/services used=140K`); `pv` was left writing into a pipe with no reader, and instead of
-dying on the EPIPE it has been spinning in `R` at 100 % of one core since 06:45 — 0 bytes written, 0 write
-syscalls completed, forever. `sh -c` waits for every pipeline member, so it never returns; `syncoid` never
-returns; a `Type=oneshot` unit whose main process has not exited sits in `activating (start)` — and with
-`JobTimeoutUSec=infinity` systemd will never end it. The row's "stuck `zfs receive`" and "sanoid defers
-pruning" are both descriptions of a different night: what must be reaped is a **wedged `pv`**, and killing it
-kills the whole unit's process tree.
+The wedge bills a core continuously, and the cost is readable without guessing: `awk '{print ($14+$15)/100}'
+/proc/<pv>/stat` for CPU seconds while it runs, and systemd's own `… : Consumed … CPU time` line at the stop.
 
-The stream itself was never the problem: `pv -s 23712` says the incremental send was **23 KB**. Eight
-`syncoid_*` snapshots exist, three of them on 2026-10-18 at 06:26 / 06:30 / 06:45 — the 15-minute timer
-(`Persistent=true`) firing new attempts into a unit that had not finished, and `zfs list` shows the newest
-`@autosnap_*_hourly` on **both** pools at 01:00, so snapshots kept running the whole time.
+**The reason a receive fails is the destination's snapshot set, not the stream.** `zfs send -I` (capital `I`) is not
+a plain incremental — `zfs send --help`: "Generate a stream package that sends all intermediary snapshots from the
+first snapshot to the second". The replica therefore receives the source's `@autosnap_*` set *as part of the stream*,
+so the invariant is **the destination's snapshot set equals the stream's**, not "the replica holds no autosnapshots".
+A destination that invented snapshots of its own — by sitting on a snapshotting template — holds names the stream
+does not contain, `zfs receive -F` answers `cannot restore to <ds>@<snap>: destination already exists`, and every
+re-fire of the 15-minute timer re-wedges in seconds. On the `replica` template the destination invents nothing, the
+set arrives with the stream, and the receive lands; the replica's own `@autosnap_*` count is then a mirror of the
+source's and proves nothing on its own — read set equality instead.
 
-```bash
-# the reads above, in one pass (read-only)
-ssh nas 'systemctl show storage-syncoid.service -p ActiveState,SubState,ExecMainStartTimestamp,NRestarts,Job'
-ssh nas 'systemctl show sanoid.service -p Result,ExecMainStatus,ExecMainStartTimestamp'
-ssh nas 'sudo -n ps -o pid,ppid,stat,cmd -p $(systemctl show -p MainPID --value storage-syncoid.service)'
-ssh nas 'sudo -n cat /proc/$(pgrep -f "pv -p -t -e -r -b")/io'      # unchanged across two reads = wedged
-ssh nas 'zfs list -t snapshot -o name -s creation | grep "_hourly$" | awk -F"@" "{print \$1}" | sort | uniq -c'
-```
+**Fix order (the retag is the fix, the reap is the unlock).** ⛔ Never a bulk `zfs destroy` of replica snapshots:
+sanoid's own age-ordered pruning is the retirement path ([storage-rejected.md](storage-rejected.md)).
 
-### The reap was run — and it re-wedges in one second (measured 2026-10-19, owner-authorised)
+1. Retag `bulk/data/*` onto `replica` in `storage_sanoid` (`autosnap: "no"`, `autoprune: "yes"`, every tier 0) and
+   converge `--tags storage` — this changes the config without touching the wedged process.
+2. `systemctl stop storage-syncoid.timer` **first**, then `systemctl stop storage-syncoid.service`: stopping the unit
+   while its timer is active re-fires it in the same second. The stop kills the whole cgroup, wrapper included, which
+   is the state `iszfsbusy()` has to see; then `systemctl reset-failed`.
+3. Let sanoid retire the destination's invented history — `sanoid --prune-snapshots --verbose`, or the next 5-minute
+   `sanoid.timer` fire, which prunes once the wrapper is gone.
+4. `systemctl start storage-syncoid.service` once, read it return, then re-arm the timer.
 
-`systemctl stop storage-syncoid.service` does exactly what it says: the tree dies (`Main process exited,
-code=killed, status=15/TERM`, `Consumed 1d 6h 13min CPU`). Stopping a unit whose `.timer` is still active also
-re-triggers it in the same second, so the re-fire arrived immediately, sent ~42 KB, and the receiver answered:
+| Read | What it answers | Trap on this build |
+|---|---|---|
+| `systemctl show storage-syncoid.service -p ActiveState,SubState,Result,ExecMainStartTimestamp,ExecMainExitTimestamp` | a cycle that **completes**: `inactive/dead`, `Result=success`, both timestamps set — a `failed=0` converge proves neither | `activating` is the wedge; `activating` a few seconds after a fire is just a running send |
+| `pgrep -af "pv -p\|sh -c zfs send"` | the wedge itself | a healthy box prints nothing; your own `sudo -n …` probe line matches `sh -c`, so read the argv |
+| source vs replica snapshot-name sets, compared with `comm` | the invariant above — **set equality** is the proof | `sanoid --print-config` is not an option in this build and `changeobj` is not a property in this OpenZFS — both failures are instrument bugs, not findings |
+| `sanoid --prune-snapshots --readonly --verbose \| grep -c deferring` | retention unblocked (0) or the wrapper still alive (≥1) | `--readonly` makes the pass a dry run — with it you are reading, not pruning |
+| `zfs get -H -o value receive_resume_token <target>` | a half-finished resumable receive (a token) vs none | empty is the healthy state here |
 
-```
-cannot restore to bulk/data/services@autosnap_2026-10-08_21:05:07_monthly: destination already exists
-```
-
-…twice, identically, after which `pv` was wedged in `R` again (state `R`, 100 % of a core, 0 bytes written).
-**So the wedge is not a one-off accident of one night — it is the failure path of this pipeline**: a `zfs
-receive` that exits non-zero leaves `pv` spinning, `sh -c` waits for every pipeline member, `syncoid` never
-returns, and a `Type=oneshot` with `JobTimeoutUSec=infinity` sits in `activating` until someone reaps it.
-
-And the receive has a real reason to fail, which is the part this section used to get wrong. **`zfs send -I` is
-incremental from `tank/data/services@syncoid_nas_2026-10-08:21:00:08`; 66 snapshots on the destination are newer
-than that base and every one of them is a sanoid `@autosnap_*` the replica took for itself** — at that read
-`bulk/data/services` sat on a snapshotting template. An incremental `-F` receive cannot land on a target
-that holds snapshots the stream does not contain. "The replica retains independent snapshot history" and "the
-replica is a syncoid target" are therefore **mutually exclusive on this dataset**, and the honest reading of the
-counts is that this leg has replicated nothing since the base snapshot: 2026-10-08 21:00.
-
-The same collision is why the snapshot counts do not fall after the reap. `sanoid`'s `iszfsbusy()` decides whether
-a dataset is "in zfs send or receive" by grepping `ps -Ao args=` for a `zfs send`/`zfs receive` line naming it — and
-the wedged pipeline's **shell wrapper** (`sh -c "zfs send … | mbuffer | pv … | zfs receive …"`) stays in the process
-table for as long as the wedge does. So both datasets read busy, and pruning defers, while no `zfs` process exists.
-Clear the wedge and the next `sanoid.timer` fire prunes on its own; leave it and the count grows by one snapshot an
-hour. Proof reads:
-
-```bash
-ssh nas 'systemctl show storage-syncoid.service -p ActiveState,SubState,ExecMainStartTimestamp --timestamp=utc'
-ssh nas 'sudo -n journalctl -u storage-syncoid.service --since "-20min" | grep -E "cannot restore|Sending"'
-ssh nas 'zfs list -t snapshot -H -o name,createtxg bulk/data/services | awk -v b=$(zfs get -H -o value createtxg bulk/data/services@syncoid_nas_2026-10-08:21:00:08-GMT02:00) "$2 > b" | wc -l'   # 66
-ssh nas 'sudo -n /usr/sbin/sanoid --prune-snapshots --readonly --verbose | grep -c deferring'
-```
-
-⛔ **The fix is the template, never the destroy.** The replica datasets leave the snapshotting template, which
-retires the destination's post-base `@autosnap_*` history through retention instead of an ad-hoc `zfs destroy`
-of 66 snapshots — a hand-destroy is unrecoverable and is what this section exists to keep out of the night, while
-pruning is sanoid's own, age-ordered, audited path. `zfs receive --force`/`-u` and any destination rollback stay out
-of scope for the same reason. Clear the wedged pipeline's shell wrapper first (§The reap was run): until it is gone every
-prune defers, so the retag appears to do nothing.
+✅ **Live-verified 2026-10-27 on `nas`** — `use_template = replica` on both `bulk/data/*`, `deferring` reads **0**,
+source and replica name sets are equal (38 = 38, `comm` empty), and a **timer**-driven cycle returns
+`inactive` / `Result=success` in ~5 s with no wedged `pv`; the reaped wedge's own bill was
+`Consumed 1w 1d 8h 59min CPU` for one spinlocked `pv`.
 
 ---
 
