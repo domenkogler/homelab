@@ -114,37 +114,37 @@ not this list, holds the steps, the file ownership and the converge host. Waves,
    upstream any more** — the fp8 main-KV merge ships in vLLM `v0.31.0`/`v0.32.0`, so it waits on the ref choice
    + the re-cert it costs. **HD-380 needs no external model** — it is a `/metrics` read. Gate 7, B10's 6/8/9,
    B9 · B5 · B8 are closed — do not re-run.
-   ⏳ **HD-1206 — the v0.32 lineage is authored and its patch set is re-anchored; what is left is ONE build, gated on R3.**
-   `roles/spark-profile-fast8` (on a lineage-as-data `spark-ultrafast-build` body: per-lineage pin/tag/commit, a
-   `git status --porcelain -uno` dirty-checkout assert, `port_v32.py` + `patch_mamba_guard_v32.py` as the in-repo patch
-   set) is in `main`, and `spark_vllm_ultrafast_v32_image` is still EMPTY — that empty value IS what refuses `fast8`.
-   The v0.32 base (`6ff5ff0ddf36`, arm64, 35.3 GB on disk, 164 G free on spark) is **already in the store**, and every
-   base probe, the porter plan and the `mamba_utils` read are proven against it. The port is landed: the census now
-   derives its patchers from `Dockerfile.v32` itself
-   ([`spark/reports/hd1206-v32-port-20261026/README.md`](spark/reports/hd1206-v32-port-20261026/README.md) §7b — 13
-   names in step order, 101 anchors, 44 holding), and under the RULED **port everything, drop nothing** every absent
-   anchor is re-anchored in `files/port_v32.py`, including `patch_never_evict`, whose drop is reversed and whose dial
-   stays rejected and empty. One gate is left: **step 14's `patch_low_latency_gemm_sm12x` (R3), fatal by design
-   pending the owner's ruling** (§7b's R3 row: the base's plan table already carries the GB10 shapes, so subsume-or-port
-   is an owner call, not a lane's).
-   **Order:** detached `ansible-playbook IaC/ansible/playbooks/spark.yml -l spark --tags
-   spark-profile-fast8 -e spark_profile_fast8_build=true` (prints the image ID, then fails on purpose — the pin is a
-   human commit) → `python3 scripts/bench/spark-fp8-image-probe.py --image <built tag> --skip-registry` → on
-   `REACHABLE`, record the ID **and** add `ultrafast-v32` to `spark_llm_fp8_kv_capable_images` in the SAME commit (that
-   list is `[]` deliberately: a name entered before the probe ran makes every offline fp8 check green by assertion) →
-   `check_spark_llm_gate.py` · `spark-llm-render-matrix.py` · `spark-llm-probe.py matrix` → the owner-window flip, then
-   gates 0–7 and the dtype gates 8–9. ⛔ the flip and its converge need a **non-spark-served** seat (rule 0 / O11 — a model-axis
-   bar, not a host lock): the build legs were authorized from a spark-served seat, the flip was not, and the three in-image CPU gates take 8 GiB from the same unified pool the engine serves
-   from, so they belong inside the window, not beside serving. The flip is one ~20-min cold boot and it is the ONLY
-   downtime in the sequence; rollback = `spark_llm_profile: fast` + a detached converge, with `4900c13edab9…` held by
-   `spark-rollback:fast` and archived twice on the NAS (`host-images/spark/`, sha256 + `zstd -t` verified 2026-10-26).
-   ⚠ Three traps: `spark-fp8-image-probe.py` run **bare** resolves `spark_vllm_image` — the
-   BASE pin — so it hands a verdict about the wrong lineage unless you pass `--image`; `mamba_utils` uses an anchored
-   **patch** now, and its AST slot check is what stops a def/call arg skew from becoming a first-boot failure (the
-   whole-file `apply` knob is a three-layer reversion — leave it unset); and a rebuild must never retag
-   `qwen38-flash-dgx:iter6c|iter6d` — the lineage declares `reserved_tags` and re-reads them after building, so do not
-   "simplify" that away. Still unproven: Triton has never compiled the patched kernel, and no image exists yet, so
-   every artifact probe is unrun. → [prompt-spark-llm.md](prompt-spark-llm.md) (one spark slot; HD-359 · 367 ride it)
+   ⏳ **HD-1206 — the v32 lineage is BUILT, pinned and fp8-capable: what is left is the owner
+   window, not the build.
+   `spark_vllm_ultrafast_v32_image` is `sha256:72eb432fd87c…` (`spark-ultrafast:v32-iter6d`, 35.3
+   GB, 49 instructions
+   over the v0.32 base `6ff5ff0d…`) and `spark_llm_fp8_kv_capable_images` went `[]` →
+   `[ultrafast-v32]` on the probe's
+   `REACHABLE-ON-THIS-PIN`, so the refusal that made `fast8` unbootable is gone; what remains is
+   `certified: false`.
+   **R3 was ruled A+**: step 14 applies NOTHING and guards the base's plan table — GB10 reports
+   compute capability
+   `12.1`, the day-0 predicate was `(10,3)`, so `fast` has always taken the `F.linear` fallback
+   there while the v32
+   base runs the plan path — the sanctioned shape (guard-only, effect present), and the **runtime
+   dispatch check is
+   owed inside the window**. **Order, each detached and each from a seat spark does not serve:**
+   (1) the dispatch
+   check; (2) `fast-v32-bf16` — `fast`'s coordinates on the same artifact, 644,599 slots = the
+   same 2.46×, a pure
+   base-lineage control that must print `fast`'s slot line; (3) `fast8` fp8 KV after gates 0–7,
+   then dtype gates 8–9.
+   **The flip needs a seat spark does not serve** (rule 0 / O11): a model served by the engine
+   cannot hold the one
+   lever that stops it, so a spark-served seat may build and probe but must stop at the dial.
+   Rollback is one
+   `-e spark_llm_profile=fast` plus a detached converge, with `spark-rollback:fast` =
+   `4900c13edab9…` held locally
+   and archived twice on the NAS. ⚠ the play still aborts one leg after printing the ID, on
+   **day-0-shaped CPU self-tests** — their red is not a verdict on the patch set and their green would not be one
+   either, so read the artifact markers, not the CPU gates; re-anchoring them onto v32 bytes is its own row, minted
+   at this merge. Never retag `qwen38-flash-dgx:iter6c|iter6d`; never prune the build cache.
+   → [prompt-spark-llm.md](prompt-spark-llm.md) (one spark slot; HD-473 rides it)
 2. ⏳ **The transport / answer plane** — **HD-436** owes ONLY the live half: the two converges in the parked table
    below, both still PARKED. **HD-477** — make the resolver actually float with the VIP; the row carries the three
    gates. **HD-487** — config-manager truth is DECLARED per host in `host_vars/<host>.yml`, held by
