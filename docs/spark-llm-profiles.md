@@ -214,7 +214,9 @@ role gaps that made a naive rebuild unsafe, and the build order are in
 **The port lives in this repository, as a lineage.** `roles/spark-profile-fast8` is that lineage: its own
 (`pin`, `tag`, upstream `commit`, patch set) driving the shared build machinery in
 `roles/spark-ultrafast-build/tasks/build_lineage.yml`, and its build definition under
-`roles/spark-profile-fast8/files/` (`Dockerfile.v32` + the `port_v32.py` porter). Four properties make a
+`roles/spark-profile-fast8/files/` (`Dockerfile.v32`, the `port_v32.py` porter, and the
+`patch_mamba_guard_v32.py` patcher that ports the day-0 mamba state-copy guard onto v0.32's own file
+instead of copying a snapshot of the day-0 one over it). Four properties make a
 rebuild safe, and each is an assert rather than a comment: the inspect/skip and the assert pair read **this
 lineage's own pin** (`spark_vllm_ultrafast_v32_image`), so the live lineage's pin can neither skip the v32
 build nor be the value the v32 artifact is asserted against; `git status --porcelain -uno` must be clean in the
@@ -227,7 +229,9 @@ and must still resolve; and because `sed -i` exits 0 when it matches nothing, wh
 the image rather than in the recipe: before the build, the base image at its digest is grepped for the anchors
 themselves — the `Qwen4Exp*` class names, their module paths, the three `sed` source constants — and after it, the
 built image is grepped for the marker each patched step leaves (`spark-fla-shmem`, `spark-fla-warps`,
-`_ple_mmap_apply(Qwen4ExpNGramEmbedding)`, `_mtp_draft_vocab_apply(Qwen4ExpMTP)`) and for the ABSENCE of the day-0
+`_ple_mmap_apply(Qwen4ExpNGramEmbedding)`, `_mtp_draft_vocab_apply(Qwen4ExpMTP)`,
+`quant_config=vllm_config.quant_config` in each of `model.py` and `mtp.py`, and `guard_hits` in
+`vllm/v1/worker/mamba_utils.py`) and for the ABSENCE of the day-0
 `Qwen3_8FlashNext` symbol in the installed `vllm_ple_mmap.py`. The porter stages out of the checkout into
 `/opt/homelab/ultrafast-v32-build` and deletes upstream's `build.sh` there, so the directory that builds v32
 is not a directory that can retag `fast`. Like the live lineage, the role is opt-in

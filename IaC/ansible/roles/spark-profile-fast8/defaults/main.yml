@@ -39,12 +39,18 @@ spark_profile_fast8_lineage:
                           # converted and the certified arms read; converting it again from this
                           # lineage would rewrite an artifact `fast` boots, for no image-level gain
 
-# The whole-file copy in upstream's Dockerfile.iter6c (src/mamba_utils_guarded.py over the image's
-# vllm/v1/worker/mamba_utils.py) is a snapshot of the DAY-0 base, and that file changed at v0.32 —
-# see Dockerfile.v32 step 7. `refuse` is the shipped value: the build stops there and prints the
-# diff command. Flipping it to `apply` is an owner act recorded in its own commit, made only after
-# the diff has been read inside the image.
-spark_profile_fast8_mamba_guard: refuse
+# The mamba state-copy guard, in step 7. Upstream's step is a WHOLE-FILE COPY of
+# src/mamba_utils_guarded.py over the image's vllm/v1/worker/mamba_utils.py; that snapshot is the
+# DAY-0 file plus the guard, and v0.32 moved under it — see Dockerfile.v32 step 7 and report §7.
+# Tri-state, and `patch` is the shipped value: it runs files/patch_mamba_guard_v32.py, which ports
+# the guard onto this base's own file with 13 anchored insertions and refuses to write unless every
+# one of them matched.
+#   patch  — the default: the guard is ported, the base keeps v0.32's own kernels and types.
+#   apply  — upstream's whole-file copy, as the escape hatch. Reverts two layers and re-types a
+#            signature against this base, so it is an owner act recorded in its own commit, never a
+#            local build flag. `spark_profile_fast8_mamba_guard: apply` is NOT set here on purpose.
+#   refuse — stop the build (so does any other value, so a typo cannot pick a side by accident).
+spark_profile_fast8_mamba_guard: patch
 
 # Read the base image BEFORE building anything. A `sed -i` that matches nothing exits 0, so the
 # anchors a build silently skips must be read where they live — inside this image, at this digest.
@@ -94,3 +100,22 @@ spark_profile_fast8_artifact_probes:
   - path: /usr/local/lib/python3.12/dist-packages/vllm/models/qwen4_exp/nvidia/mtp.py
     pattern: _mtp_draft_vocab_apply(Qwen4ExpMTP)
     evidence: Dockerfile.v32 step 11
+  # The lm_head quant-config argument is a `sed` insertion in step 6, and a `sed` that matched
+  # nothing exits 0. Step 6 counts both files separately at build time; this is the same claim read
+  # in the finished artifact, which is the only place a build-time check cannot reach. The day-0
+  # recipe's single `grep -c` over BOTH files would also pass on a patch that landed in one file
+  # only, which is why model.py and mtp.py carry their own rows rather than one shared claim.
+  - path: /usr/local/lib/python3.12/dist-packages/vllm/models/qwen4_exp/nvidia/mtp.py
+    pattern: quant_config=vllm_config.quant_config
+    evidence: vllm/models/qwen4_exp/nvidia/mtp.py:432 region (20-space indent, vllm_config in scope
+      at :421) — Dockerfile.v32 step 6
+  - path: /usr/local/lib/python3.12/dist-packages/vllm/models/qwen4_exp/nvidia/model.py
+    pattern: quant_config=vllm_config.quant_config
+    evidence: vllm/models/qwen4_exp/nvidia/model.py:740 (12-space indent, vllm_config in scope at
+      :730) — Dockerfile.v32 step 6
+  # The ported guard, read in the artifact like every other patched site: step 7's own greps run
+  # mid-build, and the invariant is what the FINISHED image contains.
+  - path: /usr/local/lib/python3.12/dist-packages/vllm/v1/worker/mamba_utils.py
+    pattern: guard_hits
+    evidence: Dockerfile.v32 step 7 / files/patch_mamba_guard_v32.py — the guard is snapshot-side
+      code, so 0 here means nothing ported it

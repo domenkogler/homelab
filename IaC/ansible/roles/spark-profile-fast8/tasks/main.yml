@@ -118,7 +118,7 @@
     group: "{{ ansible_user }}"
   tags: [spark, spark-ultrafast-build, spark-profile-fast8, llm]
 
-- name: Install this lineage's build definition and porter
+- name: Install this lineage's build definition, porter and in-repo patcher
   when: spark_profile_fast8_will_build | bool
   ansible.builtin.copy:
     src: "{{ item }}"
@@ -127,6 +127,10 @@
   loop:
     - Dockerfile.v32
     - port_v32.py
+    # The guard patcher is the one patch this lineage authors itself (the recipe supplies it only as
+    # a whole-file snapshot), so it is not part of the staged src/ and has to reach the build context
+    # the same way the Dockerfile does — a COPY of a build-directory file, not of a checkout file.
+    - patch_mamba_guard_v32.py
   tags: [spark, spark-ultrafast-build, spark-profile-fast8, llm]
 
 - name: Print the port plan for this lineage

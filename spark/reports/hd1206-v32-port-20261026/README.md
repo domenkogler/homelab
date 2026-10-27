@@ -74,7 +74,7 @@ vars, so a second lineage cannot inherit the first one's values by accident. The
 | a red that reads like a mistake instead of like "wrong artifact" | the assert pair compares the built ID with **that lineage's** pin and names the var to record (`bl_pin_var`) |
 | a rebuild **retagging the live `fast` image** | a lineage declares `reserved_tags` and the build refuses if its own tag is one of them; `port_v32.py` deletes upstream's `build.sh`/`Dockerfile.iter6c`/`Dockerfile.iter6d` from the v32 build directory (they hardcode both live tags), and after the build every reserved tag is re-read and must still resolve |
 | a **hand-edited checkout** passing `HEAD == pin` | `git status --porcelain -uno` must be clean in the checkout (`checkout_pinned.yml`) — tracked files, because those are what the build compiles and untracked residue is not — and the port is applied to a staged copy under `/opt/homelab/ultrafast-v32-build` |
-| a **`sed` that matched nothing** shipping a green build | every `sed` in `Dockerfile.v32` counts its anchor before (`test "$(grep -c …)" -eq 1`) and greps its marker after; the `Qwen4Exp*` names, their module paths and the three `sed` source constants are also grepped **inside the base image** before the build, and **inside the built image** after it the four step markers (`spark-fla-shmem`, `spark-fla-warps`, `_ple_mmap_apply(Qwen4ExpNGramEmbedding)`, `_mtp_draft_vocab_apply(Qwen4ExpMTP)`) plus the **absence** of the day-0 `Qwen3_8FlashNext` symbol in the installed `vllm_ple_mmap.py`; `port_v32.py` fails on an anchor whose occurrence count is not the expected one |
+| a **`sed` that matched nothing** shipping a green build | every `sed` in `Dockerfile.v32` counts its anchor before (`test "$(grep -c …)" -eq 1`) and greps its marker after; the `Qwen4Exp*` names, their module paths and the three `sed` source constants are also grepped **inside the base image** before the build, and **inside the built image** after it the seven artifact-marker reads (`spark-fla-shmem`, `spark-fla-warps`, `_ple_mmap_apply(Qwen4ExpNGramEmbedding)`, `_mtp_draft_vocab_apply(Qwen4ExpMTP)`, `quant_config=vllm_config.quant_config` in each of `model.py` and `mtp.py`, `guard_hits` in `v1/worker/mamba_utils.py`) plus the **absence** of the day-0 `Qwen3_8FlashNext` symbol in the installed `vllm_ple_mmap.py`; `port_v32.py` fails on an anchor whose occurrence count is not the expected one |
 | upstream's source set silently drifting | `port_v32.py` runs the checkout's own `md5sum --check` / `sha256sum --check` blocks (the same eleven + two lists `recipe/build/image/build.sh` enforces) before it stages anything |
 
 ## 5. Rollback state of the box, as it stands now
@@ -111,9 +111,9 @@ vars, so a second lineage cannot inherit the first one's values by accident. The
    `scripts/bench/spark-fp8-image-probe.py` still owns the fp8-KV half of this leg (§7).
 4. Build detached (`--tags spark-profile-fast8 -e spark_profile_fast8_build=true`, async), with upstream's own CPU
    self-tests re-run against the built tag, then let the role **fail on purpose** after printing the ID — the pin
-   is a human commit. The `mamba_utils` step refuses while the guard is undecided (§7): its diff is read, and
-   `apply` is a three-layer reversion, so the choice is an anchored patch of the guard or an owner commit that
-   sets `spark_profile_fast8_mamba_guard: apply`.
+   is a human commit. Its `mamba_utils` step ports the guard onto the base with anchored insertions
+   (§7) and needs no build-arg; `spark_profile_fast8_mamba_guard` is `patch`, and `apply` — the
+   whole-file copy — stays unset because it is a three-layer reversion.
    Every post-build leg runs `docker run --rm --network none --memory 8g` on the **same unified pool the live
    engine serves from**, so this step is scheduled inside the owner window and not beside serving: an 8 GiB CPU
    gate competes with the engine for the pool it budgets.
@@ -148,8 +148,9 @@ the build's own greps run (*The base-image read*, below).
 | the day-0 marker comment text (`# --- qwen38-flash-dgx: …`) | `tests/test_iter6_patches_image.py:129` splits on it, so it is an anchor: kept byte-identical, only class names change | yes |
 | the `${SP}` prefix **inside the release image** | all 8 `spark_profile_fast8_base_probes` are absolute paths under `/usr/local/lib/python3.12/dist-packages` and all 8 return `rc 0` in `vllm/vllm-openai:v0.32.0-aarch64@sha256:6ff5ff0d…` | yes (box) |
 | the two GB10 `sed` source constants **inside the release image** | same read: `DEFAULT = 102400` → 1, `for num_warps in [2, 4]` → 1 — each `sed` has exactly its one source string to match, so neither GB10 fix can be a silent no-op | yes (box) |
-| the `lm_head` sed line, once **per file**, inside the image | `…/nvidia/model.py` → 1 (probe 5), `…/nvidia/mtp.py` → 1 (not in the probe list; `Dockerfile.v32` step 6 counts each file separately) | yes (box) |
+| the `lm_head` sed line, once **per file**, inside the image | `…/nvidia/model.py` → 1 (probe 5), `…/nvidia/mtp.py` → 1 (not a base probe; `Dockerfile.v32` step 6 counts each file separately, and each file carries its own **artifact** probe for the `quant_config=` line the sed writes) | yes (box) |
 | the `mamba_utils` whole-file step, **read** rather than inferred | 329 changed lines over 39 hunks against the image's own copy, and the three layers that diff mixes are separated below | yes (box) |
+| the 13 anchors of the guard patch, **inside the release image** | `vllm/v1/worker/mamba_utils.py:207, 251, 262+313, 352, 391, 565, 494+625, 795, 830, 891, 1008, 1192+1239+1291, 1244` — every one occurs exactly its expected count in `6ff5ff0d…`'s own copy, which is the file `patch_mamba_guard_v32.py` is anchored on | yes (box) |
 
 ⏳ **Still unproven anchors** — not decidable from raw source at the tag **or** from a read of the base image;
 each one is loud at build time (upstream's patchers all assert `n == 1` per anchor) or is named below, so none of
@@ -204,7 +205,7 @@ path+mtime+size fingerprint over its 149 files is identical before and after, wi
 So the `--check-only` fix (`5bd0efbc`) holds against the real recipe, and the porter's nine day-0-side anchors are
 proven — which leaves the twelve unchanged patchers' internal anchors as the only anchors the build still decides.
 
-**The `mamba_utils` diff, read inside the base image** — step 7's own refusal message is the command, run with the
+**The `mamba_utils` diff, read inside the base image** — the command, run with the
 checkout's file bind-mounted read-only where the staged copy would be (`port_v32.py` has no mamba anchor entry, so
 the staged bytes are the checkout's bytes):
 
@@ -227,8 +228,8 @@ of ±1–3. And the diff is not one delta but three, which is what makes the ste
 (`grep -c -F <name>` against each image's own `vllm/v1/worker/mamba_utils.py`; `fast`'s copy is 1641 lines, which
 is the snapshot's size — step 7's whole-file copy is exactly what the live lineage boots today.)
 
-1. **The guard is the recipe's own** and is in neither base image (40 changed lines name it, all on the snapshot
-   side): it is still owed, and the base will not supply it.
+1. **The guard is the recipe's own** and is in neither base image: 31 changed lines name it (`^[+-]` lines
+   carrying `guard_hits` or `state_num_blocks`), all on the snapshot side. The base will not supply it.
 2. **The `*_mamba_all*` pair is day-0 *base* code, not recipe code** — `fc120ece…` carries both, stock v0.32
    carries neither, so the copy moves fork-side code into a stock base.
 3. **v0.32 adds a kernel the snapshot has never seen**: `get_aligned_state_indices_multi_group_kernel`,
@@ -239,8 +240,45 @@ is the snapshot's size — step 7's whole-file copy is exactly what the live lin
 
 So `apply` would add the guard (wanted), reinstall day-0 fork code (not wanted) and delete upstream's v0.32
 multi-group path and its `InputBatch` re-typing (not wanted). The shape that keeps only the guard is an anchored
-patch of those 40 lines. Until that is decided and committed, `spark_profile_fast8_mamba_guard: refuse` stands and
-step 7 stops the build, which is the designed state.
+patch of those lines, and that is what ships: **the guard is ported, not copied** —
+`roles/spark-profile-fast8/files/patch_mamba_guard_v32.py`, 13 anchors read out of this base's own file, run by
+step 7 under the shipped `spark_profile_fast8_mamba_guard: patch`. `apply` stays as the revert-to-copy hatch and
+prints those three layers before it copies — its `DRIFT` line re-measures the 329 offline — and `refuse`, or any
+value that is neither, stops the build.
+
+| the insertion | anchored at v0.32.0 | expected count |
+|---|---|---|
+| `state_num_blocks_ptr`, `guard_hits_ptr` on `_copy_mamba_state_block`, between `state_dim_row_stride_ptr,` and `tile_idx,` | `mamba_utils.py:207-208` | 1 |
+| the bounds check on each of the four block ids the kernel dereferences: `dest_block_id` (where `num_blocks` is also read), the two `src_block_id` paths, `actual_src_block_id` | `:251`, `:262`, `:313`, `:352` | 1, 2, 1 |
+| the same two parameters on `postprocess_mamba_fused_kernel` and `precopy_mamba_align_fused_kernel`, and the two arguments at their `_copy_mamba_state_block` calls | `:391` (def `:369`), `:565-566` (def `:549`), `:494`, `:625` | 1, 1, 2 |
+| the two context fields, the three telemetry fields, their `create()` initialisers | `:795`, `:830`, `:891-893` | 1 each |
+| `state_num_blocks[idx] = state.size(0) if state.dim() > 1 else 1`, beside v0.32's own `_reinterpret_u64_as_i64(state.data_ptr())` line | `:1008-1010` | 1 |
+| the two arguments at the three launches, and the reporter at the tail of `run_fused_precopy` | `:1192`, `:1239`, `:1291`, `:1244-1246` | 3, 1 |
+
+Two of those are where a careless port loses something. `preprocess_mamba_align_fused_kernel` (`:503`) takes
+neither parameter and is not touched; and the `_populate_metadata` line is not cosmetic — `create()` zeroes
+`state_num_blocks`, so a port that skips it leaves every pool with a valid-block count of 0 and the guard then
+skips **every** copy: a green build serving stale mamba state. The two patched kernels have no other referent in
+the image — `v1/worker/gpu/model_states/mamba_hybrid.py` names `_copy_mamba_state_block` only in a comment and
+reaches the launches through `run_fused_precopy` (:222) and `run_fused_postprocess_align` (:396), whose
+signatures this patch does not change — so nothing outside `mamba_utils.py` passes them arguments.
+
+What lands is byte-identical to the guard in the snapshot: the 31 lines naming `guard_hits` or `state_num_blocks`
+appear in both files and in neither direction, so `grep -c -F guard_hits` = **19** and `state_num_blocks` = **12**,
+the same two numbers the live `fast` artifact answers — which is what makes the two lineages' guards comparable
+instead of mutually trusted. The patcher's contract is `port_v32.py`'s shape: `rc 0` patched · `rc 1` an anchor
+did not match, or the result does not parse, with the `file:line` evidence printed and **nothing written** (every
+count is measured before the first substitution) · `rc 2` refused, the target already carries a guard · `rc 3`
+usage. Read offline against the file extracted read-only from the base at the pin digest: apply `rc 0`, second
+apply `rc 2`, one perturbed anchor `rc 1` naming `:262`/`:313`, and step 7's eight greps land on
+19 / 12 / 4 / 0 / 0 / 0 / 2 / 2 with `ast.parse` clean.
+
+What the build session no longer owes on this step: no `--build-arg MAMBA_UTILS_GUARD`, no diff read inside the
+base (the file the build patches is the one just read, at the same digest) and no decision commit — the port is
+this repository's own code, so `git log` on the patcher is its provenance. What is still **not** proven here:
+nothing has been built or booted, so the patched kernel has never been compiled by Triton and the guard has never
+run a step. Added kernel parameters are a compile-time contract that only the build reads, which is §6 step 4's
+leg, not this one.
 
 **The box leg, in order** (all of it from a session that is not spark-served; the build legs are long, so run
 them detached):
@@ -254,11 +292,10 @@ them detached):
 2. the same command without `--check`, detached: greps the base, stages and re-anchors, builds. Its pull leg is a
    no-op on this host — the base is already in the store at that digest — and the build then prints the new image
    ID and fails on purpose (§6 step 4).
-3. ✅ **the `mamba_utils` read** (above, with the three-layer table and the command). What is owed is the decision
-   it feeds, not another read: port the guard as an anchored patch, or set
-   `spark_profile_fast8_mamba_guard: apply` deliberately. `apply` reverts upstream's multi-group kernel and its
-   `InputBatch` re-typing and reinstalls day-0 fork code, so the commit that sets it carries the 329-line count and
-   the three layers.
+3. ✅ **the `mamba_utils` read, and the port it fed** (above: the three-layer table, the command, the anchor
+   table). Step 7 ports the guard, so this leg needs no build-arg and no decision commit. `apply` reverts
+   upstream's multi-group kernel and its `InputBatch` re-typing and reinstalls day-0 fork code, so a commit that
+   sets it carries the 329-line count and the three layers.
 4. `python3 scripts/bench/spark-fp8-image-probe.py --image <built tag> --skip-registry` (the box leg — a built
    image has no registry digest, and **`--image` is required**: the bare form resolves `spark_vllm_image`, the
    BASE pin, and would hand a verdict about the wrong lineage). Only on its `REACHABLE` verdict comes the pin
