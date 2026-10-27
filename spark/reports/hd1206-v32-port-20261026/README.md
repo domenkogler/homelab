@@ -6,7 +6,8 @@
 
 The profile `fast8` (`image: ultrafast-v32`) is authored and **gate-blocked on an empty pin**: the lineage it names
 is the upstream patch stack *rebuilt on a v0.32 base*, and that build does not exist yet. This file is the survey
-of what stands between here and there, taken read-only from the checkout on spark and from upstream source at the tag.
+of what stands between here and there, taken read-only from the checkout on spark, from upstream source at the tag
+and — for the base-image half — from inside the pulled base image at the pin digest.
 
 ## 1. What the recipe is (read from the box, not from the README)
 
@@ -100,16 +101,19 @@ vars, so a second lineage cannot inherit the first one's values by accident. The
    `files/Dockerfile.v32` + `files/port_v32.py`, so the pinnable artifact is this repository's own commit.
 1. ✅ Done offline: `roles/spark-ultrafast-build` parameterized (§4), the v32 lineage authored, offline gates green.
    What that cannot settle is in §7.
-2. Pull the base **on spark**: `vllm/vllm-openai:v0.32.0-aarch64@sha256:6ff5ff0ddf3658d2c2d677dac5ca2d4726ce0156b4371166d918181b210bd4bc`
-   (`spark_vllm_v32_base_image`; arm64, never a `-cu129` tag). Downtime: none — it is a pull, and the role runs it
-   as its own leg when the lineage still needs building.
-3. Read-only pre-flight **inside that image** — the `ple_layer.py` path, the `Qwen4Exp*` names, the two `sed`
-   anchor strings and the one anchor the lineage stops applying. These are `spark_profile_fast8_base_probes`, so
-   they run before the build and stop it. `scripts/bench/spark-fp8-image-probe.py` still owns the fp8-KV half of
-   this leg (§7).
+2. ✅ **Done: the base is in spark's store** — `vllm/vllm-openai:v0.32.0-aarch64@sha256:6ff5ff0ddf3658d2c2d677dac5ca2d4726ce0156b4371166d918181b210bd4bc`,
+   image ID `6ff5ff0ddf36`, `arm64`/`linux`, 35.3 GB (`spark_vllm_v32_base_image`; the registry manifest for that
+   digest is a single `arm64/linux` image, never a `-cu129` tag). Downtime: none, and `--pull=false` means this step
+   is the whole of the base's availability — the role's own pull leg is a no-op while it holds.
+3. ✅ **Done: the read-only pre-flight inside that image** — the `ple_layer.py` path, the `Qwen4Exp*` names, the two
+   `sed` anchor strings and the `mamba_utils` step, all read at the digest (§7). These are
+   `spark_profile_fast8_base_probes`, so they also run before the build and stop it.
+   `scripts/bench/spark-fp8-image-probe.py` still owns the fp8-KV half of this leg (§7).
 4. Build detached (`--tags spark-profile-fast8 -e spark_profile_fast8_build=true`, async), with upstream's own CPU
    self-tests re-run against the built tag, then let the role **fail on purpose** after printing the ID — the pin
-   is a human commit. The `mamba_utils` step refuses until its diff has been read (§7).
+   is a human commit. The `mamba_utils` step refuses while the guard is undecided (§7): its diff is read, and
+   `apply` is a three-layer reversion, so the choice is an anchored patch of the guard or an owner commit that
+   sets `spark_profile_fast8_mamba_guard: apply`.
    Every post-build leg runs `docker run --rm --network none --memory 8g` on the **same unified pool the live
    engine serves from**, so this step is scheduled inside the owner window and not beside serving: an 8 GiB CPU
    gate competes with the engine for the pool it budgets.
@@ -124,7 +128,9 @@ vars, so a second lineage cannot inherit the first one's values by accident. The
 ## 7. Anchors: what was proven at the tag, what was not, and the box leg in order
 
 Read from `raw.githubusercontent.com/vllm-project/vllm/v0.32.0/<path>`; the day-0 side from the pinned checkout
-on spark, read-only. "Proven" means the exact string or path was found at the tag with the expected count.
+on spark, read-only. "Proven" means the exact string or path was found at the tag with the expected count. A row
+marked **box** was settled the stronger way: read inside the pulled base image at the pin digest, which is where
+the build's own greps run (*The base-image read*, below).
 
 | anchor | v0.32.0 evidence | proven |
 |---|---|---|
@@ -140,37 +146,119 @@ on spark, read-only. "Proven" means the exact string or path was found at the ta
 | `QwenGatedDeltaNetAttention` (the in-proj GEMV append) | `vllm/model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py:454` | yes |
 | `patch_short_conv_async_h2d.py` is **not needed** | `vllm/v1/attention/backends/short_conv_attn.py:334,337` — both transfers are `async_tensor_h2d(` at the tag, so the day-0 anchor is gone. `Dockerfile.v32` step 12 greps this, so the claim cannot rot silently | yes (dropped, with a guard) |
 | the day-0 marker comment text (`# --- qwen38-flash-dgx: …`) | `tests/test_iter6_patches_image.py:129` splits on it, so it is an anchor: kept byte-identical, only class names change | yes |
+| the `${SP}` prefix **inside the release image** | all 8 `spark_profile_fast8_base_probes` are absolute paths under `/usr/local/lib/python3.12/dist-packages` and all 8 return `rc 0` in `vllm/vllm-openai:v0.32.0-aarch64@sha256:6ff5ff0d…` | yes (box) |
+| the two GB10 `sed` source constants **inside the release image** | same read: `DEFAULT = 102400` → 1, `for num_warps in [2, 4]` → 1 — each `sed` has exactly its one source string to match, so neither GB10 fix can be a silent no-op | yes (box) |
+| the `lm_head` sed line, once **per file**, inside the image | `…/nvidia/model.py` → 1 (probe 5), `…/nvidia/mtp.py` → 1 (not in the probe list; `Dockerfile.v32` step 6 counts each file separately) | yes (box) |
+| the `mamba_utils` whole-file step, **read** rather than inferred | 329 changed lines over 39 hunks against the image's own copy, and the three layers that diff mixes are separated below | yes (box) |
 
-⏳ **Unproven anchors** — not decidable from raw source at the tag; each one is loud at build time (upstream's
-patchers all assert `n == 1` per anchor) or is named below, so none of them can pass silently:
+⏳ **Still unproven anchors** — not decidable from raw source at the tag **or** from a read of the base image;
+each one is loud at build time (upstream's patchers all assert `n == 1` per anchor) or is named below, so none of
+them can pass silently:
 
 * every **multi-line code anchor** inside the twelve unchanged patchers (`patch_block_drop.py`,
-  `patch_measure_draft_mass.py`, `patch_verify_topk_pivot.py`, …). The files they edit exist at the tag; the exact
-  surrounding text does not appear in a path listing. The build decides, and it fails loudly.
-* `src/mamba_utils_guarded.py` as a **whole-file replacement**: 1641 lines against 1654 at the tag, 329 changed
-  lines between them, and the snapshot has no `get_aligned_state_indices_multi_group_kernel`, which the v0.32 file
-  does. Copying it would revert upstream work into this lineage, so `Dockerfile.v32` step 7 **refuses** unless
-  `MAMBA_UTILS_GUARD=apply` is passed deliberately. Read the diff first (§7 box leg, step 3).
-* the `${SP}` site-packages prefix **inside the release image** — the tag's `docker/Dockerfile:25-26` pins Python
-  3.12 / CUDA 13.0.3, but only a read inside `vllm/vllm-openai:v0.32.0-aarch64@sha256:6ff5ff0d…` proves the path.
-  The base probes above are that read and they run before the build.
+  `patch_measure_draft_mass.py`, `patch_verify_topk_pivot.py`, …). The files they edit exist at the tag and in the
+  image; the exact surrounding text is not something a read of the base can settle. The build decides, and it
+  fails loudly.
 * the `vllm_inproj_ba_gemv.py` docstring's `model.py:208-212` / `:636` **line pointers**: the module path is
   re-anchored, the numbers are day-0.
 * the **fp8-KV half of this lineage**: `scripts/bench/spark-fp8-image-probe.py`'s box leg must read the built
   image's own `qsa.py` before `ultrafast-v32` may enter `spark_llm_fp8_kv_capable_images`.
 
+### The base-image read, at the pin digest
+
+**The base, in spark's store.** `vllm/vllm-openai:v0.32.0-aarch64@sha256:6ff5ff0ddf3658d2c2d677dac5ca2d4726ce0156b4371166d918181b210bd4bc`
+resolves to image ID `6ff5ff0ddf36`, `arm64`/`linux`, `35.3 GB` (`Size`; `10.3 GB` of it reported as shared with
+other images in this store). The registry half of the arm64 claim is the `curl …/tags/v0.32.0-aarch64 | jq …`
+command in that pin's own comment: one image in the manifest, `arm64/linux`, digest `sha256:6ff5ff0d…` — it is the
+digest and not the tag name that excludes the CUDA 12.9 `-cu129` line (CONVENTIONS §7), and because the build runs
+`--pull=false`, this is the only base it can resolve.
+
+**The 8 base probes**, each run exactly as `tasks/main.yml:78-93` builds it
+(`docker run --rm --network none --memory 2g --entrypoint grep <base> -F -c <pattern> <path>`):
+
+| path | pattern | count | rc |
+|---|---|---|---|
+| `…/vllm/models/qwen4_exp/nvidia/ple_layer.py` | `class Qwen4ExpPLELayer` | 1 | 0 |
+| `…/vllm/models/qwen4_exp/nvidia/ple_layer.py` | `Qwen4ExpNGramEmbedding` | 2 | 0 |
+| `…/vllm/models/qwen4_exp/nvidia/mtp.py` | `class Qwen4ExpMTP` | 1 | 0 |
+| `…/vllm/models/qwen4_exp/nvidia/model_state.py` | `class Qwen4ExpModelState` | 1 | 0 |
+| `…/vllm/models/qwen4_exp/nvidia/model.py` | `prefix=maybe_prefix(prefix, "lm_head"),` | 1 | 0 |
+| `…/vllm/third_party/flash_linear_attention/ops/utils.py` | `DEFAULT = 102400` | 1 | 0 |
+| `…/vllm/third_party/flash_linear_attention/ops/chunk_delta_h.py` | `for num_warps in [2, 4]` | 1 | 0 |
+| `…/vllm/v1/attention/backends/short_conv_attn.py` | `spec_req_idx = async_tensor_h2d(` | 2 | 0 |
+
+All 8 `rc 0`, so the assert at `tasks/main.yml:95` cannot fire on this base: the `${SP}` prefix, the four
+`qwen4_exp` module paths, both `sed` source constants and `short_conv_attn.py`'s two transfers exist **inside the
+release image**, not merely at the tag.
+Two counts are 2 and both are the evidence's own prediction, not a drift: `Qwen4ExpNGramEmbedding` (the import at
+`ple_layer.py:29` plus its use site) and `spec_req_idx = async_tensor_h2d(` (`short_conv_attn.py:334,337` — the
+reason `patch_short_conv_async_h2d.py` is dropped). `mtp.py`'s `lm_head` line, which the probe list does not carry
+but `Dockerfile.v32` step 6 counts per file, is there exactly once too.
+
+**The porter's plan, against the real recipe.** `port_v32.py --checkout <the pinned checkout>/recipe/build/image
+--stage <fresh directory> --check-only`, run on spark against the checkout at `0c391a3e…`: `rc 0`, and it
+prints `port_v32: 9 anchors verified against the checkout /opt/homelab/ultrafast-src/recipe/build/image` after
+`md5sum block dc4600f12b19… verified (11 files)` and `sha256sum block 956a7ec1fad9… verified (2 files)`. No
+`ANCHOR` and no `MISSING` line. Nothing was written: the stage directory stayed empty and the checkout's
+path+mtime+size fingerprint over its 149 files is identical before and after, with `git status --porcelain` clean.
+So the `--check-only` fix (`5bd0efbc`) holds against the real recipe, and the porter's nine day-0-side anchors are
+proven — which leaves the twelve unchanged patchers' internal anchors as the only anchors the build still decides.
+
+**The `mamba_utils` diff, read inside the base image** — step 7's own refusal message is the command, run with the
+checkout's file bind-mounted read-only where the staged copy would be (`port_v32.py` has no mamba anchor entry, so
+the staged bytes are the checkout's bytes):
+
+```text
+docker run --rm --network none --memory 2g \
+  -v <checkout>/src/mamba_utils_guarded.py:/tmp/mamba_utils_guarded.py:ro \
+  --entrypoint bash <base> -c 'diff -u /tmp/mamba_utils_guarded.py ${MAMBA_UTILS}'
+```
+
+**329 changed lines** — the `^[+-]` count step 7 records as `DRIFT`; 633 lines of unified diff over **39 hunks**,
++170 / −157, the snapshot's 1641 lines against the image's 1654. Not a reorder: 37 of the 39 hunks are ≤ 20 lines
+of ±1–3. And the diff is not one delta but three, which is what makes the step a decision and not a formality:
+
+| layer | day-0 base `fc120ece…` | this base `6ff5ff0d…` | live artifact `4900c13e…` |
+|---|---|---|---|
+| the guard: `guard_hits` / `state_num_blocks` | 0 / 0 | **0 / 0** | 19 / 12 |
+| the day-0 pair: `postprocess_mamba_all` / `preprocess_mamba_all_specdec` | 1 / 1 | **0 / 0** | 1 / 1 |
+| v0.32's multi-group read: `get_aligned_state_indices_multi_group_kernel` | 0 | **2** | 0 |
+
+(`grep -c -F <name>` against each image's own `vllm/v1/worker/mamba_utils.py`; `fast`'s copy is 1641 lines, which
+is the snapshot's size — step 7's whole-file copy is exactly what the live lineage boots today.)
+
+1. **The guard is the recipe's own** and is in neither base image (40 changed lines name it, all on the snapshot
+   side): it is still owed, and the base will not supply it.
+2. **The `*_mamba_all*` pair is day-0 *base* code, not recipe code** — `fc120ece…` carries both, stock v0.32
+   carries neither, so the copy moves fork-side code into a stock base.
+3. **v0.32 adds a kernel the snapshot has never seen**: `get_aligned_state_indices_multi_group_kernel`,
+   `_reinterpret_u64_as_i64`, `compute_aligned_state_indices` (a 64-line hunk and a 59-line one).
+4. **v0.32 deleted code the snapshot still carries** — the `*_mamba_all*` pair, in the 60→13-line hunk.
+5. **One signature change rides along**: `postprocess_mamba_align_gpu`'s `input_batch` is `InputBatch` at v0.32
+   where the snapshot says `GPUInputBatch`, and the `CachedRequestState` import leaves with it.
+
+So `apply` would add the guard (wanted), reinstall day-0 fork code (not wanted) and delete upstream's v0.32
+multi-group path and its `InputBatch` re-typing (not wanted). The shape that keeps only the guard is an anchored
+patch of those 40 lines. Until that is decided and committed, `spark_profile_fast8_mamba_guard: refuse` stands and
+step 7 stops the build, which is the designed state.
+
 **The box leg, in order** (all of it from a session that is not spark-served; the build legs are long, so run
 them detached):
 
-1. `ansible-playbook IaC/ansible/playbooks/spark.yml -l spark --tags spark-profile-fast8 \
-   -e spark_profile_fast8_build=true --check` — the provenance asserts, the base-image probes and the porter's
-   `--check-only` plan answer the cheap questions before anything is pulled or built.
-2. the same command without `--check`, detached: pulls the base, greps it, stages and re-anchors, builds. It then
-   prints the new image ID and fails on purpose (§6 step 4).
-3. the `mamba_utils` read, when step 2 stopped at step 7 of the Dockerfile:
-   `docker run --rm --network none --entrypoint bash <base> -c 'diff -u /tmp/mamba_utils_guarded.py /usr/local/lib/python3.12/dist-packages/vllm/v1/worker/mamba_utils.py'`
-   — then either port the guard as an anchored patch or set `spark_profile_fast8_mamba_guard: apply` in its own
-   commit, with the diff line count in the commit message.
+1. ✅ **Done: the read-only pre-flight.** The base is in spark's store at the digest, all 8
+   `spark_profile_fast8_base_probes` return `rc 0` with the counts above, and `port_v32.py --check-only` reports
+   **9 anchors verified** with both of the checkout's own hash blocks green. What no read above substitutes for is
+   the role's own provenance assert (`checkout_pinned`: `HEAD == pin` and a clean `git status --porcelain -uno`),
+   so one `--check` run of `-e spark_profile_fast8_build=true` is still worth having — now to confirm, not to
+   discover.
+2. the same command without `--check`, detached: greps the base, stages and re-anchors, builds. Its pull leg is a
+   no-op on this host — the base is already in the store at that digest — and the build then prints the new image
+   ID and fails on purpose (§6 step 4).
+3. ✅ **the `mamba_utils` read** (above, with the three-layer table and the command). What is owed is the decision
+   it feeds, not another read: port the guard as an anchored patch, or set
+   `spark_profile_fast8_mamba_guard: apply` deliberately. `apply` reverts upstream's multi-group kernel and its
+   `InputBatch` re-typing and reinstalls day-0 fork code, so the commit that sets it carries the 329-line count and
+   the three layers.
 4. `python3 scripts/bench/spark-fp8-image-probe.py --image <built tag> --skip-registry` (the box leg — a built
    image has no registry digest, and **`--image` is required**: the bare form resolves `spark_vllm_image`, the
    BASE pin, and would hand a verdict about the wrong lineage). Only on its `REACHABLE` verdict comes the pin
