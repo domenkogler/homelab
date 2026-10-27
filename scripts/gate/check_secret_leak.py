@@ -1303,7 +1303,7 @@ MUTATIONS = [
      "    if blind:",
      "    if False:",
      "the refusal arm"),
-    # The partial-read plumbing (HD-1206): both halves are one regression away from the shape that
+    # The partial-read plumbing (HD-1207): both halves are one regression away from the shape that
     # made the NOTE unreachable prose and the ledger unsafe to re-derive.
     ("the reader's partial read never reaches the leg (errs empty again)",
      "    errs: list[str] = list(vr.errors)",

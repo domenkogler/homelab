@@ -99,7 +99,7 @@ failure looks like `Too many requests. Your client has been rate-limited. Try ag
 with the seconds blank, because the CLI has no retry-after for this class.
 
 **The whole-vault read is ONE batched read that the legs share**
-([`../scripts/lib/vault_read.py`](../scripts/lib/vault_read.py), HD-1206): where the Server SDK is
+([`../scripts/lib/vault_read.py`](../scripts/lib/vault_read.py), HD-1207): where the Server SDK is
 importable it answers `items.list` once plus `items.get_all` in 50-ID chunks — single-digit requests
 for the vault's ~143 items — and where it is not, the same reader runs a clearly labelled
 `op item get` FALLBACK costing 1 list + 1 read per item (~1 + N requests). Every leg prints its
