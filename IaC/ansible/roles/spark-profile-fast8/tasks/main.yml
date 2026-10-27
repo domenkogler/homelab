@@ -97,7 +97,7 @@
   when: spark_profile_fast8_will_build | bool
   ansible.builtin.assert:
     that:
-      - fast8_base_probe.results | rejectattr('rc', 'equal', 0) | list | length == 0
+      - fast8_base_probe.results | rejectattr('rc', 'equalto', 0) | list | length == 0
     fail_msg: >-
       These anchors are not in {{ spark_vllm_v32_base_image }}:
       {% for r in fast8_base_probe.results %}{% if r.rc != 0 %}
@@ -270,7 +270,7 @@
   when: spark_profile_fast8_will_build | bool
   ansible.builtin.assert:
     that:
-      - fast8_artifact_probe.results | rejectattr('rc', 'equal', 0) | list | length == 0
+      - fast8_artifact_probe.results | rejectattr('rc', 'equalto', 0) | list | length == 0
     fail_msg: >-
       {{ (fast8_artifact_probe.results | selectattr('rc', 'ne', 0) | list | length) }} of
       {{ spark_profile_fast8_artifact_probes | length }} ported anchors are absent from
@@ -335,9 +335,9 @@
   when: spark_profile_fast8_will_build | bool
   ansible.builtin.assert:
     that:
-      - fast8_live_tags.results | rejectattr('rc', 'equal', 0) | list | length == 0
+      - fast8_live_tags.results | rejectattr('rc', 'equalto', 0) | list | length == 0
     fail_msg: >-
-      After this build, {{ fast8_live_tags.results | rejectattr('rc', 'equal', 0)
+      After this build, {{ fast8_live_tags.results | rejectattr('rc', 'equalto', 0)
                              | map(attribute='item') | list | join(', ') }} no longer resolves to an
       image. Those names belong to the live lineage and are the only thing keeping the `fast` engine
       referenced, so it is now prune-able: re-tag it from the recorded ID
