@@ -98,7 +98,7 @@ mutable-alias decision, `home_assistant` only after the breaking changes for the
 
 - the 7 majors — `forgejo 16→17`, `onlyoffice 9→10`, `forgejo_db`/`onlyoffice_pg`/`zipline_db` postgres
   `16.15→18.4`, `onlyoffice_rabbitmq 3→4`, `tube_archivist_redis 7→8`. A data-format major is a migration,
-  not a restart.
+  not a restart — each carries its own session brief outside this window: [pin-major-onlyoffice.md](pin-major-onlyoffice.md) · [pin-major-redis.md](pin-major-redis.md) · [pin-major-rabbitmq.md](pin-major-rabbitmq.md) · [pin-major-forgejo.md](pin-major-forgejo.md) · [pin-major-postgres.md](pin-major-postgres.md).
 - the 4 downgrades the probe reports because it orders by date: `authentik_db 18.6→18.4`,
   `litellm_db 18.6→18.4`, `radarr 6.4.4→6.3.0`, `pairdrop 1.11.2→1.11.1`. Pinning a downgrade is refused
   anyway (`--allow-downgrades` is forbidden), so leaving them is the only correct move.

@@ -133,6 +133,7 @@ docs/
 │
 ├── CONVENTIONS.md                        Cross-cutting rules index + service-onboarding checklist (repo root)
 ├── AGENTS.md                             One-page working contract for an agent (repo root; mirrors README §0–§4)
+├── pin-major-<service>.md                Root session briefs for the five data-format majors — onlyoffice · redis · rabbitmq · forgejo · postgres (repo root; each carries the window prompt-update.md's majors list refuses to run)
 │
 ├── smart-home.md                          Index: HA, devices, architecture, links to smart-home-*.md
 ├── smart-home-review.md                   Smart-home intake queue
