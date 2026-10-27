@@ -248,9 +248,9 @@ value that is neither, stops the build.
 
 | the insertion | anchored at v0.32.0 | expected count |
 |---|---|---|
-| `state_num_blocks_ptr`, `guard_hits_ptr` on `_copy_mamba_state_block`, between `state_dim_row_stride_ptr,` and `tile_idx,` | `mamba_utils.py:207-208` | 1 |
+| `state_num_blocks_ptr`, `guard_hits_ptr` on `_copy_mamba_state_block`, after `tile_idx,` — the position its two call sites pass them in | `mamba_utils.py:207-208` | 1 |
 | the bounds check on each of the four block ids the kernel dereferences: `dest_block_id` (where `num_blocks` is also read), the two `src_block_id` paths, `actual_src_block_id` | `:251`, `:262`, `:313`, `:352` | 1, 2, 1 |
-| the same two parameters on `postprocess_mamba_fused_kernel` and `precopy_mamba_align_fused_kernel`, and the two arguments at their `_copy_mamba_state_block` calls | `:391` (def `:369`), `:565-566` (def `:549`), `:494`, `:625` | 1, 1, 2 |
+| the same two parameters on `postprocess_mamba_fused_kernel` and `precopy_mamba_align_fused_kernel`, and the two arguments at their `_copy_mamba_state_block` calls | `:391` (def `:369`), `:565` (def `:549`), `:494`, `:625` | 1, 1, 2 |
 | the two context fields, the three telemetry fields, their `create()` initialisers | `:795`, `:830`, `:891-893` | 1 each |
 | `state_num_blocks[idx] = state.size(0) if state.dim() > 1 else 1`, beside v0.32's own `_reinterpret_u64_as_i64(state.data_ptr())` line | `:1008-1010` | 1 |
 | the two arguments at the three launches, and the reporter at the tail of `run_fused_precopy` | `:1192`, `:1239`, `:1291`, `:1244-1246` | 3, 1 |
@@ -263,6 +263,27 @@ the image — `v1/worker/gpu/model_states/mamba_hybrid.py` names `_copy_mamba_st
 reaches the launches through `run_fused_precopy` (:222) and `run_fused_postprocess_align` (:396), whose
 signatures this patch does not change — so nothing outside `mamba_utils.py` passes them arguments.
 
+**Byte-identity is not slot-identity.** The kernels take these arguments POSITIONALLY, so a def anchor and its
+call anchor can both match byte-for-byte, all eight greps can land, `ast.parse` can be clean, and the two
+parameters can still sit at different indices in the two signatures. `precopy_mamba_align_fused_kernel` is the
+one insertion whose two anchors are not the same slot by their own text: in the def, `state_dim_row_stride_ptr,`
+is followed by `idx_mapping_ptr,  # [num_reqs] batch_idx -> req_state_idx (-1 to skip)`, while the launch passes
+`self.state_dim_row_stride,` and then `idx_mapping,`. An insertion anchored on the def *pair* and applied after
+it sits one slot below the insertion anchored on `self.state_dim_row_stride,`, and then the launch's
+`self.state_num_blocks` binds to `idx_mapping_ptr`, its `self.guard_hits` binds to `state_num_blocks_ptr` and
+`idx_mapping` binds to `guard_hits_ptr` — `tl.atomic_add(guard_hits_ptr, 1)` writes into the batch
+index-mapping tensor. Nothing raises: both sides pass the same number of arguments, so there is no
+`TypeError`, the counts are the correct ones, and the damage is a step that faults on the box instead of a
+build that stops. The anchor disambiguates on that following line without consuming it, so both sides insert
+at the same index.
+
+What closes the class is not a count. `patch_mamba_guard_v32.py` reads the patched text back through `ast` and
+pairs every inserted parameter with the argument the call passes at the same positional index, for every def the
+patch touches (`SLOT_PAIRS` / `slot_problems`), and exits 1 with nothing written when the two indices differ — a
+skew is a step-7 build failure, not a boot failure. The pairing on the patched file: `_copy_mamba_state_block`
+#16 and #17 against its two call sites, `postprocess_mamba_fused_kernel` #15 and #16 against its two launches,
+`precopy_mamba_align_fused_kernel` #13 and #14 against its one launch.
+
 What lands is byte-identical to the guard in the snapshot: the 31 lines naming `guard_hits` or `state_num_blocks`
 appear in both files and in neither direction, so `grep -c -F guard_hits` = **19** and `state_num_blocks` = **12**,
 the same two numbers the live `fast` artifact answers — which is what makes the two lineages' guards comparable
@@ -270,8 +291,11 @@ instead of mutually trusted. The patcher's contract is `port_v32.py`'s shape: `r
 did not match, or the result does not parse, with the `file:line` evidence printed and **nothing written** (every
 count is measured before the first substitution) · `rc 2` refused, the target already carries a guard · `rc 3`
 usage. Read offline against the file extracted read-only from the base at the pin digest: apply `rc 0`, second
-apply `rc 2`, one perturbed anchor `rc 1` naming `:262`/`:313`, and step 7's eight greps land on
-19 / 12 / 4 / 0 / 0 / 0 / 2 / 2 with `ast.parse` clean.
+apply `rc 2`, one perturbed anchor `rc 1` naming `:262`/`:313` with the target byte-identical afterwards, and
+step 7's eight greps land on 19 / 12 / 4 / 0 / 0 / 0 / 2 / 2 with `ast.parse` clean, `py_compile` clean on the
+patcher and `sh -n` clean on all 20 RUN bodies of `Dockerfile.v32`. The slot check exits 1 on the file the
+pre-fix anchors produce, naming the def index and the call index that disagree, and exits 1 on a mutant that
+swaps the two launch arguments — it reports the skew in both directions, not just the one this file had.
 
 What the build session no longer owes on this step: no `--build-arg MAMBA_UTILS_GUARD`, no diff read inside the
 base (the file the build patches is the one just read, at the same digest) and no decision commit — the port is

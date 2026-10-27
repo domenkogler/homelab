@@ -27,7 +27,17 @@ inserted lines are byte-identical to the guard's lines in the snapshot, which is
 counts below are the day-0 artifact's counts: a reader can diff this lineage's guard against the one
 the live `fast` engine runs on and find the same bytes.
 
-EXIT: 0 = patched · 1 = an anchor did not match, or the result does not parse (nothing was written) ·
+A parameter that a kernel def and its call share is anchored on the same SLOT, not on the same string:
+the two anchors are lines of two different signatures, and one may disambiguate on the line that
+follows it without consuming it, so the insertion lands between them. Byte-identity is not
+slot-identity — Triton binds kernel arguments positionally, so a def anchor one line away from its
+call anchor keeps every count below intact, parses, and still hands `guard_hits_ptr` the batch index
+mapping. So the patched text is read back through `ast` and each inserted parameter is paired with the
+argument the call passes at the same index (`slot_problems`), which is what makes a future skew a
+build failure instead of a boot failure.
+
+EXIT: 0 = patched · 1 = an anchor did not match, or the result does not parse, or a guard parameter
+landed at a different slot in the def than in the call (nothing was written) ·
 2 = refused: the target already carries a guard, so this is a second apply · 3 = usage.
 
 Usage: patch_mamba_guard_v32.py [--target <path>]        (default: this image's own mamba_utils.py)
@@ -44,13 +54,16 @@ from pathlib import Path
 # CUDA 13.0.3 / Python 3.12), the same prefix Dockerfile.v32's ${SP} carries.
 TARGET = "/usr/local/lib/python3.12/dist-packages/vllm/v1/worker/mamba_utils.py"
 
-# (anchor text in this base, text inserted AFTER it, expected occurrences, evidence at v0.32.0)
+# (anchor text in this base, text inserted, expected occurrences, evidence at v0.32.0, the line the
+#  insertion must land BEFORE — "" when it simply follows the anchor)
 #
 # "Evidence" is the file:line this table was read at, in the pulled base image at the pin digest —
-# the same read the build's own greps run. A guard line that belongs to a pair (a kernel parameter
-# and its call site) is anchored with the following line included, because `state_dim_row_stride_ptr,`
-# alone occurs 5 times in this file and only its two call sites want the guard arguments.
-ANCHORS: list[tuple[str, str, int, str]] = [
+# the same read the build's own greps run. A disambiguating line is matched and counted with the
+# anchor but NOT consumed by it, so the insertion lands between the two: `state_dim_row_stride_ptr,`
+# alone occurs 5 times in this file, and which of them a guard parameter belongs to is decided by the
+# line that follows it. That is also what makes a def anchor and its call anchor the SAME SLOT rather
+# than the same string — `slot_problems` is what proves it, after the patch and before the write.
+ANCHORS: list[tuple[str, str, int, str, str]] = [
     (
         "    state_dim_row_stride_ptr,\n    tile_idx,\n",
         "    # qwen38-flash-dgx guard: valid block count per state pool + skip counter\n"
@@ -58,8 +71,9 @@ ANCHORS: list[tuple[str, str, int, str]] = [
         "    guard_hits_ptr,\n",
         1,
         "mamba_utils.py:207-208 — `_copy_mamba_state_block`'s parameter list (def at :191). The two "
-        "parameters land between `state_dim_row_stride_ptr,` and `tile_idx,`, which is the order both "
-        "call sites pass them in (:494, :625), and the kernels take these positionally.",
+        "parameters land after `tile_idx,`, which is the position both call sites pass them in "
+        "(:494, :625), and the kernel takes them positionally.",
+        "",
     ),
     (
         "    dest_block_id = tl.load(block_table_base + dst_col).to(tl.int64)\n",
@@ -74,6 +88,7 @@ ANCHORS: list[tuple[str, str, int, str]] = [
         1,
         "mamba_utils.py:251 — the file's only destination-block-id load, and the definition of "
         "`num_blocks` that the three source-side checks below reuse.",
+        "",
     ),
     (
         "        src_block_id = tl.load(block_table_base + src_col).to(tl.int64)\n",
@@ -84,6 +99,7 @@ ANCHORS: list[tuple[str, str, int, str]] = [
         "mamba_utils.py:262 (the DS-conv row path) and :313 (the conv-slide path) — the two source-"
         "side block-id loads inside `_copy_mamba_state_block`. Both want the check; a patch that "
         "lands in one and misses the other guards half the copies.",
+        "",
     ),
     (
         "    actual_src_block_id = tl.load(block_table_base + src_col + token_bias).to(tl.int64)\n",
@@ -93,6 +109,7 @@ ANCHORS: list[tuple[str, str, int, str]] = [
         1,
         "mamba_utils.py:352 — the temporal-body block-id load, the fourth and last block id the "
         "kernel dereferences.",
+        "",
     ),
     (
         "    state_dim_row_stride_ptr,  # int64: bytes between rows for DS conv\n",
@@ -101,16 +118,21 @@ ANCHORS: list[tuple[str, str, int, str]] = [
         1,
         "mamba_utils.py:391 — `postprocess_mamba_fused_kernel`'s parameter list (def at :369). Its "
         "two launches are mamba_utils.py:1177 and :1276, both in this file.",
+        "",
     ),
     (
-        "    state_dim_row_stride_ptr,\n"
-        "    idx_mapping_ptr,  # [num_reqs] batch_idx -> req_state_idx (-1 to skip)\n",
+        "    state_dim_row_stride_ptr,\n",
         "    state_num_blocks_ptr,  # int64: valid block count per state pool (guard)\n"
         "    guard_hits_ptr,  # int32[1]: skipped out-of-range copies (guard)\n",
         1,
-        "mamba_utils.py:565-566 — `precopy_mamba_align_fused_kernel`'s parameter list (def at :549), "
-        "launched once from this file at :1226. `preprocess_mamba_align_fused_kernel` (:503) takes "
-        "neither parameter and is not touched.",
+        "mamba_utils.py:565 — `precopy_mamba_align_fused_kernel`'s parameter list (def at :549), "
+        "launched once from this file at :1226 and passed these at :1239. The two parameters land "
+        "between `state_dim_row_stride_ptr,` and `idx_mapping_ptr,` — the same slot the launch passes "
+        "them in, between `self.state_dim_row_stride,` and `idx_mapping,`, which is why the following "
+        "line disambiguates the anchor without joining it: after `idx_mapping_ptr,` is a different "
+        "slot of the signature. `preprocess_mamba_align_fused_kernel` (:503) takes neither "
+        "parameter and is not touched.",
+        "    idx_mapping_ptr,  # [num_reqs] batch_idx -> req_state_idx (-1 to skip)\n",
     ),
     (
         "        state_dim_row_stride_ptr,\n        tile_idx,\n",
@@ -118,6 +140,7 @@ ANCHORS: list[tuple[str, str, int, str]] = [
         2,
         "mamba_utils.py:494 and :625 — the two `_copy_mamba_state_block(` call sites (at :479 and "
         ":610). They pass these positionally, so a count of 1 means one copy site is unguarded.",
+        "",
     ),
     (
         "    state_dim_row_stride: torch.Tensor  # int64: bytes between rows\n",
@@ -127,6 +150,7 @@ ANCHORS: list[tuple[str, str, int, str]] = [
         1,
         "mamba_utils.py:795 — the tail of `MambaSpecDecodeGPUContext`'s state-metadata fields, the "
         "block `create()` below passes them into.",
+        "",
     ),
     (
         "    is_initialized: bool = False\n",
@@ -140,6 +164,7 @@ ANCHORS: list[tuple[str, str, int, str]] = [
         "mamba_utils.py:830 — the context's last field, immediately before `@classmethod create` "
         "at :833. The three guard fields carry defaults, so they must land AFTER the non-defaulted "
         "ones or the dataclass definition itself fails.",
+        "",
     ),
     (
         "            state_dim_row_stride=torch.zeros(\n"
@@ -153,6 +178,7 @@ ANCHORS: list[tuple[str, str, int, str]] = [
         1,
         "mamba_utils.py:891-893 — `MambaSpecDecodeGPUContext.create`'s per-state zero table, the "
         "same `total_states` the kernel indexes `state_num_blocks_ptr` with.",
+        "",
     ),
     (
         "                    self.state_base_addrs[idx] = _reinterpret_u64_as_i64(\n"
@@ -166,6 +192,7 @@ ANCHORS: list[tuple[str, str, int, str]] = [
         "thread the pointer through `_reinterpret_u64_as_i64`. This is the anchor the guard cannot do "
         "without: `create()` zeroes `state_num_blocks`, and a pool whose count is never written makes "
         "the guard skip EVERY copy. The address line itself keeps v0.32's form.",
+        "",
     ),
     (
         "            self.state_dim_row_stride,\n",
@@ -175,6 +202,7 @@ ANCHORS: list[tuple[str, str, int, str]] = [
         "(`run_fused_postprocess_align`) — the three launches of the two patched kernels. A count of "
         "2 would leave one kernel launched with too few arguments, which is a Triton TypeError on the "
         "first step that reaches it.",
+        "",
     ),
     (
         "            HAS_IDX_MAPPING=idx_mapping is not None,\n"
@@ -204,6 +232,7 @@ ANCHORS: list[tuple[str, str, int, str]] = [
         "closes `run_fused_precopy` (`def` at :1202), the step that runs on every forward pass of "
         "this box's align + spec-decode arm. That 3-line tail occurs exactly once in the file, so the "
         "reporter lands in the method that was read instead of in whichever launch shares the shape.",
+        "",
     ),
 ]
 
@@ -235,10 +264,89 @@ MUST_STAY_ABSENT = [
 # The guard's own vocabulary: any occurrence before the patch means the target is already guarded.
 GUARD_MARKERS = ["guard_hits", "state_num_blocks"]
 
+# The slot contract, which no count above can state. Triton binds kernel arguments POSITIONALLY, so a
+# def anchor and its call anchor may both match byte-for-byte, every count above may land, `ast.parse`
+# may be clean, and the inserted parameters can still sit a slot apart in the two signatures. One slot
+# is enough: `idx_mapping_ptr` then receives the guard counter, or the counter receives the batch
+# index-mapping tensor, and the guard's `tl.atomic_add` writes through a tensor of batch indices with
+# no TypeError to announce it, because both sides still pass the same number of arguments. Byte-
+# identity is not slot-identity — the two anchors are lines of two different signatures, and only the
+# AST says whether they name the same slot. So the patched text is read back through `ast` and every
+# inserted parameter is paired with the argument the call passes at the same index, which turns a
+# future skew into a build failure instead of a boot failure.
+# (kernel def, call sites expected in this file, (parameter the patch adds, expression the call passes))
+SLOT_PAIRS: list[tuple[str, int, tuple[tuple[str, str], ...]]] = [
+    ("_copy_mamba_state_block", 2,
+     (("state_num_blocks_ptr", "state_num_blocks_ptr"),
+      ("guard_hits_ptr", "guard_hits_ptr"))),           # def :191, calls :479 and :610
+    ("postprocess_mamba_fused_kernel", 2,
+     (("state_num_blocks_ptr", "self.state_num_blocks"),
+      ("guard_hits_ptr", "self.guard_hits"))),          # def :369, launches :1177 and :1276
+    ("precopy_mamba_align_fused_kernel", 1,
+     (("state_num_blocks_ptr", "self.state_num_blocks"),
+      ("guard_hits_ptr", "self.guard_hits"))),          # def :549, launch :1226
+]
+
 
 def fail(code: int, message: str) -> None:
     print(f"patch_mamba_guard_v32: {message}", file=sys.stderr)
     sys.exit(code)
+
+
+def call_target(call: ast.Call) -> str | None:
+    """The name a Call node invokes: `f(…)`, or a Triton launch `f[grid](…)`."""
+    fn = call.func
+    if isinstance(fn, ast.Subscript):
+        fn = fn.value
+    return fn.id if isinstance(fn, ast.Name) else None
+
+
+def slot_problems(tree: ast.AST) -> list[str]:
+    """Pair every patched kernel's def parameters with its calls' positional arguments, by index.
+
+    One entry per (kernel, inserted parameter) is a problem when the def's parameter #i and the
+    argument the call passes at #i disagree — the count check cannot see that, and Triton cannot
+    refuse it either, because both sides still pass the same number of arguments.
+    """
+    problems: list[str] = []
+    for kernel, want_sites, pairs in SLOT_PAIRS:
+        defs = [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == kernel]
+        if len(defs) != 1:
+            problems.append(f"{kernel}: {len(defs)} definitions in this file, want 1")
+            continue
+        args_of_def = defs[0].args.posonlyargs + defs[0].args.args
+        params = [a.arg for a in args_of_def]
+        sites = [n for n in ast.walk(tree)
+                 if isinstance(n, ast.Call) and call_target(n) == kernel]
+        if len(sites) != want_sites:
+            problems.append(f"{kernel}: {len(sites)} call site(s) "
+                            f"{[n.lineno for n in sites]}, want {want_sites} — an argument reached some "
+                            "of them and not the others, so one copy path is unguarded or one call "
+                            "passes too many")
+        for param, arg in pairs:
+            if param not in params:
+                problems.append(f"{kernel}: {param} is not a parameter of the def at "
+                                f":{defs[0].lineno} — the insertion never reached the signature")
+                continue
+            i = params.index(param)
+            for call in sites:
+                passed = [ast.unparse(a) for a in call.args]
+                if arg not in passed:
+                    problems.append(f"{kernel}: the call at :{call.lineno} never passes {arg}")
+                    continue
+                j = passed.index(arg)
+                if i == j:
+                    continue
+                problems.append(
+                    f"{kernel}: SLOT SKEW — {param} is def parameter #{i} "
+                    f"(line {args_of_def[i].lineno}) while this call passes {arg} at argument #{j} "
+                    f"(line {call.args[j].lineno}), an {abs(i - j)}-slot skew. At #{i} the def reads "
+                    f"{params[i] if i < len(params) else '(no parameter)'} against the call's "
+                    f"{passed[i] if i < len(passed) else '(no argument)'}; at #{j} the def reads "
+                    f"{params[j] if j < len(params) else '(no parameter)'} against the call's {arg}. "
+                    f"Triton binds these positionally, so {arg} arrives as "
+                    f"`{params[j] if j < len(params) else '(no parameter)'}`.")
+    return problems
 
 
 def count_lines(text: str, pattern: str) -> int:
@@ -275,14 +383,15 @@ def main() -> int:
         return 2
 
     bad = 0
-    for anchor, _insert, expected, evidence in ANCHORS:
-        found = src.count(anchor)
+    for anchor, _insert, expected, evidence, before in ANCHORS:
+        span = anchor + before
+        found = src.count(span)
         if found != expected:
-            line = src.count("\n", 0, src.find(anchor)) + 1 if found else 0
+            line = src.count("\n", 0, src.find(span)) + 1 if found else 0
             print(f"patch_mamba_guard_v32: ANCHOR   {path}\n"
                   f"          wanted {expected} occurrence(s), found {found}"
                   + (f" (first at line {line})" if found else "") + "\n"
-                  f"          anchor: {anchor[:72]!r}\n"
+                  f"          anchor: {span[:72]!r}\n"
                   f"          evidence at v0.32.0: {evidence}\n"
                   f"          this base's mamba_utils.py is not the file the guard was ported "
                   f"against — read it at that line before patching.", file=sys.stderr)
@@ -292,8 +401,8 @@ def main() -> int:
               "written; do NOT loosen an anchor to make the build pass.", file=sys.stderr)
         return 1
 
-    for anchor, insert, _expected, _evidence in ANCHORS:
-        src = src.replace(anchor, anchor + insert)
+    for anchor, insert, _expected, _evidence, before in ANCHORS:
+        src = src.replace(anchor + before, anchor + insert + before)
 
     try:
         ast.parse(src)
@@ -317,6 +426,16 @@ def main() -> int:
             fail(1, f"{pattern!r} is on {got} line(s) of the result, want 0 — that is day-0 code, "
                     "so this is a file copy and not a port. Nothing was written.")
 
+    problems = slot_problems(ast.parse(src))
+    for problem in problems:
+        print(f"patch_mamba_guard_v32: SKEW   {path}\n          {problem}", file=sys.stderr)
+    if problems:
+        print(f"patch_mamba_guard_v32: {len(problems)} slot problem(s) — the def and its call "
+              "inserted the guard parameters at DIFFERENT positions, which every count above accepts "
+              "and Triton does not refuse. Nothing was written; align the two anchors on the same "
+              "slot instead of loosening one.", file=sys.stderr)
+        return 1
+
     path.write_text(src, encoding="utf-8")
     print(f"patch_mamba_guard_v32: {len(ANCHORS)} anchors applied to {path}")
     print(f"patch_mamba_guard_v32: guard present — " +
@@ -324,6 +443,8 @@ def main() -> int:
     print("patch_mamba_guard_v32: day-0 pair absent — " + ", ".join(MUST_STAY_ABSENT))
     print("patch_mamba_guard_v32: v0.32's own kernels intact — " +
           ", ".join(f"{k}={v}" for k, v in MUST_STAY.items()))
+    print("patch_mamba_guard_v32: def/call slots aligned by ast — " +
+          ", ".join(f"{k} x{n}" for k, n, _p in SLOT_PAIRS))
     return 0
 
 
