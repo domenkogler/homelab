@@ -954,15 +954,29 @@ def self_test() -> int:
         check("no ledger file = no muting", len(fresh_none) == len(found) and bool(found),
               f"{len(fresh_none)} vs {len(found)}")
 
-    # (6) an unreachable vault is a boundary: rc 2 with SKIP, never rc 0.
-    with tempfile.TemporaryDirectory() as td:
-        r = subprocess.run([sys.executable, str(Path(__file__).resolve())],
-                           capture_output=True, text=True, encoding="utf-8", errors="replace",
-                           env=dict(os.environ, PATH=td),
-                           stdin=subprocess.DEVNULL)
-        detail = f"rc {r.returncode}: {(r.stdout + r.stderr).strip()[:90]}"
-        check("vault-unreachable prints SKIP and exits 2",
-              r.returncode == 2 and "SKIP" in (r.stdout + r.stderr), detail)
+    # (6) an unreachable vault is a boundary: rc 2 with SKIP, never rc 0 — and there are TWO ways to
+    # be unreachable, so the arm runs both. The boundary a seat actually hits is the CREDENTIAL, not
+    # the CLI: clearing PATH alone proves nothing on a seat that imports the onepassword SDK, because
+    # the child inherits the token and reads green. So every child loses PATH (no `op`), HOME (no seat
+    # file), the door (HL_WSL) and the env token; then
+    #   • "no `op`, no SDK" runs the leg with `-S` and no probe candidates, which is the branch
+    #     MUTATIONS' "no `op` on PATH reads green" breaks — `-S` hides a user-site SDK install too, so
+    #     the mutant stays killable on a seat that has the SDK;
+    #   • "no credential, SDK route" forces the SDK path, where the boundary is raised in
+    #     scripts/lib/vault_read.py — outside the mutation table's reach (it patches THIS file), so
+    #     this arm is that boundary's only witness.
+    bare = {k: v for k, v in os.environ.items() if k != "OP_SERVICE_ACCOUNT_TOKEN"}
+    for arm, extra_argv, extra_env in (
+            ("no `op`, no SDK", ["-S"], {"HL_VAULT_READ_PY_CANDIDATES": "vault-unreachable-stub"}),
+            ("no credential, SDK route", [], {"HL_VAULT_READ_ROUTE": "sdk"})):
+        with tempfile.TemporaryDirectory() as td:
+            r = subprocess.run([sys.executable, *extra_argv, str(Path(__file__).resolve())],
+                               capture_output=True, text=True, encoding="utf-8", errors="replace",
+                               env=dict(bare, PATH=td, HOME=td, HL_WSL="off", **extra_env),
+                               stdin=subprocess.DEVNULL)
+            detail = f"rc {r.returncode}: {(r.stdout + r.stderr).strip()[:90]}"
+            check(f"vault-unreachable prints SKIP and exits 2 ({arm})",
+                  r.returncode == 2 and "SKIP" in (r.stdout + r.stderr), detail)
 
     # (7) bounds are counted, not implied: a binary and an over-capacity file must be reported.
     with tempfile.TemporaryDirectory() as td:
