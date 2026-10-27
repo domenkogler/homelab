@@ -96,27 +96,29 @@ RUN test -f ${GPTQ_PY} \
  && grep -q '_fp8_hybrid_apply()' ${GPTQ_PY} \
  && python3 -c "import ast; ast.parse(open('${GPTQ_PY}').read()); print('auto_gptq.py patched OK')"
 
-# ---- 5. The never-evict option — NOT applied: the flag is rejected and this base moved its anchor ----
-# Upstream's patch_never_evict.py adds `--never-evict-kv-cache-*`. Nothing in this repository can pass
-# it: the flag is REJECTED (docs/services-ai-rejected.md — zero blocks reserved, prefix caching already
-# serves 95.1 %), every profile's never_evict_prompt is the EMPTY anchor so the compose template
-# renders no pair (IaC/ansible/templates/docker_services/spark-ai/docker-compose.yml.j2:83), and
-# spark_llm_never_evict_capable_images names `ultrafast` alone, so roles/spark-llm-profile and
+# ---- 5. The never-evict plumbing — applied here, while the flag itself stays rejected ----
+# Upstream's patch_never_evict.py adds `--never-evict-kv-cache-*`. Nothing in this repository renders
+# the pair: the flag is REJECTED (docs/services-ai-rejected.md — zero blocks reserved, prefix caching
+# already serves 95.1 %), every profile's never_evict_prompt is the EMPTY anchor so the compose
+# template renders no pair (IaC/ansible/templates/docker_services/spark-ai/docker-compose.yml.j2:83),
+# and spark_llm_never_evict_capable_images names `ultrafast` alone, so roles/spark-llm-profile and
 # scripts/gate/check_spark_llm_gate.py refuse the flag on any other lineage. A re-decide edits that
 # list in review; it does not inherit a patcher from this step.
-# Its anchor is gone here. The patcher's first edit is the TWO-line sequence
-#     watermark=self.scheduler_config.watermark,
-#         )
-# and v0.32.0 inserts `enable_mamba_shared_prefix_checkpoint=( … ),` between the two, so the sequence
-# occurs 0 times and the patcher's own `assert n == 1` stops the build at [9/39]. The line itself is
-# still there — scheduler.py:342, one occurrence — measured inside the pulled base at the digest
-# (spark/reports/hd1206-v32-port-20261026/box-build-20261027.md).
-# The guard, in step 12's shape: both halves are re-measured at every build, so a dropped patcher can
-# never silently become a re-added one, and a base that restores the day-0 shape stops the build and
-# makes the patcher someone's decision again.
-RUN test "$(grep -c -F 'watermark=self.scheduler_config.watermark,' ${SCHED})" -eq 1 \
- && test "$(grep -A1 -F 'watermark=self.scheduler_config.watermark,' ${SCHED} | tail -1)" != '        )' \
- && echo "never-evict: the day-0 two-line site is gone at this base and nothing renders the flag; patcher not applied"
+# The RULED port (owner 2026-10-27, report §7b: port everything, drop nothing) ships the patch set as
+# it stands, so the image carries the plumbing and nothing renders the dial — a statement about the
+# artifact, not a revival of the flag: `spark_llm_never_evict_prompt` stays "" and stays rejected.
+# Its one moved anchor is re-anchored in port_v32.py: v0.32 inserted
+# `enable_mamba_shared_prefix_checkpoint=( … ),` between the watermark argument and the closing paren
+# at v1/core/sched/scheduler.py:342-345, which is the two-line sequence the day-0 patcher opened on.
+# The three counts are that patch read in the finished layer, so "plumbing present, dial unreadable"
+# is proved by the build rather than asserted by a comment.
+COPY src/patch_never_evict.py /tmp/patch_never_evict.py
+RUN python3 /tmp/patch_never_evict.py \
+ && test "$(grep -c -F 'never_evict_kv_cache_prompt_includes' ${SP}/vllm/config/cache.py)" -eq 2 \
+ && test "$(grep -c -F 'never-evict-kv-cache' ${SP}/vllm/engine/arg_utils.py)" -eq 2 \
+ && test "$(grep -c -F '_pin_needle' ${SCHED})" -eq 5 \
+ && echo "never-evict: plumbing applied at this base; the dial stays rejected and empty" \
+ && rm /tmp/patch_never_evict.py
 
 # ---- 6. lm_head under the checkpoint's quant config (model.py + mtp.py) ----
 # Anchor proven at both call sites, one occurrence per file:

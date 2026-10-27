@@ -117,6 +117,33 @@ ANCHORS: list[tuple[str, str, str, int, str]] = [
         1,
         "the CPU self-test's own target path; HTTP 200 for the qwen4_exp file at the tag",
     ),
+
+# patch_never_evict.py -- Dockerfile.v32 step 5, restored by the port-everything ruling
+# (2026-10-27), which reverses the f42638e2 drop. Only the scheduler call site moved:
+# v0.32 inserted enable_mamba_shared_prefix_checkpoint=( … ), between the watermark
+# argument and the closing paren, so the patcher's two-line anchor is a five-line one.
+# The flag itself stays REJECTED and every spark_llm_never_evict_prompt stays empty:
+# the image carries the plumbing, nothing renders the dial
+# (docs/services-ai-rejected.md, IaC/ansible/group_vars/spark.yml).
+    (
+        "src/patch_never_evict.py",
+        (
+        '            watermark=self.scheduler_config.watermark,\n' +
+        '        )\n' +
+        ''
+    ),
+        (
+        '            watermark=self.scheduler_config.watermark,\n' +
+        '            enable_mamba_shared_prefix_checkpoint=(\n' +
+        '                self.cache_config.enable_mamba_shared_prefix_checkpoint\n' +
+        '            ),\n' +
+        '        )\n' +
+        ''
+    ),
+        2,
+        "vllm/v1/core/sched/scheduler.py:342-345 -- v0.32 inserted the mamba shared-prefix kwarg between the watermark argument and the closing paren, so the day-0 two-line sequence is now a five-line one; 2 = the patcher's old side and its new side",
+    ),
+
 ]
 
 # Removed from the staged tree, with the reason each one is dangerous in a v32 build directory.
