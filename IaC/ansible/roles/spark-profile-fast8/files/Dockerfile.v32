@@ -119,30 +119,77 @@ RUN test -f ${MODEL_PY} && test -f ${MTP_PY} \
  && grep -q 'quant_config=vllm_config.quant_config' ${MTP_PY} \
  && python3 -c "import ast; [ast.parse(open(p).read()) for p in ('${MODEL_PY}','${MTP_PY}')]; print('lm_head patched OK in model.py + mtp.py')"
 
-# ---- 7. The guarded mamba_utils.py — REFUSES unless a human passed the gate ----
+# ---- 7. The mamba state-copy guard, ported onto this base's own file ----
 # Upstream's step is a WHOLE-FILE COPY of their `mamba_utils_guarded.py` over the image's
-# `vllm/v1/worker/mamba_utils.py`. That file is a snapshot of the DAY-0 base: 1641 lines, against
-# 1654 lines at v0.32.0 (HTTP 200), and the snapshot does not contain
-# `get_aligned_state_indices_multi_group_kernel`, which v0.32.0's copy does — 329 changed lines
-# between the two. Copying it here would therefore revert upstream work into this lineage silently,
-# which is the one failure mode a green build cannot show. So the step is gated on an explicit
-# build-arg: read the diff inside the base image, port the guard as an anchored patch (or prove the
-# snapshot is still what you want), and only then pass --build-arg MAMBA_UTILS_GUARD=apply.
-ARG MAMBA_UTILS_GUARD=refuse
+# `vllm/v1/worker/mamba_utils.py`. That snapshot is the DAY-0 file plus the guard — 1641 lines
+# against this base's 1654, 329 changed lines over 39 hunks — and the delta is three layers, not one
+# (report §7 reads it inside the base image at the pin digest):
+#   * the guard itself is snapshot-side only: `guard_hits` 0, `state_num_blocks` 0 in this base, so
+#     the base will never supply it and it is owed,
+#   * v0.32 ADDS `get_aligned_state_indices_multi_group_kernel` (:39), `_reinterpret_u64_as_i64`
+#     (:185) and `compute_aligned_state_indices` (:1106), none of which the snapshot has seen,
+#   * v0.32 DELETED the day-0 `*_mamba_all*` pair that the snapshot still carries, and re-typed
+#     `postprocess_mamba_align_gpu`'s `input_batch` to `InputBatch` (:1449) where the snapshot says
+#     `GPUInputBatch`, a class this base does not import.
+# So the copy is a three-layer revert, which is the one failure mode a green build cannot show. The
+# guard is ported instead by patch_mamba_guard_v32.py: 13 anchors, each carrying the v0.32.0
+# file:line it was read at, all counts measured before anything is written, and the guard's 31 lines
+# landing byte-for-byte where the day-0 file has them. The kernels' only other referent,
+# v1/worker/gpu/model_states/mamba_hybrid.py, reaches them through `run_fused_precopy` / :222 and
+# `run_fused_postprocess_align` / :396 — signatures this patch does not change.
+#
+# MAMBA_UTILS_GUARD is tri-state and the shipped value is `patch`
+# (roles/spark-profile-fast8/defaults/main.yml):
+#   patch  — run the patcher, then count the FINISHED file in both directions. The default.
+#   apply  — the revert-to-copy escape hatch: prints what it costs, then puts the snapshot over the
+#            file. An owner act, recorded in its own commit, for a base where the port cannot work.
+#   refuse — stop the build. Any value that is neither `patch` nor `apply` also stops it, so a typo
+#            cannot pick a side silently.
+# The post-greps read the file, not the patcher's stdout: 19 and 12 are the day-0 artifact's own
+# `grep -c -F` counts, i.e. what the live `fast` image answers today, so the port can be compared
+# against the guard that lineage runs on rather than trusted.
+ARG MAMBA_UTILS_GUARD=patch
 COPY src/mamba_utils_guarded.py /tmp/mamba_utils_guarded.py
+COPY patch_mamba_guard_v32.py /tmp/patch_mamba_guard_v32.py
 RUN test -f ${MAMBA_UTILS} \
- && if [ "${MAMBA_UTILS_GUARD}" != "apply" ]; then \
-      echo 'REFUSED: MAMBA_UTILS_GUARD is not "apply", so the day-0 whole-file snapshot was not'; \
-      echo 'copied over vllm/v1/worker/mamba_utils.py in this image. Read the diff, then decide:'; \
-      echo "  docker run --rm --network none --entrypoint bash <image> -c 'diff -u /tmp/mamba_utils_guarded.py ${MAMBA_UTILS}'"; \
-      echo 'then pass --build-arg MAMBA_UTILS_GUARD=apply, or port the guard as an anchored patch.'; \
+ && if [ "${MAMBA_UTILS_GUARD}" = "refuse" ]; then \
+      echo 'REFUSED: MAMBA_UTILS_GUARD=refuse stops this build. The shipped value is "patch", which'; \
+      echo 'ports the guard onto' ${MAMBA_UTILS} 'with anchored insertions; "apply" is the'; \
+      echo 'revert-to-copy hatch below. Either is a deliberate value in'; \
+      echo 'roles/spark-profile-fast8/defaults/main.yml, never a flag on a one-off build.'; \
       exit 1; \
     fi \
- && cp ${MAMBA_UTILS} ${MAMBA_UTILS}.orig \
- && cp /tmp/mamba_utils_guarded.py ${MAMBA_UTILS} \
- && DRIFT=$(diff -u ${MAMBA_UTILS}.orig ${MAMBA_UTILS} | grep -c '^[+-]' || true) \
- && echo "mamba_utils.py replaced: ${DRIFT} changed lines against this image's own copy (record it)" \
- && python3 -c "import ast; ast.parse(open('${MAMBA_UTILS}').read()); print('mamba_utils.py guarded OK')"
+ && if [ "${MAMBA_UTILS_GUARD}" != "patch" ] && [ "${MAMBA_UTILS_GUARD}" != "apply" ]; then \
+      echo 'REFUSED: MAMBA_UTILS_GUARD=' "'${MAMBA_UTILS_GUARD}'" 'is neither "patch" nor "apply".'; \
+      echo 'An unrecognised value must not choose a side by accident.'; \
+      exit 1; \
+    fi \
+ && if [ "${MAMBA_UTILS_GUARD}" = "apply" ]; then \
+      cp ${MAMBA_UTILS} ${MAMBA_UTILS}.orig \
+      && echo 'APPLY — the whole-file copy. It costs three layers at once:' \
+      && echo '  1. it adds the guard, which IS what is owed (this base has 0 occurrences of it),' \
+      && echo '  2. it reinstalls the day-0 *_mamba_all* pair that v0.32 deleted, and' \
+      && echo '  3. it deletes get_aligned_state_indices_multi_group_kernel and' \
+      && echo '     compute_aligned_state_indices, and re-types the input_batch argument of' \
+      && echo '     postprocess_mamba_align_gpu back to GPUInputBatch, which this base does not import' \
+      && cp /tmp/mamba_utils_guarded.py ${MAMBA_UTILS} \
+      && DRIFT=$(diff -u ${MAMBA_UTILS}.orig ${MAMBA_UTILS} | grep -c '^[+-]' || true) \
+      && echo "  ${DRIFT} changed lines against this image's own copy (329 at the read; record it)" \
+      && echo 'mamba_utils.py: day-0 snapshot installed — this image is NOT the ported lineage'; \
+    else \
+      python3 /tmp/patch_mamba_guard_v32.py \
+      && test "$(grep -c -F 'guard_hits' ${MAMBA_UTILS})" -eq 19 \
+      && test "$(grep -c -F 'state_num_blocks' ${MAMBA_UTILS})" -eq 12 \
+      && test "$(grep -c -F 'tl.atomic_add(guard_hits_ptr, 1)' ${MAMBA_UTILS})" -eq 4 \
+      && test "$(grep -c -F 'postprocess_mamba_all' ${MAMBA_UTILS})" -eq 0 \
+      && test "$(grep -c -F 'preprocess_mamba_all_specdec' ${MAMBA_UTILS})" -eq 0 \
+      && test "$(grep -c -F 'GPUInputBatch' ${MAMBA_UTILS})" -eq 0 \
+      && test "$(grep -c -F 'get_aligned_state_indices_multi_group_kernel' ${MAMBA_UTILS})" -eq 2 \
+      && test "$(grep -c -F 'compute_aligned_state_indices' ${MAMBA_UTILS})" -eq 2 \
+      && echo 'mamba_utils.py: guard ported onto this base, day-0 pair still absent, v0.32 kernels intact'; \
+    fi \
+ && python3 -c "import ast; ast.parse(open('${MAMBA_UTILS}').read()); print('mamba_utils.py parses')" \
+ && rm /tmp/patch_mamba_guard_v32.py
 
 # ---- 8–10. The three host-side patchers upstream runs verbatim ----
 # Each targets model-agnostic vllm paths that exist at the tag (kv_cache_coordinator,
