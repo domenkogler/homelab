@@ -46,7 +46,7 @@ Read from `raw.githubusercontent.com/vllm-project/vllm/v0.32.0/…` (HTTP status
 | `_ple_mmap_apply(Qwen3_8FlashNextNGramEmbedding)` appended to `${PLE}` | the n-gram class lives in `qwen4_exp` under a `Qwen4Exp*` name | **loud at import** — NameError inside the patched module |
 | `_mtp_draft_vocab_apply(Qwen3_8FlashNextMTP)` appended to `${MTP_PY}` | `Qwen4ExpMTP` | loud at import |
 | `sed -i 's\|DEFAULT = 102400\|DEFAULT = 101376 …\|'` (GB10 shmem fix) and `sed -i 's\|for num_warps in \[2, 4\]\|for num_warps in [2]\|'` (Blackwell `tl.dot` race) | source strings may have moved | **SILENT** — `sed` exits 0 on no match; a build can "succeed" with both GB10 fixes absent. Verify by reading the two files, never by the build's exit code |
-| the never-evict patcher (`src/patch_never_evict.py` → `arg_utils.py`, `config/cache.py`, `v1/core/block_pool.py`) | those files exist at the tag | re-verify the patch still applies; the flag itself stays REJECTED (`spark_llm_never_evict_prompt: ""`), this is about not breaking the build |
+| the never-evict patcher (`src/patch_never_evict.py` → `arg_utils.py`, `config/cache.py`, `v1/core/block_pool.py`, `v1/core/sched/scheduler.py`) | those files exist at the tag, but the patcher's first edit matches a **two-line** sequence and `v1/core/sched/scheduler.py:342` no longer has the closing paren on the next line | **decided by the build, loudly**: `anchor found 0 times (want 1)`. The patcher is dropped, with a guard — the flag is REJECTED and no lineage but `ultrafast` may carry it (§7, [box-build-20261027.md](box-build-20261027.md)) |
 
 ## 3. Upstream has not ported it
 
@@ -146,6 +146,7 @@ the build's own greps run (*The base-image read*, below).
 | `auto_gptq.py`, `mamba_utils.py`, `low_latency_gemm.py`, `skinny_gemm.py`, `qwen_gdn_linear_attn.py`, `short_conv_attn.py`, `model_state.py`, `registry.py`, `engine/arg_utils.py` (the patchers' targets) | HTTP 200 each; `vllm/arg_utils.py` is **404** — the file is `vllm/engine/arg_utils.py`, which is what `patch_never_evict.py` already opens | yes |
 | `QwenGatedDeltaNetAttention` (the in-proj GEMV append) | `vllm/model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py:454` | yes |
 | `patch_short_conv_async_h2d.py` is **not needed** | `vllm/v1/attention/backends/short_conv_attn.py:334,337` — both transfers are `async_tensor_h2d(` at the tag, so the day-0 anchor is gone. `Dockerfile.v32` step 12 greps this, so the claim cannot rot silently | yes (dropped, with a guard) |
+| `patch_never_evict.py` is **not applied** | its first edit counts a two-line sequence: `vllm/v1/core/sched/scheduler.py:342` still carries `watermark=self.scheduler_config.watermark,` (**1** hit) but v0.32.0 inserted `enable_mamba_shared_prefix_checkpoint=(…)` before the closing paren, so the sequence occurs **0** times — read inside `6ff5ff0d…`'s own copy. Nothing reads the flag it would install: rejected in [services-ai-rejected.md](../../../docs/services-ai-rejected.md), every `never_evict_prompt` is empty, and `spark_llm_never_evict_capable_images` names only `ultrafast` | yes (box, dropped with a guard — [box-build-20261027.md](box-build-20261027.md)) |
 | the day-0 marker comment text (`# --- qwen38-flash-dgx: …`) | `tests/test_iter6_patches_image.py:129` splits on it, so it is an anchor: kept byte-identical, only class names change | yes |
 | the `${SP}` prefix **inside the release image** | all 8 `spark_profile_fast8_base_probes` are absolute paths under `/usr/local/lib/python3.12/dist-packages` and all 8 return `rc 0` in `vllm/vllm-openai:v0.32.0-aarch64@sha256:6ff5ff0d…` | yes (box) |
 | the two GB10 `sed` source constants **inside the release image** | same read: `DEFAULT = 102400` → 1, `for num_warps in [2, 4]` → 1 — each `sed` has exactly its one source string to match, so neither GB10 fix can be a silent no-op | yes (box) |
@@ -157,10 +158,10 @@ the build's own greps run (*The base-image read*, below).
 each one is loud at build time (upstream's patchers all assert `n == 1` per anchor) or is named below, so none of
 them can pass silently:
 
-* every **multi-line code anchor** inside the twelve unchanged patchers (`patch_block_drop.py`,
+* every **multi-line code anchor** inside the unchanged patchers (`patch_block_drop.py`,
   `patch_measure_draft_mass.py`, `patch_verify_topk_pivot.py`, …). The files they edit exist at the tag and in the
   image; the exact surrounding text is not something a read of the base can settle. The build decides, and it
-  fails loudly.
+  fails loudly — which is how `patch_never_evict.py` was settled (row above).
 * the `vllm_inproj_ba_gemv.py` docstring's `model.py:208-212` / `:636` **line pointers**: the module path is
   re-anchored, the numbers are day-0.
 * the **fp8-KV half of this lineage**: `scripts/bench/spark-fp8-image-probe.py`'s box leg must read the built
@@ -204,7 +205,7 @@ prints `port_v32: 9 anchors verified against the checkout /opt/homelab/ultrafast
 `ANCHOR` and no `MISSING` line. Nothing was written: the stage directory stayed empty and the checkout's
 path+mtime+size fingerprint over its 149 files is identical before and after, with `git status --porcelain` clean.
 So the `--check-only` fix (`5bd0efbc`) holds against the real recipe, and the porter's nine day-0-side anchors are
-proven — which leaves the twelve unchanged patchers' internal anchors as the only anchors the build still decides.
+proven — which leaves the unchanged patchers' internal anchors as the only anchors the build still decides.
 
 **The `mamba_utils` diff, read inside the base image** — the command, run with the
 checkout's file bind-mounted read-only where the staged copy would be (`port_v32.py` has no mamba anchor entry, so

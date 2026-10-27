@@ -376,7 +376,11 @@ Docker restart-loop while every gate stays green. So:
 * `spark_llm_never_evict_capable_images: [ultrafast]` is the SSOT for which lineage may carry the
   flag, and both `roles/spark-llm-profile` and `scripts/gate/check_spark_llm_gate.py` refuse a non-empty
   pin anywhere else (canary-proven); `scripts/bench/spark-llm-render-matrix.py` fails a render that puts
-  the flag on an uncapable image.
+  the flag on an uncapable image. The v0.32 lineage (`ultrafast-v32`) is NOT in that list and its build
+  does not install the pair at all — the patcher's anchor moved at that base, and
+  `roles/spark-profile-fast8/files/Dockerfile.v32` step 5 re-measures that every build rather than
+  silently re-adding the patcher
+  ([report](../spark/reports/hd1206-v32-port-20261026/box-build-20261027.md)).
 * A needle is matched as a **token subsequence** (`tokenizer.encode(marker)` minus the first and
   last token, then `_contains_subseq` over the prompt) — all-or-nothing, no partial matching: one
   edited character anywhere in a multi-file concatenation stops the whole pin, silently, while the

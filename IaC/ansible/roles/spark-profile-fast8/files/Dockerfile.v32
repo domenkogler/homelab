@@ -43,6 +43,8 @@ ARG GPTQ_PY=${SP}/vllm/model_executor/layers/quantization/auto_gptq.py
 ARG FLA_UTILS=${SP}/vllm/third_party/flash_linear_attention/ops/utils.py
 ARG FLA_CDH=${SP}/vllm/third_party/flash_linear_attention/ops/chunk_delta_h.py
 ARG MAMBA_UTILS=${SP}/vllm/v1/worker/mamba_utils.py
+# The scheduler's KV-config call site — step 5's guard reads it, nothing else in this file does.
+ARG SCHED=${SP}/vllm/v1/core/sched/scheduler.py
 
 # ---- 1. PLE n-gram table from disk (VLLM_PLE_MMAP=1) ----
 # src/vllm_ple_mmap.py here is the STAGED copy, already re-anchored by port_v32.py: its
@@ -94,13 +96,27 @@ RUN test -f ${GPTQ_PY} \
  && grep -q '_fp8_hybrid_apply()' ${GPTQ_PY} \
  && python3 -c "import ast; ast.parse(open('${GPTQ_PY}').read()); print('auto_gptq.py patched OK')"
 
-# ---- 5. The never-evict option (flag stays REJECTED; the step exists so the build is upstream's) ----
-# patch_never_evict.py asserts every anchor occurs exactly once (its own
-# `assert n == 1, "anchor found N times (want 1)"`), and its targets exist at the tag:
-# vllm/config/cache.py 200, vllm/engine/arg_utils.py 200 (note: NOT vllm/arg_utils.py — 404 there),
-# vllm/v1/core/block_pool.py 200, vllm/v1/core/sched/scheduler.py 200.
-COPY src/patch_never_evict.py /tmp/patch_never_evict.py
-RUN python3 /tmp/patch_never_evict.py && rm /tmp/patch_never_evict.py
+# ---- 5. The never-evict option — NOT applied: the flag is rejected and this base moved its anchor ----
+# Upstream's patch_never_evict.py adds `--never-evict-kv-cache-*`. Nothing in this repository can pass
+# it: the flag is REJECTED (docs/services-ai-rejected.md — zero blocks reserved, prefix caching already
+# serves 95.1 %), every profile's never_evict_prompt is the EMPTY anchor so the compose template
+# renders no pair (IaC/ansible/templates/docker_services/spark-ai/docker-compose.yml.j2:83), and
+# spark_llm_never_evict_capable_images names `ultrafast` alone, so roles/spark-llm-profile and
+# scripts/gate/check_spark_llm_gate.py refuse the flag on any other lineage. A re-decide edits that
+# list in review; it does not inherit a patcher from this step.
+# Its anchor is gone here. The patcher's first edit is the TWO-line sequence
+#     watermark=self.scheduler_config.watermark,
+#         )
+# and v0.32.0 inserts `enable_mamba_shared_prefix_checkpoint=( … ),` between the two, so the sequence
+# occurs 0 times and the patcher's own `assert n == 1` stops the build at [9/39]. The line itself is
+# still there — scheduler.py:342, one occurrence — measured inside the pulled base at the digest
+# (spark/reports/hd1206-v32-port-20261026/box-build-20261027.md).
+# The guard, in step 12's shape: both halves are re-measured at every build, so a dropped patcher can
+# never silently become a re-added one, and a base that restores the day-0 shape stops the build and
+# makes the patcher someone's decision again.
+RUN test "$(grep -c -F 'watermark=self.scheduler_config.watermark,' ${SCHED})" -eq 1 \
+ && test "$(grep -A1 -F 'watermark=self.scheduler_config.watermark,' ${SCHED} | tail -1)" != '        )' \
+ && echo "never-evict: the day-0 two-line site is gone at this base and nothing renders the flag; patcher not applied"
 
 # ---- 6. lm_head under the checkpoint's quant config (model.py + mtp.py) ----
 # Anchor proven at both call sites, one occurrence per file:
