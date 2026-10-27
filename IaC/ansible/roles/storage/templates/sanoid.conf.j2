@@ -20,8 +20,10 @@
     use_template = {{ tname }}
 {% endfor %}
 
-# Replicas on bulk retain the same cadence independently (they are their own
-# rollback targets); sanoid runs on the backup side too but never sends.
+# A bulk dataset that is a `zfs receive` target sits on `replica` (autosnap = no, autoprune = yes):
+# an incremental `zfs receive -F` cannot land on a target holding snapshots the stream does not
+# contain, so the replica's own autosnapshots would block the replication leg. sanoid still runs the
+# prune pass on the backup side, and never sends.
 # Dedup/global defaults:
 [template_all]
     frequently = 0

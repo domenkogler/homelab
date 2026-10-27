@@ -156,7 +156,7 @@ the box tonight.** The reads, in the order that settles it:
 |---|---|
 | `systemctl cat sanoid.service` | `Type=oneshot`, `ExecStart=/usr/sbin/sanoid --cron` — the path the role generates |
 | `systemctl show sanoid.service -p Result,ExecMainStatus` | `Result=success`, `ExecMainStatus=0`, last fire `2026-10-19 01:25:00`, `sanoid.timer` next fire 01:30 — a 5-minute cadence that is a prune/snapshot check, as this section says |
-| `zfs list -t snapshot -o name \| grep -c _hourly$` | **134** policy snapshots, and the per-dataset counts are the honest ones: `tank/data/services` **43**, `tank/data/db-dumps` **24** (at window), and the same on the two `bulk/data/*` replicas — `sanoid.conf` gives `bulk/data/services` and `bulk/data/db-dumps` `use_template = data`, so the replica snapshots its own history by config, which is the "independent replica history" bullet above, not an accident |
+| `zfs list -t snapshot -o name \| grep -c _hourly$` | **134** policy snapshots, and the per-dataset counts are the honest ones: `tank/data/services` **43**, `tank/data/db-dumps` **24** (at window), and the same on the two `bulk/data/*` replicas — at that read `sanoid.conf` gave `bulk/data/services` and `bulk/data/db-dumps` a snapshotting template, which is the condition the "replica datasets take NO autosnapshots" bullet above rules out |
 | `systemctl show storage-syncoid.service` | `activating (start)` since **2026-10-18 06:45:04** (18 h 43 min at read time), `NRestarts=0`, `Job=3164`, `JobTimeoutUSec=infinity` — nothing will ever time this out |
 | `systemctl status` cgroup | 5 tasks: `bash storage-syncoid.sh` → `syncoid --force-delete tank/data/services bulk/data/services` → the syncoid tee helper → `sh -c "zfs send -I tank/data/services@syncoid_nas_2026-10-08:21:00:08 tank/data/services@syncoid_nas_2026-10-18:06:45:05 \| mbuffer \| pv -p -t -e -r -b -s 23712 \| zfs receive -s -F bulk/data/services"` → **`pv`** |
 | Is a receive running? | **No.** `zfs send`, `mbuffer` and `zfs receive` are absent from the process table and from the unit's cgroup; `zfs get receive_resume_token bulk/data/services` → empty |
@@ -202,8 +202,8 @@ returns, and a `Type=oneshot` with `JobTimeoutUSec=infinity` sits in `activating
 
 And the receive has a real reason to fail, which is the part this section used to get wrong. **`zfs send -I` is
 incremental from `tank/data/services@syncoid_nas_2026-10-08:21:00:08`; 66 snapshots on the destination are newer
-than that base and every one of them is a sanoid `@autosnap_*` the replica takes for itself** — `bulk/data/services`
-carries `use_template = data`, so it snapshots its own history. An incremental `-F` receive cannot land on a target
+than that base and every one of them is a sanoid `@autosnap_*` the replica took for itself** — at that read
+`bulk/data/services` sat on a snapshotting template. An incremental `-F` receive cannot land on a target
 that holds snapshots the stream does not contain. "The replica retains independent snapshot history" and "the
 replica is a syncoid target" are therefore **mutually exclusive on this dataset**, and the honest reading of the
 counts is that this leg has replicated nothing since the base snapshot: 2026-10-08 21:00.

@@ -175,13 +175,19 @@ storage_sanoid:
   templates:
     data:            { frequently: 0,  hourly: 24, daily: 7, weekly: 4, monthly: 3 }
     thumbs:          { frequently: 0,  hourly: 0,  daily: 7, weekly: 0, monthly: 0 }   # immich-thumbs (bulk)
+    # A `zfs receive` target must take NO autosnapshots of its own: an incremental `zfs receive -F`
+    # cannot land on a dataset holding snapshots the stream does not contain, so a replica that
+    # snapshots its own history blocks the replication leg at the send's base snapshot. autoprune
+    # stays YES so sanoid's own age-ordered pruning retires whatever the replica used to hold —
+    # that is the path that unblocks the receive, never a hand-`zfs destroy` (docs/storage.md).
+    replica:         { autosnap: "no", autoprune: "yes", frequently: 0, hourly: 0, daily: 0, weekly: 0, monthly: 0 }
     none:            { autosnap: "no", autoprune: "no" }
   datasets:
     tank/data/services:      data
     tank/data/db-dumps:      data
-    bulk/data/services:      data          # replicas keep the same cadence
-    bulk/data/db-dumps:      data
-    bulk/data/immich-thumbs: thumbs
+    bulk/data/services:      replica       # syncoid receive target — rollback targets are the source-side snaps
+    bulk/data/db-dumps:      replica       # syncoid receive target — ditto
+    bulk/data/immich-thumbs: thumbs        # push target: nothing receives into it, so it keeps its own cadence
     bulk/media:              none          # unbacked — never snapshotted
 
 # ---------------------------------------------------------------------
