@@ -4,10 +4,13 @@
 > role properties a rebuild depends on and where each one lives, and the rollback state of the box as it stands.
 > **Linked from:** [`todo.md`](../../../todo.md) HD-1206 · [`docs/spark-llm-profiles.md`](../../../docs/spark-llm-profiles.md)
 
-The profile `fast8` (`image: ultrafast-v32`) is authored and **gate-blocked on an empty pin**: the lineage it names
-is the upstream patch stack *rebuilt on a v0.32 base*, and that build does not exist yet. This file is the survey
-of what stands between here and there, taken read-only from the checkout on spark, from upstream source at the tag
-and — for the base-image half — from inside the pulled base image at the pin digest.
+The profile `fast8` (`image: ultrafast-v32`) names the upstream patch stack *rebuilt on a v0.32 base*, and that
+build **exists**: the artifact is built, its image ID is pinned in `group_vars/all/versions.yml`, and
+`ultrafast-v32` is in `spark_llm_fp8_kv_capable_images` on the probe's own verdict. The as-built record is
+[build-20261027.md](build-20261027.md); what is owed now is the owner window (the flip, gates 0–7, then 8–9),
+not the port. This file remains the survey of how the port was settled, taken read-only from the checkout on
+spark, from upstream source at the tag and — for the base-image half — from inside the pulled base image at the
+pin digest.
 
 ## 1. What the recipe is (read from the box, not from the README)
 
@@ -119,8 +122,10 @@ vars, so a second lineage cannot inherit the first one's values by accident. The
    engine serves from**, so this step is scheduled inside the owner window and not beside serving: an 8 GiB CPU
    gate competes with the engine for the pool it budgets.
 5. Enter `ultrafast-v32` in `spark_llm_fp8_kv_capable_images` **only on the probe's `REACHABLE` verdict** — the
-   list is `[]` until then, because that list is the fp8 claim's evidence and a pre-registered name turns every
-   offline gate green by assertion (§7 box leg step 4). The arm reads GATED while it is empty, not broken.
+   list is the fp8 claim's evidence, so a pre-registered name would turn every offline gate green by assertion
+   (§7 box leg step 4); while a name is absent the arm reads GATED, not broken. ✅ Done on the box leg's
+   `REACHABLE-ON-THIS-PIN` verdict: `spark_llm_fp8_kv_capable_images: [ultrafast-v32]`, recorded in the same
+   change as the ID pin ([build-20261027.md](build-20261027.md) §5).
 6. Offline: `check_spark_llm_gate.py`, `spark-llm-render-matrix.py`, `spark-llm-probe.py matrix`.
 7. Owner window: flip `spark_llm_profile: fast8` with a per-run `-e spark_llm_allow_uncertified=true`, converged
    **detached**; read the engine's own `GPU KV cache size` line (the projection is 1,095,830 slots = 4.18 ×); then
@@ -165,8 +170,10 @@ them can pass silently:
   set in one read instead of one build attempt per surprise.**
 * the `vllm_inproj_ba_gemv.py` docstring's `model.py:208-212` / `:636` **line pointers**: the module path is
   re-anchored, the numbers are day-0.
-* the **fp8-KV half of this lineage**: `scripts/bench/spark-fp8-image-probe.py`'s box leg must read the built
-  image's own `qsa.py` before `ultrafast-v32` may enter `spark_llm_fp8_kv_capable_images`.
+* the **fp8-KV half of this lineage**, settled by the leg rather than by inference:
+  `scripts/bench/spark-fp8-image-probe.py --image spark-ultrafast:v32-iter6d --skip-registry` read the built
+  image's own `qsa.py` and returned `REACHABLE-ON-THIS-PIN`, which is the evidence the capable-list entry
+  carries ([build-20261027.md](build-20261027.md) §5).
 
 ### The base-image read, at the pin digest
 
@@ -380,7 +387,7 @@ another name still counts as the run it feeds — the `RUN python3 /tmp/patch_*.
 step that names a patcher only in its prose is `guard-only`, which is step 12's shape. An integrity
 check reddens when the derived set and the staged `src/` disagree in either direction, so a patcher
 added upstream cannot be invisible to the census; `--self-test` breeds exactly that miss and requires
-the redden. The set is **13 names in step order — 12 applied, 1 guard-only** — and 12 of them are the
+the redden. The set is **13 names derived in step order — 11 applied, 2 guard-only** — and 12 of them are the
 day-0 patchers whose anchors are countable: `patch_mamba_guard_v32.py` is step 7's in-repo port, staged
 at the build-dir root and self-measured over its own 13 anchors (§7), not a day-0 file. A hand-kept
 table cannot say any of that, and the one this section carried held 11 names: step 14's
@@ -409,7 +416,7 @@ docker run --rm --network none --memory 2g \
 | 8–10 | `patch_step_profile` | 1 | 0 | 0 | 1 | 0 | applies as written — append-plus-assert, no anchor the census can read; the precondition is `class GPUModelRunner` **1** and `_step_profile` **0** in `v1/worker/gpu/model_runner.py` |
 | 12 | `patch_short_conv_async_h2d` | 16 | 5 | 0 | 11 | 0 | **base already holds the post-state, guard only** — `vllm/v1/attention/backends/short_conv_attn.py:334` and `:337` are both `async_tensor_h2d(`, so the step greps instead of applying (rule 1 below) |
 | 13–17 | `patch_measure_draft_mass` | 6 | 2 | 0 | 3 | 1 | applies as written — its five named anchors (`RS_ANCHORS`/`MM_ANCHORS`) each count **1** in `v1/worker/gpu/spec_decode/rejection_sampler.py` and `model_executor/layers/fused_moe/experts/marlin_moe.py`; its 3 `absent` rows are `MODULE_SRC` prose of the module it installs, not base anchors |
-| 13–17 | `patch_low_latency_gemm_sm12x` | 13 | 2 | 0 | 8 | 3 | **R3 — awaiting owner ruling.** Only the target-path constant is re-anchored (`qwen3_8_flash_next` → `qwen4_exp`); the gate and its plumbing are a different shape at this base. Evidence and both dispositions below |
+| 13–17 | `patch_low_latency_gemm_sm12x` | 13 | 2 | 0 | 8 | 3 | **R3 — RULED A+ (owner): subsumed, guard-only.** The target-path constant is re-anchored (`qwen3_8_flash_next` → `qwen4_exp`) and the 8 `absent` + 3 `not unique` rows are the day-0 gate this base replaced: `GB10 12.1 ⊄ (10,3)`, and the base's own capability-keyed table already carries the `(12, 1)` Spark plan. Step 14 therefore greps the post-state instead of applying — rule 1 below, step 12's sanctioned shape |
 | 13–17 | `patch_in_proj_ba_gemv` | 4 | 3 | 0 | 0 | 1 | applies as written — every base anchor holds; `qwen_gdn_linear_attn.py:454` carries the class it wraps |
 | 13–17 | `patch_ple_rendezvous` | 10 | 0 | 0 | 10 | 0 | **census blind spot, not a verdict** — its target is `${SP}/vllm_ple_mmap.py`, a file this build installs at step 1, so nothing can be counted in the base image. Read against the staged artifact instead: all 6 anchors **1** each there |
 | 13–17 | `patch_verify_topk_pivot` | 6 | 6 | 0 | 0 | 0 | **re-anchored ×5 entries** — `vllm/sample/ops/topk_topp_sampler.py:466` (the `logits.shape[0] >= 8` heuristic is gone) and `:469-470` (`allow_cpu_sync`), `v1/worker/gpu/sample/sampler.py:234-236` and `v1/worker/gpu/spec_decode/rejection_sampler.py:265-266` (`seq_lens_upper_bound_np`) |
@@ -421,7 +428,9 @@ derived patchers. Raw rows, commands and the self-test transcript:
 [`raw/anchor-census-derived-20261027.txt`](raw/anchor-census-derived-20261027.txt);
 [`raw/anchor-census-20261027.txt`](raw/anchor-census-20261027.txt) is the same base read with the
 earlier hand-listed 11-name set and is kept because its `patch_low_latency_gemm_sm12x` rows are the
-ones the derived census re-derives.
+ones the derived census re-derives. [`raw/anchor-census-derived-r3-20261027.txt`](raw/anchor-census-derived-r3-20261027.txt)
+is the same base read with **step 14 guard-only** — the set the committed `Dockerfile.v32` derives: 13 names ·
+11 applied · 2 guard-only, integrity line clean, 0 RED, same 101 anchors over 12 of 13.
 
 **The two weaknesses to read before using a row.** (1) Where a patcher applies the same edit through a
 loop (`for path in FILES.values(): add_gate(path)`), the census cannot resolve which file a call means
@@ -438,7 +447,7 @@ therefore never by itself a prediction of where the build stops: of the 45, 18 a
 writes itself or prose the patcher carries (`patch_ple_rendezvous`, `patch_r7_logger`,
 `patch_measure_draft_mass`, `patch_step_profile`), 11 are the post-state rows inside the guard-only
 step 12, 8 are the `patch_block_drop` day-0 pairs upstream merged under another name, and the last 8
-are step 14 — R3, the one open question left.
+are step 14 — R3, ruled below, where those rows are precisely the day-0 gate the base replaced.
 
 ### The disposition rule the census feeds — RULED (owner, 2026-10-27): **port everything, drop nothing**
 
@@ -464,13 +473,17 @@ What the ruling does **not** buy: any anchor re-anchored from a count rather tha
 base's own text. A `sed`-shaped no-op that matches nothing is the failure this census exists to make
 loud, and it is silent in exactly the two GB10 constants §2 names.
 
-#### R3 — step 14's `patch_low_latency_gemm_sm12x`: the fatal row, left open — **awaiting owner ruling**
+#### R3 — step 14's `patch_low_latency_gemm_sm12x`: **RULED A+ (owner) — subsumed, guard-only**
 
-`Dockerfile.v32` step 14 runs the patcher, so a build with R3 unanswered stops there and prints no
-image ID. The step stays fatal rather than guessed at: of the §7b ruling's two dispositions, rule 1
-needs a read of the base's post-state and rule 2 needs to re-decide what upstream has already
-decided, and this row is where that line falls. The one build this lineage owes is the build with R3
-answered, not a build that discovers R3 for 12 G of cache.
+The ruling is disposition 1 below: the day-0 gate is **subsumed** by this base's capability-keyed plan table,
+so step 14 applies nothing and guards the post-state. The evidence that made it a ruling and not a guess is
+that subsumption is a fact about this box: `nvidia-smi --query-gpu=compute_cap` answers **12.1** and the day-0
+predicate was `is_device_capability((10, 3))` — `GB10 12.1 ⊄ (10,3)` — so the day-0 block could not fire on
+this hardware even at day 0, and the base keys its plans by the capability the box reports. Step 14 is now
+step 12's shape, which is the **sanctioned `short_conv` shape under the port-everything ruling above**: the
+patcher stays staged, is named in the Dockerfile's prose and is run nowhere, so the census reads the step as
+guard-only and nothing is dropped. The build this answer was owed ran and printed its ID
+([build-20261027.md](build-20261027.md) §3).
 
 The evidence, every line of it read in the base image at `6ff5ff0d…` by
 [`r3_step14_reads.py`](r3_step14_reads.py) — one read-only `docker run`, output in
@@ -484,21 +497,26 @@ The evidence, every line of it read in the base image at `6ff5ff0d…` by
 | the second target, `model_executor/kernels/linear/cute_dsl/skinny_gemm.py` | `warmup_configs: set[SkinnyGemmConfig] = set()` **0**, `warmup_configs.update(plan.values())` **0**, `_cutedsl_available: bool \| None = None` **1** — the warm-up block the day-0 patcher appends to is a plan dict here |
 | the dial | `grep -rl QWEN38NEXT_LOW_LATENCY_GEMM` over the installed tree: **0 files**. `IaC/ansible/group_vars/spark.yml:1379` renders it in `spark_llm_ple_dispatch_env`, which reaches a container only when the profile sets `ple_dispatch: true` (`IaC/ansible/templates/docker_services/spark-ai/docker-compose.yml.j2:141-144`; `fast8` does, `group_vars/spark.yml:1076`; `:1130-1131` records the `ple_dispatch: false` arm rendering none of it) — the knob is set and unread |
 
-**Both dispositions, since neither is decided here:**
+**The disposition taken, and the one it displaced.**
 
-1. **Subsumed — apply nothing, guard the post-state.** The base gates the same effect on device
-   capability and the GB10 plan the day-0 patcher existed to install is already in the table, so step
-   14 becomes step 12's shape: grep the `(12, 1): QWEN4_EXP_SM121_GEMM_PLANS` entry and the bf16
-   condition at `:382`, and a base that ever drops the Spark plan stops the build. This is the shape
-   the evidence points at, it keeps the one re-anchor the file already carries (the `qwen3_8_flash_next`
-   → `qwen4_exp` path constant), and it writes no new anchor.
-2. **Ported — re-anchor the day-0 gate onto the base's own gate.** `_is_sm103()` becomes the capability
-   lookup at `:348-351`/`:379-382`, the `_llg_sm12x_enabled()` latch goes where that table is read, and
-   the `skinny_gemm.py` warm-up pair moves onto the plan dict. Four or five new `port_v32.py` anchors,
-   each readable at the base — with `glm52_low_latency_gemm.py:88,147` as the in-tree template for the
-   predicate's shape — and each one a place to re-decide a shape upstream chose, the class of error
-   §7b exists to make loud.
+1. **Subsumed — apply nothing, guard the post-state. RULED A+, and this is what ships.** The base gates the
+   same effect on device capability and the GB10 plan the day-0 patcher existed to install is already in the
+   table, so step 14 became step 12's shape: three counts — `if dtype != torch.bfloat16 or not plans:` **1**,
+   `(12, 1): QWEN4_EXP_SM121_GEMM_PLANS` **1**, `QWEN4_EXP_SM121_GEMM_PLANS: dict` **1** — and an `echo` naming
+   the ruling, so a base that drops the Spark plan or re-widens the bf16 return stops the build. It keeps the
+   one re-anchor the file already carried (the `qwen3_8_flash_next` → `qwen4_exp` path constant) and writes no
+   new anchor.
+2. **Ported — re-anchor the day-0 gate onto the base's own gate. Not taken.** It would have meant four or five
+   new `port_v32.py` anchors (`glm52_low_latency_gemm.py:88,147` as the in-tree template) and each one a place
+   to re-decide a shape upstream chose — the class of error §7b exists to make loud, for an effect the base
+   already provides.
 
 What is **not** a third disposition: the env route. Rendering `QWEN38NEXT_LOW_LATENCY_GEMM=1` cannot
 re-create a gate nothing reads at this base — the knob's meaning is a property of the patched build,
-which is what the `ar-blk-lean` arm measures by removing it.
+which is what the `ar-blk-lean` arm measures by removing it. The guard deliberately does not read the dial
+either: 0 files in the installed tree name it.
+
+**What A+ does not settle, and what it therefore owes.** Subsumption says the `(12, 1)` plan exists and the
+gate can reach it; it does not say a real bf16 GEMM **lands on a plan instead of the `F.linear` fallback** at
+runtime. That is a dispatch read on a running engine, so no build or census can answer it, and it is the first
+check of the owner window (the row names it).
