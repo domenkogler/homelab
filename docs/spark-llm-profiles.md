@@ -211,6 +211,13 @@ unmodified, and its two `sed`-patched constants fail **silently** rather than lo
 role gaps that made a naive rebuild unsafe, and the build order are in
 [`spark/reports/hd1206-v32-port-20261026/`](../spark/reports/hd1206-v32-port-20261026/README.md) (`HD-1206`).
 
+**RULED (owner 2026-10-27): the v32 port ships the whole day-0 patch set — port everything, drop nothing.** Every
+anchor the base does not already satisfy is re-anchored in the lineage's own `files/port_v32.py`, counted before and
+against the base's text; a patcher whose effect the base already has applies nothing and guards that post-state
+instead. A patcher is therefore never dropped for having no consumer: `patch_never_evict` ships its config plumbing
+while `spark_llm_never_evict_prompt` stays `""` and stays rejected ([`services-ai-rejected.md`](services-ai-rejected.md)),
+so the ruling is about what the artifact contains, not about reviving a rejected dial.
+
 **The port lives in this repository, as a lineage.** `roles/spark-profile-fast8` is that lineage: its own
 (`pin`, `tag`, upstream `commit`, patch set) driving the shared build machinery in
 `roles/spark-ultrafast-build/tasks/build_lineage.yml`, and its build definition under

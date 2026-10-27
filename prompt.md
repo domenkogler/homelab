@@ -122,8 +122,9 @@ not this list, holds the steps, the file ownership and the converge host. Waves,
    every base probe, the porter plan and the `mamba_utils` read are proven against it, one build, not a survey of attempts, is what the
    anchor census in
    [`spark/reports/hd1206-v32-port-20261026/README.md`](spark/reports/hd1206-v32-port-20261026/README.md) §7b: 87 anchors read at the base
-   digest, and one build attempt answers exactly ONE of them for ~12 G of cache (`patch_never_evict` dropped with a
-   guard, `patch_hit_debug` OPEN). **Order:** detached `ansible-playbook IaC/ansible/playbooks/spark.yml -l spark --tags
+   digest, and one build attempt answers exactly ONE of them for ~12 G of cache (RULED 2026-10-27: **port everything, drop nothing** — every absent
+   anchor is re-anchored in `files/port_v32.py`, including `patch_never_evict`, whose drop is reversed and whose dial
+   stays rejected and empty). **Order:** detached `ansible-playbook IaC/ansible/playbooks/spark.yml -l spark --tags
    spark-profile-fast8 -e spark_profile_fast8_build=true` (prints the image ID, then fails on purpose — the pin is a
    human commit) → `python3 scripts/bench/spark-fp8-image-probe.py --image <built tag> --skip-registry` → on
    `REACHABLE`, record the ID **and** add `ultrafast-v32` to `spark_llm_fp8_kv_capable_images` in the SAME commit (that

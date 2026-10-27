@@ -387,10 +387,10 @@ docker run --rm --network none --memory 2g \
 | `patch_in_proj_ba_gemv` | 4 | 3 | 0 | 0 | every anchor holds; applies as written |
 | `patch_mamba_align_split` | 2 | 1 | 0 | 1 | stops the build |
 | `patch_measure_draft_mass` | 6 | 2 | 0 | 3 | stops the build |
-| `patch_never_evict` | 15 | 12 | 0 | 1 | **dropped, with a guard** — class 3, ruled (§7) |
+| `patch_never_evict` | 15 | 12 | 0 | 1 | **re-anchor** — the drop in `f42638e2` is reversed by the §7b ruling; the dial stays rejected and empty |
 | `patch_ple_rendezvous` | 10 | 0 | 0 | 10 | stops the build |
 | `patch_r7_logger` | 5 | 0 | 0 | 4 | stops the build |
-| `patch_short_conv_async_h2d` | 16 | 5 | 0 | 11 | **not applied, with a guard** — class 1, the base already does it (§7) |
+| `patch_short_conv_async_h2d` | 16 | 5 | 0 | 11 | applies nothing, guards the post-state — the base already does it (§7b rule 1) |
 | `patch_step_profile` | 1 | 0 | 0 | 1 | stops the build |
 | `patch_verify_topk_pivot` | 6 | 3 | 0 | 3 | stops the build |
 
@@ -405,17 +405,26 @@ counts over the whole installed tree — such a row is marked `(loop-built targe
 `sched/scheduler.py` (1 each) and **absent in `kv_cache_coordinator.py` and
 `single_type_kv_cache_manager.py` (0 each)** — the first of those is the `[14/38]` red.
 
-### The disposition rule the census feeds
+### The disposition rule the census feeds — RULED (owner, 2026-10-27): **port everything, drop nothing**
 
-Per anchor, in this order:
+The artifact ships the whole day-0 patch set on the v0.32 base. Two dispositions are left, and neither is
+a judgement about whether a patcher is wanted:
 
-1. **the base already has the post-state** → the patcher is a no-op here; keep it out and guard the
-   **post**-state, not the day-0 anchor (`patch_short_conv_async_h2d`, done).
-2. **the effect is absent AND something in the repo reads it** — a dial, a template branch, a gate, a
-   bench script, a certified constant → re-anchor it in the in-repo patch set (`port_v32.py` anchor
-   entries, counted before and after), never in `/opt/homelab/ultrafast-src`.
-3. **the effect is absent AND nothing reads it** → not a lane's call: dropping it changes what the
-   artifact contains, which is a §7 pin decision. Parked per row for the owner.
+1. **the base already has the post-state** → the patcher applies nothing here, and its step guards the
+   **post**-state instead of the day-0 anchor. The effect ships; nothing is dropped.
+   (`patch_short_conv_async_h2d`, done — `short_conv_attn.py:334,337` are both `async_tensor_h2d(` at the base.)
+2. **the anchor is absent** → re-anchor it in the in-repo patch set (`port_v32.py` anchor entries, counted
+   before and against the base), never in `/opt/homelab/ultrafast-src`, whose clean `git status
+   --porcelain -uno` is the provenance proof.
 
-`patch_never_evict` was class 3 **with** a ruling (`docs/services-ai-rejected.md`), so its disposition
-was mechanical. `patch_hit_debug` is class 3 **without** one — OPEN, owner disposition.
+**This reverses `f42638e2`.** `patch_never_evict` was dropped there as "class 3, with a ruling" — but
+[`services-ai-rejected.md`](../../../docs/services-ai-rejected.md) rejects the **dial**
+(`spark_llm_never_evict_prompt: ""`), not the patcher, so under this ruling the patcher goes back in
+`Dockerfile.v32` step 5 re-anchored, and the flag stays empty and still rejected: the built image carries
+the plumbing, and nothing renders it. `patch_hit_debug`'s `[14/38]` red is therefore a re-anchor too, not
+an open question: `logger = init_logger(__name__)` has to be introduced where the base lacks it
+(`kv_cache_coordinator.py`, `single_type_kv_cache_manager.py`) instead of being searched for.
+
+What the ruling does **not** buy: any anchor re-anchored from a count rather than from a read of the
+base's own text. A `sed`-shaped no-op that matches nothing is the failure this census exists to make
+loud, and it is silent in exactly the two GB10 constants §2 names.
