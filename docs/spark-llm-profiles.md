@@ -25,6 +25,7 @@ engine or quantization must not move any of those four, or every client breaks a
 | `graded` | same weights/engine | **fp8** 16 GB pool ≈ **876,664** slots ≈ **3.34 ×** window (fp8 = **1.70–1.89×**, NOT 2× — main K/V only) | graded thinking chains stop evicting each other at 4 concurrent sessions | **BLOCKED ON THE IMAGE PIN, not on the model** — the pinned build's `qsa.py` declares `supported_kv_cache_dtypes = ["auto","bfloat16"]` and raises, so fp8 KV dies at EngineCore init ([evidence](../spark/reports/hd469-graded/README.md) · [pin check](../spark/reports/hd473-pin-check-20261025/README.md)). The upstream fix (vllm#55557) is merged and **ships in vLLM v0.31.0+** — arm64 manifests, CUDA 13 — while the model-specific ref pinned here predates it (v0.30.0 still carries the raise). Reaching it = an engine-pin change + re-cert, not a flip |
 | `fast` | vLLM same fork · AutoRound **W4A16 AR-hybrid** + FP8 PLE **disk-mmap** + in-checkpoint MTP-3 with block rejection, `enforce_eager: true`, `spec{mtp,3,block,probabilistic}` | `auto` (bf16) 20 GB pool = **644,599** slots = **2.46 ×** window, 80,575 tokens/stream at the `max_num_seqs: 8` ceiling | the implementator lane: C2L decode **39.7 tok/s**, TTFT p50 ~0.7 s, ITL p50 ~65 ms, MTP accept 49–55 %, 0 preemptions | **LIVE + certified** on the 20 GB / seqs-8 shape ([`spark/reports/hd489-ar-blk/`](../spark/reports/hd489-ar-blk/README.md) · [`spark/reports/hd489-legs-20261006-1228/`](../spark/reports/hd489-legs-20261006-1228/RESULTS.md)); the catalogue's `certified_evidence` names the gates and the one battery re-run still owed |
 | `fast8` | vLLM · the **same** AutoRound **W4A16 AR-hybrid** + FP8 PLE **disk-mmap** + MTP-3 block, on the patch stack **rebuilt ON a v0.32 base** (`image: ultrafast-v32`) — a stock release cannot serve this checkpoint at all | **fp8** 20 GB pool = **1,095,830** slots = **4.18 ×** window, 136,978 tokens/stream at the `max_num_seqs: 8` ceiling — the SAME 20 GB `fast` fills at bf16, read through 18,251 B/token | fp8 KV is the only thing that makes ≥ 4 concurrent full windows exist on this box, and it buys **slots inside the same 20 GB**, not a bigger pool: the AR-hybrid fixed cost already caps the pool | **authored + gate-blocked** on the unpinned v0.32 lineage (`spark_vllm_ultrafast_v32_image` is EMPTY — an empty pin IS the refusal), and an fp8 dtype is refused on every other lineage (`spark_llm_fp8_kv_capable_images`). Gates 8–9 — MTP acceptance old-vs-new dtype, quality vs the noise floor — are the bar after that; where the pool cap comes from: [hardware-spark.md](hardware-spark.md) §The fixed cost, MEASURED |
+| `fast-v32-bf16` | the SAME AR-hybrid weights + FP8 mmap + MTP-3 block, on the patch stack rebuilt ON a v0.32 base (`image: ultrafast-v32`) — and the SAME bf16 KV `fast` runs | **bf16** (spelled `auto`, the certified spelling) 20 GB pool = **644,599** slots = **2.46 ×** the window — byte-for-byte `fast`'s arithmetic, because this arm changes the BUILD and not the pool | it buys no slots on purpose: it is the base-lineage CONTROL, so a later `fast8` regression has one candidate cause instead of two. Flip order + the arithmetic on all six arms: §Nomenclature | **authored + gate-blocked** on the same EMPTY `spark_vllm_ultrafast_v32_image` pin as `fast8`; owes gates 0–7 only, never 8–9 |
 | `fast-sglang` | **SGLang** · RadixArk NVFP4 | SGLang pool semantics (`--mem-fraction-static 0.80` / `--max-total-tokens`), not `--kv-cache-memory-bytes`; the vendor's measured single-Spark pools are ~93k–174k tokens | proves the *engine* swap is also one var | authored + **gate-blocked** on three counts: no registry-verified arm64 digest (CONVENTIONS §7 — the only builds with support ≥ v0.5.20 + the #38121 loader are floating dev tags); the measured pool cannot hold our 262,144 window (closing it needs sglang fp8 KV = open PR #36644); and file-backed PLE (`--ple-offload-backend file`, #37068) needs a bind that is not wired yet. The vendor's own text confirms the arithmetic, including why plain `--ple-offload-embedding` does nothing on GB10 |
 
 **Measured constants the arithmetic uses** (owner's numbers, not estimates — same basis as
@@ -64,6 +65,112 @@ prints the number** — with `--kv-cache-memory-bytes` the engine SKIPS memory p
 authoritative pair is the boot log's `Initial free memory` + `GPU KV cache size` lines (the
 `Available KV cache memory` line only exists on the memory-profiling path, which this config does not
 use), and `certified_evidence:` cites a report holding those, never a calculated figure.
+
+### Nomenclature — what a profile name is allowed to claim
+
+**A name may state only what a reader can check off the artifact.** Two axes qualify: the **base
+lineage** — the vLLM version an image prints about itself — and the **KV dtype**. So the canonical
+identity is **`<arm>-<base>-<kv>`**, and nothing else belongs in it: weights, quantization and engine
+already live in `model_subdir` / `engine` / `ple_*`, and a name that repeats them is a third copy that
+drifts. The `<base>` tokens come from `spark_llm_base_tokens` in
+[`group_vars/spark.yml`](../IaC/ansible/group_vars/spark.yml), and each value is a read, not an
+opinion:
+
+```
+docker run --rm --network none --memory 2g --entrypoint python3 <image> -c 'import vllm; print(vllm.__version__)'
+  vllm/vllm-openai:qwen38-flash-next@sha256:fc120ece…            → 0.1.dev20073+g8e685d198   (spark_vllm_image)
+  4900c13edab9 (qwen38-flash-dgx:iter6d-20260910)                → 0.1.dev20073+g8e685d198   (spark_vllm_ultrafast_image — what LIVE `fast` boots)
+  vllm/vllm-openai:v0.32.0-aarch64@sha256:6ff5ff0d…              → 0.32.0                    (spark_vllm_v32_base_image)
+```
+
+Read on the box with the read-only form above (no `--gpus`, no `-p`, no `-d`); re-run it before naming
+anything new, because a token that no longer matches its image is a vocabulary defect.
+
+* **`v30` is not a legal token for anything on this box.** The premise that today's `fast` is v0.30 is
+  false: the day-0 base is a **nightly cut off the model-specific ref** — its own version string carries
+  the git sha (`g8e685d198`) and no release number — and a patch stack adds no vLLM version, so the
+  built `ultrafast` image reports byte-identically to the digest it sits on. The honest token for that
+  lineage is `day0`. HD-473's "v0.30.0 still lacks the fp8 merge" is a statement about that *release*;
+  nothing on this box is at that release, which is exactly why `v30` must not enter a name.
+* **`auto` IS bf16 on these builds.** The constants map charges `auto` and `bf16` the same
+  `spark_llm_kv_bytes_per_token`, and the certified lanes render `--kv-cache-dtype auto`. The identity's
+  `<kv>` token names the **resolved** dtype; the catalogue keeps the **certified spelling**. Never
+  "correct" a profile's `kv_cache_dtype` to match a name — on an arm whose job is to carry one variable,
+  a second spelling is a second variable.
+
+**The scheme is documentation, not a rename campaign.** Dial spellings stay, and one new arm is authored
+in the new spelling precisely because it had no older spelling to lose:
+
+| dial value | canonical identity | image (pin name, not a digest) | `kv_cache_dtype` | certified for | ladder it owes |
+|---|---|---|---|---|---|
+| `reasoning` | `reasoning-day0-bf16` | `spark_vllm_image` | `auto` | the S1 daily driver and the rollback target — the 3-rung load chain at ≈94.6 % of pool | 0–7, certified; the under-cap baseline + gates 5–7 still owed |
+| `graded` | `reasoning-day0-fp8` | `spark_vllm_image` | `fp8` | nothing — this is the *record* of that cell failing to boot on a lineage with no fp8 read path | 0–7 **and** 8–9 the day it can boot; blocked on the image, not the model |
+| `fast` | `fast-day0-bf16` | `spark_vllm_ultrafast_image` | `auto` | the implementator lane at 20 GB / seqs 8 — 2.46 × the window, C2L 39.7 tok/s | 0–7, certified; the gate-6 re-run + host-floor re-derive owed |
+| `fast-v32-bf16` | itself (the dial value IS the identity) | `spark_vllm_ultrafast_v32_image` (EMPTY) | `auto` | nothing yet — **GATED** on the empty v32 pin | 0–7 only: it claims no fp8 dtype, so 8–9 do not apply |
+| `fast8` | `fast-v32-fp8` | `spark_vllm_ultrafast_v32_image` (EMPTY) | `fp8` | nothing yet — **GATED** twice (empty pin, and its lineage is absent from `spark_llm_fp8_kv_capable_images`) | 0–7 **and** 8–9, plus the box leg of `scripts/bench/spark-fp8-image-probe.py` first |
+| `fast-sglang` | escapes the scheme on purpose | `spark_sglang_image` (EMPTY) | `auto` (`--mem-fraction-static` sizes the pool, so `<kv>` has no bytes to mean) | nothing — a different **engine** is a different arm, not a `<base>` value; the token is its engine name | 0–7 after an arm64 digest exists |
+| the 12 funnel arms (`u*`, `nv-patch`, `ar-*`, `v16b*`) | `<arm>-day0-bf16` — all 12 identical on both axes | `spark_vllm_ultrafast_image` | `auto` | nothing; each is an evidence record — a loser row or an isolation control | 0–7 if re-run; none is certified |
+
+The last row is the scheme's own verdict on where it earns its keep: across those 12 arms the
+`-<base>-<kv>` suffix carries **zero** information, so it belongs on the `fast` family — the one place
+where the base lineage and the dtype actually move. `Qwen3.8-27B` (§Not a profile) gets no identity: it
+is not a value of the dial, and a name that reads like one would be the exact confusion that section
+exists to prevent.
+
+**What a rename would break.** The names are load-bearing in places a rename cannot reach, so the
+additive shape above is the recommendation and a rename campaign is not free:
+
+| where | file:line | what breaks if a dial value is renamed |
+|---|---|---|
+| the live dial | `IaC/ansible/host_vars/spark.kogler.si.yml:46` (`spark_llm_profile: fast`) | the host value stops resolving → the render aborts fail-loud (good), but the box is now unflippable until the edit lands |
+| the group fallback | `IaC/ansible/group_vars/spark.yml:302` | same, on every host that does not override it |
+| the catalogue keys | `IaC/ansible/group_vars/spark.yml:440,522,618,984,1063,1146` | the names themselves — the only place a rename is *supposed* to happen |
+| the role's valid-name list | `IaC/ansible/roles/spark-llm-profile/tasks/main.yml:11,15` | **nothing**: it derives the list from the catalogue keys, so the gate follows the rename automatically |
+| the image-name branch | `IaC/ansible/templates/docker_services/spark-ai/docker-compose.yml.j2:47-60` | **nothing** — the template branches on `profile.image`, never on the profile name. The risky axis is the four IMAGE names, and this scheme adds no new one |
+| the gate's canary source | `scripts/gate/check_spark_llm_gate.py:407` | `cat["spark_llm_profiles"]["reasoning"]` is a literal key: rename `reasoning` and the whole offline gate dies with a KeyError — loud, but it takes item 22 of `validate-all.sh` with it |
+| the gate's remediation text | `scripts/gate/check_spark_llm_gate.py:220` | names `fast8` in prose a human is told to act on |
+| the certified-lane parity guard | `scripts/bench/spark-llm-render-matrix.py:262` | renders `"reasoning"` by name — the guard that proves a no-op flip really is a no-op |
+| the probe's subcommand space | `scripts/bench/spark-llm-probe.py:387,453` | `reasoning` there is a **leg** (the binary thinking-surface probe), not a profile. Renaming the profile would put one word meaning two things in one tool |
+| the rollback incantation | `spark/llm-profiles/README.md:170`, `prompt.md:139`, `todo.md:230` | rollback is *text a human types under pressure*: `spark_llm_profile: reasoning` / `spark_llm_profile: fast`. Two of those files are outside any worker's edit boundary, which is the strongest argument against a rename campaign |
+| the rollback IMAGES | `spark/reports/hd1206-v32-port-20261026/README.md:82`, `prompt.md:140`, `IaC/ansible/roles/spark-profile-fast8/tasks/main.yml:345` | `spark-rollback:fast` is a docker tag on the box and an archived NAS artifact. A dial rename cannot rename it, so the rollback pair (`spark-rollback:fast` + `spark_llm_profile: fast`) would split across two namespaces |
+| the fixture catalogues | `scripts/bench/spark/needle-window.sh:637,700`, `scripts/bench/spark/text-only-preflight.sh:415` | self-contained fixtures with their own profile names — unaffected, which is worth stating so nobody "fixes" them |
+
+**Six arms, and the arithmetic on each.** The grid is {the two certified weight families} × {day0-bf16,
+v32-bf16, v32-fp8}; the constants are `spark_llm_kv_bytes_per_token` (31,027 bf16 / 18,251 fp8) and
+`spark_llm_pool_ceiling_bytes` (16 GiB certified = 17,179,869,184 B), and four concurrent full windows
+need `4 × 262,144 = 1,048,576` slots = **19,137,560,576 B of fp8 pool**.
+
+| arm | the one thing it changes | the pool arithmetic | verdict |
+|---|---|---|---|
+| `fast-day0-bf16` | nothing — it IS the live lane | 20 GB / 31,027 = 644,599 = 2.46 × | holds its certificate; one gate-6 re-run and one host-floor re-derive owed |
+| `fast-v32-bf16` | the BASE only | the SAME 644,599 = 2.46 × — it promises no slots at all | **author it now**, as the control: it is what makes a later `fast8` regression attributable to the dtype instead of to the port |
+| `fast-v32-fp8` (`fast8`) | base + dtype | 20 GB / 18,251 = 1,095,830 = 4.18 × — 4.5 % over the 1,048,576 needed | worth it, and it is the ONLY arm on this box that reaches 4 full windows. **Hold** it until the fp8 box leg prints a verdict and gates 8–9 are scheduled |
+| `reasoning-day0-bf16` | nothing — it IS the live lane | 16 GB / 31,027 = 515,679 = 1.97 × | holds its certificate |
+| `reasoning-v32-bf16` | the base, on the AWQ + INT4-overlay lane | the SAME 515,679 | **pre-author nothing.** It buys no slots, and it is not even bootable as drawn: `reasoning` binds `spark_llm_overlays`, whose container paths belong to the day-0 build (`vllm/v1/ple_offload/…`, absent from a stock v0.32 tree) — so the arm is an overlay re-anchor project first and a profile second |
+| `reasoning-v32-fp8` | base + dtype, on the AWQ lane | 16 GB / 18,251 = 876,664 = 3.34 × = 219,166 tok/stream at seqs 4 — under one full window each | **pre-author nothing.** Reaching 4 windows here needs a 19.14 GB AWQ pool: the host floor would allow it (86.9 + 19.14 = 106.04e9 ≤ 113.000e9), the CERTIFIED pool governor does not, and [hardware-spark.md](hardware-spark.md) §Unified-memory budget
+says do not raise it. So the demand this arm answers is one the box has already refused |
+
+The cost of a certificate, per arm, is what makes six of them a policy decision and not a naming
+exercise: one owner-present, non-spark-served window per flip (~20 min cold boot each), the 0–7 ladder
+(gate 6's battery, and gate 7's ~20 h bounded fill), and gates 8–9 on top wherever the arm claims fp8.
+Six arms is six such sets, charged to a queue that still owes legs on `reasoning` and on `fast`.
+
+**Flip order, and what each step must prove in window.** Every step below is ONE owner-present,
+non-spark-served window (`spark/reports/external-window-card.md`) and one ~20-min detached cold boot;
+nothing here is a converge anyone can run unattended.
+
+1. `fast-v32-bf16` first, with `-e spark_llm_allow_uncertified=true` per run — it must print the SAME
+   `GPU KV cache size: 644,7xx tokens / 2.46x` line `fast` prints, and hold 39.7 tok/s ± the noise floor
+   (a timed leg, so Rule 0 applies: read it from a seat whose own model is not spark).
+   Any other slot count means the port moved the pool arithmetic, and nothing after it is interpretable.
+2. `fast8` (`fast-v32-fp8`) next, same per-run override: the fp8 box-leg verdict first, then gates 0–7,
+   then 8–9 — MTP acceptance read old-vs-new on one prompt class, and quality against the model's own
+   noise floor.
+3. `fast` stays the rollback at every step (`spark_llm_profile: fast` + a detached converge);
+   `reasoning` stays untouched and stays the deeper rollback beneath it.
+4. Nothing is certified by a flip. An arm carries `certified: false` and the per-run override until its
+   gates have run and their raw sits under its own `spark/reports/` dir — the override is a per-run
+   `-e`, never a value in `host_vars`.
 
 ### What the gate refuses (`IaC/ansible/roles/spark-llm-profile`, runs before `spark-artifacts`)
 
@@ -190,9 +297,10 @@ README's rule 0.
 Upstream [qwen3.8-Flash-DGX-UltraFast](https://github.com/dime-online/qwen3.8-Flash-DGX-UltraFast)
 v16b (Apache-2.0, pinned `0c391a3` in `group_vars/all/versions.yml`) is **13 candidate arms on this
 dial**, not a second stack. The count is the catalogue's, and it is checkable: the keys of
-`spark_llm_profiles` in `IaC/ansible/group_vars/spark.yml` minus the `_x` merge anchor and minus the four
-profiles this funnel did not introduce (`reasoning`, `graded`, `fast-sglang`, and `fast8` — the fp8 arm
-the engine-pin lane authors on this funnel's winner) = 13 arms. The tier bullets
+`spark_llm_profiles` in `IaC/ansible/group_vars/spark.yml` minus the `_x` merge anchor and minus the five
+profiles this funnel did not introduce (`reasoning`, `graded`, `fast-sglang`, and the two arms the v0.32
+lineage lane authors on this funnel's winner — `fast8`, the fp8 arm, and `fast-v32-bf16`, its bf16
+control) = 13 arms. The tier bullets
 below name 11 of them; the two they leave out are the funnel's tail arms `ar-blk-lean` (the dispatch-env
 isolation) and `awq-mmap` (AWQ on the winner's machinery), both live catalogue entries with their own
 rejected-log row, and the winner is catalogued under its dial name `fast` rather than its arm name `ar-blk`.
@@ -242,7 +350,8 @@ built image is grepped for the marker each patched step leaves (`spark-fla-shmem
 `Qwen3_8FlashNext` symbol in the installed `vllm_ple_mmap.py`. The porter stages out of the checkout into
 `/opt/homelab/ultrafast-v32-build` and deletes upstream's `build.sh` there, so the directory that builds v32
 is not a directory that can retag `fast`. Like the live lineage, the role is opt-in
-(`spark_profile_fast8_build`, `--tags spark-ultrafast-build`) and the empty pin is still the gate.
+(`spark_profile_fast8_build`, `--tags spark-ultrafast-build`) and the empty pin is still the gate for both
+arms that name the lineage — `fast8` (fp8 KV) and `fast-v32-bf16` (bf16 KV, §Nomenclature).
 
 **The arms** (each is `certified: false` until it wins a leg; every loser is a row in
 [services-ai-rejected.md](services-ai-rejected.md), and the reports under `spark/reports/hd489-*`
@@ -257,7 +366,7 @@ keep the raw evidence under their own names):
   CUDA graphs, T80 drafter, 65 536-id draft vocabulary), a seqs=4 control for the client
   contract, and the never-evict prompt pin.
 
-**Winner: arm `ar-blk`, dial name `fast`** — the AutoRound-hybrid weights + FP8 PLE disk-mmap +
+**Winner: arm `ar-blk`, dial name `fast`** (canonical identity `fast-day0-bf16` — §Nomenclature) — the AutoRound-hybrid weights + FP8 PLE disk-mmap +
 in-checkpoint MTP-3 with block rejection, `enforce_eager: true`, `spec{mtp,3,block,probabilistic}`.
 C2L decode **39.7 tok/s** (`cold_ok=yes`, 324 s window), TTFT p50 ~0.7 s, ITL p50
 ~65 ms, MTP accept 49–55 %, 0 preemptions ([`spark/reports/hd489-ar-blk/`](../spark/reports/hd489-ar-blk/README.md)).

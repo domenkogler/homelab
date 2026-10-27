@@ -327,6 +327,11 @@ def vllm_verdicts(profile, cat):
 
 def verdict_table(cat, pats, label):
     print(f"\n[{label}] every profile under the invariants the role asserts")
+    # Width from the catalogue: an identity spelled as a dial value (`<arm>-<base>-<kv>`,
+    # docs/spark-llm-profiles.md §Nomenclature) is longer than a short dial name, and a literal here is
+    # how the table stops lining up on the day an arm is authored.
+    name_col = max(len(n) for n, p in cat["spark_llm_profiles"].items()
+                   if not n.startswith("_")) + 1
     for name, prof in cat["spark_llm_profiles"].items():
         if name.startswith("_"):
             continue          # HD-489 merge anchor of shared defaults, not a servable profile
@@ -342,7 +347,7 @@ def verdict_table(cat, pats, label):
             cells.append("GATED")
             NOTES.append(f"{name}: {gated}")
         extra = verdicts.get("_projection", "")
-        print(f"  ·  {name:12s} {engine:6s} " + " ".join(cells) + (f"   ({extra})" if extra else ""))
+        print(f"  ·  {name:<{name_col}} {engine:6s} " + " ".join(cells) + (f"   ({extra})" if extra else ""))
         if extra and label == "catalogue":
             NOTES.append(f"{name}: {extra}")
 

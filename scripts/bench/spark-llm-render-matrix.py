@@ -161,6 +161,10 @@ def main():
     env, ctx = vds.build_env(), compose_ctx(vds)
     cat = yaml.safe_load(SPARK_VARS.read_text(encoding="utf-8"))
     profiles = [k for k in cat["spark_llm_profiles"] if not k.startswith("_")]
+    # Column width from the catalogue, not from a literal: a canonical identity spelled as a dial value
+    # (`<arm>-<base>-<kv>`, docs/spark-llm-profiles.md §Nomenclature) is longer than a short dial name,
+    # and a hand-typed width is how the table stops lining up on the day someone authors an arm.
+    NAME_COL = max(len(n) for n in profiles) + 1
     # Image lineages whose build carries the --never-evict-kv-cache-* patch (SSOT: the
     # catalogue). Read it here rather than re-typing it, same rule as the pin map.
     CAPABLE = [str(x) for x in (cat.get("spark_llm_never_evict_capable_images") or [])]
@@ -183,18 +187,18 @@ def main():
         bad.append("catalogue declares no spark_llm_never_evict_capable_images — the pin/lineage "
                    "check below would read an EMPTY list and pass whatever it renders (fail-loud, "
                    "CONVENTIONS §6/§7)")
-    print(f"{'profile':11} {'image':11} {'model host path':46} {'ple':34} "
+    print(f"{'profile':{NAME_COL}} {'image':11} {'model host path':46} {'ple':34} "
           f"{'seqs':4} {'pool':12} {'ovl':3} {'mmap':4} {'cc':2} {'pin':3} notes")
     for name in profiles:
         try:
             doc = yaml.safe_load(render(env, ctx, name, cat))
         except yaml.YAMLError as e:
             bad.append(f"{name}: YAML parse failed — {e}")
-            print(f"{name:11} RENDER/YAML FAIL: {str(e).splitlines()[0][:110]}")
+            print(f"{name:{NAME_COL}} RENDER/YAML FAIL: {str(e).splitlines()[0][:110]}")
             continue
         except Exception as e:                                        # noqa: BLE001
             bad.append(f"{name}: render failed — {e}")
-            print(f"{name:11} RENDER FAIL: {str(e)[:110]}")
+            print(f"{name:{NAME_COL}} RENDER FAIL: {str(e)[:110]}")
             continue
         f = facts(doc)
         if f["evict"]:
@@ -247,7 +251,7 @@ def main():
                        f"spark_llm_never_evict_capable_images ({', '.join(CAPABLE) or 'EMPTY'})")
         eng = want.get("engine", "vllm")
         ple = (f["ple"].split(":")[0] if f["ple"] else "")[len("/mnt/spark_nvme"):][:34] or "-"
-        print(f"{name:11} {('ultrafast' if want.get('image')=='ultrafast' else want.get('image','base')):11} "
+        print(f"{name:{NAME_COL}} {('ultrafast' if want.get('image')=='ultrafast' else want.get('image','base')):11} "
               f"{f['model']:46} {ple:34} {f['seqs'] or '-':4} {(f['pool'] or '-')[:11]:12} "
               f"{f['overlay_mounts']:3} {f['mmap_env']:4} {f['cc']:2} {'no' if gated else 'yes':3} "
               f"{' '.join(notes) if notes else ('sglang' if eng == 'sglang' else 'ok')}")

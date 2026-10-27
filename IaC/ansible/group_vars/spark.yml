@@ -83,7 +83,8 @@ spark_ultrafast_build: false
 # The v0.32 lineage's own opt-in switch (roles/spark-profile-fast8). Separate from the one above on
 # purpose: this build pulls a ~10 GB base image and runs a third party's patch stack on this box, so
 # it is an act, not a side effect of building the live lineage. Nothing about it can flip a profile:
-# `fast8` stays gated by the empty `spark_vllm_ultrafast_v32_image` pin whatever this is set to.
+# both arms that name this lineage (`fast-v32-bf16`, `fast8`) stay gated by the empty
+# `spark_vllm_ultrafast_v32_image` pin whatever this is set to.
 spark_profile_fast8_build: false
 spark_models_roots:
   xfs: "{{ spark_models_dir }}"
@@ -1056,6 +1057,9 @@ spark_llm_profiles:
   #     spark/reports/hd489-legs-20261006-1228/raw/b9-crash.txt). So fp8 KV and the patch stack are
   #     BOTH load-bearing here: `fast8` names one lineage — the patch stack rebuilt ON a v0.32 base
   #     (`spark_vllm_v32_base_image`) — and no stock-release AR-hybrid arm is authored.
+  # Its bf16 sibling is `fast-v32-bf16`: the same lineage at the CERTIFIED dtype and pool. That arm is
+  # the base-lineage control, and reading it before this one is what keeps a regression on `fast8`
+  # attributable to the dtype instead of to the port.
   fast8:
     <<: *u_x
     label: "UNCERTIFIED — AR AutoRound-hybrid + FP8 PLE mmap + MTP3-block on fp8 KV (4.18 × the window; gated on the unpinned v0.32 lineage)"
@@ -1124,6 +1128,86 @@ spark_llm_profiles:
       from the conservative 1.70× constant; the engine's own 'GPU KV cache size' boot line is the
       number of record and it outranks this line completely (spark/llm-profiles/README.md, "a
       projected slot count is not a measurement").
+    certified_evidence: ""
+
+  # ── fast-v32-bf16: the v0.32 lineage at the CERTIFIED KV dtype — the base-lineage control ──
+  # WHAT THIS ARM IS: `fast`'s serving coordinates, unchanged, on `image: ultrafast-v32`. The dial
+  # value IS the canonical identity `<arm>-<base>-<kv>` (docs/spark-llm-profiles.md §Nomenclature),
+  # and this arm is the middle cell of the fast family: `fast` = fast-day0-bf16 (LIVE, certified),
+  # this arm = fast-v32-bf16, `fast8` = fast-v32-fp8.
+  # WHY A bf16 CELL EXISTS WHEN IT BUYS NO SLOTS: at 31,027 B/token a 20 GB pool renders the SAME
+  # 644,599 slots = 2.46 × the window that `fast` already serves, so this arm promises nothing about
+  # capacity — that is precisely its use. It varies ONE thing against the live certified lane, the
+  # BASE LINEAGE, so it is the control that says whether the v0.32 port moved the numbers before any
+  # quantised KV is in the room. Flip the fp8 arm without it and a regression on `fast8` has two
+  # candidate causes (a re-anchored patcher vs. quantised keys) that no gate can separate — the same
+  # discipline as `ar-blk-lean` isolating the dispatch env and the A4 split isolating the mmap table.
+  # It claims no fp8 dtype, so it owes the 0–7 ladder only, never 8–9 (spark/llm-profiles/README.md).
+  fast-v32-bf16:
+    <<: *u_x
+    label: "UNCERTIFIED — `fast`'s coordinates on the v0.32 lineage at bf16 KV (the base-lineage control; gated on the unpinned v32 image)"
+    image: ultrafast-v32          # the SAME pin `fast8` waits on — spark_vllm_ultrafast_v32_image, EMPTY =
+                                  # the gate. Bumping `base` or `ultrafast` instead would re-engine the
+                                  # certified `reasoning` lane and the LIVE certified `fast`, which is
+                                  # the rollback target (docs/spark-llm-profiles.md §7).
+    models_root: os
+    model_subdir: Qwen3.8-Flash-Next-W4A16-AutoRound-hybrid
+    ple_offload: false
+    ple_overlay: false
+    ple_host_base: models
+    ple_host_root: os
+    ple_host_subdir: ple-table-fp8
+    ple_container_dir: /ple-table
+    ple_staged_marker: ".hf-staged"
+    ple_mmap: true
+    ple_dispatch: true            # constitutive on this checkpoint, exactly as in `fast` and `fast8`
+    kv_cache_dtype: auto          # `auto` IS how the certified lane spells bf16: `fast` renders
+                                  # `--kv-cache-dtype auto` and spark_llm_kv_bytes_per_token charges
+                                  # `auto` and `bf16` the SAME 31,027 B/token. Writing the word `bf16`
+                                  # here would put a second variable into an arm whose entire job is to
+                                  # carry one. The `bf16` token in the identity names the RESOLVED
+                                  # dtype, not a spelling — do not "correct" this key to match it.
+    kv_cache_memory: "20000000000"  # = 644,599 slots = 2.46 × the 262,144 window = 80,575 tokens/stream
+                                    # on the seqs-8 ceiling — the identical arithmetic `fast` prints,
+                                    # because the dtype and the pool are both unchanged. This arm's claim
+                                    # is about the BUILD and never about the pool.
+    pool_ceiling_bytes: 20000000000 # per-profile, like `fast`/`fast8`; the CERTIFIED 16 GiB global still
+                                    # binds every profile that stays quiet about it.
+    max_num_seqs: 8               # max_cudagraph_capture_size deliberately NOT restated (inherits `_x`'s 4,
+                                  # which keeps the ≤ max_num_seqs assert honest)
+    enforce_eager: true           # mmap × CUDA-graph pinning — the same path `fast` runs
+    spec_config:
+      method: mtp
+      num_speculative_tokens: 3
+      rejection_sample_method: block
+      draft_sample_method: probabilistic
+    health_start_period: 2400s    # PREWARM reads the whole FP8 table at boot, as in `fast`
+    reasoning_surface: binary     # certified against THIS engine surface (harness-pi-engines.md §2)
+    artifact_sets: [ar-hybrid, ple-fp8]   # both already staged for `fast` — this arm downloads nothing
+    # The SAME named host-floor exception `fast` and `fast8` carry: this arm changes neither the
+    # weights nor the dtype, so the AR-hybrid checkpoint's measured non-KV hold is what binds and the
+    # global 113.000e9 (priced from terms that do not hold for this checkpoint) is not the right floor.
+    # → docs/hardware-spark.md §The GLOBAL ceiling: spark_llm_device_hold_ceiling_bytes
+    device_hold_ceiling_bytes: 112700000000
+    fixed_cost_bytes: 92130000000
+    fixed_cost_basis: "DERIVED — inherited from `fast` and NOT re-measured on this arm. The weights and
+      the KV dtype are both unchanged, so `fast`'s MemAvailable-jump figure
+      (docs/spark-incidents.md §Incidents #4/#5/#6, the only method that reports what the engine HOLDS)
+      is the right starting number; but a ported patch stack is exactly the thing that can move the
+      NON-KV hold, so this is the one DERIVED term in the v32 family that gate 7 is expected to
+      falsify rather than confirm — which is a further reason this arm is a control and not a rollout"
+    certified: false
+    uncertified_reason: >-
+      (a) THE LINEAGE IT WAITS ON, shared with `fast8`: the upstream patch stack rebuilt on a
+      registry-verified v0.32.0 arm64 build, its built image ID then recorded as
+      spark_vllm_ultrafast_v32_image in group_vars/all/versions.yml — the empty pin IS the refusal
+      (CONVENTIONS §7, the fast-sglang and ultrafast precedent). Nothing here is measurable before that
+      commit exists. (b) WHAT IT WOULD HAVE TO PROVE, and it is a small list: the same 644,599-slot
+      boot line `fast` prints (the dtype is unchanged, so a different number means the pool arithmetic
+      moved under the port), the 0–7 ladder, and a decode/ITL read against `fast`'s 39.7 tok/s on the
+      same prompt class. (c) WHAT IT IS NOT: it is not a capacity arm and not a quality arm. It buys
+      no slots and claims no fp8 dtype, so gates 8–9 do not apply to it and it must never be flipped
+      as an improvement — only as the control that makes the fp8 flip attributable.
     certified_evidence: ""
 
   # ── B9: ar-blk WITHOUT the kernel-dispatch env ──────────────
@@ -1408,10 +1492,28 @@ spark_llm_image_pins:
 spark_llm_profile_images:
   base: "{{ spark_vllm_image }}"
   ultrafast: "{{ spark_vllm_ultrafast_image }}"
-  # The fp8-KV lineage: the patch stack rebuilt on `spark_vllm_v32_base_image`. Its pin is EMPTY by
-  # design, which is what gates `fast8` (CONVENTIONS §7 — an empty pin IS the refusal).
+  # The v0.32 lineage: the patch stack rebuilt on `spark_vllm_v32_base_image`. Its pin is EMPTY by
+  # design, which is what gates BOTH arms that name it — `fast-v32-bf16` (bf16 KV, the base-lineage
+  # control) and `fast8` (fp8 KV, the capacity arm). CONVENTIONS §7 — an empty pin IS the refusal.
   ultrafast-v32: "{{ spark_vllm_ultrafast_v32_image }}"
   sglang: "{{ spark_sglang_image }}"
+
+# The `<base>` axis of a profile's canonical identity `<arm>-<base>-<kv>`
+# (docs/spark-llm-profiles.md §Nomenclature), keyed by the SAME image names as the map above.
+# These are not opinions: each value is the vLLM version the image prints about itself, read inside
+# the container with the read-only form
+#   docker run --rm --network none --memory 2g --entrypoint python3 <pin> -c 'import vllm; print(vllm.__version__)'
+# `base` and `ultrafast` carry the SAME token because they ARE the same build: the patch stack adds no
+# vLLM version, so the built image reports byte-identically to the digest it sits on. That is also why
+# `v30` is not a legal token for anything on this box — the day-0 build is a pre-v0.30 nightly of the
+# model-specific ref (its own version string carries the git sha it was cut from), and a name that
+# claims a version nobody read is worse than no name. Re-read the four values before naming a new arm;
+# a token that no longer matches its image is a vocabulary defect, not a typo.
+spark_llm_base_tokens:
+  base: day0                      # 0.1.dev20073+g8e685d198 — a nightly, not a release
+  ultrafast: day0                 # the same 0.1.dev20073+g8e685d198, patched: the version string does not move
+  ultrafast-v32: v32              # 0.32.0, from spark_vllm_v32_base_image
+  sglang: sglang                  # no vLLM inside to read, so the engine name is the honest token
 
 # Resolve the active profile for roles (roles/spark-llm-profile reads this as a real
 # dict at play time). Templates must NOT use it — see the note above.
