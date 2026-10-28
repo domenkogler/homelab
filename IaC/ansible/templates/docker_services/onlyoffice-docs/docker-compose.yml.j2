@@ -98,11 +98,11 @@ services:
       # ⛔ Named volumes, NOT the image's own `Config.Volumes` paths left unmapped: the image declares
       # /var/www/onlyoffice/Data + /var/log/onlyoffice, and a mapped-less image VOLUME path gets a FRESH
       # ANONYMOUS volume at every container create, seeded from the image's content at that path — so the
-      # recreate orphaned the previous one where it stood, and for the Data path the orphaned copy is the
-      # WOPI keypair (HD-1106: 2026-10-28 read on the box — `wopi_private.key`/`wopi_public.key` stamped
-      # 06:52, the minute of that morning's `--tags docker` daemon restart, while three older pairs sat
-      # dangling). `/var/www/onlyoffice/Data` is `ds`-writable and holds only regenerable key material, and
-      # a named volume keeps the pair OUT of the dangling set instead of in it.
+      # recreate orphans the previous copy where it stands, and for the Data path the orphan is a WOPI
+      # keypair: left unmapped, this service grows one dangling volume per recreate AND leaves the minted
+      # pair only in the volume the last recreate abandoned. `/var/www/onlyoffice/Data` holds regenerable
+      # key material and is `ds`-writable, so a named volume both preserves the current pair across recreates
+      # and keeps it OUT of the dangling set instead of in it.
       - onlyoffice-data:/var/www/onlyoffice/Data
       - onlyoffice-logs:/var/log/onlyoffice
     labels:
@@ -230,7 +230,7 @@ volumes:
   onlyoffice-pgdata:
   onlyoffice-redis-data:
   # The two document-server paths this service maps explicitly instead of letting the image
-  # VOLUME stand unmapped (HD-1106). Compose prefixes them with the project name, so live they are
+  # VOLUME stand unmapped. Compose prefixes them with the project name, so live they are
   # `onlyoffice-docs_onlyoffice-data` / `onlyoffice-docs_onlyoffice-logs`.
   onlyoffice-data:
   onlyoffice-logs:
