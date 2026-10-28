@@ -147,6 +147,27 @@ All concrete CIDRs: [`network-addresses-generated.md`](network-addresses-generat
   `headplane_api`.`credential`. Cookie secret (32 chars) lives in `headplane_password`.`password`
   (**Password category → lookup `field='password'`, NOT `credential`**;
   a `credential` lookup returns empty → headplane crash-loops on `missing required fields`).
+- **Rotating that key** — order, not preference: mint the new row → write `headplane_api`.`credential`
+  → re-render the `headscale` project (which owns BOTH containers) **behind
+  `scripts/ansible/guarded-converge.sh`** → prove → only then `headscale apikeys expire --id
+  <superseded>` (`expire` takes `--id`/`--prefix`, never a positional). The propagation is a
+  **restart**, not an `up -d`: `api_key` lands in the bind-mounted `headplane-config.yaml`, whose
+  content `docker compose` cannot see, so the restart-on-config-change guard in
+  `roles/docker_services/tasks/deploy-service.yml` is what applies it — and that restart takes the
+  tailnet control plane with it, which is why the auto-re-enable net is mandatory here.
+  - **Which row is the vault's?** `headscale apikeys list -o json` prints each row's PUBLIC prefix
+    (`hskey-api-<23 chars>***` — the key's non-secret id segment, so printing it leaks nothing).
+    Prefix-compare it against the item value and the row is identified WITHOUT reading a secret; an
+    uncorrelated `apikeys list` is not a reason to expire anything by guess.
+  - `Running=true` and even `Up (healthy)` say nothing about the API path — a container that cannot
+    authenticate still serves its UI. Prove the path at the boundary: `GET /api/v1/user` on the
+    headscale container answers **200 with the live key, 401 with the superseded one and 401
+    anonymously**, and pair it with sampled `RestartCount` stability (`guarded-converge.sh` prints
+    that verdict; one-shot inspect does not).
+  - **Rows the vault does not hold:** `apikeys list` shows more rows than there are consumers, and an
+    `apikeys list` row that no item and no rendered config prefix-matches is a live credential with no
+    owner in the tree. Expiring one is a decision for the owner, never a side effect of a rotation —
+    a rotation expires exactly the row it can prove it superseded.
 - **Capabilities:** node/user management, pre-auth keys, read-only Settings view (headscale's
   rendered `config.yaml` is mounted `:ro`). Docker-socket integration (DNS editing from the UI,
   restart headscale on change) deliberately NOT wired — future hardening with a socket proxy.
