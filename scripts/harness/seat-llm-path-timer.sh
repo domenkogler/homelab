@@ -354,6 +354,16 @@ enable_leg() {
 do_install() {
   local u inst want tmp ts wrote=0
   st_guard
+  # A LINKED WORKTREE IS NOT A HOME FOR THIS ARM. ExecStart names $REPO by ABSOLUTE path, and a lane worktree is
+  # `git worktree remove`-d the day its lane closes — the unit would then fire every 120 s into a directory that is
+  # gone, which is the same silence as no timer at all. `.git` being a FILE (not a directory) is how a linked
+  # worktree says so. --render and --check stay read-only and still run from anywhere; a unit installed from a
+  # worktree shows up as DRIFT on the next --check from the primary tree, so the mistake is visible, not durable.
+  if [ -f "$REPO/.git" ]; then
+    printf 'REFUSAL(worktree): %s is a LINKED worktree — the path its ExecStart names is deleted when that lane closes.\n' "$REPO"
+    printf '  → install from the PRIMARY checkout: cd <primary clone> && sudo bash scripts/harness/seat-llm-path-timer.sh --install\n'
+    return 1
+  fi
   # A foreign file is refused BEFORE anything is written: writing the unit this script does own and then
   # refusing the other would leave half an arm installed, which is worse than no arm at all.
   for u in "$SVC" "$TMR"; do
@@ -647,6 +657,23 @@ selftest() {
   lacks_line "10d this checkout renders no copy of the plane outside the repo" "$root/render-this-checkout" '^ExecStart=.*usr/local/sbin'
   has_line "10e both rendered units carry the marker that makes them nameable as ours" \
     "$root/render-this-checkout" '^# managed-by: homelab llm-path re-assert arm'
+
+  # 11. THE PATH THAT OUTLIVES NOTHING — an install from a LINKED worktree is refused. The ExecStart names $REPO
+  #     by absolute path, and `git worktree remove` deletes a lane worktree when its lane closes: a timer firing
+  #     into a removed directory is silence, the failure this arm exists to prevent.
+  mkdir -p "$root/wt/scripts/harness" "$root/wt-dir"
+  : > "$root/wt/.git"                       # a linked worktree says so with a .git FILE, not a directory
+  cp "$plane_real" "$root/wt/scripts/harness/seat-llm-path.sh"
+  REPO="$root/wt" SEAT_LLM_TIMER_DIR="$root/wt-dir" SEAT_LLM_TIMER_ST=1 \
+    SEAT_LLM_TIMER_SYSTEMCTL="$root/stub-systemctl" bash "$SELF" --install >"$root/out" 2>&1; rc=$?
+  if [ "$rc" = 1 ] && grep -q 'REFUSAL(worktree)' "$root/out"; then pass=$((pass + 1)); echo "ok   11a installing from a linked worktree is REFUSED"
+  else fails=$((fails + 1)); printf 'FAIL 11a the worktree install answered rc %s, want 1 with a refusal\n' "$rc"; sed 's/^/     | /' "$root/out" | head -4; fi
+  if [ -e "$root/wt-dir/$SVC" ] || [ -e "$root/wt-dir/$TMR" ]; then fails=$((fails + 1)); echo "FAIL 11b the refused worktree install wrote units anyway"
+  else pass=$((pass + 1)); echo "ok   11b and it wrote nothing into that tree"; fi
+  REPO="$root/wt" SEAT_LLM_TIMER_DIR="$root/wt-dir" SEAT_LLM_TIMER_ST=1 \
+    SEAT_LLM_TIMER_SYSTEMCTL="$root/stub-systemctl" bash "$SELF" --check >"$root/out" 2>&1; rc=$?
+  if [ "$rc" = 1 ] && grep -q 'MISSING' "$root/out"; then pass=$((pass + 1)); echo "ok   11c --check still reports from a worktree (it writes nothing, so it needs no home)"
+  else fails=$((fails + 1)); printf 'FAIL 11c --check from a worktree answered rc %s\n' "$rc"; sed 's/^/     | /' "$root/out" | head -4; fi
 
   printf '\nself-test: %s (%d passed, %d failed)\n' \
     "$([ "$fails" -eq 0 ] && echo OK || echo FAILED)" "$pass" "$fails"

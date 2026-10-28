@@ -722,7 +722,9 @@ zone answers today.
 - **Public (Cloudflare):** publishes **only** the internet-facing subset — the names `zone_kogler_si`
 marks `public: true` (plus the explicit `public_records`), never a list authored here; the
 human-readable mirror is [`services.md`](services.md) §Domain & Subdomain Plan. Cloudflare is
-**DNS-only** (no proxy) — real client IPs reach Traefik.
+**DNS-only** (no proxy) — real client IPs reach Traefik. The public surface reconciles from the list through
+`playbooks/dns.yml`, whose token is IP-filtered to the home WAN address: every public record is CNAME →
+`vps.kogler.si`, unproxied, at **TTL 300** — live-verified 2026-10-28, and the reconcile then reports `changed=0`.
   **Public-record SSOT method:** publish records **incrementally** — one `*.kogler.si` name flipped to
   `public: true` in `zone_kogler_si` as each service lands on the VPS edge (gate: applies go LIVE on
   Cloudflare), and keep `docs/services.md` §Domain & Subdomain Plan as the human-readable mirror
@@ -938,6 +940,15 @@ black hole with extra steps.
    measured**: multi-A fall-over on a real client must be proven with a plug-pull before it is relied on.
 7. **HA's one URL is the plain `ha.kogler.si`** — see [network-vpn.md](network-vpn.md) §Tailnet boundary.
    The `.ts` twin stays as a free alias.
+8. **An inference name keeps the `edge` class: `llm.kogler.si` is not moved to `node`/`dual`.** The classes are
+   not interchangeable: `edge` renders BOTH namespaces, `node`/`dual` the `.ts` twin ONLY
+   (`zone_kogler_si_tailnet_plain` / `zone_kogler_si_tailnet_ts`), so flipping a name moves the PLAIN name out of
+   the netmap — and a `lan_only: true` name has no public answer to fall back to, so a tailnet client away from
+   home would be sent a home LAN address it cannot route (this ruling's own invariant above). The node-direct path
+   the flip was wanted for does not need the answer to move: the node answers TCP/443 under the address-scoped
+   grant ([network-vpn.md](network-vpn.md) §Tailnet boundary), and two-address `dual` rendering is HD-435's owed
+   half, so `node` and `dual` are the same single record today. A seat at home reaches the node directly without
+   any of this — the `llm-path` seat plane ([§Host-side resolver](#host-side-resolver)).
 
 ⚠ **The two planes are disjoint — no single *forwarded* answer covers both**, and that decides the workstation
 half of this refactor. From one box, one interface, both nameservers probed directly: MagicDNS

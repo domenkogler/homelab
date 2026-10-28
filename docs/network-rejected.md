@@ -61,6 +61,7 @@ tags: [network, rejected, decision-log]
 | LAN-address entries in the tailnet nameserver chain | rejected | Private home addresses, unreachable away; the node address takes over |
 | Laptop→Mgmt plane via ProxyJump pi | superseded | The Windows Mgmt99 vNIC reaches .99.x directly on-site |
 | LiteLLM on the flat traefik-public bridge | rejected | Keeps the key-holding spine off the public-route apps bridge |
+| `llm.kogler.si` (and the other AI names) published as a tailnet **node** or **dual** answer | rejected | `node`/`dual` render the `.ts` twin ONLY, so the PLAIN name leaves every client's netmap; these names are `lan_only`, so a tailnet client away from home would be handed a home LAN address it cannot route — the answer-plane invariant this file's own rule states. The node-direct path needs no answer move: the node answers TCP/443 under the address-scoped grant, and two-address `dual` rendering is HD-435's owed half, so `node` and `dual` are one record today ([network-dns.md](network-dns.md) §The answer-plane model ruling 8) |
 | mDNS reflection across VLANs (RouterOS repeater / Avahi) | rejected | Re-couples broadcast domains the VLAN plan separates; no integration needs it |
 | Mgmt-access plus single-VLAN port model | superseded | Dual-home instead: untagged access VLAN, tagged Mgmt 99, same port |
 | Mgmt VLAN 99 reachable over the VPS site-to-site tunnel | rejected | A compromised VPS would gain admin-plane reach toward router, switch, oldsrv |

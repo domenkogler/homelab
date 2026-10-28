@@ -385,11 +385,17 @@ spark hosts no DNS instance, so naming it a tailnet nameserver would be a decisi
 the two converges (`headscale` policy + `spark-dashboard`) are owner-present acts. While
 `tailnet_spark_ip` is empty neither the listener nor the grant renders, so what is authored stays inert.
 
-⚠ **The node answers the port; it does not yet answer the NAME.** The AI names stay `tailnet: edge` in
+⚠ **The node answers the port; it does not answer the NAME, and that is ruled rather than pending.** The AI names stay `tailnet: edge` in
 `zone_kogler_si`, and `node`/`dual` are the only classes that publish a `.ts` twin from a home node address
-(the field contract is on the list itself, in `group_vars/all/main.yml`). Until that record-vocabulary
-decision is made — and it is a decision about the answer plane, never a listener flag — the node-direct probe
-names the address itself: `curl -sk --resolve llm.kogler.si:443:<tailnet_spark_ip> https://llm.kogler.si/v1/models`.
+(the field contract is on the list itself, in `group_vars/all/main.yml`). Moving a `lan_only` name to `node`/`dual` would delete the
+PLAIN name from the netmap and leave a tailnet client away from home holding a home LAN address it cannot route, so the class is
+settled ([network-dns.md](network-dns.md) §The answer-plane model ruling 8, [network-rejected.md](network-rejected.md)) — it is a decision
+about the answer plane, never a listener flag. The node-direct probe therefore names the address itself:
+`curl -sk --resolve llm.kogler.si:443:<tailnet_spark_ip> https://llm.kogler.si/v1/models`.
+
+⚠ **Once spark joins, `spark.ts.kogler.si` is claimed twice** — by the ts-only extra record (→ the sidecar/edge address) and by
+MagicDNS's free node name (→ spark's own node address). Which answer a client sees is a read, not an assumption:
+`dig +short spark.ts.kogler.si @100.100.100.100` before and after the join, and `headscale nodes list -o json` for the assigned address.
 
 `tailscale_node_expected_ip` (host_vars) is the **per-host** address the join guard compares the assignment
 against — its default is `""`, which reads as "not yet asserted", not as "wrong".
