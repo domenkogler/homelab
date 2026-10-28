@@ -46,26 +46,6 @@ Three reasons from that seat still bind a probe: MSYS `grep` misses the CR of a 
 guards, and the same CR reaches a bash comparison through a pipe), `git` lives in `/mingw64/bin` not `/usr/bin`, and a case
 that cannot run there prints SKIP, not a verdict (CONVENTIONS §6).
 
-**The win11 derivation leg HD-1211 still owes** — the leak gate's `vault-unreachable` arms derive green on the WSL Debian
-seat (`op` on PATH AND the Server SDK importable in the leg's own interpreter — the shape that reddened, re-derive it with
-the command in step 1 below); the win11 shapes are the unproven half, because arm A rests on `python -S` HIDING the SDK on
-whatever interpreter the leg runs in. Run both shapes against the WIP tip and require the same verdict each time — the two
-arms `vault-unreachable prints SKIP and exits 2 (no `op`, no SDK)` / `(no credential, SDK route)` green AND
-`0 mutant(s) escaped`:
-
-1. **Git-Bash seat shape** (the one `validate-all.sh` runs there): `python3 scripts/gate/check_secret_leak.py --self-test`.
-2. **Windows-native CPython**, from a Windows-path checkout: `py -3.13 scripts\gate\check_secret_leak.py --self-test`.
-   `py -0p` lists the installs; the probe (`py -3.13 scripts\lib\vault_read.py --probe`) answers WHICH candidate imports
-   the SDK on that box — read that answer, do not assume it, and note that a 3.14 outside the SDK's cp39–cp313 wheels is
-   the no-SDK shape while an SDK-bearing interpreter is the seat that reddened.
-
-Read the printed SKIP **reason**, not just the rc: arm B green via
-`no vault credential reachable on this seat (no bash on PATH …)` proves a boundary fired, not that the removed token is
-one — `C:\Windows\System32\bash.exe` is the WSL launcher, not Git Bash. And arm A exiting on a real read instead of rc 2
-is the finding this leg exists to catch — a `-S` that does not hide the SDK — ⛔ not something to route around.
-The tip is branch `homelab-wt-20261027-2322`, commit `48a2e8dc`, local to the WSL clone and NOT on `origin`: fetch it from
-that box (or push it) before the seat checks it out. A win11 `OK` stays a *partial* result (HD-1202).
-
 **Push after you merge** — the station that merged is the station that pushes; an unpushed `main` is one disk between the
 work and the fleet. The transient-failure note (a `remote: fatal error in commit_refs` reject is GitHub-side: re-prove
 the ACL with `git push --dry-run`, then retry, and never conclude the commit is lost) lives in the same place:
@@ -93,7 +73,7 @@ onto their **Home leg**; the **Mgmt plane (VLAN 99) is same-site only** (`router
 
 **Docs hygiene:** [`CONVENTIONS.md`](CONVENTIONS.md) §8.6 (`sensitivity:` + the egress rule) and §8.3 (open questions are
 `Options` sections keyed `OQ-<n>`); a **size-ratchet growth red means the station owes `--reseal`**. Open: `HD-1197`
-(read-list check at launch, `scripts/harness/`) and `HD-1211` (the leak gate's vault-unreachable arm on an SDK seat — its fix is WIP, and the one act left is the win11 derivation leg named in this section).
+(read-list check at launch, `scripts/harness/`).
 
 ## 2. Next tasks (the rows are the authority; this is only the ranked pointer list)
 

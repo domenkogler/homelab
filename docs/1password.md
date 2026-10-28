@@ -73,6 +73,22 @@ with neither a local file nor a reachable engine gets **a refusal, not a dialog*
 boundary (`check_secret_leak.py` exits 2 → a printed SKIP); on that seat the dialog route is not a degraded
 check, it is the absence of one.
 
+**The leak gate bounds the CREDENTIAL, not the CLI.** Clearing `PATH` removes `op` but not the credential: where
+the Server SDK is importable in the leg's own interpreter the batched read answers with no `op` at all, so an
+unreachable-vault arm that scrubs only `PATH` has measured nothing. That arm runs TWO children, each stripped of
+`PATH`, `HOME`, the WSL door (`HL_WSL=off`) and the environment token:
+
+| child | what puts the vault out of reach | the boundary it has to print |
+|---|---|---|
+| `-S`, probe candidates at a stub | no `op` and no SDK — `-S` skips `site`, which takes the SDK off `sys.path` whether it sits in the interpreter's `site-packages` (a `py -3.13` install on the Win11 seat) or in a `--user` site (a Debian seat's `python3`) | no `op` on PATH and no interpreter imports the onepassword SDK |
+| `HL_VAULT_READ_ROUTE=sdk`, no token | the SDK route asked with no credential, which [`../scripts/lib/vault_read.py`](../scripts/lib/vault_read.py) refuses — the mutation table cannot patch it, because the table patches the gate file | no vault credential reachable on this seat (…) |
+
+Both exit rc 2, and the **reason** says which station stopped it: a seat with no `bash` on `PATH`
+fails in [`../scripts/lib/vault_env.py`](../scripts/lib/vault_env.py)'s `ensure()`, one station before
+the SDK route is tried, so that SKIP proves a boundary fired and not that the removed token is what the
+child would have used. An interpreter outside the SDK's wheels imports no SDK with or without `-S`, so
+the child leaning on `-S` is evidence only on the SDK-bearing interpreter the leg runs in.
+
 Two traps the lib carries so legs do not. A value that crossed `wsl.exe` (or a Windows-authored file) can hold
 a trailing `\r`, which `op` sends verbatim and the vault answers **403** — indistinguishable from a dead token
 — so the parse strips CR and quotes, reading with `read -r`/out parameters rather than `$( )`, which on a
@@ -136,8 +152,10 @@ python3 scripts/lib/vault_read.py --install-sdk   # pip install onepassword-sdk 
 On a seat whose python is PEP-668-managed (every Debian seat, and oldsrv's `python3`) the plain
 install is refused, and `--install-sdk` retries it as a **user-site** install (`--user
 --break-system-packages`) — no OS package moves, and plain `python3` imports the SDK, which is what
-the probe needs. The Win11 seat needs it on `py -3.13` specifically, because its `py -3` is 3.14 and
-outside the wheel set. A seat that has not had this act still works — it pays the labelled fallback.
+the probe needs. The Win11 seat needs it on `py -3.13` specifically, because its `py -3` is 3.14 and outside
+the wheel set — which is also where the gate's own launcher probe lands there (`python3` is the Store stub,
+so the probe settles on `py -3`): a full gate run on that seat answers the no-SDK shape. A seat that has not had
+this act still works — it pays the labelled fallback.
 
 A **name** is not a free address. `op item get` and `op read` resolve the name first and 1Password bills
 the resolving — 3 requests for a name-addressed read, 1 for an ID-addressed one (CLI docs, "Commands

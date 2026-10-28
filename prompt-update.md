@@ -250,10 +250,8 @@ closed by definition, not by a change. ⛔ Never shred or delete a transcript (H
 - [ ] §2(b) `image-pin-probe.py` `DEFAULT_ROOT` fix (+ a note if the `docker_*` SOURCES entries stay absent).
 - [ ] §4 tombstone mask, registry entry deleted, `docs/hardware-spark.md` sentence rewritten.
 - [ ] §3 pin commit — versions plus the re-fetched `tailscale_host_deb_sha256_by_arch` in the same change.
-- [ ] `bash scripts/validate-all.sh` green **except two named leak-gate reds**: `check_secret_leak.py --self-test`
-  on a seat that imported the onepassword SDK (**HD-1211** — Phase 2 does not clear it; the fix lives in
-  `scripts/gate/**`, WIP on a branch), and the live-value debts the pi-dev seat's own transcripts hold, which only
-  those rotations close (HD-1181). Measured on the WSL seat: 134 items, 1 red = HD-1211. A seat whose reader has no
+- [ ] `bash scripts/validate-all.sh` green **except the named leak-gate red**: the live-value debts the
+  pi-dev seat's own transcripts hold, which only those rotations close (HD-1181). A seat whose reader has no
   SDK spends ~143 vault requests per gate run instead of 4 — the seat act is `python3
   scripts/lib/vault_read.py --install-sdk` ([docs/1password.md](docs/1password.md) §What a gate run costs the vault).
   The size halves of the backlog/handoff/doc gates never belong in that red list: they print a reminder and exit
