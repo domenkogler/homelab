@@ -805,7 +805,7 @@ compares against is the pin **as of the last monitoring converge**, so a `versio
 converged reads as "in sync" with the older value.
 
 One pin shape needs one comparison rule. A pin that carries a dpkg revision (`alloy_version` =
-`1.20.1-1`) compares EXACTLY; a pin that carries none is a FAMILY pin and compares on the running
+`1.21.2-1`) compares EXACTLY; a pin that carries none is a FAMILY pin and compares on the running
 version's dpkg upstream part — everything before the last hyphen — because download.docker.com stamps
 the same release as `5:29.8.2-1~debian.13~trixie` on Debian 13 and `5:29.8.2-1~ubuntu.24.04~noble` on
 Ubuntu 24.04, and a fleet-wide value can only name the part both share. `roles/docker` asserts the same
@@ -829,7 +829,7 @@ make the read HONEST rather than merely harmless:
 
 | Question | The read that answers it |
 | --- | --- |
-| Is a host off its pin? | `homelab_pkg_pin_result{result="differ"}` — the two labels ARE the proof (`pin=`, `running=`). Fleet-wide it is EMPTY: every host that reports carries its pin (`alloy`, `tailscale` where the box has it, and the six-package docker family at `5:29.8.2`/`2.3.6`/`0.37.1`/`5.5.1`). ⚠ An empty read is **not** fleet health — a host that publishes nothing contributes no rows here either, and that verdict is §Silent-failure hygiene's, not this table's. See the fleet table below |
+| Is a host off its pin? | `homelab_pkg_pin_result{result="differ"}` — the two labels ARE the proof (`pin=`, `running=`). Fleet-wide it is EMPTY, and the render rule above is why: a host that has not converged since a pin-set bump compares against the pin map its own last `monitoring` converge rendered, so it reads `match` against the PRE-bump set. Read 2026-10-28: `pi` carries the post-bump set (`5:29.9.2` / `2.4.2` / `0.38.1` / `5.6.1`, `alloy 1.21.2-1`, `tailscale 1.104.2`); at that read the other four were still reporting the pre-bump one (`5:29.8.2` / `2.3.6` / `0.37.1` / `5.5.1`, `alloy 1.20.1-1`). ⚠ An empty read is **not** fleet health — a host that publishes nothing contributes no rows here either, and that verdict is §Silent-failure hygiene's, not this table's. See the fleet table below |
 | How far from current is the box? | `homelab_upgrade_plan_count` — measured 2026-10-17: oldsrv **56**, vps 74, pi 93, nas 95, spark 230. None of those are the pinned packages, because a HELD package is kept back rather than listed (the ⚠ below): the count is the whole unpinned OS tail. It is the staleness signal, never a pin signal |
 | Does this host even carry the package? | `result="missing"` — what a fleet-wide list reads on a host that legitimately does not carry it, and the reason a first rule keys on `result="differ"` rather than on the ok gauge. Measured 2026-10-17: `nas` reports `missing` for the whole docker family (no Docker there) and for `tailscale` |
 | …and if dpkg answers nothing at all? | `result="unknown"` — measured on spark for `docker-ce-rootless-extras`: an empty version with rc 0, because the dpkg state is `hold ok not-installed`. A held package the box never installed is NOT the same fact as `missing`, and neither one is drift |
@@ -867,7 +867,12 @@ it moves, re-holds them in the same play and asserts the read-back — no manual
 it runs one host at a time, detached, `--check` first, never behind a timeout, and the stale-socket
 survivor restart in [`../deployment-manual.md`](../deployment-manual.md) §1.10 follows it — a live-restore
 survivor keeps the OLD `docker.sock` inode, so its docker-sourced routes 404 until the survivor itself
-restarts. Every host that reports is on its pin, so this rule is quiet because of what it reads —
+restarts. The other half of "why is it quiet" is the render rule: a pin commit that no host has converged
+moves no `differ` row at all, and a row appears on ONE host between its own `docker`/`tailscale-node` apply
+and its `monitoring` re-render — packages already at the new version, pin map still the old one. Measured
+on `pi` on 2026-10-28: six `differ` rows after `--tags docker`, none after `--tags monitoring` cleared them
+by re-rendering the pin map, and the `tailscale` row that the re-render opened was closed by that host's
+`--tags tailscale-node` leg. So this rule is quiet because of what it reads —
 ⛔ do not mute it to make a landing quiet.
 
 ⚠ **`docker-ce-rootless-extras` is named in the suite, so nothing keeps this rule red except the
@@ -877,7 +882,8 @@ and the read-back assert alike, and the family the pin map names is asserted to 
 docker package that no task installs now reddens the converge instead of waiting for someone to notice.
 What that means host by host: on `vps` the 2026-10-18 `--tags docker` apply moved it to
 `5:29.8.2` with the rest of the family (their `differ` entries cleared and the collector re-reads
-`match` on vps — measured on the host itself); on `pi` the same pending apply moves it; on `spark`
+`match` on vps — measured on the host itself); `pi` has since had the same apply at the `5:29.9.2` pin and
+carries the whole family plus `docker-ce-rootless-extras` at it; on `spark`
 the same apply INSTALLS it — its dpkg state today is `hold ok not-installed`, `dpkg-query` answers empty
 with rc 0, and the simulate there reads `5 upgraded, 1 newly installed` with this package as the new one
 and `dbus-user-session` + `libc6` as its only dependencies, both already present; on `nas` nothing
@@ -887,8 +893,9 @@ not the operator's: a held package is NOT movable by an apt-module install
 (`apt-get -s -y install 'docker-ce=5:29.8.2-*' …` answers `E: Held packages were changed and -y was used
 without --allow-change-held-packages`, rc 100, where the same command without `-y` resolves), so
 `roles/docker` unholds the names it moves, installs, and re-holds them in the same play — see
-[deployment-ansible.md](deployment-ansible.md) §common. Until those applies run the rule stays red on
-`pi` and `spark` (vps is in sync since 2026-10-18), and that is the honest reading, not noise.
+[deployment-ansible.md](deployment-ansible.md) §common. What is left of that warning is `spark`, and it does
+not show as red: spark has not converged since the pin bump, so it reports `match` against the pre-bump map
+it still renders. `pi` is the one host reporting the post-bump set (live-verified 2026-10-28).
 
 ⚠ **`unknown` is a fourth reading, and the hold leg explains it.** On spark `dpkg-query -W
 -f='${Version}' docker-ce-rootless-extras` answers **empty with rc 0** — the dpkg status is
@@ -900,10 +907,11 @@ packages does this host carry" probe is `dpkg-query -W -f='${Package}'`, which a
 package too, so a held-but-not-installed package is a real state in this fleet (read `apt-mark showhold`
 against `dpkg-query -s <pkg>`, never against each other).
 
-**Deploy state: 🟢 LIVE — the collector on all five hosts and the rule loaded in the ruler; the rule reads 🔴 red on
-`pi` and `spark` only — vps is ON the pin since the 2026-10-18 `--tags docker` apply, and its collector
-re-reads `match` for the whole docker family (measured on the host); the remaining red is the pi/spark
-docker-family lag being reported rather than work left on this leg.** The
+**Deploy state: 🟢 LIVE — the collector on all five hosts and the rule loaded in the ruler; the rule is
+QUIET fleet-wide (`homelab_pkg_pin_result{result="differ"}` answers zero series, live-verified 2026-10-28),
+which is the render rule, not five hosts on one pin set: `pi` is on the post-bump set since its
+docker/monitoring/tailscale-node applies (the canary of this window), and at that read the other four were
+still rendering the pre-bump map and therefore reading `match` at it.** The
 collector half landed with the `--tags monitoring` converges and was verified per host with
 `curl -s 127.0.0.1:9098/metrics | grep -E '^homelab_(pkg|upgrade|reboot)'` — 8 pin pairs +
 `homelab_upgrade_plan_ok`/`_count` + `homelab_reboot_required` on each of `oldsrv · vps · nas · pi ·
@@ -923,12 +931,12 @@ log (→ [deployment-secrets.md](deployment-secrets.md); use `--check`). Read it
 afterwards — a rule that is authored is not a rule that is loaded. **That read has been done** (2026-10-17):
 `pkg-pin-drift` is loaded in the `Homelab · Warning` namespace with `expr: count by (instance)
 (homelab_pkg_pin_result{result="differ"})`, `for: 30m`, `no_data_state: OK`, `provenance: file` —
-the seventh of the `homelab_*` rules listed at §Alerting. What keeps it red is nothing in this
+the seventh of the `homelab_*` rules listed at §Alerting. What it can catch is nothing in this
 repository: `roles/docker` names every package the pin map pins, and the pending `--tags docker`
-applies — each one a daemon restart, therefore an owner window — are what moves `pi`/`spark`
-onto the pin (vps already made it, 2026-10-18), `roles/common/tasks/apt-holds.yml` holding the
-family in place between them. Until
-those applies run, the red is the report working.
+applies — each one a daemon restart, therefore an owner window — are what moves a host onto a moved pin,
+`roles/common/tasks/apt-holds.yml` holding the family in place between them. A host that never converges
+after a pin bump stays GREEN here — that is the read to remember, and the reason a fleet-wide empty
+`differ` is never evidence that the fleet is on `group_vars/all/versions.yml`.
 
 ### Tiers
 
@@ -1768,7 +1776,7 @@ nobody reads a device series as "the XFS mount".
 **Temperatures: `hwmon` and `thermal_zone` have to be enabled in `set_collectors`.** A minimal
 collector list that omits them yields **no** `node_hwmon_*`/`node_thermal_zone_temp` series **for any host**,
 even though the sensors are live in `/sys`. Both are valid Alloy `prometheus.exporter.unix` collectors
-(Alloy fleet pin 1.20.1-1, spark's converge to it ⏳).
+(Alloy fleet pin 1.21.2-1, spark's converge to it ⏳).
 The series and label shape below is measured on spark, not guessed:
 
 | Chip / sensor (measured on spark) | Reading | Note |
