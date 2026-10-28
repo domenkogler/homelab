@@ -21,13 +21,11 @@
   register: _dpkg_arch
   changed_when: false
   when: tailscale_host_arch | default('', true) | length == 0
-  tags: [tailscale-node, tailscale]
 
 - name: Set the architecture used for the pinned .deb (explicit var wins, else the dpkg read)
   ansible.builtin.set_fact:
     tailscale_host_arch: >-
       {{ (tailscale_host_arch | default('', true) or (_dpkg_arch.stdout | default('') | trim)) | trim }}
-  tags: [tailscale-node, tailscale]
 
 # ⚠ Arch comes from the host, it is NOT a literal: the URL, the dest path and the checksum
 # all moved onto `tailscale_host_arch` together. Shipping a checksum that does not belong to
@@ -44,7 +42,6 @@
       {{ tailscale_host_arch }}.deb.sha256 — do NOT relax this assert to reuse another arch's
       checksum.
     quiet: true
-  tags: [tailscale-node, tailscale]
 
 - name: Download the pinned tailscale host package (checksum-verified)
   ansible.builtin.get_url:
@@ -53,7 +50,6 @@
     checksum: "sha256:{{ tailscale_host_deb_sha256_by_arch[tailscale_host_arch] }}"
     mode: "0600"
   register: _ts_deb
-  tags: [tailscale-node, tailscale]
 
 # ── the hold, and the one moment a converge is allowed to lift it ────────────────────────────
 # `roles/common` holds every package in `host_apt_pin_vars` — `tailscale` among them — so `apt
@@ -69,13 +65,18 @@
 # window. Same block `roles/docker` ships for its suite — one shape per held package, and the
 # `showhold` pair is what proves the hold came back. The `.deb` is fetched to /root and never held
 # back: it is the file, not the package; the re-hold below is on the package.
+# The tag is the role's own: `playbooks/home_servers.yml` and `playbooks/raspberry_pi.yml` attach
+# `tags: [tailscale-node]` to the role entry, which cascades to every task here, so a scoped run
+# selects the lift exactly when it selects the role. A second, package-named tag would be a NEW
+# filter over a lockout role rather than a fix to a silent drop, and it is refused by
+# playbooks/tasks/self-converge-guard.yml's tag symmetry (scripts/README.md, "BOTH tags").
 - name: Read which packages this host holds
   ansible.builtin.command:
     cmd: apt-mark showhold
   register: _tailscale_holds_before
   changed_when: false
   check_mode: false        # a probe, not a mutation — --check must still be able to judge
-  tags: [tailscale-node, tailscale]
+  tags: [tailscale-node]
 
 - name: Read the tailscale host version before this run moves anything
   # One read decides which name the hold is standing in the way of, the read-back at the end of the
@@ -88,7 +89,7 @@
   changed_when: false
   failed_when: false       # not-installed is a valid answer here, stdout is the signal
   check_mode: false
-  tags: [tailscale-node, tailscale]
+  tags: [tailscale-node]
 
 - name: Decide whether held tailscale has to move
   # Held AND off its pin — the exact set apt refuses under `-y`. The pin var is the one
@@ -110,7 +111,7 @@
       {%- set _upstream = _dpkg.rsplit('-', 1)[0] if '-' in _dpkg else _dpkg %}
       {%- set _at_pin = (_dpkg == tailscale_host_version) if ('-' in tailscale_host_version) else (_upstream == tailscale_host_version) %}
       {%- if 'tailscale' in _held and not _at_pin %}tailscale{% endif %}
-  tags: [tailscale-node, tailscale]
+  tags: [tailscale-node]
 
 - name: Move the pinned tailscale host package past its hold
   # The re-hold sits in `always`, so a failed install leaves the PRE-state — held, old version — and
@@ -183,7 +184,7 @@
           `host_apt_pin_vars`.
         quiet: true
       when: _tailscale_to_lift | length > 0
-  tags: [tailscale-node, tailscale]
+  tags: [tailscale-node]
 
 - name: Enable + start tailscaled
   ansible.builtin.systemd_service:
@@ -191,9 +192,6 @@
     enabled: true
     state: started
     daemon_reload: true
-  # Tagged with the package leg: a deb install restarts the daemon by itself, but a host whose unit
-  # was never enabled must not come up only after a reboot.
-  tags: [tailscale-node, tailscale]
 
 # Own the listen port. The deb already ships /etc/default/tailscaled with
 # PORT="41641" and the unit passes `--port=${PORT}`, so on a box that has never been
