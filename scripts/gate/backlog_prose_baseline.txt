@@ -263,4 +263,4 @@ BRIEF	prompt-seat-cockpit-grants.md	90
 BRIEF	prompt-smart-home.md	80
 BRIEF	prompt-spark-llm.md	96
 BRIEF	prompt-storage-backup.md	85
-BRIEF	prompt-update.md	355
+BRIEF	prompt-update.md	427
