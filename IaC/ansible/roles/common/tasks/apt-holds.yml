@@ -11,17 +11,21 @@
 # declined `roles/updates` phase in docs/deployment-rejected.md.
 #
 # What the hold does to a deliberate upgrade — the half that decides whether this ruling is
-# affordable, measured on a host that really holds the suite, both spellings of the same request:
-#   * `apt-get -s install docker-ce=5:29.8.2-*` → "The following held packages will be changed", then
+# affordable, measured on a host that really holds the suite, both spellings of the same request
+# (the version is stated as `<pin>` because the point is the SHAPE, not the release it was measured on):
+#   * `apt-get -s install docker-ce=<pin>-*` → "The following held packages will be changed", then
 #     it resolves the upgrade. A hold does not fence a request that names a version.
 #   * the same command with `-y` → the same plan, then
 #     `E: Held packages were changed and -y was used without --allow-change-held-packages`, rc 100.
 #     ⚠ The ansible `apt` module ALWAYS passes `-y`, so the module path IS fenced: an ordinary
-#     `apt: name=<pkg>=<version>` task cannot move a held package. That is why `roles/docker` lifts the
-#     hold for exactly the suite names it is about to install and puts it back in the same play (its
-#     unhold → install → re-hold block, asserted against `apt-mark showhold`). ⛔ No role passes
-#     `allow_change_held_packages`: the hold is the invariant and a pin bump is the exception, so the
-#     exception names the packages it touches instead of switching the fence off for the whole call.
+#     `apt: name=<pkg>=<version>` task cannot move a held package. That is why every role that installs
+#     one of these packages carries its own lift leg — `roles/docker` for the engine suite,
+#     `roles/monitoring` for `alloy`, `roles/tailscale-node` for the `tailscale` .deb — each one an
+#     unhold → install → re-hold block asserted against `apt-mark showhold`, and skipped entirely on a
+#     host already at its pin. ⛔ No role passes `allow_change_held_packages` and no role runs a blanket
+#     `apt-mark unhold $(apt-mark showhold)`: the hold is the invariant and a pin bump is the exception,
+#     so the exception names the packages it touches instead of switching the fence off for the whole
+#     call. The lift legs do NOT share one tag vocabulary — see each role's own note on why.
 #   * `apt-get -s upgrade` on the same state → "The following packages have been kept back: docker-ce".
 #     A blanket upgrade does not touch it. That is the whole ruling in two reads.
 #
