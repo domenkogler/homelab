@@ -164,3 +164,21 @@ check: -Check
 push: -Push
 seats: win11
 installer: none
+
+---
+# The seat's MODEL-LANE PATH plane (docs/network-dns.md §Host-side resolver). The inference name is
+# pinned to the inference host's Home IPv4 in the seat's hosts file while a TCP connect to that
+# address on the https port answers, and the pin is REMOVED when it stops answering — so the seat takes
+# the LAN path when the LAN path works and the ordinary answer plane when it does not. One name on one
+# seat: the zone rows, the netmap and the policy are outside this plane, which is what keeps every other
+# name answering exactly as it does today. `wsl` only, and `installer: none` because the push half
+# writes a root-owned file — a from-zero bootstrap converging a HOME cannot converge `/etc/hosts`, and
+# failing a bootstrap on a file it must not touch would be the wrong lesson.
+plane: llm-path
+harness: all
+owner: seat-llm-path.sh
+runner: bash
+check: --check --strict
+push: --push
+seats: wsl
+installer: none

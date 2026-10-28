@@ -419,6 +419,43 @@ for s in 100.100.100.100 "$GW"; do printf '%s %s\n' "$s" "$(dig +short llm.ts.ko
 separate the two halves (cache vs upstream) in one pass. A seat whose model picker 401s is not this class;
 a seat whose client cannot name the endpoint at all is.
 
+**What the seat asks per plane, and the one name the seat answers for itself.** The two arms above answer
+every name this namespace has — with one gap that has no plane-level answer, and one row the seat can add
+for itself:
+
+| the seat asks | for which names | and gets |
+|---|---|---|
+| the netmap's own loopback resolver | `*.ts.kogler.si` plus every plain name the netmap claims | a pinned **tailnet** address, TTL 5 |
+| the host uplink | every other `*.kogler.si` name | the **home** resolvers at home, a public resolver everywhere else |
+| `/etc/hosts` — before both, because `nsswitch.conf` orders `files` first | the **one** name the seat's `llm-path` plane pins | spark's **Home** address, while a TCP connect to it answers |
+
+The inference name is the case the first two rows cannot cover from home: it carries ONE tailnet answer —
+the tailnet edge address — so when the public edge is down the answer is a dead address on every client
+that trusts it, **including the box standing on the home LAN**, where a LAN answer one hop away serves the
+same Host at `200`. The transport surviving an outage is no help when the ANSWER is the dead address
+(§The answer-plane model: the answer must be routable by the client that receives it). The seat-side fix
+is scoped to one name, and the scoping is the whole design: the zone-wide version — "ask the home resolver
+while at home" — is not scoped, and the LAN tier does not answer every name the way the netmap does.
+`litellm.kogler.si` is the counter-example: the LAN view answers it with the VPS address, whose edge
+returns `404` for that Host, while the netmap answers it with the tailnet edge address and serves `200`.
+A switch that re-points every `*.kogler.si` name therefore regresses names that are healthy today, and is
+rejected. The read that shows the split, from one client at home:
+
+```bash
+dig +short llm.kogler.si @100.100.100.100      # the netmap answer: the tailnet edge address
+dig +short llm.kogler.si @"$(ip route | sed -n 's/^default via \([^ ]*\).*/\1/p')"   # the LAN answer: spark's Home address
+bash scripts/harness/seat-llm-path.sh --check  # what the seat itself decided, and why (path=lan / path=edge)
+```
+
+⛔ **A seat-side pin is a seat act, never an answer-plane change.** The plane owner
+[`../scripts/harness/seat-llm-path.sh`](../scripts/harness/seat-llm-path.sh) writes one marker-delimited
+block in one seat's `/etc/hosts`, holding the address only while a TCP connect to it on the https port
+answers, and removing it when it stops answering. The zone rows, the netmap records and the tailnet policy
+are untouched by it, so no other client and no other name moves and away-from-home behaviour is unchanged.
+What it does depend on is the ordering fact above: `files` answers before `resolve`/`dns`, which is why one
+line there is sufficient — and why a wrong one there is invisible to every resolver probe, which is why the
+plane reports the entry it found rather than the answer it hoped for.
+
 ⚠ **A `#` line in a keyfile template is file content, so a comment edit is a write.** The rendered
 keyfile carries the template's leading `#` block verbatim — it is output, not a `{# … #}` Jinja comment —
 so that text is part of what the `template:` module compares. Reword a comment and the next run reports
