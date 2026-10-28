@@ -1093,10 +1093,14 @@ fires and the control plane bounces once — `headplane` with it, same compose p
    grep -c '^  extra_records' /tmp/hs-render/config.yaml    # exactly 1 — one key, never two
    grep -c '^- name:' /tmp/hs-render/extra_records.yaml     # the row count the live file must match
    ```
-   The pinned image's own parser is the stronger read and the shape is already in
-   [deployment-manual.md](../deployment-manual.md) §1.4e step 2 (mount the pair read-only, run the
-   config validator, and prove it is not vacuous by re-running it on a copy with BOTH keys set — that
-   copy MUST fail). Confirm the subcommand name on the pin with `--entrypoint /ko-app/headscale
+   ⚠ The pinned image's `configtest` is **not** evidence about the record keys: measured 2026-10-28 on
+   0.29.4 it passes the inline shape, the file shape, **and** a config carrying BOTH keys — the same
+   vacuity [deployment-manual.md](../deployment-manual.md) §1.4e step 2 already records for
+   `dns.nameservers` values. What IS evidence here is step 2's sampled liveness probe, because the failure
+   a bad record shape produces is "starts, then dies", and only `RestartCount` sampled across a window
+   sees that. The offline reads above (exactly one key, the row count) stay the cheap check, and
+   `check_zone_kogler_si_parity.py` is what refuses a render that emits both keys or hides one in a
+   comment. Confirm the subcommand name on the pin with `--entrypoint /ko-app/headscale
    headscale/headscale:<pin> --help`; do not carry a subcommand across versions.
 2. **Converge behind the net** — one scoped run, both tag classes, watchdog armed before the service
    is touched and standing down only on a GREEN **sampled** verdict (default 6 × 10 s: `Running` true,
