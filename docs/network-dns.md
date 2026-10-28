@@ -928,13 +928,16 @@ black hole with extra steps.
    with the VPS resolver, even though their DHCP options list three servers. Re-open trigger: an IoT or kids
    incident where DNS, not WAN, is the dead leg.
 5. **`extra_records` move to the watched file** (`dns.extra_records_path`), so no record edit ever
-   restarts the control plane again. Two hazards carried with it: `dns.extra_records` and
-   `dns.extra_records_path` are **mutually exclusive** in the pinned version (both set → the process
-   exits at startup), so the swap is atomic or it takes the control plane down; and a "container is
-   Running" post-check is **not** liveness, because a fatal config leaves a crash-looping container
-   reporting `running`. **Precondition:** the guarded-converge assert must carry a real probe before this swap is
-   attempted; the swap itself is still ahead. The IaC shape lives behind one variable
-   (`headscale_extra_records_path`, default `""` = the inline block): §The MagicDNS records FILE.
+   restarts the control plane again. The hazards it carries are now measured, not predicted: a "container
+   is Running" post-check is **not** liveness, because a fatal config leaves a crash-looping container
+   reporting `running` — that is exactly what happened when the key was turned on, and the guarded
+   converge's sampled probe is what caught it and reverted it. ⛔ The consumer **unmarshals the file as
+   JSON**, so a YAML records file is a control-plane crash loop while `headscale configtest` (which never
+   opens the file, and also accepts a config carrying both record keys) says nothing at all. The key is
+   back off, the inline block is in force, and the file must be rendered as a JSON array before the flip
+   is re-attempted: §The MagicDNS records FILE. **Precondition for any re-attempt:** the sampled probe —
+   `configtest` is not it. The IaC shape lives behind one variable
+   (`headscale_extra_records_path`, default `""` = the inline block).
 6. **The Pi joins the tailnet and HA's names get two A records** (Pi + oldsrv). Both boxes
    proxy to the VIP, so the answer follows HA in either direction. Flagged as **designed, not yet
    measured**: multi-A fall-over on a real client must be proven with a plug-pull before it is relied on.
@@ -1047,7 +1050,8 @@ variable — `headscale_extra_records_path` in
 
 | `headscale_extra_records_path` | the key `dns:` carries | where the rows live |
 |---|---|---|
-| `""` — the authored default | `dns.extra_records` | inline in `/opt/headscale/config.yaml` |
+| `""` — **the shape in force** (the flip was tried live and reverted) | `dns.extra_records` | inline in `/opt/headscale/config.yaml` |
+| `/etc/headscale/extra_records.yaml` | `dns.extra_records_path` | **needs a JSON array first** — headscale unmarshals this file as JSON, so the commented YAML the template renders today crash-loops the control plane; rendered from `extra_records.yaml.j2` next to the config and mounted `:ro` in both shapes |
 | `/etc/headscale/extra_records.yaml` | `dns.extra_records_path` | `/opt/headscale/extra_records.yaml`, rendered from `extra_records.yaml.j2` next to the compose file and mounted `:ro` |
 
 `headscale/config.yaml.j2` renders exactly ONE key, and

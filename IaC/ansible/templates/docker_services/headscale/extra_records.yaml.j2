@@ -3,10 +3,16 @@
 #
 # This is the file `dns.extra_records_path` names in the headscale config; headscale reads the
 # record set here instead of the `dns.extra_records` block. Exactly ONE of the two keys is ever
-# rendered — they are mutually exclusive on the pinned headscale, and both set exits the process at
-# startup while the container keeps reporting `Running`. `headscale_extra_records_path`
-# (group_vars/vps.yml) decides which key the config carries; this file is rendered, and mounted
-# read-only, in both shapes.
+# rendered. `headscale_extra_records_path` (group_vars/vps.yml) decides which key the config carries;
+# this file is rendered, and mounted read-only, in both shapes.
+#
+# ⛔ **headscale unmarshals this file as JSON, not YAML** (measured on the pin: `unmarshalling records,
+# content: … invalid character '#' looking for beginning of value`), and `configtest` never opens the
+# file — it passes the inline shape, this shape, and a config carrying both keys. So a YAML body here is
+# a crash loop of the tailnet control plane that no offline config check sees, and that is what happened
+# when the key was first turned on; the key is back off and `check_zone_kogler_si_parity.py` now reddens
+# a non-JSON file the moment the key is set. The rows below stay correct as DATA — the fix is the
+# serialisation, not the names or the addresses.
 #
 # The rows are the tailnet views of `zone_kogler_si` (group_vars/all/main.yml), reached through the
 # two aliases in group_vars/vps.yml and keyed by their FQDN `name` — the same entries and the same

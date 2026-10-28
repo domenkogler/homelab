@@ -176,6 +176,40 @@ def config_render_checks(src: str | None = None) -> list[str]:
     return findings
 
 
+def records_file_format_checks(force_key: str | None = None) -> list[str]:
+    """⛔ The file `dns.extra_records_path` names is read by headscale as **JSON**.
+
+    Measured the way everything about the answer plane is measured here: the key was turned on behind the
+    guarded converge and the control plane crash-looped on the FIRST sample — `setting up extrarecord
+    manager: reading extra records from path: unmarshalling records … invalid character '#' looking for
+    beginning of value`, because the file this repo renders is commented YAML. `headscale configtest`
+    passes all three shapes (inline, file, both keys at once) because it never opens the file, so an
+    offline config check cannot see this and a one-shot `Running` cannot either. While the key is empty
+    the rule is inert and says so through the self-test's forced case, which is where its teeth live.
+    """
+    findings: list[str] = []
+    ctx = zr.build_context()
+    if force_key is not None:
+        ctx["headscale_extra_records_path"] = force_key
+    key = str(ctx.get("headscale_extra_records_path") or "")
+    if not key:
+        return findings
+    text = zr._render_text(zr.HEADSCALE_RECORDS_TEMPLATE, ctx, "records-file format check")
+    try:
+        doc = json.loads(text)
+    except json.JSONDecodeError as exc:
+        findings.append(f"dns.extra_records_path is set to {key!r} but the rendered records file is not "
+                        f"JSON — headscale unmarshals it as JSON, so this is a crash loop, not a warning: {exc}")
+        return findings
+    if not isinstance(doc, list) or not doc:
+        findings.append(f"the records file must be a NON-EMPTY JSON array of records, got {type(doc).__name__}")
+        return findings
+    for n, rec in enumerate(doc):
+        if not isinstance(rec, dict) or {"name", "type", "value"} - set(rec):
+            findings.append(f"records file entry {n} is not an object with name/type/value: {rec!r}")
+    return findings
+
+
 def main() -> int:
     try:
         golden = json.loads(GOLDEN_PATH.read_text(encoding="utf-8"))
@@ -210,6 +244,15 @@ def main() -> int:
         print("\nEither fix zone_kogler_si, or make the change deliberately: review this "
               "diff, then re-derive the fixture in the SAME commit — and say why in the "
               "commit message.", file=sys.stderr)
+        return 1
+
+    format_findings = records_file_format_checks()
+    if format_findings:
+        print("FAIL: the records file cannot be read the way headscale reads it", file=sys.stderr)
+        for line in format_findings:
+            print("  " + line, file=sys.stderr)
+        print("\nheadscale unmarshals `dns.extra_records_path` as JSON; render the rows as a JSON array "
+              "of {name, type, value}. configtest will not tell you — it never opens the file.", file=sys.stderr)
         return 1
 
     shape_findings = config_render_checks()
@@ -368,6 +411,15 @@ def self_test() -> int:
     cases.append(("a `{%- if %}` tag above the record key is RED (its trim pulls the key up into the "
                   "comment line, under Ansible's trim_blocks)",
                   bool(config_render_checks(trimmed))))
+
+    # 13. the FILE shape, read the way the CONSUMER reads it. headscale unmarshals the records file as
+    #     JSON; the first live attempt at the key flip crash-looped the control plane over a YAML body,
+    #     and configtest — which never opens the file — had said nothing. Inert while the key is empty,
+    #     so the forced case below is what proves the rule can fail at all.
+    cases.append(("the records-file format rule is inert while the inline key is in force",
+                  not records_file_format_checks()))
+    cases.append(("the records-file format rule is RED when the key is on and the file is not JSON",
+                  bool(records_file_format_checks(force_key=RECORD_PATH_VALUE))))
 
     failed = [name for name, ok in cases if not ok]
     for name, ok in cases:
