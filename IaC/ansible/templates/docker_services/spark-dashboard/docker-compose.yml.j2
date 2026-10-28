@@ -51,6 +51,18 @@ services:
       # so the pre-existing dashboard links keep working; the route table picks :443 for names.
       - "--entrypoints.lm.address={{ spark_home_ip }}:443"
       - "--entrypoints.lm-http.address={{ spark_home_ip }}:80"
+{% if tailnet_spark_ip is defined and tailnet_spark_ip %}
+      # Node-direct tailnet listener: the same name edge on THIS node's own tailnet address, so
+      # the inference endpoint stays reachable when the VPS edge is out of the picture. Bound to
+      # that address and never 0.0.0.0 — the ACL grants tcp/443 to the node address and nothing
+      # else, while a 0.0.0.0 (or Home-VLAN) listener would open a second door on the LAN that no
+      # rule was written for. Binding it before tailscaled is up is safe for the reason the LAN
+      # binds above are: `net.ipv4.ip_nonlocal_bind=1`, already set by the spark role.
+      # Renders NOTHING while tailnet_spark_ip is empty, so a half-finished join cannot leave an
+      # edge listening on an address this node does not own; policy.hujson.j2 renders the matching
+      # ACL grant under the same condition, so the two never diverge.
+      - "--entrypoints.lm-ts.address={{ tailnet_spark_ip }}:443"
+{% endif %}
       - "--ping=true"                 # /ping health endpoint for the healthcheck below
       - "--log.level=INFO"
     # HSTS: set in dynamic/routes.yml.j2 (hsts middleware on the db-spark/llm

@@ -8,7 +8,10 @@
 #   pre-existing dashboard links keep working; the routes below pick :443 for names.
 #
 #   - Entrypoints are address+port bound (spark_home_ip:11000/:11002/:443/:80) — never
-#     0.0.0.0, no public record, Home-VLAN only.
+#     0.0.0.0, no public record, Home-VLAN only. The one exception is the tailnet listener
+#     (`lm-ts`, bound to this node's own headscale address, rendered only once the node has
+#     joined): it is a tailnet address, not a second LAN door, and the ACL reaches it on tcp/443
+#     alone. docs/network-vpn.md §Tailnet boundary owns that boundary.
 #   - Route rule: explicit `Host(spark.kogler.si)`-style rules (NOT a HostRegexp catch-all).
 #     HostRegexp({host:.+}) leaves the router silently non-matching →
 #     Traefik's own 404 — with explicit Host rules, name-based requests match and proxy to the
@@ -91,6 +94,14 @@ http:
       rule: "Host(`llm.kogler.si`) || Host(`llm.ts.kogler.si`)"
       entryPoints:
         - lm
+{% if tailnet_spark_ip is defined and tailnet_spark_ip %}
+        # The node-direct tailnet leg: the SAME router, the SAME engine, one more address the
+        # request may arrive on. The VPS edge carries no byte of this path — the client connects
+        # to this node's tailnet address and terminates TLS here against the pulled wildcard pair.
+        # Added to `entryPoints` rather than as a second router so the two legs cannot drift apart
+        # in rule, middleware or backend (a second router is a second copy of all three).
+        - lm-ts
+{% endif %}
       middlewares:
         - hsts
       service: llm-backend

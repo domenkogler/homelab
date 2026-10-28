@@ -45,4 +45,16 @@
       when: spark_profile_fast8_build | bool
       tags: [spark-ultrafast-build, spark-profile-fast8]
     - monitoring      # Alloy node exporter → VPS Victoria backend (per-node model)
+    # spark enrols as the THIRD permitted home tailnet node (docs/network-vpn.md
+    # §Tailnet boundary) so its inference endpoint stays reachable node-direct with the VPS
+    # edge off the data path. Ordered BEFORE docker_services for the reason home_servers.yml
+    # gives for oldsrv: the tailscale interface must exist when traefik-spark binds its tailnet
+    # entrypoint in the same run.
+    # NOTE the explicit `tags:` — a bare role here would carry NO tag, so `--tags tailscale-node`
+    # would filter the whole role out and report a clean changed=0 run. The guard task for this
+    # role in playbooks/tasks/self-converge-guard.yml carries exactly this one tag plus `always`
+    # (scripts/gate/check_self_converge_guard.py enforces that symmetry).
+    - role: tailscale-node
+      tags: [tailscale-node]
+      when: tailscale_node_enabled | default(false)
     - docker_services # spark-ai (vLLM B1 + llm-d router) via the spark group_vars; deploy-gated by `enabled`

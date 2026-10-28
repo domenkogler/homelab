@@ -63,8 +63,23 @@
     // TERTIARY (and the IoT VLAN's forced dst-nat target), which is a LAN role needing no ACL
     // grant; naming it a TAILNET nameserver would be a separate, address-scoped rule, written
     // on purpose, exactly like oldsrv's below. No routes, no LAN bridge, no exit node, no
-    // Tailscale SSH — the boundary permits TWO home nodes and still zero home subnets.
-    "tag:home-edge": ["domen@kogler.si"]
+    // Tailscale SSH — the boundary admits home nodes by rule and home subnets never.
+    "tag:home-edge": ["domen@kogler.si"],
+    // The THIRD permitted home node — spark, the inference box. Its OWN tag, and here the tag is
+    // deliberately NOT the reach surface:
+    //   * `tag:dev` is the dev seat's surface and `tag:home-edge` is the Pi's HA standby edge.
+    //     An ACL grants by TAG, so joining spark under either one would widen a rule written for
+    //     another box the day someone adds a port to it — the same silent-inheritance hazard both
+    //     comments above name. Declaring a third tag is what keeps that impossible.
+    //   * NO ACL rule is written on this tag, by design: spark's inbound surface is granted on
+    //     the node ADDRESS below. The tag's only job is isolation — a tagged preauth-key node
+    //     lands in headscale's synthetic `tagged-devices` user, which is why
+    //     `dst: ["domen@kogler.si:*"]` cannot reach this box and deny-by-default holds.
+    // Mint the key with this tag and read the landed tag back; a key carrying anything else
+    // produces a node that is reachable on nothing, or on more than was decided.
+    // No `udp 53` (spark hosts no DNS instance), no routes, no LAN bridge, no exit node, no
+    // Tailscale SSH — the same boundary, one more node.
+    "tag:spark": ["domen@kogler.si"]
   },
 
   // REAL ACL — TIGHTENED at first enrolment.
@@ -117,6 +132,30 @@
       "src": ["domen@kogler.si"],
       "dst": ["tag:home-edge:443"]
     }
+    // spark's tailnet node, **tcp/443 only**, granted on the node ADDRESS.
+    // Why the address rather than a tag, unlike the two rules above: the only tags that existed
+    // were other boxes' (`tag:dev`, `tag:home-edge`) and a tag-scoped rule would have made one of
+    // their surfaces spark's. So the tag above grants nothing and this rule names the one
+    // destination decided — spark's own node — on the one port its listener binds.
+    // Why a rule is needed at all: a preauth-key node lands in headscale's synthetic
+    // `tagged-devices` user rather than the owner's, so `dst: ["domen@kogler.si:*"]` cannot reach
+    // it and deny-by-default would leave the node reachable on no port at all.
+    // Same limits as the rules above: no routes, no LAN bridge, no exit node, no Tailscale SSH,
+    // nothing toward VLAN 20/30 — and NO `udp 53`: spark hosts no DNS instance, so naming it a
+    // tailnet nameserver would be a decision nobody made.
+    // Rendered only when the assigned address is known (SSOT `tailnet_spark_ip`) — the same
+    // condition that makes the spark-dashboard edge render its tailnet listener, so a half-done
+    // join leaves neither a grant nor a listener.
+{% if tailnet_spark_ip %}
+    ,
+    {
+      "action": "accept",
+      "src": ["domen@kogler.si"],
+      "dst": ["{{ tailnet_spark_ip }}/32:443"]
+    }
+{% else %}
+    // (tailnet_spark_ip unset — the node has not joined, so there is no address to grant)
+{% endif %}
     // **DNS only** — udp/53 to oldsrv's tailnet node
     // address, so the tailnet can use the resolver that is reachable from wherever the device
     // is (docs/network-dns.md §The resolution requirement). Without this rule the netmap

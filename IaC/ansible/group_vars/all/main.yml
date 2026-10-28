@@ -298,6 +298,26 @@ tailnet_pi_node_name: pi
 # tagged node can land under the `tagged-devices` user even when the key was minted for
 # another user; that is headscale's own rule for tagged nodes, not a mis-mint.
 tailnet_pi_ip: "100.64.0.6"
+# Spark joins as the THIRD permitted home node (docs/network-vpn.md §Tailnet boundary).
+# WHY it joins at all: the tailnet answer for spark's inference names is carried by the VPS
+# edge node, so while that node is down the names go missing for every tailnet client even
+# though the engine is healthy on the LAN. spark's own node answers node-direct with the VPS
+# off the data path. WHY the listener needs a node to bind: `traefik-spark` is host-net, so
+# the tailnet address is bindable here exactly as it is on the Pi (`ip_nonlocal_bind` is set
+# by the spark role for the LAN edge already).
+# Same contract as the two above: leave EMPTY until the node has joined, then read
+# `headscale nodes list`, set it, re-converge; roles/tailscale-node asserts the live address
+# equals it. While it is empty the spark-dashboard edge renders NO tailnet listener AND
+# policy.hujson.j2 renders NO grant for it, so a half-done join can leave neither a half-open
+# door nor a half-configured edge behind.
+# WHY its tag is neither `tag:dev` nor `tag:home-edge`: an ACL grants by TAG, so a shared tag
+# would widen a rule written for another box. spark's grant is written on its node ADDRESS
+# instead, and the tag only carries the isolation (a tagged preauth node lands in headscale's
+# `tagged-devices` user, where `domen@kogler.si:*` cannot reach it).
+tailnet_spark_node_name: spark
+# Assigned by headscale AT JOIN — no value until the join has happened. When it happens, read
+# it back from `headscale nodes list -o json`; never assume it and never reuse another node's.
+tailnet_spark_ip: ""
 
 # ============================================================================
 # zone_kogler_si — the kogler.si answer plane as ONE list

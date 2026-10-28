@@ -28,6 +28,36 @@ host_resolver_dns: "{{ [dns_secondary_ip, dns_tertiary_ip] | join(',') }}"
 # Group-var default is true; set false explicitly to keep the DGX graphical desktop.
 spark_headless: true
 
+# ==== This box joins headscale as the THIRD permitted home node (docs/network-vpn.md) ====
+# WHY: the tailnet answer for this box's inference names is carried by the VPS edge node, so a
+# control-plane outage there removes the names from every tailnet client while the engine behind
+# them answers fine on the LAN. A node of the box's own keeps the endpoint reachable node-direct,
+# with the VPS on the control plane only.
+# WHAT THIS DOES NOT DO (enforced in roles/tailscale-node, not by a comment): no advertised
+# routes, no exit node, no Tailscale SSH, no DNS takeover.
+# WHO may reach it is the ACL's tcp/443 rule written on THIS node's address
+# (templates/docker_services/headscale/policy.hujson.j2) — deliberately NOT a shared tag:
+# `tag:dev` is the dev seat's surface and `tag:home-edge` is the Pi's, and an ACL grants by TAG,
+# so borrowing either one would widen a rule written for another box. The key below therefore
+# carries spark's OWN tag, and the tag that actually landed is READ BACK with
+# `headscale nodes list` rather than trusted from the mint command — the tag decides whether the
+# node sits in the `tagged-devices` user where `domen@kogler.si:*` cannot reach it.
+# DEPLOY PREREQUISITE (the value is MINTED by headscale, never generated here):
+#   docker exec headscale headscale preauthkeys create --user <id> --tags tag:spark \
+#     --reusable --expiration 8760h -o json
+# → store as 1Password `tailscale-spark_api` (API Credential, `credential` field) in
+# Homelab-ansible, then join, read `headscale nodes list`, set `tailnet_spark_ip`
+# (group_vars/all/main.yml) to the assigned address, re-converge. `tailnet_spark_ip` empty =
+# spark-dashboard renders no tailnet listener and the ACL renders no grant, so a half-done join
+# cannot leave a half-configured edge or an un-asked-for door behind.
+tailscale_node_enabled: true
+tailscale_node_hostname: "{{ tailnet_spark_node_name }}"
+tailscale_node_authkey: "{{ lookup('community.general.onepassword', 'tailscale-spark_api', field='credential', vault=op_vault) }}"
+# The join guard compares the assigned address against this; per-host so one node's join is
+# never asserted against another box's address. Empty (the pre-join state) reads as
+# "not yet asserted", not as "wrong".
+tailscale_node_expected_ip: "{{ tailnet_spark_ip }}"
+
 # ══ THE LLM CONFIG DIAL ══════════════════════════════════════════════════
 # One var + one converge = a different engine config behind the SAME endpoint
 # (llm.kogler.si), the SAME served id (spark/qwen3.8-flash-next) and the SAME
