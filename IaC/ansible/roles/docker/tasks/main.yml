@@ -103,14 +103,15 @@
 # over, so the install set cannot quietly grow past the assertions that guard it.
 #
 # The `-*` is the apt module's documented version wildcard. The dpkg REVISION is the target's own
-# distro stamp — download.docker.com publishes the same upstream release as `5:29.8.2-1~debian.13~
-# trixie` and `5:29.8.2-1~ubuntu.24.04~noble` — so the pin states the upstream version and the suite
+# distro stamp — download.docker.com publishes the same upstream release as `5:29.9.2-1~debian.13~
+# trixie` and `5:29.9.2-1~ubuntu.24.04~noble` — so the pin states the upstream version and the suite
 # supplies the suffix; no distro string is written anywhere in this repo, and spark's Ubuntu base is
-# therefore not a per-host pin. The hyphen anchors the pattern, so `5:29.8.2-*` cannot match a
-# hypothetical `5:29.8.20-*`.
+# therefore not a per-host pin. The hyphen anchors the pattern, so `5:29.9.2-*` cannot match a
+# hypothetical `5:29.9.20-*`.
 #
 # A HELD package is a different story from an unheld one, and the honest version is measured, not
-# assumed: `apt-get -s -y install 'docker-ce=5:29.8.2-*' …` prints its plan and then dies with
+# assumed: `apt-get -s -y install 'docker-ce=<pin>-*' …` — the version written as `<pin>` because the
+# point is the SHAPE, not the release these two reads were taken on — prints its plan and then dies with
 # "E: Held packages were changed and -y was used without --allow-change-held-packages" (rc 100), while
 # the same command WITHOUT `-y` resolves the upgrade fine. The apt module always passes `-y`, so the
 # hold does NOT step aside for a versioned install and the leg below lifts it deliberately. ⛔ Never add

@@ -58,7 +58,7 @@ tags: [services, matrix, chat, messaging]
 > `/_matrix/client/v1/auth_issuer` → 200, and the unstable variant → 200), dynamic client
 > registration (MSC2966), and simplified sliding sync (`org.matrix.simplified_msc3575`). The browser
 > client is the same generation: `group_vars/all/versions.yml` pins
-> `element_web_version: "v1.12.30"` (`ghcr.io/element-hq/element-web`, the 1.12 OIDC line) and
+> `element_web_version: "v1.12.32"` (`ghcr.io/element-hq/element-web`, the 1.12 OIDC line) and
 > `config.json` needs no migration (only long-stable keys are in use). Two things any bump inherits:
 > Element Web offers **OIDC as the only login** once it discovers a provider — accepted, because no other
 > account uses the web client; and a GHCR tag must be verified with an anonymous

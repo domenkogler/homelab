@@ -71,7 +71,7 @@ Owning doc: [services-traefik.md](services-traefik.md).
 > pin defined as a variable in `group_vars/*.yml`, tracked by Renovate — never `latest`, never a mutable
 > alias such as `-rocm`.
 
-- **Traefik** — pinned by `traefik_version` (currently `v3.7.13`), per the `group_vars/all/versions.yml` SSOT.
+- **Traefik** — pinned by `traefik_version` (currently `v3.7.15`), per the `group_vars/all/versions.yml` SSOT.
 - **Every `:latest`** across the compose templates → a pinned var. All templates render `{{ *_version }}`
   pins from `group_vars/all/versions.yml` (registry-verified); the only `latest` renders left are the
   documented fluid exceptions (tuwunel, profilarr — no versioned tags upstream). The validator allowlist

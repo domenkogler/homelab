@@ -400,14 +400,14 @@ def dpkg_version(package: str) -> tuple[str, str]:
 
 def dpkg_upstream(version: str) -> str:
     """The dpkg UPSTREAM version: everything before the LAST hyphen, where the Debian revision starts.
-    `5:29.8.2-1~debian.13~trixie` and `5:29.8.2-1~ubuntu.24.04~noble` are the same release with two
+    `5:29.9.2-1~debian.13~trixie` and `5:29.9.2-1~ubuntu.24.04~noble` are the same release with two
     distro stamps, which is exactly why one fleet-wide pin can name only this part of the string."""
     return version.rsplit("-", 1)[0] if "-" in version else version
 
 
 def matches_pin(pin: str, running: str) -> bool:
     """The comparison rule, stated once for the whole fleet. A pin that carries a dpkg revision (it has
-    a hyphen — `alloy_version` = `1.20.1-1`) is a deb pin and compares EXACTLY. A pin that carries none
+    a hyphen — `alloy_version` = `1.21.2-1`) is a deb pin and compares EXACTLY. A pin that carries none
     is a FAMILY pin: it names the upstream version and lets the revision belong to the box, because one
     suite publishes the same release under two distro stamps — that compares on the upstream part.
     Equality either way: a box ahead of its pin is as broken as a box behind it. roles/docker asserts

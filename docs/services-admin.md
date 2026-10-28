@@ -75,7 +75,9 @@ tags: [services, admin, ops, gitops, security, backup]
 | `homelable_mcp` | API Credential — `credential` | `MCP_API_KEY` | Only consumed when `homelable_mcp_enabled`; catalog-created so the flag flip never needs a manual seed. |
 
 ### Onboarding stage (CONVENTIONS §5)
-The pin is `homelable_version: 3.5.1` (registry-verified on GHCR for backend/frontend/mcp). Register the row as **Stage 8/10** — steps 1–8 (exposure/secrets/compose/registry/edge-decision/state/observability/validation) are authored in this section + the compose + the docs; **step 9 (deploy gate) is owner-gated** and step 10 (docs close) follows the live verify.
+The pin is `homelable_version: 3.6.0` — ONE tag for the three `pouzor/homelable-{backend,frontend,mcp}`
+images; the registry probe resolves the backend tag, so the two sidecars ride it and are re-verified at
+first deploy. Register the row as **Stage 8/10** — steps 1–8 (exposure/secrets/compose/registry/edge-decision/state/observability/validation) are authored in this section + the compose + the docs; **step 9 (deploy gate) is owner-gated** and step 10 (docs close) follows the live verify.
 
 | # | Onboarding step | State |
 |---|-----------------|-------|
@@ -98,7 +100,7 @@ The pin is `homelable_version: 3.5.1` (registry-verified on GHCR for backend/fro
 4. **(Optional, later)** flip `homelable_mcp_enabled: true` + converge for AI-tool access once the canvas is curated; add a tailnet Pattern-A route for remote use.
 
 ### Known gaps / upstream caveats
-- **Upstream is young and fast-moving** — pin is `3.5.1`; re-verify the image/tag and re-check the release notes at first deploy (§7 discipline).
+- **Upstream is young and fast-moving** — pin is `3.6.0`; re-verify the image/tag and re-check the release notes at first deploy (§7 discipline).
 - Scanner MAC caveat: with host networking the backend sees real MACs; without it every device is MAC-less (avoided here by design).
 - No upstream Prometheus/VictoriaMetrics import yet — the `mikrotik_client` integration is curation-based (see i/ii/iii above).
 - The tool is not a metrics/logs/alert backend — Grafana/VictoriaMetrics stay authoritative for that (observability.md).

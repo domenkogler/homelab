@@ -67,10 +67,11 @@ tags: [hardware, nas, zfs]
 > run at load 0.01–0.09. Correlation, not mechanism — but it is the only difference the hunt has produced,
 > and it retires the "hardware/firmware, prove it with a reboot" framing that this note used to carry.
 >
-> What the hunt ruled out stands, restated as state: all five hosts run the same pin, and `nas` is on the
-> same kernel build as the two x86 hosts that never died.
+> What the hunt ruled out stands, restated as state: `alloy_version` is ONE fleet value that no host_vars
+> override may shadow, so the collector build is not a per-host variable — a host can only lag it by not
+> having converged — and `nas` is on the same kernel build as the two x86 hosts that never died.
 >
-> | Host | `uname -r` | collector (`alloy 1.20.1-1`) |
+> | Host | `uname -r` | collector |
 > |---|---|---|
 > | **nas** | `6.12.107+deb13-amd64` | healthy at the same pin since 2026-10-27 |
 > | oldsrv | `6.12.107+deb13-amd64` | healthy |

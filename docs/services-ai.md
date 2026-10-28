@@ -457,10 +457,11 @@ hand-added model cannot be clobbered even on a name collision). Today the equiva
 
 ### 4c. The LiteLLM admin UI (`/ui`) — what the pinned image actually serves
 
-**The fleet pins `litellm_version: v1.104.0`**
-([`../IaC/ansible/group_vars/all/versions.yml`](../IaC/ansible/group_vars/all/versions.yml)); on that build the
-"no SPA fallback, use `/fallback/login`" diagnosis does not hold. Measured on both instances, from oldsrv, at
-the app and through the edges:
+**The pin is `litellm_version: v1.106.3`**
+([`../IaC/ansible/group_vars/all/versions.yml`](../IaC/ansible/group_vars/all/versions.yml)); the reads below
+were taken on the `v1.104.0` build, on which the "no SPA fallback, use `/fallback/login`" diagnosis does not
+hold — re-verify them on the pinned build. Measured on both instances, from oldsrv, at the app and through
+the edges:
 
 * **The image contains no nginx at all** (`command -v nginx` → nothing; no `nginx.conf` anywhere in
   `/app`, no `_experimental`-serving web server). The UI is a **Next.js static export** shipped inside the Python
@@ -490,7 +491,7 @@ the app and through the edges:
 
 ## Docling OCR engine selection — measured on the live service
 
-Measured against `quay.io/docling-project/docling-serve-cpu:v1.30.0` (the pin has since moved to `v1.36.0` — re-verify the numbers on it) against
+Measured against `quay.io/docling-project/docling-serve-cpu:v1.30.0` (the pin is `v1.38.1` — re-verify the numbers on it) against
 **two real Slovenian scans** — a UKC Ljubljana discharge
 summary, page 1 = crisp form + diagnosis table, page 2 = small light-print prose. A synthetic render is not a
 scan, so everything below is measured on the real pages.
@@ -501,7 +502,7 @@ scan, so everything below is measured on the real pages.
 |---|---|
 | Which OCR engine does the served pipeline use? | **RapidOCR / onnxruntime, PP-OCRv6 small.** Served log, on every conversion: `Auto OCR model selected rapidocr with onnxruntime.` + `[RapidOCR] Using …/RapidOcr/PP-OCRv6_{det,rec}_small.onnx` + `ch_ppocr_mobile_v2.0_cls_mobile.onnx`. `OcrAutoModel` on Linux resolves nemotron → **rapidocr+onnxruntime** → easyocr, and this image has rapidocr, so EasyOCR is never reached |
 | Is `rapidocr` installed in the pinned image? | **Yes** — `rapidocr 3.9.2`, alongside `easyocr 1.7.2`, `onnxruntime 1.28.0`, `docling-slim 2.118.0`, `docling-serve 1.30.0`, `torch 2.13.0+cpu` (`pip list` + `GET /version`) |
-| Which image tag is live? | The IaC pin (`docling_version`) is **`v1.36.0`** — the pin is the SSOT for what is deployed; **2.118.0 is the docling-slim library version** that `/version` reports. Two different numbers, not pin drift |
+| Which image tag is live? | The IaC pin (`docling_version`) is **`v1.38.1`** — the pin is the SSOT, so this is the tag a converge deploys; **2.118.0 is the docling-slim library version** that `/version` reports. Two different numbers, not pin drift |
 | Does `sl` need a download? | **No.** `sl` is a first-class PP-OCRv6 code (`rapidocr.utils.model_resolver.PP_OCRV6_LANGS`, 52 codes, `sl in` → True) and PP-OCRv6 `rec_small` is **multilingual** — the same baked weights serve `ch` (docling's RapidOCR default) and `sl`. EasyOCR's `sl` → the `latin_g2` recognizer, also baked |
 
 ### Request-level levers on `/v1/convert/file` (measured, this build)
@@ -1101,8 +1102,9 @@ Durable facts about the surrounding software — the reason several obvious desi
 A source read and a live run disagree, so the pin is the referee. Same body in every
 cell — one fixed arithmetic prompt, `temperature: 0`, `max_tokens: 320`, model row
 `spark/qwen3.8-flash-next` (provider `openai/`, `api_base https://llm.kogler.si/v1`), **master key, no client
-change**. Under test: LiteLLM `litellm_version: v1.104.0`
-([`../IaC/ansible/group_vars/all/versions.yml`](../IaC/ansible/group_vars/all/versions.yml)) over engine build
+change**. Under test: LiteLLM `v1.104.0`
+([`../IaC/ansible/group_vars/all/versions.yml`](../IaC/ansible/group_vars/all/versions.yml), the
+`litellm_version` value at these reads — re-run them on the current pin) over engine build
 `vllm-0.1.dev20073+g8e685d198`.
 
 | Probe | LAN gateway (`llitellm.kogler.si`) | VPS gateway (`litellm.kogler.si`) | Direct engine (control, the decision #26 route) |
