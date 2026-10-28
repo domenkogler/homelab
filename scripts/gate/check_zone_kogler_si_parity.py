@@ -29,6 +29,7 @@ Wired into ``scripts/validate-all.sh``. Nothing here contacts a host or reads th
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -134,6 +135,47 @@ def compare(golden: dict, current: dict) -> list[str]:
     return findings
 
 
+# ── the record key's LINE, asserted under BOTH whitespace engines ────────────────────────────
+# A converge renders `config.yaml.j2` through ANSIBLE's templar, whose `trim_blocks` is TRUE; this
+# gate's local render goes through the renderer's own Environment, whose `trim_blocks` is FALSE
+# (zone_kogler_si_render._env). A block tag written `{%- if %}` trims the newline BEFORE the tag, which
+# one engine never notices and the other resolves by landing the next line's content at the END of the
+# preceding comment line — a `dns:` block with NO record key, on a control plane that starts, stays
+# `Running`, and answers nothing (measured on the VPS 2026-10-28: `dig stats.kogler.si
+# @100.100.100.100` went empty after a converge that changed nothing else). So the shape is asserted
+# in both engines, not in the one that is convenient to test.
+KEY_LINE = re.compile(r"^[ \t]*extra_records(_path)?:")
+KEY_IN_COMMENT = re.compile(r"^[^#\n]*#.*\bextra_records(_path)?:")
+RECORD_PATH_VALUE = "/etc/headscale/extra_records.yaml"
+
+
+def config_render_checks(src: str | None = None) -> list[str]:
+    """Exactly ONE record key, on its own line, in both record shapes and under both engines."""
+    findings: list[str] = []
+    text = zr.HEADSCALE_TEMPLATE.read_text(encoding="utf-8") if src is None else src
+    for value, shape in (("", "inline"), (RECORD_PATH_VALUE, "file")):
+        ctx = zr.build_context(extra={"headscale_extra_records_path": value})
+        for trim_blocks, engine in ((False, "renderer"), (True, "ansible")):
+            env = zr._env(strict=False)
+            env.trim_blocks = trim_blocks
+            try:
+                out = env.from_string(text).render(**ctx)
+            except Exception as exc:  # noqa: BLE001 - a template that will not render is a finding
+                findings.append(f"headscale config render ({shape} shape, {engine} engine) failed: {exc}")
+                continue
+            lines = out.splitlines()
+            keys = [ln for ln in lines if KEY_LINE.match(ln)]
+            glued = [ln for ln in lines if KEY_IN_COMMENT.search(ln)]
+            where = f"{shape} shape, {engine} engine"
+            if len(keys) != 1:
+                findings.append(f"dns: carries {len(keys)} record keys in the {where} (want exactly 1) — "
+                                "headscale takes one, and zero of them is a control plane that runs and answers nothing")
+            if glued:
+                findings.append(f"a record key landed INSIDE a comment in the {where}: "
+                                f"{glued[0].strip()[:90]!r} — a block tag trimmed the newline before it")
+    return findings
+
+
 def main() -> int:
     try:
         golden = json.loads(GOLDEN_PATH.read_text(encoding="utf-8"))
@@ -168,6 +210,16 @@ def main() -> int:
         print("\nEither fix zone_kogler_si, or make the change deliberately: review this "
               "diff, then re-derive the fixture in the SAME commit — and say why in the "
               "commit message.", file=sys.stderr)
+        return 1
+
+    shape_findings = config_render_checks()
+    if shape_findings:
+        print("FAIL: the headscale config's record key is not on its own line in every shape", file=sys.stderr)
+        for line in shape_findings:
+            print("  " + line, file=sys.stderr)
+        print("\nA `dns:` block with no key, or with the key commented out, starts clean and answers "
+              "nothing — `Running` is not a verdict here. Write the block tags in the plain `{% if %}` "
+              "idiom: the `-` trim moves lines between engines.", file=sys.stderr)
         return 1
 
     print("OK: zone_kogler_si answers identically to the hand-authored sources — "
@@ -299,6 +351,23 @@ def self_test() -> int:
     findings = compare(golden, _render_with_field(zone, published, "public", False))
     cases.append((f"flipping {published} public→false reddens the public surface",
                   any(f.startswith("cloudflare:") for f in findings)))
+
+    # 12. the key's LINE, in BOTH engines — the shape that put a `dns:` block with no records on a live
+    #     control plane. Same source, trim_blocks False (this repo's renderer) and True (Ansible's
+    #     templar), one key on its own line in both record shapes — and the trimmed-tag form that caused
+    #     it must be seen RED, so the rule is proven to have teeth rather than merely resting green. The
+    #     tag that matters is the `{%- if %}`: it trims the newline that CLOSES the comment line above it,
+    #     which is the newline the record key needs (a `{%- else %}` alone trims the branch body, not that
+    #     newline, and stays harmless — proven by this case being green against the wrong mutation).
+    cases.append(("the shipped template keeps one record key per shape under both engines",
+                  not config_render_checks()))
+    trimmed = zr.HEADSCALE_TEMPLATE.read_text(encoding="utf-8").replace(
+        "{% if headscale_extra_records_path %}", "{%- if headscale_extra_records_path %}", 1)
+    if trimmed == zr.HEADSCALE_TEMPLATE.read_text(encoding="utf-8"):
+        raise ParityError("self-test cannot find the record-key `if` tag to mutate — the template changed shape")
+    cases.append(("a `{%- if %}` tag above the record key is RED (its trim pulls the key up into the "
+                  "comment line, under Ansible's trim_blocks)",
+                  bool(config_render_checks(trimmed))))
 
     failed = [name for name, ok in cases if not ok]
     for name, ok in cases:
