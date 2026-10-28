@@ -209,10 +209,6 @@ file, so a fresh file and a `403` are compatible observations.
   does not exist on `vps`, and `alloy.river.j2` renders no `bearer_token_file` — the day that HA scrape is enabled the
   write path becomes the `monitoring` / `ha_token` tag on `vps` and this item grows a propagation half (the catalogue
   row's "Traefik/Companion + Prometheus bearer" names consumers that do not exist in the tree).
-- `privado-vpn_api` — **rotated**, and its provider config is recorded in the item's `notes` field, so nothing human is
-  owed. What remains is the **paired non-secret half**: `group_vars/home_servers.yml` still renders the *previous*
-  `[Peer] PublicKey` / `[Interface] Address` next to the new private key, and an unmatched pair never handshakes — the
-  close is an IaC edit + the oldsrv `docker_services` converge + an egress-IP proof (§5b), never a second rotation.
 - `spark_login` — the act is machine-doable (`sudo passwd admin` over the `ansible-admin` SSH), but under the two-vault
   model the item lives in the **human** vault and the runner's write token is scoped to `Homelab-ansible` ⇒ the vault
   half is a human act. Prove a fresh `ssh spark` in a second session before anyone reboots.
