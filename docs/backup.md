@@ -73,7 +73,33 @@ The **oldsrv agent runs containerized**: it connects to `kopia-server` on the VP
 persisted self-signed cert and the agent pins its stable SHA-256 fingerprint from the
 `kopia-server_fingerprint` item. A cert that is regenerated per start makes every agent pin wrong at the
 next restart — persist it, pin the fingerprint. The item is `NOT_AUTO_ROTATABLE`: replacing the
-certificate means re-seeding it and re-rendering every agent, or every connect fails on trust. Server
+certificate means re-seeding it and re-rendering every agent, or every connect fails on trust.
+
+**Rotating the certificate** (the item cannot be `--rotate`d; the cert IS the value):
+
+1. Move `tls.crt`, `tls.key`, `tls-sha256` out of `/srv/docker/kopia-server/config/` and restart
+   `kopia-server` — its boot script is the generator, and it writes `tls-sha256` next to the pair.
+   **Check the SAN after it regenerates**: the boot command reads
+   `subjectAltName=IP:${KOPIA_SERVER_ADDR_HOST:-127.0.0.1}` at container RUNTIME, while the value is
+   rendered into the project `.env`, which this compose never lists under `env_file:` — so the fallback
+   fires and the pair comes back with a **loopback-only** SAN while the agent dials `wg_s2s_vps.ip`.
+   Mint the pair with `CN=kopia-server` + `subjectAltName=IP:<wg_s2s_vps.ip>,IP:127.0.0.1`, 4096-bit,
+   3650 days, and write `tls-sha256` from the cert (the same shape the boot script intends).
+2. Converge the VPS `docker_services` leg with `kopia_server`/`kopia_fingerprint` tags and
+   `-e docker_services_scope=kopia-server`: `kopia-fingerprint-sync.yml` reads the LIVE cert into the
+   item — that task IS the propagation, so a hand-write to the item is a divergence, not a rotation.
+3. Re-render the agent (`--tags docker_services,kopia-agent -e docker_services_scope=kopia-agent`
+   on oldsrv) and then **move the cached `/srv/docker/kopia-agent/config/repository.config` aside**.
+   The agent's boot script connects only when that file is absent, so without this step the container
+   comes back on the NEW pin in its environment and the OLD pin in its cache, and every snapshot fails.
+   The re-connect needs the repo master password, which the compose already renders from
+   `kopia_password` — no human hand. ⛔ rotating the fingerprint never touches `kopia_password`.
+4. Prove both directions with a scratch `--config-file` (never the agent's own):
+   `kopia repository connect server` with the live pin must exit **0**, with the superseded pin
+   **non-zero**; then `kopia repository status`, `kopia snapshot list` and one `kopia ls <root>` must
+   answer. ⛔ never read that connect line back: kopia prints the server URL **with userinfo**, so a
+   `docker logs kopia-agent` after a reconnect is a secret read — exit codes and subcommand verdicts
+   only. Server
 port 51515 is bound **only to the VPS tunnel address**
 (`wg_s2s_vps.ip`, never 0.0.0.0; loopback-only until the router peer key is provisioned), so reach stays
 scoped by the S2S ACL. Agent sources are oldsrv-local, read-only: `/opt/*` configs,
