@@ -358,9 +358,11 @@ here (its record is the owning doc + the commit). Run `todo.md` for the full sta
       D5 `sync-authentik-users` glue deleted from the NAS (it had exited 127 on all 823 runs), `storage_samba_passdb`
       deleted from the storage role. ✅ Converged + matrix-verified 2026-10-07 (`domen`→media+private,
       `shared`→media+music, cross-mounts denied, repeat converge `changed=0`).
-      ⏳ **[MANUAL, owner]** one residue item left: rotate
-      **both** SMB passwords (measured 5 and 6 characters), then re-converge with
-      `-e '{"storage_samba_password_force":["domen","shared"]}'` — a vault rotate alone reaches the passdb nowhere.
+      ✅ The owner's rotate of **both** SMB passwords (2026-10-08, both items now at policy length) is
+      **landed on the box** (2026-10-28, `-e '{"storage_samba_password_force":["domen","shared"]}'`) and
+      matrix-re-read over SMB with the current values: `domen`→media+private, `shared`→media+music, both
+      cross-mounts and the anonymous attempt `NT_STATUS_ACCESS_DENIED`, a wrong password
+      `NT_STATUS_LOGON_FAILURE`, `pdbedit -L` = `domen:1007` / `shared:1008`.
       (The `authentik-ldap_bind` deletion and the OpenCloud JIT check both closed the same day: the item is
       measured absent from the vault, and the owner logged into `file.kogler.si`.)
       · [docs/storage.md](docs/storage.md) §Samba (SMB) shares on the NAS · [docs/storage-rejected.md](docs/storage-rejected.md)
