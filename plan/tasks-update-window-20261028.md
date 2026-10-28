@@ -163,3 +163,44 @@ Serial, because nearly everything lands on vps/oldsrv and O3 allows one converge
 - **Owner-visible counts, recorded not judged:** `headscale` `RestartCount=469` and `tailscale-sidecar` `RestartCount=461`, cumulative since creation, stable across four samples, last state change before the window - consistent with HD-1213's cascade. `/etc/systemd/network/` on vps also holds `wg-s2s.netdev.bak-1788367733`, `wg-s2s.netdev.bak2`, `wg-s2s.network.bak` outside the `netd_unit_namespace`, so HD-487's run will not remove them. `docs/services-vps.md`'s dangling-volume table's "what serves that path today" column now contradicts the box for the six onlyoffice rows (the named volumes serve them) - Phase 8 or the HD-1106 owner.
 - **Unexplained, not caused by the window:** plain `https://csui.kogler.si/` answers 404 through the tailnet edge while `csui.ts.kogler.si` answers 200 and the app answers 200 on its own :3000; the two routers differ only by `authentik-forward-auth`, and the rendered `routes.yml`/`middlewares.yml` are dated 05:23 and were not rewritten - config-shaped, not recreate-shaped.
 - **A disclosure that needs no rotation:** a lane read the WOPI discovery XML, which put a fragment of the **public** WOPI key (served unauthenticated at `office.kogler.si/hosting/discovery`) into its transcript. Not a vault value, nothing rotates.
+
+## H. Sitting 2026-10-29 (the continuation run)
+
+Seat **DomenP14s** (the WSL Debian laptop seat), `provider=spark` ⇒ **Rule 0 binds the run** — no spark act, no child
+against it. `seat-llm-path.sh --check` → **`path=lan`** ⇒ a vps edge/sidecar act cannot cut this session's lane, but the
+§E transport-kill lesson still puts those acts LAST in a host's leg order. Station `ac3d9df6`, clean, level with
+`origin/main`. This seat's leak read: **rc 0** — 0 FAIL, 14 KNOWN-EXPOSED over 13 item ids, **6 STALE** lines; so the
+gate is already green and Phase 7's commit only re-derives the book.
+
+Owner rulings for this sitting (in-session, 2026-10-29 00:45):
+
+| # | Ruling |
+|---|---|
+| S1 | the other lane session is **stopped** — this run is the only session; both subworkers available (≤2 live children, O11) |
+| S2 | the **vps** converge slot is this run's; the other host slots are unchanged |
+| S3 | N3 (no router/switch act) and N4 (no spark act) **still bind** — neither was re-authorized tonight |
+| S4 | `immich_oidc` (`ayu2lm27`) is **parked as a named ledger debt** — it sits in no §5b/§5c/§11 row and no R lane, and rotating an OIDC client secret can lock Immich logins: an owner call, not a lane act |
+| S5 | `onlyoffice_db` and `soulseek-internal_api` — named by §5b, owned by no R lane — are **taken**: the first by the `db_role_sync` vault-write-plus-converge shape, the second on the slskd render |
+| S6 | the leak union: this seat's read + the **oldsrv-domen** read are taken; the **win11** read is a named gap unless a Windows-side session runs it |
+| S7 | `kopia-server_fingerprint`'s CURRENT value still hits (a later lane re-captured the post-rotation value) ⇒ Phase 7's `--update-ledger` **keeps** the line. It is a TLS cert fingerprint, not a credential: named, not re-rotated |
+
+**Structural rule for this sitting:** at most **one** live child holds a host slot, the second is always author-only — so
+host lanes are serial by construction and O3 cannot be broken by dispatch shape. Queue order: R2 → R4 → R6 → R3 → R5 →
+R7 → R8, with author-only lanes (P1-c, R9) overlapped.
+
+| lane | scope | worktree / branch | state |
+|---|---|---|---|
+| **P1-c** | §4 dgx-dashboard tombstone (mask + registry delete + doc sentence) | `../homelab-wt-20261029-0041` · `session/tombstone-20261029-0041` | `[~]` |
+| **R2** | `lidarr_api` (HD-1091 order), `bazarr_api`, `qbittorrent_api`, `soulseek_api` + `soulseek-internal_api`, the two media web-auth users, `privado-vpn_api` **propagation** | `../homelab-wt-20261029-0050` · `session/media-rot-20261029-0050` | `[~]` holds the host slot |
+| **R4** | the two-host pairs: `victoria-metrics_api`+`victoria-logs_api` (lockstep, the datasource-delete is load-bearing), `immich-ml-internal_api`, `signal-internal_api`, `n8n-webhook_api`, `opencloud-collab_password`, `grafana_login`; + the owed **vps tailnet-sidecar tag** move | queued | `[ ]` |
+| **R6** | probe-first trio: `technitium_login` + `admin @dns.kogler.si`, `opencloud_login`, `openclaw_gateway_token` — prove the far-end path BEFORE any write | queued | `[ ]` |
+| **R3** | the two re-keys: `kopia_password` (re-key + agent reconnect + repo verify + a restore listing), `n8n_password` (export under the old key **as the gate**) | queued | `[ ]` |
+| **R5** | `oldsrv-domen_login` (host + vault in one act, second session open), `cockpit-pi-web_api`, `onlyoffice_db` (S5) | queued | `[ ]` |
+| **R7** | Phase 7: `op_api` re-seats by Integration ID + `sha256[:12]`; then the **parent's** ledger commit | queued | `[ ]` |
+| **R8** | Phase 8: rows + owning docs, `prompt.md`, `todo-table.md` §B0, the named exceptions; **delete `prompt-update.md` + this file** | queued | `[ ]` |
+| **R9** | author-only residue from §F: `provision-secrets.py` re-read-and-verify after a spurious `op` error (+ a stub-`op` self-test arm); the two docs naming the bare `traefik-bouncer` row | queued | `[ ]` |
+
+Register facts the parent owns (scout read, this seat, `ac3d9df6`): `immich_oidc` is the only read-named item with no
+section ruling it (S4); `zipline_db`/`litellm_db` are **not** owed — §5b scopes them to "if the register names them" and
+this read does not; the 6 STALE lines are the P2 rotations (`forgejo_db`, `litellm_api`, `authentik_db`,
+`nut-exporter_password`, `immich_db`, `nut_password`) and leave in Phase 7's commit.
