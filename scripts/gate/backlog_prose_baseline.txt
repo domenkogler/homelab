@@ -157,7 +157,6 @@ ROW	HD-1205	1516
 ROW	HD-1206	1851
 ROW	HD-1208	1432
 ROW	HD-1210	1173
-ROW	HD-1211	1851
 ROW	HD-133	312
 ROW	HD-14	220
 ROW	HD-141	427
@@ -263,4 +262,4 @@ BRIEF	prompt-seat-cockpit-grants.md	90
 BRIEF	prompt-smart-home.md	80
 BRIEF	prompt-spark-llm.md	96
 BRIEF	prompt-storage-backup.md	85
-BRIEF	prompt-update.md	427
+BRIEF	prompt-update.md	425
