@@ -95,6 +95,16 @@ services:
       AMQP_URI: "amqp://{{ vault['onlyoffice-rabbitmq_login'].username }}:{{ vault['onlyoffice-rabbitmq_login'].password | urlencode }}@onlyoffice-rabbitmq:5672"
     volumes:
       - /srv/docker/onlyoffice-docs:/var/lib/onlyoffice
+      # ⛔ Named volumes, NOT the image's own `Config.Volumes` paths left unmapped: the image declares
+      # /var/www/onlyoffice/Data + /var/log/onlyoffice, and a mapped-less image VOLUME path gets a FRESH
+      # ANONYMOUS volume at every container create, seeded from the image's content at that path — so the
+      # recreate orphaned the previous one where it stood, and for the Data path the orphaned copy is the
+      # WOPI keypair (HD-1106: 2026-10-28 read on the box — `wopi_private.key`/`wopi_public.key` stamped
+      # 06:52, the minute of that morning's `--tags docker` daemon restart, while three older pairs sat
+      # dangling). `/var/www/onlyoffice/Data` is `ds`-writable and holds only regenerable key material, and
+      # a named volume keeps the pair OUT of the dangling set instead of in it.
+      - onlyoffice-data:/var/www/onlyoffice/Data
+      - onlyoffice-logs:/var/log/onlyoffice
     labels:
       traefik.enable: "true"
       traefik.http.routers.onlyoffice.rule: "Host(`office.kogler.si`)"
@@ -219,3 +229,8 @@ volumes:
   onlyoffice-rabbitmq-data:
   onlyoffice-pgdata:
   onlyoffice-redis-data:
+  # The two document-server paths this service maps explicitly instead of letting the image
+  # VOLUME stand unmapped (HD-1106). Compose prefixes them with the project name, so live they are
+  # `onlyoffice-docs_onlyoffice-data` / `onlyoffice-docs_onlyoffice-logs`.
+  onlyoffice-data:
+  onlyoffice-logs:
