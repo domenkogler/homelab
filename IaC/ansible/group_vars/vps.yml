@@ -320,7 +320,7 @@ tailnet_ts_only_subdomains: "{{ zone_kogler_si_tailnet_ts }}"
 # this service's compose file; `check_zone_kogler_si_parity.py` reads that bind and renders both
 # shapes, so a path that points at nothing is RED here rather than a dead control plane.
 # → docs/network-dns.md §The MagicDNS records FILE
-headscale_extra_records_path: "/etc/headscale/extra_records.yaml"
+headscale_extra_records_path: ""
 
 # WG-S2S reach for the internal all-app edge.
 # The internal edge (`traefik-tailnet`, container) listens on :443 in its bridge
