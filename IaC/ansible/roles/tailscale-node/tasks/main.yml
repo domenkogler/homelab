@@ -21,11 +21,13 @@
   register: _dpkg_arch
   changed_when: false
   when: tailscale_host_arch | default('', true) | length == 0
+  tags: [tailscale-node, tailscale]
 
 - name: Set the architecture used for the pinned .deb (explicit var wins, else the dpkg read)
   ansible.builtin.set_fact:
     tailscale_host_arch: >-
       {{ (tailscale_host_arch | default('', true) or (_dpkg_arch.stdout | default('') | trim)) | trim }}
+  tags: [tailscale-node, tailscale]
 
 # ⚠ Arch comes from the host, it is NOT a literal: the URL, the dest path and the checksum
 # all moved onto `tailscale_host_arch` together. Shipping a checksum that does not belong to
@@ -42,6 +44,7 @@
       {{ tailscale_host_arch }}.deb.sha256 — do NOT relax this assert to reuse another arch's
       checksum.
     quiet: true
+  tags: [tailscale-node, tailscale]
 
 - name: Download the pinned tailscale host package (checksum-verified)
   ansible.builtin.get_url:
@@ -50,11 +53,137 @@
     checksum: "sha256:{{ tailscale_host_deb_sha256_by_arch[tailscale_host_arch] }}"
     mode: "0600"
   register: _ts_deb
+  tags: [tailscale-node, tailscale]
 
-- name: Install the tailscale host package
-  ansible.builtin.apt:
-    deb: "/root/tailscale_{{ tailscale_host_version }}_{{ tailscale_host_arch }}.deb"
-    state: present
+# ── the hold, and the one moment a converge is allowed to lift it ────────────────────────────
+# `roles/common` holds every package in `host_apt_pin_vars` — `tailscale` among them — so `apt
+# upgrade` cannot move it, and that fence also blocks a PIN BUMP: the `apt` module ALWAYS passes `-y`
+# and apt refuses to move a held package under `-y`
+# (`E: Held packages were changed and -y was used without --allow-change-held-packages`, rc 100),
+# while the same request WITHOUT `-y` resolves the upgrade. A `deb:` install is that same request, so
+# the .deb leg above would land on a refusal on every host that is off its pin. The exception is
+# therefore explicit and narrow: lift the ONE name this run moves, install the pinned .deb, put the
+# hold back in `always`. ⛔ Never `allow_change_held_packages` (the hold is the invariant), never
+# `apt-mark unhold $(apt-mark showhold)` (that hands alloy and tailscale to any `apt upgrade` racing
+# the converge). A host already at its pin lifts nothing, so a routine converge never opens the
+# window. Same block `roles/docker` ships for its suite — one shape per held package, and the
+# `showhold` pair is what proves the hold came back. The `.deb` is fetched to /root and never held
+# back: it is the file, not the package; the re-hold below is on the package.
+- name: Read which packages this host holds
+  ansible.builtin.command:
+    cmd: apt-mark showhold
+  register: _tailscale_holds_before
+  changed_when: false
+  check_mode: false        # a probe, not a mutation — --check must still be able to judge
+  tags: [tailscale-node, tailscale]
+
+- name: Read the tailscale host version before this run moves anything
+  # One read decides which name the hold is standing in the way of, the read-back at the end of the
+  # block decides whether the hold came back. A name this host's dpkg database does not know exits 1
+  # with empty stdout and lands in the set too: it is held, it has to be installed, apt refuses that
+  # under `-y` as well.
+  ansible.builtin.command:
+    cmd: "dpkg-query -W -f='${package}=${version}\\n' tailscale"
+  register: _tailscale_before
+  changed_when: false
+  failed_when: false       # not-installed is a valid answer here, stdout is the signal
+  check_mode: false
+  tags: [tailscale-node, tailscale]
+
+- name: Decide whether held tailscale has to move
+  # Held AND off its pin — the exact set apt refuses under `-y`. The pin var is the one
+  # `host_apt_pin_vars` maps the package to (`tailscale_host_version`), and the comparison is the
+  # fleet's `matches_pin()` rule (roles/monitoring/templates/homelab-hygiene.py.j2, shared with the
+  # pin-lag gauge): a pin that carries a dpkg revision compares EXACTLY, one that carries none
+  # compares on the dpkg upstream part — so a box reporting `1.102.5-1` is at pin for a `1.102.5` pin
+  # and off pin for a `1.104.2` one. Equality, never `>=`.
+  ansible.builtin.set_fact:
+    # `default('', true)` is load-bearing: a Jinja block that emits NOTHING comes back as Python None,
+    # not an empty string, and `None.split()` yields ['None'] — without the cast a host that needs no
+    # lift would run `apt-mark unhold None`.
+    _tailscale_to_lift: "{{ (_tailscale_lift_candidate | default('', true) | trim).split() }}"
+  vars:
+    _tailscale_lift_candidate: |-
+      {%- set _held = _tailscale_holds_before.stdout_lines | map('trim') | list %}
+      {%- set _carried = dict(_tailscale_before.stdout_lines | reject('equalto', '') | map('split', '=')) %}
+      {%- set _dpkg = _carried['tailscale'] | default('') %}
+      {%- set _upstream = _dpkg.rsplit('-', 1)[0] if '-' in _dpkg else _dpkg %}
+      {%- set _at_pin = (_dpkg == tailscale_host_version) if ('-' in tailscale_host_version) else (_upstream == tailscale_host_version) %}
+      {%- if 'tailscale' in _held and not _at_pin %}tailscale{% endif %}
+  tags: [tailscale-node, tailscale]
+
+- name: Move the pinned tailscale host package past its hold
+  # The re-hold sits in `always`, so a failed install leaves the PRE-state — held, old version — and
+  # never a tailscaled nobody on this box is holding.
+  block:
+    - name: Say what the dry run cannot simulate on a held package
+      # Under `--check` nothing is mutated: the unhold below never lands, the .deb is never written,
+      # and apt's own `--simulate` refuses a plan the real run will not have. Reporting that as a
+      # failure would teach everyone to reach for the forbidden flag, so the dry run says what it
+      # cannot see instead. A host already at its pin needs no lift and says nothing here.
+      ansible.builtin.debug:
+        msg: >-
+          --check leaves tailscale held, so the .deb install below is skipped rather than run against
+          a hold the real apply lifts first. The plan itself is readable any time with
+          `apt-get -s install /root/tailscale_{{ tailscale_host_version }}_{{ tailscale_host_arch }}.deb`
+          on {{ inventory_hostname }} — no -y, no hold refusal, nothing executed.
+      when: ansible_check_mode and (_tailscale_to_lift | length > 0)
+
+    - name: Lift the hold on tailscale for the pin bump
+      ansible.builtin.command:
+        cmd: apt-mark unhold tailscale
+      when: _tailscale_to_lift | length > 0
+      changed_when: true
+
+    - name: Install the tailscale host package at its pinned .deb
+      ansible.builtin.apt:
+        deb: "/root/tailscale_{{ tailscale_host_version }}_{{ tailscale_host_arch }}.deb"
+        state: present
+      # ⛔ no `--allow-downgrades` equivalent here either: a pin that lags a box must fail, not
+      # downgrade it. Skipped on a held-and-off-pin `--check` run — see the voice above.
+      when: not (ansible_check_mode and (_tailscale_to_lift | length > 0))
+
+    - name: Report what this run lifted
+      # Never under `--check`, where nothing was lifted: the voice above is what a dry run says.
+      ansible.builtin.debug:
+        msg: >-
+          hold lifted for the pin bump on tailscale — re-held below, whether the install worked or not
+      when: _tailscale_to_lift | length > 0 and not ansible_check_mode
+
+  always:
+    - name: Put the hold back on tailscale
+      ansible.builtin.command:
+        cmd: apt-mark hold tailscale
+      when: _tailscale_to_lift | length > 0
+      changed_when: true
+
+    - name: Read the holds this leg leaves behind
+      # `check_mode: false` because this is the re-READ, not the mutation: under `--check` it still
+      # reports what the host actually holds, which is what the assert below needs (a skipped register
+      # would read as "nothing is held" and accuse a healthy host of losing its holds).
+      ansible.builtin.command:
+        cmd: apt-mark showhold
+      register: _tailscale_holds_after
+      changed_when: false
+      check_mode: false
+      when: _tailscale_to_lift | length > 0
+
+    - name: Assert tailscale is held again
+      # `apt-mark hold` exiting 0 is not the state. A tailscale left unheld converges green and moves
+      # on the next `apt upgrade`, which is the running-vs-pinned class the hold exists to close — and
+      # on this node it would also break the "one wire version across the tailnet" rule that pairs
+      # `tailscale_host_version` with the container pin.
+      ansible.builtin.assert:
+        that:
+          - (_tailscale_to_lift | difference(_tailscale_holds_after.stdout_lines | default([], true) | map('trim') | list)) | length == 0
+        fail_msg: >-
+          tailscale was unheld by this run on {{ inventory_hostname }} and is NOT held again. Every
+          converge from here would leave it to `apt upgrade`. Re-hold it with `apt-mark hold tailscale`
+          and find out why the leg above did not land — do not drop the package from
+          `host_apt_pin_vars`.
+        quiet: true
+      when: _tailscale_to_lift | length > 0
+  tags: [tailscale-node, tailscale]
 
 - name: Enable + start tailscaled
   ansible.builtin.systemd_service:
@@ -62,6 +191,9 @@
     enabled: true
     state: started
     daemon_reload: true
+  # Tagged with the package leg: a deb install restarts the daemon by itself, but a host whose unit
+  # was never enabled must not come up only after a reboot.
+  tags: [tailscale-node, tailscale]
 
 # Own the listen port. The deb already ships /etc/default/tailscaled with
 # PORT="41641" and the unit passes `--port=${PORT}`, so on a box that has never been

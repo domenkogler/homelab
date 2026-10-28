@@ -73,10 +73,136 @@
   changed_when: false
   tags: [monitoring, alloy]
 
-- name: Install Alloy (pinned, host-APT — deliberate exception, see group_vars/all/versions.yml)
-  ansible.builtin.apt:
-    name: "alloy={{ alloy_version }}"
-    state: present
+# ── the hold, and the one moment a converge is allowed to lift it ────────────────────────────
+# `roles/common` holds every package in `host_apt_pin_vars` — `alloy` included — so `apt upgrade`
+# cannot move it, and that fence also blocks a PIN BUMP: the `apt` module ALWAYS passes `-y`, and apt
+# refuses to move a held package under `-y`
+# (`E: Held packages were changed and -y was used without --allow-change-held-packages`, rc 100)
+# while the same request WITHOUT `-y` resolves the upgrade. So the exception is explicit and narrow:
+# lift the ONE name this run moves, install it at its pin, put the hold back in `always`. ⛔ Never
+# `allow_change_held_packages` (the hold is the invariant), never `apt-mark unhold $(apt-mark
+# showhold)` (that hands alloy and tailscale to any `apt upgrade` racing the converge). A host
+# already at its pin lifts nothing, so a routine converge never opens the window. Same block
+# `roles/docker` ships for its suite — one shape per held package, documented in
+# docs/deployment-ansible.md.
+# Both `tags:` are required: `playbooks/home_servers.yml`, `storage.yml` and
+# `raspberry_pi.yml` list this role as a BARE entry, so a role-level tag never cascades here and a
+# `--tags monitoring` run would silently drop the lift and die at apt's `-y` refusal.
+- name: Read which packages this host holds
+  ansible.builtin.command:
+    cmd: apt-mark showhold
+  register: _alloy_holds_before
+  changed_when: false
+  check_mode: false        # a probe, not a mutation — --check must still be able to judge
+  when: inventory_hostname in groups['monitoring']
+  tags: [monitoring, alloy]
+
+- name: Read the Alloy version before this run moves anything
+  # The same `showhold`/`dpkg-query` pair the `roles/docker` leg takes: one read decides which names
+  # the hold is standing in the way of, the read-back at the end of the block decides whether the
+  # hold came back. A name this host's dpkg database does not know exits 1 with empty stdout and
+  # lands in the set too — it is held, it has to be installed, so apt would refuse that as well.
+  ansible.builtin.command:
+    cmd: "dpkg-query -W -f='${package}=${version}\\n' alloy"
+  register: _alloy_before
+  changed_when: false
+  failed_when: false       # not-installed is a valid answer here, stdout is the signal
+  check_mode: false
+  when: inventory_hostname in groups['monitoring']
+  tags: [monitoring, alloy]
+
+- name: Decide whether held Alloy has to move
+  # Held AND off its pin — the exact set apt refuses under `-y`. The comparison is the fleet's
+  # `matches_pin()` rule (templates/homelab-hygiene.py.j2, shared with the pin-lag gauge): a pin that
+  # carries a dpkg revision — `alloy_version` = `1.20.1-1` — is a deb pin and compares EXACTLY, one
+  # that carries none compares on the dpkg upstream part. Equality, never `>=`: a box ahead of its
+  # pin is the same drift as a box behind it.
+  ansible.builtin.set_fact:
+    # `default('', true)` is load-bearing: a Jinja block that emits NOTHING comes back as Python None,
+    # not an empty string, and `None.split()` yields ['None'] — without the cast a host that needs no
+    # lift would run `apt-mark unhold None`.
+    _alloy_to_lift: "{{ (_alloy_lift_candidate | default('', true) | trim).split() }}"
+  vars:
+    _alloy_lift_candidate: |-
+      {%- set _held = _alloy_holds_before.stdout_lines | map('trim') | list %}
+      {%- set _carried = dict(_alloy_before.stdout_lines | reject('equalto', '') | map('split', '=')) %}
+      {%- set _dpkg = _carried['alloy'] | default('') %}
+      {%- set _upstream = _dpkg.rsplit('-', 1)[0] if '-' in _dpkg else _dpkg %}
+      {%- set _at_pin = (_dpkg == alloy_version) if ('-' in alloy_version) else (_upstream == alloy_version) %}
+      {%- if 'alloy' in _held and not _at_pin %}alloy{% endif %}
+  when: inventory_hostname in groups['monitoring']
+  tags: [monitoring, alloy]
+
+- name: Move pinned Alloy past its hold
+  # The re-hold sits in `always`, so a failed install leaves the PRE-state — held, old version — and
+  # never an Alloy nobody on this box is holding.
+  block:
+    - name: Say what the dry run cannot simulate on a held package
+      # Under `--check` nothing is mutated, so the unhold below never lands and apt's own `--simulate`
+      # refuses a plan the real run will not have. Reporting that as a failure would teach everyone to
+      # reach for the forbidden flag, so the dry run says what it cannot see instead, and names the
+      # package it would move. A host already at its pin needs no lift and says nothing here.
+      ansible.builtin.debug:
+        msg: >-
+          --check leaves alloy held, so the apt task below is skipped rather than run against a hold
+          the real apply lifts first. The plan itself is readable any time with
+          `apt-get -s install alloy={{ alloy_version }}` on {{ inventory_hostname }} — no -y, no hold
+          refusal, nothing executed.
+      when: ansible_check_mode and (_alloy_to_lift | length > 0)
+
+    - name: Lift the hold on Alloy for the pin bump
+      ansible.builtin.command:
+        cmd: apt-mark unhold alloy
+      when: _alloy_to_lift | length > 0
+      changed_when: true
+
+    - name: Install Alloy (pinned, host-APT — deliberate exception, see group_vars/all/versions.yml)
+      ansible.builtin.apt:
+        name: "alloy={{ alloy_version }}"
+        state: present
+      # ⛔ no `--allow-downgrades` equivalent here either: a pin that lags a box must fail, not
+      # downgrade it. Skipped on a held-and-off-pin `--check` run — see the voice above.
+      when: not (ansible_check_mode and (_alloy_to_lift | length > 0))
+
+    - name: Report what this run lifted
+      # Never under `--check`, where nothing was lifted: the voice above is what a dry run says.
+      ansible.builtin.debug:
+        msg: >-
+          hold lifted for the pin bump on alloy — re-held below, whether the install worked or not
+      when: _alloy_to_lift | length > 0 and not ansible_check_mode
+
+  always:
+    - name: Put the hold back on Alloy
+      ansible.builtin.command:
+        cmd: apt-mark hold alloy
+      when: _alloy_to_lift | length > 0
+      changed_when: true
+
+    - name: Read the holds this leg leaves behind
+      # `check_mode: false` because this is the re-READ, not the mutation: under `--check` it still
+      # reports what the host actually holds, which is what the assert below needs (a skipped register
+      # would read as "nothing is held" and accuse a healthy host of losing its holds).
+      ansible.builtin.command:
+        cmd: apt-mark showhold
+      register: _alloy_holds_after
+      changed_when: false
+      check_mode: false
+      when: _alloy_to_lift | length > 0
+
+    - name: Assert Alloy is held again
+      # `apt-mark hold` exiting 0 is not the state. An Alloy left unheld converges green and moves on
+      # the next `apt upgrade`, which is the running-vs-pinned class the hold exists to close — and
+      # the pin-lag gauge would then report a healthy-looking host as drifted for as long as it stands.
+      ansible.builtin.assert:
+        that:
+          - (_alloy_to_lift | difference(_alloy_holds_after.stdout_lines | default([], true) | map('trim') | list)) | length == 0
+        fail_msg: >-
+          alloy was unheld by this run on {{ inventory_hostname }} and is NOT held again. Every
+          converge from here would leave it to `apt upgrade`. Re-hold it with `apt-mark hold alloy`
+          and find out why the leg above did not land — do not drop the package from
+          `host_apt_pin_vars`.
+        quiet: true
+      when: _alloy_to_lift | length > 0
   when: inventory_hostname in groups['monitoring']
   tags: [monitoring, alloy]
 
