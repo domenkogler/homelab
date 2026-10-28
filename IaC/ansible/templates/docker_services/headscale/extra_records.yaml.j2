@@ -1,0 +1,54 @@
+{{ ansible_managed | comment }}
+# headscale MagicDNS extra records — auto-generated from template.
+#
+# This is the file `dns.extra_records_path` names in the headscale config; headscale reads the
+# record set here instead of the `dns.extra_records` block. Exactly ONE of the two keys is ever
+# rendered — they are mutually exclusive on the pinned headscale, and both set exits the process at
+# startup while the container keeps reporting `Running`. `headscale_extra_records_path`
+# (group_vars/vps.yml) decides which key the config carries; this file is rendered, and mounted
+# read-only, in both shapes.
+#
+# The rows are the tailnet views of `zone_kogler_si` (group_vars/all/main.yml), reached through the
+# two aliases in group_vars/vps.yml and keyed by their FQDN `name` — the same entries and the same
+# order the inline block in `config.yaml.j2` loops, so the answer plane is identical whichever key
+# the config carries (that equality is what `check_zone_kogler_si_parity.py` gates).
+# The tailnet address is an entry's `tailnet_ip:`, never its `ip:` — `ip:` is the LAN (Technitium)
+# answer. `edge` entries answer BOTH namespaces, `node`/`dual` entries the `.ts` twin ONLY; that
+# split is a per-name decision recorded in the zone list, not here.
+# The target address is a tailnet IPv4 assigned SEQUENTIALLY by headscale at node join, so it is NOT
+# known at authoring time: it comes from the group_vars class defaults (`tailnet_sidecar_ip`,
+# `tailnet_oldsrv_ip`) that the deploy step fills from `headscale nodes list` after each node joins.
+# An entry whose address resolves to nothing renders no record, and the guard below renders `[]`
+# rather than a half-populated netmap.
+{% set _any_ip = tailnet_sidecar_ip | default('', true) or tailnet_oldsrv_ip | default('', true) %}
+{% set ns = namespace(rendered=0) %}
+{% if _any_ip %}
+{% for sub in tailnet_subdomains %}
+{% set _ip = sub.tailnet_ip | default(tailnet_sidecar_ip) %}
+{% if _ip %}
+{% set _ts_name = sub.name | regex_replace('\\.' ~ domain_public ~ '$', '.' ~ tailnet_base_domain) %}
+{% set ns.rendered = ns.rendered + 1 %}
+- name: "{{ sub.name }}"
+  type: "A"
+  value: "{{ _ip }}"
+- name: "{{ _ts_name }}"
+  type: "A"
+  value: "{{ _ip }}"
+{% endif %}
+{% endfor %}
+{% for sub in tailnet_ts_only_subdomains %}
+{% set _ip = sub.tailnet_ip | default(tailnet_oldsrv_ip) %}
+{% if _ip %}
+{% set _ts_name = sub.name | regex_replace('\\.' ~ domain_public ~ '$', '.' ~ tailnet_base_domain) %}
+{% set ns.rendered = ns.rendered + 1 %}
+- name: "{{ _ts_name }}"
+  type: "A"
+  value: "{{ _ip }}"
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if not ns.rendered %}
+# Every tailnet_*_ip unset -> an empty list (the deploy step fills them from
+# `headscale nodes list` after each node joins; see the note above)
+[]
+{% endif %}

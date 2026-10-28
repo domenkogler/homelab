@@ -34,6 +34,13 @@ services:
       - /srv/docker/headscale/data:/var/lib/headscale
       - ./config.yaml:/etc/headscale/config.yaml:ro
       - ./policy.hujson:/etc/headscale/policy.hujson:ro
+      # The MagicDNS records file that `dns.extra_records_path` points at (see
+      # `headscale_extra_records_path` in group_vars/vps.yml). Mounted in BOTH render shapes: the
+      # extra is rendered next to the config either way, and a declared-but-unmounted path is a
+      # startup failure while an absent bind SOURCE is a root-owned directory Docker helpfully
+      # creates. Mode/owner are the deploy default 0644 root:root — world-readable, the same pair
+      # ./config.yaml is mounted with, so no uid the image may run as is denied by this file.
+      - ./extra_records.yaml:/etc/headscale/extra_records.yaml:ro
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     labels:

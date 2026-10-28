@@ -931,7 +931,8 @@ black hole with extra steps.
    exits at startup), so the swap is atomic or it takes the control plane down; and a "container is
    Running" post-check is **not** liveness, because a fatal config leaves a crash-looping container
    reporting `running`. **Precondition:** the guarded-converge assert must carry a real probe before this swap is
-   attempted; the swap itself is still ahead.
+   attempted; the swap itself is still ahead. The IaC shape lives behind one variable
+   (`headscale_extra_records_path`, default `""` = the inline block): §The MagicDNS records FILE.
 6. **The Pi joins the tailnet and HA's names get two A records** (Pi + oldsrv). Both boxes
    proxy to the VIP, so the answer follows HA in either direction. Flagged as **designed, not yet
    measured**: multi-A fall-over on a real client must be proven with a plug-pull before it is relied on.
@@ -1007,7 +1008,7 @@ comments rather than records — still owes one converge, and that converge rest
 | plane | state | what is the source of truth today |
 |---|---|---|
 | Technitium seed | **derived** | `zone_kogler_si` — `loop: zone_kogler_si_seed_records`, gate `zone_kogler_si_lan_only` |
-| MagicDNS `dns.extra_records` | **derived** | `zone_kogler_si`'s `tailnet:` field → `zone_kogler_si_tailnet_plain` / `zone_kogler_si_tailnet_ts`, aliased in `group_vars/vps.yml` as `tailnet_subdomains` / `tailnet_ts_only_subdomains` and looped by `headscale/config.yaml.j2` |
+| MagicDNS records | **derived** | `zone_kogler_si`'s `tailnet:` field → `zone_kogler_si_tailnet_plain` / `zone_kogler_si_tailnet_ts`, aliased in `group_vars/vps.yml` as `tailnet_subdomains` / `tailnet_ts_only_subdomains`; rendered by `headscale/config.yaml.j2` into ONE of the two keys below |
 | public Cloudflare set | **derived** | `zone_kogler_si`'s `public:` / `public_records:` → `zone_kogler_si_public_dns`, looped by `roles/cloudflare_dns/tasks/main.yml` |
 | the tailnet listener's router list | declared, not wired | `ts_router:` records the decision; the per-service `dynamic/routes.yml.j2` files still author their own routers |
 
@@ -1026,6 +1027,96 @@ flag in the list turns the matching surface RED, which is the canary that the co
 
 ⛔ So: do not write that a consumer reads this list until its `loop:` or template actually does. No
 gate catches that sentence; the next NXDOMAIN does.
+
+### The MagicDNS records FILE — `dns.extra_records_path`
+
+The zone's tailnet rows reach headscale through **one** of two mutually exclusive keys, picked by one
+variable — `headscale_extra_records_path` in
+[`IaC/ansible/group_vars/vps.yml`](../IaC/ansible/group_vars/vps.yml):
+
+| `headscale_extra_records_path` | the key `dns:` carries | where the rows live |
+|---|---|---|
+| `""` — the authored default | `dns.extra_records` | inline in `/opt/headscale/config.yaml` |
+| `/etc/headscale/extra_records.yaml` | `dns.extra_records_path` | `/opt/headscale/extra_records.yaml`, rendered from `extra_records.yaml.j2` next to the compose file and mounted `:ro` |
+
+`headscale/config.yaml.j2` renders exactly ONE key, and
+`scripts/gate/check_zone_kogler_si_parity.py` renders BOTH shapes from one context and requires the
+same `{name, type, value}` rows **in the same order** against the same fixture — so the file cannot
+drift from the block, the swap cannot move an answer, and a config that carries both keys is refused
+before it is a crash loop. Flipping one `tailnet:` / `public:` flag in `zone_kogler_si` still reddens
+the matching surface in **both** shapes; `--self-test` runs that flip against the real consumers, so
+the claim is a case, not a sentence.
+
+Facts that hold in either shape:
+
+* The records FILE is rendered and mounted while the inline key is the one in force too. The render
+  is unconditional (`_extra_templates.headscale`), because an absent bind SOURCE is what Docker
+  helpfully auto-creates — as a root-owned directory — and that is a longer diagnosis than a file
+  that exists and is unused.
+* Mode and owner are the deploy default, `0644 root:root` — world-readable, the pair `./config.yaml`
+  is mounted with, so no uid the image may run as is denied by this file.
+* `dns.extra_records_path` must name the **container** path of the `./extra_records.yaml` bind. The
+  gate reads the bind out of the rendered compose and compares, so a path that points at nothing is
+  RED in `validate-all.sh` rather than fatal at startup.
+* ⛔ A record edit still restarts the control plane. The restart-on-config-change guard in
+  `roles/docker_services/tasks/deploy-service.yml` restarts any service whose rendered extra changed,
+  this file included. Decision 5's "no record edit ever restarts the control plane again" is therefore
+  **not** delivered by the key switch — it needs that guard to exempt this path, which is a decision
+  about the guard, not a value in `group_vars`.
+
+**The swap, owner-present.** The mount ships with any converge: it changes no ANSWER, but it is not a
+no-op — the compose gains a bind (container recreate) and a rendered extra appears for the first time
+(the restart guard fires), so that converge runs through the same guarded path with the sampled probe.
+The KEY flip is then its own owner-present converge: it rewrites `config.yaml`, so the restart guard
+fires and the control plane bounces once — `headplane` with it, same compose project. ⛔ `--diff` is not run on
+`docker_services`, and a one-shot inspect afterwards is not a verdict — see decision 5.
+
+1. **Preflight, nothing written anywhere.** Render both halves and diff them against the tree's own
+   derivation. The renderer substitutes an in-memory dummy for the vault, so this render validates
+   SHAPE only and never leaves the laptop:
+   ```bash
+   mkdir -p /tmp/hs-render
+   python3 scripts/ansible/zone_kogler_si_render.py --render-config /etc/headscale/extra_records.yaml \
+     > /tmp/hs-render/config.yaml
+   python3 scripts/ansible/zone_kogler_si_render.py --render-records > /tmp/hs-render/extra_records.yaml
+   grep -c '^  extra_records' /tmp/hs-render/config.yaml    # exactly 1 — one key, never two
+   grep -c '^- name:' /tmp/hs-render/extra_records.yaml     # the row count the live file must match
+   ```
+   The pinned image's own parser is the stronger read and the shape is already in
+   [deployment-manual.md](../deployment-manual.md) §1.4e step 2 (mount the pair read-only, run the
+   config validator, and prove it is not vacuous by re-running it on a copy with BOTH keys set — that
+   copy MUST fail). Confirm the subcommand name on the pin with `--entrypoint /ko-app/headscale
+   headscale/headscale:<pin> --help`; do not carry a subcommand across versions.
+2. **Converge behind the net** — one scoped run, both tag classes, watchdog armed before the service
+   is touched and standing down only on a GREEN **sampled** verdict (default 6 × 10 s: `Running` true,
+   `RestartCount` flat across samples, no `unhealthy`/`exited`, and the app probe `0` on every sample):
+   ```bash
+   bash scripts/ansible/guarded-converge.sh --action converge --target vps --container headscale \
+        --project /opt/headscale --playbook playbooks/vps.yml --limit vps \
+        --tags docker_services,headscale --extra "-e docker_services_scope=headscale" \
+        --probe 'docker exec headscale headscale nodes list >/dev/null'
+   # poll the printed log → RESULT: GREEN — headscale is alive across 6 samples … watchdog disarmed
+   ```
+   ⛔ Run the `--probe` on the VPS by hand first and see it succeed: a probe that does not answer turns
+   a HEALTHY control plane RED and fires the wrapper's own trap.
+3. **Read-back — the answer did not move.** All three parts, in this order:
+   ```bash
+   # (a) ONE record key on the host, and the file headscale opens is the mounted one
+   ssh vps "grep -nE '^ *extra_records(_path)?:' /opt/headscale/config.yaml"
+   # (b) the record set, BOTH directions, against the derived render
+   ssh vps "cat /opt/headscale/extra_records.yaml" > /tmp/live-records.yaml
+   grep -c '^- name:' /tmp/live-records.yaml        # == the preflight count
+   diff <(grep -vE '^[[:space:]]*(#|$)' /tmp/hs-render/extra_records.yaml) \
+        <(grep -vE '^[[:space:]]*(#|$)' /tmp/live-records.yaml)               # empty = no delta
+   # (c) a dig, from a device ON the tailnet: MagicDNS answers these client-side, so a home
+   #     Technitium instance proves nothing about this plane (it publishes no `*.ts` zone at all)
+   dig +short @100.100.100.100 A stats.kogler.si    # unchanged: the tailnet edge address
+   dig +short @100.100.100.100 A ha.ts.kogler.si    # unchanged: oldsrv's node address
+   ```
+   An empty delta in both directions plus an unchanged `dig` is the whole verdict; `RestartCount` on
+   that container is cumulative since creation, so read it as a trend across the sample window, never
+   as a health claim. ⛔ Nothing here re-points an answer: if a `dig` moved, the swap is not the
+   suspect — the zone entry is, and §`zone_kogler_si` is where that is settled.
 
 ---
 

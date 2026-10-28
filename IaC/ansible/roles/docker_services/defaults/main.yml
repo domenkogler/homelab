@@ -60,6 +60,9 @@ _extra_templates:
     - headplane-config.yaml.j2       # admin UI (Headplane) config, rendered next to compose
     - config.yaml.j2
     - policy.hujson.j2
+    - extra_records.yaml.j2          # the MagicDNS record set headscale reads when
+                                     # `headscale_extra_records_path` is set; rendered (and mounted)
+                                     # in both render shapes so the key flip never meets a missing file
   traefik:
     - dynamic/routes.yml.j2
     - dynamic/middlewares.yml.j2

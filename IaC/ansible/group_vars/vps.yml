@@ -311,6 +311,17 @@ tailnet_sidecar_ip: "100.64.0.1"
 tailnet_subdomains: "{{ zone_kogler_si_tailnet_plain }}"
 tailnet_ts_only_subdomains: "{{ zone_kogler_si_tailnet_ts }}"
 
+# Which record key headscale's `dns:` renders: EMPTY (the default) renders the inline
+# `dns.extra_records` block, a path renders `dns.extra_records_path` and nothing else — the two keys
+# are mutually exclusive on the pinned headscale and setting both leaves a crash-looping control
+# plane that still reports `Running`. The records file itself is rendered and mounted in both
+# shapes (an absent bind source is auto-created by Docker as a root-owned DIRECTORY), so opting in
+# moves the key only. ⛔ The value must be the CONTAINER path of the `./extra_records.yaml` bind in
+# this service's compose file; `check_zone_kogler_si_parity.py` reads that bind and renders both
+# shapes, so a path that points at nothing is RED here rather than a dead control plane.
+# → docs/network-dns.md §The MagicDNS records FILE
+headscale_extra_records_path: ""
+
 # WG-S2S reach for the internal all-app edge.
 # The internal edge (`traefik-tailnet`, container) listens on :443 in its bridge
 # netns; host :443 belongs to the PUBLIC edge. The WG path therefore publishes the

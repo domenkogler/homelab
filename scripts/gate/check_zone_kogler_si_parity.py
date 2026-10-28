@@ -9,7 +9,11 @@ from the sources BEFORE the derivation (and the capture script refuses to regene
 once ``zone_kogler_si`` exists, so the fixture cannot be made self-fulfilling).
 
 This script is the gate over the two: any dropped name, re-pointed address, or name moved
-between the plain and the ``.ts`` namespace is RED here rather than an NXDOMAIN at 3am.
+between the plain and the ``.ts`` namespace is RED here rather than an NXDOMAIN at 3am. Headscale
+renders its MagicDNS records through ONE of two mutually exclusive keys -- the ``dns.extra_records``
+block and the ``dns.extra_records_path`` file -- so BOTH shapes are rendered and compared against the
+same fixture, and a config that emits both keys, or a path the compose bind does not provide, is a
+hard error: either one is a control plane that exits at startup while ``docker`` calls it ``Running``.
 A deliberate change is allowed, but only out loud: read the diff it prints and land the
 new fixture in the SAME commit, or the gate stays red.
 
@@ -97,6 +101,15 @@ def _surfaces(golden: dict, current: dict) -> list[tuple[str, set[str], set[str]
                         _sets(current["headscale"][key], f"current.headscale.{key}")))
         except KeyError as exc:
             raise ParityError(f"fixture or render is missing headscale.{key} ({exc})") from exc
+        # The SAME golden rows must come out of the `dns.extra_records_path` shape: the swap moves
+        # the file, never an answer, and the fixture is shape-independent by design. A surface that
+        # no render feeds would pass vacuously, so `zone_kogler_si_render.render_all` renders it.
+        try:
+            out.append((f"headscale_file:{key}",
+                        _sets(golden["headscale"][key], f"golden.headscale.{key}"),
+                        _sets(current["headscale_file"][key], f"current.headscale_file.{key}")))
+        except KeyError as exc:
+            raise ParityError(f"render is missing headscale_file.{key} ({exc})") from exc
     out.append(("cloudflare",
                 _sets(golden["cloudflare"], "golden.cloudflare"),
                 _sets(current["cloudflare"], "current.cloudflare")))
@@ -136,6 +149,9 @@ def main() -> int:
     counts = {f"technitium:{i}": len(current["technitium"][i]) for i in zr.INSTANCES}
     counts.update({f"headscale:{k}": len(v) for k, v in current["headscale"].items()})
     counts["cloudflare"] = len(current["cloudflare"])
+    # `headscale_file:*` is deliberately absent from the count table: it is the same records through
+    # the other dns key, so a fixture number for it would be a second, hand-typed copy of a number
+    # the fixture already carries. Its parity is the set diff in compare(), not a count.
     golden_counts = golden.get("counts", {})
     drift_counts = {k: n for k, n in counts.items() if golden_counts.get(k) != n}
 
@@ -155,8 +171,40 @@ def main() -> int:
         return 1
 
     print("OK: zone_kogler_si answers identically to the hand-authored sources — "
-          + ", ".join(f"{k}={counts[k]}" for k in sorted(counts)))
+          + ", ".join(f"{k}={counts[k]}" for k in sorted(counts))
+          + f", headscale_file={sum(len(v) for v in current['headscale_file'].values())}"
+            " (records-file shape)")
     return 0
+
+
+def _raises(fn, *args) -> bool:
+    """True iff `fn(*args)` raises the renderer's error — the shape every canary below asserts."""
+    try:
+        fn(*args)
+    except zr.RenderError:
+        return True
+    return False
+
+
+def _render_with_field(zone: list, name: str, field: str, value) -> dict:
+    """Re-render EVERY consumer with one field of one `zone_kogler_si` entry changed.
+
+    The flag flip must be tested at the SOURCE rather than in a mutated render: mutating a render
+    proves the diff works, mutating the list proves the consumers still read the list.
+    """
+    original = zr._raw_vars
+
+    def patched():
+        raw = original()
+        raw["zone_kogler_si"] = [dict(e, **{field: value}) if e.get("name") == name else e
+                                 for e in raw["zone_kogler_si"]]
+        return raw
+
+    zr._raw_vars = patched
+    try:
+        return zr.render_all()
+    finally:
+        zr._raw_vars = original
 
 
 def self_test() -> int:
@@ -205,6 +253,52 @@ def self_test() -> int:
         cases.append(("a non-empty dropped key raises", False))
     except ParityError:
         cases.append(("a non-empty dropped key raises", True))
+
+    # 7. the `dns.extra_records_path` shape must be a REAL surface: mutate only the records-file
+    #    render and the gate has to notice. A surface nothing feeds would sit green forever.
+    mutated = json.loads(json.dumps(current))
+    dropped = [r for r in mutated["headscale_file"]["ts_only"] if r["name"].startswith("pi-oldsrv.")]
+    if not dropped:
+        raise ParityError("self-test found no pi-oldsrv .ts record in the file shape — the render changed shape")
+    mutated["headscale_file"]["ts_only"] = [r for r in mutated["headscale_file"]["ts_only"] if r not in dropped]
+    cases.append(("the extra_records_path shape losing a name is RED",
+                  bool(compare(golden, mutated))))
+
+    # 8. the two shapes answer the same rows in the same order — canary: feed the probe a pair that
+    #    differs only in ORDER, the one thing a set diff cannot see.
+    cases.append(("a re-ordered records file is refused", _raises(
+        zr.require_same_records, current["headscale"]["plain"][::-1], current["headscale"]["plain"], "fixture")))
+
+    # 9. ⛔ the shape that kills the control plane: both record keys at once. `docker` reports such a
+    #    container Running, so this probe is the only thing between the tree and a crash loop.
+    cases.append(("both dns record keys at once is refused", _raises(
+        zr._dns_record_key,
+        {"extra_records": [{"name": "x.kogler.si"}], "extra_records_path": "/etc/headscale/extra_records.yaml"},
+        "fixture")))
+
+    # 10. `extra_records_path` must name the path the compose bind provides — a path that is not
+    #     mounted is a fatal config that still reports Running.
+    cases.append(("a records path the bind does not provide is refused", _raises(
+        zr._headscale_rows, zr.build_context(extra={"headscale_extra_records_path": "/etc/headscale/nowhere.yaml"}),
+        "default")))
+
+    # 11. the flag flips themselves, at the SOURCE: one field of one `zone_kogler_si` entry changed,
+    #     re-rendered through every consumer. This is what proves the swap did not stop the answer
+    #     plane reading the list — a flipped flag must still turn the matching surface RED in BOTH
+    #     record shapes. `edge → node` is used because it is a LEGAL zone state (`edge → none` would
+    #     leave `ts_router: true` on a name with no router, which another validator exists to refuse).
+    zone = zr._raw_vars()["zone_kogler_si"]
+    edge = next((e["name"] for e in zone if e.get("tailnet") == "edge"), None)
+    published = next((e["name"] for e in zone if e.get("public")), None)
+    if not edge or not published:
+        raise ParityError("self-test found no `tailnet: edge` / `public: true` entry to flip — the zone changed shape")
+    findings = compare(golden, _render_with_field(zone, edge, "tailnet", "node"))
+    cases.append((f"flipping {edge} tailnet edge→node reddens both headscale shapes",
+                  all(any(f.startswith(f"{s}:") for f in findings)
+                      for s in ("headscale:plain", "headscale_file:plain"))))
+    findings = compare(golden, _render_with_field(zone, published, "public", False))
+    cases.append((f"flipping {published} public→false reddens the public surface",
+                  any(f.startswith("cloudflare:") for f in findings)))
 
     failed = [name for name, ok in cases if not ok]
     for name, ok in cases:

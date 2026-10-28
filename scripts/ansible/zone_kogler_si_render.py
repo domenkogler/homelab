@@ -5,8 +5,10 @@ The zone's membership is consumed by THREE renderers:
 
   * the Technitium seed task (``roles/docker_services/tasks/technitium-seed.yml``)
     — per instance: VPS ``primary``, oldsrv ``secondary``, Pi ``secondary-pi``;
-  * headscale ``dns.extra_records`` (``templates/docker_services/headscale/config.yaml.j2``)
-    — the plain ``*.kogler.si`` list and the ``*.ts.kogler.si``-only list;
+  * headscale's MagicDNS records (``templates/docker_services/headscale/config.yaml.j2`` and the
+    ``extra_records.yaml.j2`` file its ``dns.extra_records_path`` key may point at) — the plain
+    ``*.kogler.si`` list and the ``*.ts.kogler.si``-only list, rendered in BOTH record shapes so a
+    comparison can prove the key switch moves no answer;
   * the public Cloudflare set (``roles/cloudflare_dns/tasks/main.yml`` + its vars).
 
 This module renders those THREE REAL SOURCES (the actual template file, the actual
@@ -41,6 +43,16 @@ SEED_TASK = "Technitium: ensure split-horizon A records"
 CF_TASK = "Ensure public DNS records are present (idempotent)"
 SEED_FILE = ANSIBLE / "roles/docker_services/tasks/technitium-seed.yml"
 HEADSCALE_TEMPLATE = ANSIBLE / "templates/docker_services/headscale/config.yaml.j2"
+HEADSCALE_COMPOSE_TEMPLATE = ANSIBLE / "templates/docker_services/headscale/docker-compose.yml.j2"
+HEADSCALE_RECORDS_TEMPLATE = ANSIBLE / "templates/docker_services/headscale/extra_records.yaml.j2"
+# The rendered form of that template — the compose bind SOURCE name. The `.j2` suffix is not
+# cosmetic: the deploy copies the whole template dir raw and then renders every `_extra_templates`
+# entry OVER that copy with the suffix stripped, so a records source without `.j2` would reach the
+# host as unrendered template text.
+HEADSCALE_RECORDS_FILE = HEADSCALE_RECORDS_TEMPLATE.with_suffix("").name
+# The two keys headscale can take its MagicDNS records from. Exactly ONE may be rendered: the
+# pinned headscale exits at startup when both are set, and the container still reports `Running`.
+RECORD_KEYS = ("extra_records", "extra_records_path")
 CF_TASKS_FILE = ANSIBLE / "roles/cloudflare_dns/tasks/main.yml"
 CF_VARS_FILE = ANSIBLE / "roles/cloudflare_dns/vars/main.yml"
 ZONE_VAR_FILE = ANSIBLE / "group_vars/all/main.yml"
@@ -386,43 +398,140 @@ def render_technitium() -> dict[str, list[dict]]:
     return out
 
 
-def render_headscale(ctx: dict) -> dict[str, list[dict]]:
-    """headscale `dns.extra_records` from the REAL template, split by namespace."""
-    base_domain = str(ctx.get("tailnet_base_domain") or "")
-    zone = str(ctx.get("domain_public") or "")
-    if not base_domain or "{{" in base_domain:
-        raise RenderError(f"tailnet_base_domain unresolved: {base_domain!r}")
+def _render_text(path: Path, ctx: dict, where: str) -> str:
+    """Render one headscale template to TEXT with the SAME Jinja shape the deploy uses.
+
+    The vault here is the in-memory dummy `build_context` installs, so a render printed from the
+    command line validates SHAPE only — it is not the file a converge writes and must never be copied
+    to a host.
+    """
     env = _env(strict=False)
     try:
-        rendered = env.from_string(HEADSCALE_TEMPLATE.read_text(encoding="utf-8")).render(**ctx)
-    except Exception as exc:  # noqa: BLE001
-        raise RenderError(f"cannot render {HEADSCALE_TEMPLATE.name}: {exc}") from exc
-    try:
-        doc = yaml.safe_load(rendered)
-    except yaml.YAMLError as exc:
-        raise RenderError(f"rendered headscale config is not valid YAML: {exc}") from exc
-    if not isinstance(doc, dict) or "dns" not in doc:
-        raise RenderError("rendered headscale config has no `dns:` section")
-    records = (doc.get("dns") or {}).get("extra_records")
-    if records is None:
-        raise RenderError("rendered headscale config has no `dns.extra_records` key at all")
-    if not isinstance(records, list):
-        raise RenderError(f"dns.extra_records is {type(records).__name__}, expected a list")
-    if not records:
-        # `[]` is a LEGAL render (every tailnet_*_ip unset) — but it is never legal for
-        # this repo's live values, so the caller's golden comparison is what turns it red.
-        return {"plain": [], "ts_only": []}
+        return env.from_string(path.read_text(encoding="utf-8")).render(**ctx)
+    except Exception as exc:  # noqa: BLE001 - a template that will not render is reported, never swallowed
+        raise RenderError(f"cannot render {path.name} ({where}): {exc}") from exc
 
-    plain, ts_only = [], []
-    for rec in records:
+
+def _render_yaml_template(path: Path, ctx: dict, where: str):
+    """Render one headscale template and parse it."""
+    try:
+        return yaml.safe_load(_render_text(path, ctx, where))
+    except yaml.YAMLError as exc:
+        raise RenderError(f"rendered {path.name} ({where}) is not valid YAML: {exc}") from exc
+
+
+def _dns_record_key(dns, where: str) -> str:
+    """The ONE key this headscale config takes its MagicDNS records from.
+
+    `dns.extra_records` and `dns.extra_records_path` are mutually exclusive on the pinned headscale:
+    both set exits the process at startup while `docker` still reports the container `Running`, so a
+    render that emits both is a dead control plane, not a config. This is the probe; the parity
+    gate's `--self-test` plants that shape to prove the probe fires.
+    """
+    present = [key for key in RECORD_KEYS if key in (dns or {})]
+    if len(present) != 1:
+        raise RenderError(f"{where}: dns renders {present or ['<neither record key>']} — headscale takes "
+                          "EXACTLY ONE of dns.extra_records / dns.extra_records_path")
+    return present[0]
+
+
+def _records_bind_path(ctx: dict) -> str:
+    """The container path the records file is bind-mounted at, read from the compose template.
+
+    Read from the mount rather than re-typed here so the config key and the bind cannot drift apart
+    unnoticed: the check compares the rendered `extra_records_path` against this value.
+    """
+    doc = _render_yaml_template(HEADSCALE_COMPOSE_TEMPLATE, ctx, "headscale compose")
+    volumes = ((doc or {}).get("services") or {}).get("headscale", {}).get("volumes") or []
+    prefix = f"./{HEADSCALE_RECORDS_FILE}:"
+    found = {str(v).split(":")[1] for v in volumes if str(v).startswith(prefix) and str(v).count(":") == 2}
+    if len(found) != 1:
+        raise RenderError(f"the headscale compose mounts {HEADSCALE_RECORDS_FILE} "
+                          f"at {sorted(found) or 'nothing'} — expected exactly one ./<file>:<container path> bind")
+    return found.pop()
+
+
+def _headscale_rows(ctx: dict, shape: str) -> list[dict]:
+    """headscale's MagicDNS records IN DOCUMENT ORDER for one render shape.
+
+    `inline` forces the `dns.extra_records` block, `file` forces `dns.extra_records_path` at the path
+    the compose bind mounts, and `default` renders whatever `headscale_extra_records_path` authors
+    today. Same zone views, same context, so a shape that answers differently is an error here rather
+    than an NXDOMAIN after the switch.
+    """
+    zone = str(ctx.get("domain_public") or "")
+    base_domain = str(ctx.get("tailnet_base_domain") or "")
+    if not zone or "{{" in zone:
+        raise RenderError(f"domain_public unresolved: {zone!r}")
+    if not base_domain or "{{" in base_domain:
+        # The `.ts` twin is spelled from this value; unresolved, every twin name would land in the
+        # "outside zone" branch below with a message that blames the zone instead of the variable.
+        raise RenderError(f"tailnet_base_domain unresolved: {base_domain!r}")
+    if shape == "inline":
+        render_ctx, path = dict(ctx, headscale_extra_records_path=""), None
+    elif shape == "file":
+        path = _records_bind_path(ctx)
+        render_ctx = dict(ctx, headscale_extra_records_path=path)
+    elif shape == "default":
+        render_ctx, path = dict(ctx), None
+    else:
+        raise RenderError(f"unknown headscale render shape {shape!r}")
+
+    doc = _render_yaml_template(HEADSCALE_TEMPLATE, render_ctx, f"headscale config ({shape} shape)")
+    if not isinstance(doc, dict) or "dns" not in doc:
+        raise RenderError(f"rendered headscale config ({shape} shape) has no `dns:` section")
+    key = _dns_record_key(doc["dns"], f"headscale config ({shape} shape)")
+    wanted = {"inline": "extra_records", "file": "extra_records_path"}.get(shape)
+    if wanted is not None and key != wanted:
+        raise RenderError(f"the {shape} shape renders `{key}`, not `{wanted}` "
+                          "— forcing the shape did not select it, so the switch is not what decides the key")
+    if key == "extra_records_path":
+        configured = str(doc["dns"]["extra_records_path"])
+        bind = path or _records_bind_path(ctx)
+        if configured != bind:
+            raise RenderError(f"dns.extra_records_path is {configured!r} but the compose bind mounts the "
+                              "records file at {bind!r} — headscale would open a path that is not there")
+        rows = _render_yaml_template(HEADSCALE_RECORDS_TEMPLATE, ctx, "headscale records file")
+        if not isinstance(rows, list):
+            raise RenderError(f"the headscale records file renders {type(rows).__name__}, expected a list")
+    else:
+        rows = doc["dns"]["extra_records"]
+        if not isinstance(rows, list):
+            raise RenderError(f"dns.extra_records is {type(rows).__name__}, expected a list")
+
+    out = []
+    for rec in rows:
+        # `[]` is a LEGAL render (every tailnet_*_ip unset) — it is never legal for this repo's live
+        # values, so the caller's golden comparison is what turns an empty plane red.
+        if not isinstance(rec, dict):
+            raise RenderError(f"headscale record {rec!r} is not a mapping ({shape} shape)")
         name, value = str(rec.get("name", "")), str(rec.get("value", ""))
         if not name.endswith(f".{zone}"):
-            raise RenderError(f"extra_record {name!r} is outside zone {zone!r}")
-        rel = name[: -len(f".{zone}")]
-        if "." in rel:            # e.g. "stats.ts" / "ha.ts" -> the tailnet namespace
-            ts_only.append({"name": name, "value": value, "type": str(rec.get("type", "A"))})
-        else:
-            plain.append({"name": name, "value": value, "type": str(rec.get("type", "A"))})
+            raise RenderError(f"extra_record {name!r} is outside zone {zone!r} ({shape} shape)")
+        out.append({"name": name, "value": value, "type": str(rec.get("type", "A"))})
+    return out
+
+
+def require_same_records(actual: list[dict], expected: list[dict], where: str) -> None:
+    """Two render shapes must answer the SAME records in the SAME order.
+
+    Order is part of the claim: the swap is only "the FILE moves" if the rows are the same rows, and a
+    re-ordered answer plane is what a reviewer would have to diff by hand otherwise.
+    """
+    if actual == expected:
+        return
+    first = next((i for i, (a, b) in enumerate(zip(actual, expected)) if a != b), min(len(actual), len(expected)))
+    raise RenderError(f"{where}: the record sets differ at row {first} "
+                      f"({actual[first:first + 1] or ['<end>']} vs {expected[first:first + 1] or ['<end>']}; "
+                      f"{len(actual)} vs {len(expected)} rows)")
+
+
+def _split_namespaces(rows: list[dict], zone: str) -> dict[str, list[dict]]:
+    """Split a record list into the plain and the `.ts` namespace, normalized for the fixture."""
+    plain, ts_only = [], []
+    for rec in rows:
+        rel = rec["name"][: -len(f".{zone}")]
+        (ts_only if "." in rel else plain).append(rec)   # "stats.ts" / "ha.ts" -> the tailnet namespace
     return {"plain": _dedup_sorted(plain), "ts_only": _dedup_sorted(ts_only)}
 
 
@@ -476,9 +585,18 @@ def _dedup_sorted(rows: list[dict]) -> list[dict]:
 
 def render_all() -> dict:
     ctx = build_context()
+    inline = _headscale_rows(ctx, "inline")
+    file_rows = _headscale_rows(ctx, "file")
+    # The swap may move the records between the two keys; it may not move an ANSWER.
+    require_same_records(file_rows, inline, "headscale inline block vs records file")
+    # And whatever `headscale_extra_records_path` authors today must be coherent with itself: one
+    # key, and a path the compose bind actually provides.
+    shipped = _headscale_rows(ctx, "default")
+    require_same_records(shipped, inline, "headscale authored default vs the shape it selects")
     return {
         "technitium": render_technitium(),
-        "headscale": render_headscale(ctx),
+        "headscale": _split_namespaces(inline, str(ctx.get("domain_public") or "")),
+        "headscale_file": _split_namespaces(file_rows, str(ctx.get("domain_public") or "")),
         "cloudflare": render_cloudflare(ctx),
     }
 
@@ -489,9 +607,35 @@ def is_derived() -> bool:
     return "zone_kogler_si" in data
 
 
+def _flag_value(argv: list[str], flag: str):
+    """The value after `flag`; None when the flag is absent, "" when it carries no value."""
+    if flag not in argv:
+        return None
+    i = argv.index(flag)
+    nxt = argv[i + 1] if i + 1 < len(argv) else ""
+    return "" if nxt.startswith("--") else nxt
+
+
 if __name__ == "__main__":
     if "--is-derived" in sys.argv:
         print("derived" if is_derived() else "hand-authored")
+        sys.exit(0)
+    # The two headscale artefacts, as the owner-present read-back needs them (docs/network-dns.md
+    # §The MagicDNS records FILE). `--render-config PATH` forces the file shape at that path; without
+    # a value the authored `headscale_extra_records_path` decides, exactly as on a converge.
+    config_arg = _flag_value(sys.argv, "--render-config")
+    if config_arg is not None or "--render-records" in sys.argv:
+        try:
+            ctx = build_context()
+            if config_arg is not None:
+                if config_arg:
+                    ctx["headscale_extra_records_path"] = config_arg
+                sys.stdout.write(_render_text(HEADSCALE_TEMPLATE, ctx, "local render"))
+            else:
+                sys.stdout.write(_render_text(HEADSCALE_RECORDS_TEMPLATE, ctx, "local render"))
+        except RenderError as exc:
+            print(f"RENDER FAIL: {exc}", file=sys.stderr)
+            sys.exit(1)
         sys.exit(0)
     try:
         print(json.dumps(render_all(), indent=2, sort_keys=True))

@@ -111,7 +111,19 @@ dns:
   # group_vars/vps.yml and keyed by their FQDN `name`. The tailnet address is an entry's
   # `tailnet_ip:`, never its `ip:` — `ip:` is the LAN (Technitium) answer. `edge` entries answer BOTH
   # namespaces, `node`/`dual` entries the `.ts` twin ONLY; that split is a per-name decision recorded
-  # in the zone list, not here. `dns.extra_records` = [{name, type, value}].
+  # in the zone list, not here. Each record is {name, type, value}.
+  #
+  # ⛔ ONE record key, never two. `dns.extra_records` (the block below) and
+  # `dns.extra_records_path` (the records file `extra_records.yaml`, rendered next to this config
+  # from the SAME zone views and bind-mounted read-only) are mutually exclusive on the pinned
+  # headscale: with both set the process exits at startup while `docker` keeps reporting the
+  # container `Running`, so the shape is invisible to a one-shot inspect. `headscale_extra_records_path`
+  # (group_vars/vps.yml) selects which key renders — empty renders the inline block, so a switch to
+  # the file is an explicit opt-in and never a side effect of a converge. `check_zone_kogler_si_parity.py`
+  # renders BOTH shapes and requires the same records from both.
+{%- if headscale_extra_records_path %}
+  extra_records_path: "{{ headscale_extra_records_path }}"
+{%- else %}
   extra_records:
 {% set _any_ip = tailnet_sidecar_ip | default('', true) or tailnet_oldsrv_ip | default('', true) %}
 {% set ns = namespace(rendered=0) %}
@@ -145,6 +157,7 @@ dns:
     # `headscale nodes list` after each node joins; see header comment above)
     []
 {% endif %}
+{%- endif %}
 
 # ACL/traffic policy: points at the rendered policy.hujson
 # mounted next to this config. NOTE: OIDC-authenticated clients are AUTO-APPROVED
