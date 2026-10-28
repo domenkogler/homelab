@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """check_backlog_prose.py — the work-tracking surfaces stay state-only: retrospective narrative is
-counted and ratcheted, and a row may shrink freely and may not grow.
+counted and reddens, and a size proxy only reminds.
 
 > **Role:** gate over `todo.md` rows and the `prompt-*.md` lane briefs — the surfaces the state-only
 > rule (CONVENTIONS §4 post-task housekeeping, §6) governs in prose and no earlier checker read.
@@ -39,13 +39,19 @@ THE TWO HALVES, each with its verdict word:
     while deleting another nets to zero within the same file and rule. The per-row seal below is
     what catches bulk accretion anyway.
 
-  * SIZE (the ratchet half, `check_doc_size.py`'s shape applied where the growth actually happens):
-      - ROW    — every todo row is sealed at its byte size; any byte over the seal is a finding;
-                 trimming is always free.
-      - BRIEF  — every `prompt-*.md` brief is sealed at its line count; growth is a finding.
-      - NEWROW — a row the seal does not carry must start at <= NEW_ROW_CEILING bytes: a row is
-                 born lean (owed work + clues), not born at 6 KB and sealed there.
-      - NEWBRIEF — a brief the seal does not carry must start at <= NEW_BRIEF_CEILING lines.
+  * SIZE (a REMINDER, never a verdict — `check_doc_size.py`'s shape applied where the growth
+    happens): size is a PROXY for the rule, not the rule (CONVENTIONS §6.4). A row or brief that
+    grew because it carries more owed work and the clues for doing it is ALLOWED to grow, and the
+    next `--reseal` books it; what may not grow is the changelog above. Every line below prints and
+    exits green.
+      - ROW    — every todo row is sealed at its byte size; any byte over the seal reminds.
+      - BRIEF  — every `prompt-*.md` brief is sealed at its line count; growth reminds.
+      - NEWROW — a row the seal does not carry, over NEW_ROW_CEILING bytes, reminds: the born-lean
+                 rule is advice the queue ignores at its own cost, not a gate.
+      - NEWBRIEF — a brief the seal does not carry, over NEW_BRIEF_CEILING lines, reminds.
+    Each reminder says WHICH of the three size states it is (sealed-and-grown / crossed-the-floor /
+    genuinely-new), because one wording for all three advised a reader to trim a file that had done
+    nothing wrong.
 
 TWO DELIBERATE DEVIATIONS FROM `check_doc_size.py`, both because the queue's lifecycle is different
 from a doc's:
@@ -55,17 +61,17 @@ from a doc's:
     not apply: an HD id is minted once (max+1, never reused), so a stale row line can never match a
     different row; a stale reseal prunes it.
   * An UNSEALED row/brief under its ceiling is a NOTE, not a finding. Rows are minted every session;
-    "new row, not yet sealed" must not block a green run. The ceiling is the tooth: a row or brief
-    BORN over it is a finding whose fix is the doc, and re-sealing it at the merge station books the
-    oversized birth instead of approving it.
+    "new row, not yet sealed" must not block a green run — and the same argument now covers a row or
+    brief BORN over its ceiling, which prints its reminder and re-seals at the merge station.
 
 `--reseal` rewrites the whole body from the tree and prints what it froze (the doc-size discipline:
 merge station, never a lane). `--show-baseline` prints the body a re-seal would write, so no count
 is ever quoted from memory (CONVENTIONS §2).
 
 Run:   python3 scripts/gate/check_backlog_prose.py [--show] [--show-baseline] [--reseal] [--self-test]
-Exit:  0 = clean · 1 = finding(s) · 2 = could not run (missing/malformed baseline, corpus below its
-       floor). Stdlib only; no vault, no network, no host.
+Exit:  0 = clean or reminders-only (SIZE prints, never blocks) · 1 = narrative finding(s) · 2 = could
+       not run (missing/malformed baseline, corpus below its floor). Stdlib only; no vault, no
+       network, no host.
 """
 from __future__ import annotations
 
@@ -129,11 +135,13 @@ DEFAULT_HEADER = """\
 # Three TAB-separated line kinds, LF only, sorted within each kind:
 #     FIND<TAB><file>TAB<rule>TAB<count>     findings-at-rest per (surface, rule): growth refused,
 #                                            improvement free; the grammar lives in the checker.
-#     ROW<TAB><HD-id>TAB<bytes>              every todo row sealed at its byte size; any byte over
-#                                            the seal is a finding, trimming always free.
-#     BRIEF<TAB><file>TAB<lines>             every prompt-*.md brief sealed at its line count.
-# A row/brief the seal omits must start at or under its ceiling (NEW_ROW_CEILING / NEW_BRIEF_CEILING,
-# constants in the checker); a row born over the ceiling is a finding, not a seal candidate.
+#     ROW<TAB><HD-id>TAB<bytes>              every todo row at its sealed byte size; over it prints
+#                                            a REMINDER (size is a proxy, CONVENTIONS §6.4), never a
+#                                            finding, and trimming is always free.
+#     BRIEF<TAB><file>TAB<lines>             every prompt-*.md brief at its sealed line count, same
+#                                            reminder semantics.
+# A row/brief the seal omits is compared with NEW_ROW_CEILING / NEW_BRIEF_CEILING (constants in the
+# checker) and reminds if it is over; either way it is a seal candidate at the next re-seal.
 # A seal line whose row/brief is gone is a NOTE, not a finding — deleting a closed row or a dead
 # brief is the lifecycle working (§4(a), O7), and an HD id is never reused, so the line is inert
 # until the next re-seal prunes it.
@@ -315,31 +323,33 @@ def report(find, rows, briefs, f_seal, r_seal, b_seal) -> int:
     print("scope %s rows (%d, largest %d B) + %d brief(s) (%d lines largest)"
           % (TODO, len(rows), max(rows.values(), default=0), len(briefs),
              max(briefs.values(), default=0)))
-    print("seal  %s: %d FIND class(es), %d row(s), %d brief(s); a new row starts at <= %d B, a new "
-          "brief at <= %d lines" % (BASELINE, len(f_seal), len(r_seal), len(b_seal),
-                                    NEW_ROW_CEILING, NEW_BRIEF_CEILING))
+    print("seal  %s: %d FIND class(es), %d row(s), %d brief(s); an unsealed row is advised to start "
+          "at <= %d B and an unsealed brief at <= %d lines (advice, not a gate)"
+          % (BASELINE, len(f_seal), len(r_seal), len(b_seal),
+             NEW_ROW_CEILING, NEW_BRIEF_CEILING))
     for f, r, sealed, now in find_growth:
         print("FAIL: %s %s: GROWTH — %d narrative finding(s) against a sealed %d. The queue states "
               "what is missing and how to do it; the story of what already happened goes to the "
               "owning doc and the commit. Trim the prose (do not tune the grammar to make it pass): "
               "%s" % (f, r, now, sealed, "the grammar lives in check_backlog_prose.py"))
     for rid, sealed, now in row_growth:
-        print("FAIL: %s: GROWTH — %d B, %d over its sealed %d. A row may shrink (it does, every "
-              "time a finding lands in its owning doc) and may not grow: trim it to the owed work "
-              "+ the clues, or re-seal at the merge station with the reason"
-              % (rid, now, now - sealed, sealed))
+        print("REMINDER ROW %s: GROWN — %d B, %d over its sealed %d. Size reminds, it does not "
+              "judge (CONVENTIONS §6.4): owed work and its clues may grow a row, and the next "
+              "re-seal books that; a finding that belongs in the owning doc is what the narrative "
+              "rules above would have reddened" % (rid, now, now - sealed, sealed))
     for rid in row_over:
-        print("FAIL: %s: NEWROW — a row the seal does not carry must start at <= %d B and this one "
-            "is %d. A row is born lean (what is missing + the clues); the durable half goes to the "
-            "owning doc BEFORE the row is sealed" % (rid, NEW_ROW_CEILING, rows[rid]))
+        print("REMINDER ROW %s: NEW-AND-FAT — %d B, over the %d B the unsealed row is advised to "
+              "start at, and the seal does not carry it. Born lean is advice: the durable half "
+              "belongs in the owning doc, and the re-seal books whatever is left" %
+              (rid, rows[rid], NEW_ROW_CEILING))
     for b, sealed, now in brief_growth:
-        print("FAIL: %s: GROWTH — %d lines, %d over its sealed %d. A brief carries the contract, "
-            "the order of work and the traps — the rows are the authority, and it never restates "
-            "them; trim it, or re-seal at the merge station with the reason"
+        print("REMINDER BRIEF %s: GROWN — %d lines, %d over its sealed %d. A brief carries the "
+              "contract, the order of work and the traps, and the rows are the authority it does not "
+              "restate; growth is allowed, the re-seal is what records it"
             % (b, now, now - sealed, sealed))
     for b in brief_over:
-        print("FAIL: %s: NEWBRIEF — a brief the seal does not carry must start at <= %d lines and "
-            "this one is %d" % (b, NEW_BRIEF_CEILING, briefs[b]))
+        print("REMINDER BRIEF %s: NEW-AND-FAT — %d lines, over the %d a new brief is advised to "
+              "start at, and the seal does not carry it" % (b, briefs[b], NEW_BRIEF_CEILING))
     for rid in stale_rows:
         print("note  ROW %s: seal line for a row that is gone — the lifecycle working (a done row "
               "is deleted, §4(a)); the next re-seal prunes it" % rid)
@@ -347,15 +357,17 @@ def report(find, rows, briefs, f_seal, r_seal, b_seal) -> int:
         print("note  BRIEF %s: seal line for a brief that is gone — a brief dies with its lane "
               "(O7); the next re-seal prunes it" % b)
 
-    n = len(find_growth) + len(row_growth) + len(row_over) + len(brief_growth) + len(brief_over)
-    if n:
-        print("\n%d finding(s): %d narrative growth, %d row growth, %d row(s) born over the ceiling, "
-              "%d brief growth, %d brief(s) born over the ceiling."
-              % (n, len(find_growth), len(row_growth), len(row_over), len(brief_growth),
-                 len(brief_over)))
+    size_notes = len(row_growth) + len(row_over) + len(brief_growth) + len(brief_over)
+    tail = (" (%d SIZE reminder(s) above are not findings — size is the proxy, the changelog is the "
+            "rule, §6.4)" % size_notes) if size_notes else ""
+    if find_growth:
+        print("\n%d finding(s): %d narrative growth.%s"
+              % (len(find_growth), len(find_growth), tail))
+        print("      The finding is the prose: rewrite the sentence as a fact or cut it, and let the "
+              "owning doc + the commit hold what happened (CONVENTIONS §6, §6.4).")
         return 1
-    print("OK: the work-tracking surfaces are state-only and inside their seals — %d row(s), %d "
-          "brief(s), every narrative count at or under its seal" % (len(rows), len(briefs)))
+    print("OK: the work-tracking surfaces are state-only — %d row(s), %d brief(s), every narrative "
+          "count at or under its seal%s" % (len(rows), len(briefs), tail))
     return 0
 
 
@@ -483,13 +495,14 @@ def self_test() -> int:
         grown = ROW_A.replace("⏳ converge", "⏳ converge, and here is a new clause that grew the row")
         (t / TODO).write_text("# header\n" + grown + "\n" + base_rows[1] + "\n", encoding="utf-8", newline="\n")
         rc, out = run(t, seal_for(_fixture(tmp / "a-sealsrc", base_rows, base_briefs)))
-        arm("(a) a row grown by even one clause REDDENS as GROWTH naming the bytes",
-            rc == 1 and "HD-100: GROWTH" in out, "rc %d: %s" % (rc, out[-200:]))
+        arm("(a) a row grown by one clause PRINTS the size reminder and stays GREEN — honest growth "
+            "is allowed, §6.4", rc == 0 and "REMINDER ROW HD-100: GROWN" in out,
+            "rc %d: %s" % (rc, out[-200:]))
         t = _fixture(tmp / "a-row-shrink", [ROW_A.split(" ⏳")[0] + " ⏳ pending. |", base_rows[1]],
                      base_briefs)
         rc, out = run(t, seal_for(_fixture(tmp / "a-seal3", base_rows, base_briefs)))
-        arm("(a) a row TRIMMED far below its seal is GREEN — a ratchet, never a cap",
-            rc == 0 and "GROWTH" not in out, "rc %d: %s" % (rc, out[-200:]))
+        arm("(a) a row TRIMMED far below its seal is GREEN and silent — shrink is always free",
+            rc == 0 and "REMINDER" not in out, "rc %d: %s" % (rc, out[-200:]))
 
         # (b) the narrative rules each catch their canary — and a NEW ✅ grows the sealed count
         narrative_rows = [
@@ -520,20 +533,33 @@ def self_test() -> int:
             "the verb, not the date", rc == 0 and "glyph" not in out and "verb-date" not in out
             and "phrase" not in out, "rc %d: %s" % (rc, out[-240:]))
 
-        # (c) the ceilings: born lean, or a finding
+        # (c) the size reminders: each state says WHICH state it is, and none of them reddens
         t = _fixture(tmp / "c-born-big", [ROW_LONG, base_rows[1]], base_briefs)
         rc, out = run(t, seal_for(_fixture(tmp / "c-seal", base_rows, base_briefs)))
-        arm("(c) a NEW row born over the %d B ceiling REDDENS as NEWROW" % NEW_ROW_CEILING,
-            rc == 1 and "NEWROW" in out, "rc %d: %s" % (rc, out[-240:]))
+        arm("(c) a NEW row over the %d B ceiling prints NEW-AND-FAT and stays GREEN" % NEW_ROW_CEILING,
+            rc == 0 and "REMINDER ROW HD-101: NEW-AND-FAT" in out, "rc %d: %s" % (rc, out[-240:]))
         t = _fixture(tmp / "c-born-ok", [ROW_A, base_rows[1]], base_briefs)
         rc, out = run(t, seal_for(_fixture(tmp / "c-seal2", [ROW_A], base_briefs)))
         arm("(c) a NEW row under the ceiling is a sealable state, not a finding",
-            rc == 0, "rc %d: %s" % (rc, out[-200:]))
+            rc == 0 and "REMINDER" not in out, "rc %d: %s" % (rc, out[-200:]))
         fat_brief = dict(base_briefs, **{"prompt-beta.md": "line\n" * (NEW_BRIEF_CEILING + 5)})
         t = _fixture(tmp / "c-fat-brief", base_rows, fat_brief)
         rc, out = run(t, seal_for(_fixture(tmp / "c-seal3", base_rows, base_briefs)))
-        arm("(c) a NEW brief born over the %d-line ceiling REDDENS as NEWBRIEF" % NEW_BRIEF_CEILING,
-            rc == 1 and "NEWBRIEF" in out, "rc %d: %s" % (rc, out[-240:]))
+        arm("(c) a NEW brief over the %d-line ceiling prints NEW-AND-FAT and stays GREEN"
+            % NEW_BRIEF_CEILING, rc == 0 and "REMINDER BRIEF prompt-beta.md: NEW-AND-FAT" in out,
+            "rc %d: %s" % (rc, out[-240:]))
+        fat_grown = dict(base_briefs, **{"prompt-alpha.md": "brief body\n" * 45})
+        t = _fixture(tmp / "c-brief-grown", base_rows, fat_grown)
+        rc, out = run(t, seal_for(_fixture(tmp / "c-seal4", base_rows, base_briefs)))
+        arm("(c) a brief GROWN past its seal prints the reminder and stays GREEN — the size half "
+            "never blocks a lane", rc == 0 and "REMINDER BRIEF prompt-alpha.md: GROWN" in out,
+            "rc %d: %s" % (rc, out[-240:]))
+        # the reminder half must be LIVE: the same grown row, reddened by prose and not by bytes
+        prose = ROW_A.replace("⏳ converge", "this session measured 2026-10-01, then ⏳ converge")
+        t = _fixture(tmp / "c-prose-wins", [prose, base_rows[1]], base_briefs)
+        rc, out = run(t, seal_for(_fixture(tmp / "c-seal5", base_rows, base_briefs)))
+        arm("(c) the same grown row with changelog prose in it REDDENS on the prose, not the size",
+            rc == 1 and "REMINDER" in out, "rc %d: %s" % (rc, out[-240:]))
 
         # (d) the lifecycle: deleted rows/briefs are NOTEs, never findings
         t = _fixture(tmp / "d-gone", [base_rows[1]], base_briefs)
@@ -598,11 +624,11 @@ def self_test() -> int:
     if fails:
         print("FAIL: self-test — %d arm(s) did not behave" % fails)
         return 1
-    print("OK: self-test — both ratchets tell growth from shrink with the shrink half proved, all "
-          "four narrative rules catch their canary while a state date stays legal, the ceilings "
-          "redden a born-fat row/brief, the lifecycle's deletions are NOTEs and never findings, a "
-          "missing/malformed baseline and an empty corpus refuse to print OK, and --reseal writes "
-          "the seal and nothing else")
+    print("OK: self-test — the narrative rules catch their canary while a state date stays legal and "
+          "are the ONLY thing that reddens, the size half prints WHICH state it is (grown / "
+          "born-fat) from both surfaces and never reddens, the lifecycle's deletions are NOTEs and "
+          "never findings, a missing/malformed baseline and an empty corpus refuse to print OK, and "
+          "--reseal writes the seal and nothing else")
     return 0
 
 
@@ -611,9 +637,10 @@ def self_test() -> int:
 def main() -> int:
     ap = argparse.ArgumentParser(
         prog="check_backlog_prose.py",
-        description="Ratchet the work-tracking surfaces (todo.md rows, prompt-*.md briefs): "
-                    "narrative finding counts and per-row/per-brief sizes are sealed; shrink is "
-                    "free, growth is a finding. Read-only; --reseal writes only the baseline.",
+        description="The work-tracking surfaces (todo.md rows, prompt-*.md briefs) stay state-only: "
+                    "narrative finding counts are sealed and their growth reddens, while the "
+                    "per-row/per-brief size halves only remind (size is a proxy — CONVENTIONS §6.4). "
+                    "Read-only; --reseal writes only the baseline.",
         epilog="exit 0 inside the seal · 1 finding(s) · 2 could not run")
     ap.add_argument("--show", action="store_true", help="counts only, no verdict")
     ap.add_argument("--show-baseline", action="store_true",

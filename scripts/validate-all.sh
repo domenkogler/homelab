@@ -361,12 +361,14 @@
 #                                     "every prior open item appears or is explicitly resolved" — was
 #                                     the regrowth mechanism: choosing "explicitly resolved" let the ✅
 #                                     narrative stay as proof a decision had been made, so every
-#                                     session added a story instead of deleting an item. Three bounds
-#                                     now, all measured against the frozen seal
+#                                     session added a story instead of deleting an item. Two rules and
+#                                     one reminder now, all measured against the frozen seal
 #                                     `gate/handoff_baseline.txt` so no verdict depends on the day:
-#                                     CEILING (bytes and lines, each `baseline + tolerance`, tolerances
-#                                     that admit an ordinary two-line pointer and refuse a paragraph),
-#                                     HISTORY (a pointer-list entry marked only with completion or
+#                                     SIZE (a REMINDER, non-blocking — bytes and lines over `baseline +
+#                                     tolerance`; size is a proxy for the rule, never the rule, so an
+#                                     ordinary two-line pointer prints nothing, a paragraph prints, and
+#                                     neither one reddens — §6.4), HISTORY (a pointer-list entry marked
+#                                     only with completion or
 #                                     parked glyphs — the resolved item that stayed; a pending glyph or
 #                                     a durable-refusal glyph exempts it, which is what keeps live work
 #                                     and standing rules out of the finding), and DERIVED (a computable
@@ -377,8 +379,9 @@
 #                                     whose text has gone reddens too, because a line matching nothing
 #                                     is the next site's free pass. Read-only here — `--reseal`, its
 #                                     one write, belongs to the merge station (docs/orchestration.md
-#                                     §4), never to a lane. `--self-test` proves neither ceiling half
-#                                     is dead code, breeds an answered bullet, an unsealed parked
+#                                     §4), never to a lane. `--self-test` proves neither size-reminder
+#                                     half is dead code and neither one reddens, breeds an answered
+#                                     bullet, an unsealed parked
 #                                     ruling, each typed count shape, a copy of a carried story, a
 #                                     frozen site whose text was deleted, and the shapes in which the
 #                                     gate must refuse rather than print OK.
@@ -1522,8 +1525,8 @@ item_q "check_doc_path_refs.py (HD-490: a path a doc cites must exist)" "${PY_CM
 item_q "check_doc_path_refs.py --self-test (HD-490 canary)" "${PY_CMD[@]}" scripts/gate/check_doc_path_refs.py --self-test
 item_q "check_doc_headings.py (the ANCHOR half: a § pointer must name a heading that exists; the committed ledger makes it growth-only)" "${PY_CMD[@]}" scripts/gate/check_doc_headings.py
 item_q "check_doc_headings.py --self-test (anchor canaries + both halves of the ledger ratchet)" "${PY_CMD[@]}" scripts/gate/check_doc_headings.py --self-test
-item_q "check_handoff_size.py (the standing handoff may not regrow: size ceiling, answered-item history, typed counts — all against the frozen seal)" "${PY_CMD[@]}" scripts/gate/check_handoff_size.py
-item_q "check_handoff_size.py --self-test (both ceiling halves, the marker exemptions, each count shape, and both halves of the seal ratchet)" "${PY_CMD[@]}" scripts/gate/check_handoff_size.py --self-test
+item_q "check_handoff_size.py (the standing handoff keeps its shape: answered-item history and typed counts reddens against the frozen seal; the size half is a REMINDER only, because size is the proxy and the changelog is the rule)" "${PY_CMD[@]}" scripts/gate/check_handoff_size.py
+item_q "check_handoff_size.py --self-test (both size-reminder halves proved live and non-blocking, the marker exemptions, each count shape, and both halves of the seal ratchet)" "${PY_CMD[@]}" scripts/gate/check_handoff_size.py --self-test
 item_q "check_registry_prose.py (CONVENTIONS §6 on this file: registry states facts + owning spec, no ids/dates/narrative/glyphs/pipe-in-code/dup-paragraph)" "${PY_CMD[@]}" scripts/gate/check_registry_prose.py
 item_q "check_registry_prose.py --self-test (each prose rule bred + every exemption kept quiet + the empty-corpus refusal)" "${PY_CMD[@]}" scripts/gate/check_registry_prose.py --self-test
 item_q "validate_doc_templates.py" "${PY_CMD[@]}" scripts/gate/validate_doc_templates.py
@@ -1763,11 +1766,12 @@ item_q "check_open_questions.py --self-test (each rule seen RED on a shaped sect
 
 # The state-only rule for the work-tracking surfaces had no checker — the earlier sweep trimmed
 # the retrospective prose, and without a gate the next session refills the space. The narrative rules are
-# marker-based (a marker grammar is checkable; "is this sentence a story?" is not), and the size half is
-# the doc-size ratchet applied where the growth actually happens. Cheap (two file reads), so it belongs
+# marker-based (a marker grammar is checkable; "is this sentence a story?" is not), and the size half is a
+# REMINDER and nothing else — the same place `check_doc_size.py` landed (§6.4): a row or brief that grew
+# with owed work may grow, and only the changelog half decides. Cheap (two file reads), so it belongs
 # in quick too.
-item_q "check_backlog_prose.py (todo.md rows and the prompt-*.md briefs stay state-only — narrative finding counts, row bytes and brief line counts are sealed and may shrink but not grow; a row born over the 2000 B ceiling reddens; the grammar targets the verb, not the date, because ISO decision dates stay legal in the queue)" "${PY_CMD[@]}" scripts/gate/check_backlog_prose.py
-item_q "check_backlog_prose.py --self-test (all four narrative rules catch their canary while a state date stays legal, both ratchets proved from the shrink side, the ceilings redden a born-fat row and brief, a deleted row and a dead brief are NOTEs and never findings — closing a row must never redden the gate — and a missing/malformed baseline and an empty corpus refuse to print OK)" "${PY_CMD[@]}" scripts/gate/check_backlog_prose.py --self-test
+item_q "check_backlog_prose.py (todo.md rows and the prompt-*.md briefs stay state-only — narrative finding counts are sealed and their growth reddens, while row bytes and brief lines only print a REMINDER, because size is the proxy and the changelog is the rule; the grammar targets the verb, not the date, because ISO decision dates stay legal in the queue)" "${PY_CMD[@]}" scripts/gate/check_backlog_prose.py
+item_q "check_backlog_prose.py --self-test (all four narrative rules catch their canary while a state date stays legal and are the only thing that reddens, the size half prints WHICH state it is from both surfaces and never reddens, a deleted row and a dead brief are NOTEs and never findings — closing a row must never redden the gate — and a missing/malformed baseline and an empty corpus refuse to print OK)" "${PY_CMD[@]}" scripts/gate/check_backlog_prose.py --self-test
 
 # The rsync `--max-delete` fixture. rc 2 is a BOUNDARY, printed and never counted green: the two
 # deletion arms need an rsync binary, which the WSL Debian seat does not carry, while the shape-parity

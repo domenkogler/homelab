@@ -18,12 +18,16 @@ undone by the next handoff. A trim without this gate just re-opens the space the
 
 THE THREE RULES, each with its verdict word:
 
-  * CEILING — the file over `baseline_bytes + GROWTH_TOLERANCE_BYTES`, or over
-    `baseline_lines + GROWTH_TOLERANCE_LINES`, is RED. Both tolerances are set off the handoff's own
-    line shape (mean line ~113 B), so an ordinary TWO-LINE addition passes and a one-PARAGRAPH
-    story reddens. `--self-test` proves that sentence from both sides, and proves neither half is
-    dead code: one long line reddens the byte half alone, a run of short lines reddens the line half
-    alone.
+  * SIZE — a REMINDER, never a verdict. Over `baseline_bytes + GROWTH_TOLERANCE_BYTES`, or over
+    `baseline_lines + GROWTH_TOLERANCE_LINES`, prints which half tripped and exits green. Size is a
+    PROXY for the rule, not the rule (CONVENTIONS §6.4): a handoff that grew because it carries more
+    honest dispatch content is allowed to grow and the next `--reseal` books it. What may not grow
+    is the changelog — HISTORY and DERIVED below are the halves that hold the line. Both tolerances
+    are set off the handoff's own line shape (mean line ~113 B), so an ordinary TWO-LINE addition
+    prints nothing and a one-PARAGRAPH story prints. `--self-test` proves the reminder is LIVE from
+    both sides and that neither half is dead code: one long line trips the byte half alone, a run of
+    short lines trips the line half alone. A reminder that cannot print is a silent cap, which is
+    the shape the doc-size ratchet was retired from.
   * HISTORY — a §2 entry whose status markers are only ✅/✔/⏸, with no ⏳ anywhere in it and no ⛔
     durable "never" content, is a resolved item that did not leave: RED. Markers are the test, not
     prose, because a marker grammar is checkable and "is this sentence a story?" is not.
@@ -42,11 +46,12 @@ unrelated edit as new debt. Two directions fail: GROWTH (a site the seal does no
 sealed line whose site is gone, which would otherwise be a free pass for the next site written at
 that key). Clearing a site is therefore an act the seal has to record, which is what `--reseal` is.
 
-`--reseal` rewrites the seal from the current file and PRINTS what it froze: the ceiling before and
+`--reseal` rewrites the seal from the current file and PRINTS what it froze: the size before and
 after with its direction, and every frozen line added, dropped or count-changed, by key. It never
 touches the handoff — a seal is a claim about the file, not about the work. After a trim lands the
 parent re-seals in the cleanup commit (`docs/orchestration.md` §4, Merge + cleanup step 4), and a
-ceiling red at the merge station means the handoff GREW, not that the baseline needs raising.
+SIZE reminder at the merge station says only that the handoff GREW: read it against HISTORY and
+DERIVED, which are the rules, and re-seal to book whatever is left.
 
 WHAT IT CANNOT SEE, stated rather than left to be discovered:
   * It cannot tell a durable dispatch rule from a story. That is why HISTORY keys on markers, why a
@@ -54,17 +59,20 @@ WHAT IT CANNOT SEE, stated rather than left to be discovered:
     reads as history and is sealed rather than deleted.
   * It reads `prompt.md` only. A domain brief accreting the same way is the same defect with no
     gate; briefs die with their lanes, which is the only reason that is cheap.
-  * HISTORY walks §2 only. §1 is prose rather than entries, so a ✅ narrative there is bounded by the
-    ceiling alone.
+  * HISTORY walks §2 only. §1 is prose rather than entries, so a ✅ narrative there reddens nothing
+    and the SIZE reminder is the only thing that ever mentions it — a weaker guard, stated plainly
+    rather than dressed up as coverage.
   * A count in a shape the two regexes do not list (`42 templates`, `3 hosts`, a date) is not
     DERIVED. The ban is a vocabulary, and the vocabulary is this file's.
   * A story that also carries a live ⏳ in the same entry reads as live. Planting ⏳ on a closed item
-    to keep its prose is the cheat this declares; the ceiling bounds what it can buy.
+    to keep its prose is the cheat this declares, and the size half no longer bounds what that cheat
+    buys: growth is legal, so only HISTORY — which reads the markers, not the bytes — can see it.
 
 Run:   python3 scripts/gate/check_handoff_size.py [--verbose] [--show-baseline] [--reseal] [--self-test]
-Exit:  0 = inside the seal · 1 = finding(s): a grown file, history that stayed, a typed count, or a
-         sealed line whose site is gone · 2 = could not run (no handoff, no §2 to walk, a missing or
-         malformed seal) — a gate that cannot see the file cannot fail either, so it refuses.
+Exit:  0 = no finding (a SIZE reminder may still have printed) · 1 = finding(s): history that stayed,
+         a typed count, or a sealed line whose site is gone · 2 = could not run (no handoff, no §2 to
+         walk, a missing or malformed seal) — a gate that cannot see the file cannot fail either, so
+         it refuses.
 Stdlib + git only; git is asked for the seal revision and its age, and neither answer is typed.
 """
 from __future__ import annotations
@@ -88,11 +96,11 @@ ROOT = _hl_root(__file__)
 HANDOFF = "prompt.md"
 BASELINE = "scripts/gate/handoff_baseline.txt"
 
-# What an ordinary edit gets before the ceiling closes, measured off the handoff's own shape (mean
-# line 113 B): roughly three lines, in bytes and in count. Small enough that a paragraph-sized story
-# cannot cross it, wide enough that "one pointer replaced by two lines" never reddens. The two
+# What an ordinary edit gets before the SIZE reminder prints, measured off the handoff's own shape
+# (mean line 113 B): roughly three lines, in bytes and in count. Small enough that a paragraph-sized
+# story trips it, wide enough that "one pointer replaced by two lines" never prints. The two
 # self-test arms below are the proof of that sentence; widening either number without re-running
-# them turns the guard into a formality.
+# them turns the reminder into silence.
 GROWTH_TOLERANCE_BYTES = 384
 GROWTH_TOLERANCE_LINES = 3
 
@@ -137,8 +145,9 @@ DEFAULT_HEADER = """\
 #
 # Fields, one per line, `<name> <value>` — always re-derived by --reseal, never hand-typed, because
 # a count in prose is a defect (CONVENTIONS §2):
-#     baseline_bytes <n>   the handoff's byte size at the seal; the ceiling is this + the tolerance
-#     baseline_lines <n>   its line count at the same commit, same ceiling
+#     baseline_bytes <n>   the handoff's byte size at the seal; the SIZE reminder compares against
+#                          this + the tolerance and never reddens on it
+#     baseline_lines <n>   its line count at the same commit, same reminder
 #     sealed_at <rev>      the commit both numbers were taken at
 #
 # Frozen sites — five TAB-separated fields, matched by KEY and never by line number:
@@ -267,8 +276,8 @@ def is_lawful_ruling(text: str) -> bool:
     """The one-clause decision index: completed, and pointing somewhere instead of retelling.
 
     This is what keeps the trimmed handoff's ruled-decision bullets lawful — they exist so a later
-    session does not re-decide a settled question, which is content the ceiling would happily pay
-    for. A ✅ that recites measurements, or a ✅ that runs past one clause even with a link in it, is
+    session does not re-decide a settled question, which is content the size reminder lets through
+    by design. A ✅ that recites measurements, or a ✅ that runs past one clause even with a link in it, is
     the narrative this rule is for, so BOTH halves are required and a pointer cannot whitewash a
     story."""
     if not DESTINATION_RE.search(text) or TELL_RE.search(text):
@@ -445,17 +454,20 @@ def git_age(cwd: Path, rev: str) -> str:
 
 # ---------------------------------------------------------------- the verdict
 
-def ceilings(size: dict, fields: dict) -> list[str]:
-    """The ceiling complaints, each naming both numbers it compared — a verdict that does not say
-    what it measured against is a verdict nobody can re-check."""
+def size_reminders(size: dict, fields: dict) -> list[str]:
+    """The size reminders, each naming both numbers it compared — a reminder that does not say what
+    it measured against is a reminder nobody can re-check. Printed, never a red: size is the proxy,
+    the changelog is the rule (CONVENTIONS §6.4)."""
     out = []
     for key, base_field, tol in (("bytes", "baseline_bytes", GROWTH_TOLERANCE_BYTES),
                                  ("lines", "baseline_lines", GROWTH_TOLERANCE_LINES)):
         cap = int(fields[base_field]) + tol
         if size[key] > cap:
-            out.append("CEILING %s: %s is %s %s, %d over the ceiling (%s = %s + %d tolerance)"
-                       % (key, size["path"], size[key], key, size[key] - cap, base_field,
-                          fields[base_field], tol))
+            out.append("SIZE %s: %s is %s %s, %d over what the seal + %d tolerance would allow "
+                       "(%s = %s) — growth is legal, so this reminds and moves on; only the "
+                       "HISTORY/DERIVED rules below decide whether it was changelog"
+                       % (key, size["path"], size[key], key, size[key] - cap, tol, base_field,
+                          fields[base_field]))
     return out
 
 
@@ -484,17 +496,18 @@ def _row(s: Site, n: int) -> str:
 def report(handoff: Path, seal_path: Path, verbose: bool = False, age: bool = True) -> int:
     size, sites = scan(handoff)
     fields, sealed = read_seal(seal_path)
-    red = ceilings(size, fields)
+    reminders = size_reminders(size, fields)
     grown, stale = diff_sites(sites, sealed)
 
-    print("handoff %s: %d B / %d lines, sealed at %s%s; ceilings +%d B / +%d lines"
+    print("handoff %s: %d B / %d lines, sealed at %s%s; size reminder prints above +%d B / +%d lines"
           % (size["path"], size["bytes"], size["lines"], fields["sealed_at"],
              (" (%s)" % git_age(handoff.parent, fields["sealed_at"])) if age else "",
              GROWTH_TOLERANCE_BYTES, GROWTH_TOLERANCE_LINES))
-    print("rules: CEILING (bytes, then lines, over the sealed size), HISTORY (§2 entries marked only "
+    print("rules: SIZE (REMINDER, non-blocking — bytes then lines over the sealed size; size is a "
+          "proxy, the changelog is the rule, CONVENTIONS §6.4), HISTORY (§2 entries marked only "
           "%s/%s/%s with no %s, no %s, and no one-clause ruling naming a destination), DERIVED (a "
           "typed computable count)" % (DONE[0], DONE[1], PARKED, PENDING, NEVER))
-    for line in red:
+    for line in reminders:
         print("  " + line)
 
     def block(title: str, rows: list, why: str) -> None:
@@ -517,17 +530,20 @@ def report(handoff: Path, seal_path: Path, verbose: bool = False, age: bool = Tr
         for s in sorted(frozen, key=lambda s: (s.cls, s.key)):
             print(_row(s, s.count))
 
-    if red or grown or stale:
-        print("FAIL: %d ceiling breach(es), %d new HISTORY site(s), %d new DERIVED site(s), "
-              "%d stale seal line(s)"
-              % (len(red), len([g for g in grown if g[0].cls == "history"]),
-                 len([g for g in grown if g[0].cls == "derived"]), len(stale)))
+    if grown or stale:
+        print("FAIL: %d new HISTORY site(s), %d new DERIVED site(s), %d stale seal line(s)%s"
+              % (len([g for g in grown if g[0].cls == "history"]),
+                 len([g for g in grown if g[0].cls == "derived"]), len(stale),
+                 " — %d SIZE reminder(s) above, none of them part of this verdict" % len(reminders)
+                 if reminders else ""))
         print("      A resolved §2 item LEAVES the handoff — name its destination in one clause and "
               "let the owning doc plus the commit hold the record (CONVENTIONS §4, close-out (5)); a "
               "computable count is re-derived by running, never typed (§close-out (6)).")
         return 1
-    print("OK: inside the seal — %d B / %d lines, %d frozen site(s) carried, nothing new, nothing "
-          "stale" % (size["bytes"], size["lines"], sum(s.count for s in sealed)))
+    print("OK: no finding — %d B / %d lines, %d frozen site(s) carried, nothing new, nothing "
+          "stale%s" % (size["bytes"], size["lines"], sum(s.count for s in sealed),
+                       ("; %d SIZE reminder(s) above are not findings (§6.4)" % len(reminders))
+                       if reminders else ""))
     return 0
 
 
@@ -567,8 +583,10 @@ def reseal(handoff: Path, seal_path: Path, rev: str | None = None) -> int:
           % (ob, fields["baseline_bytes"], direction, old_fields.get("baseline_lines", "?"),
              fields["baseline_lines"], fields["sealed_at"]))
     if direction.startswith("GREW"):
-        print("  ⚠ the handoff is BIGGER than its last seal. A ceiling red after a merge means the "
-              "handoff GREW — trim it. Raising a ceiling is how this guard gets muted, not kept.")
+        print("  ⚠ the handoff is BIGGER than its last seal. That is a fact about its content, not a "
+              "defence: HISTORY and DERIVED decide whether the growth was changelog, and this seal "
+              "only records the new size. Re-sealing a grown handoff is lawful; re-sealing a handoff "
+              "whose §2 kept its ✅ prose is not.")
     old_ids: dict = {}
     for s in old_sites:
         old_ids[s.id] = old_ids.get(s.id, 0) + s.count
@@ -605,8 +623,9 @@ def show_baseline() -> int:
     sys.stdout.write(render_seal({"baseline_bytes": str(size["bytes"]),
                                   "baseline_lines": str(size["lines"]),
                                   "sealed_at": git_rev(ROOT)}, sites))
-    print("--show-baseline: %d frozen line(s) for %d site(s); the ceiling would become %d B / %d lines"
-          % (len(sites), sum(s.count for s in sites), size["bytes"], size["lines"]), file=sys.stderr)
+    print("--show-baseline: %d frozen line(s) for %d site(s); the SIZE reminder would compare against "
+          "%d B / %d lines" % (len(sites), sum(s.count for s in sites), size["bytes"], size["lines"]),
+          file=sys.stderr)
     return 0
 
 
@@ -648,13 +667,14 @@ def _pair(tmp: Path, sealed_text: str, handoff_text: str | None = None) -> tuple
 
 def _grown(*lines: str, blank: bool = True) -> str:
     """FIXTURE with `lines` appended to §2, where the pointer list ends and §3 has to go on.
-    `blank=False` splices without the separator line, for arms that must stay inside the ceiling."""
+    `blank=False` splices without the separator line, for arms that must stay inside the size
+    reminder's tolerance."""
     return FIXTURE.replace("## 3.", "".join(lines) + ("\n## 3." if blank else "## 3."))
 
 
 def self_test() -> int:
     """Breed each defect in a temp tree and refuse a run that did not catch it. The arms ARE the
-    contract: a ceiling that cannot tell two lines from a paragraph is not a ceiling, and a ratchet
+    contract: a reminder that cannot tell two lines from a paragraph is not a reminder, and a ratchet
     that cannot watch its own debt vanish is not a ratchet. Nothing here writes near the real tree,
     and no arm reaches git — the seal revision is injected, so the test reads the same in every
     clone and in every fixture environment (the fixture-scrub rule about a gate's own fixture, scripts/README.md)."""
@@ -714,32 +734,37 @@ def self_test() -> int:
         arm("(a) and that green saw the site it froze — an empty walk may not print OK",
             rc == 0 and "FROZEN 1 site" in out, "rc %d: %s" % (rc, out[-260:]))
 
-        # (b) The tolerance, proved from both sides: two ordinary lines pass, a paragraph does not.
+        # (b) The tolerance, proved from both sides: two ordinary lines print nothing, a paragraph
+        # trips the reminder — and neither one reddens anything, because size is the proxy (§6.4).
         two = ("2. ⏳ **Another pointer** — one ordinary handoff line of about a hundred bytes, "
                "pointing at its row.\n"
                "3. ⏳ **And one more** — another ordinary handoff line of roughly the same size, "
                "pointing at its owning doc.\n")
         rc, out = run(*_pair(tmp / "two", FIXTURE, _grown(two)))
-        arm("(b) an ordinary two-line addition stays GREEN", rc == 0, "rc %d: %s" % (rc, out[-220:]))
+        arm("(b) an ordinary two-line addition stays GREEN and prints no reminder",
+            rc == 0 and "SIZE bytes" not in out and "SIZE lines" not in out,
+            "rc %d: %s" % (rc, out[-220:]))
         para = ("2. ⏳ **The story of the thing** — first the context, which runs to several lines and "
                 "     nobody asked for it; then the finding, in similar detail; then what was done,\n"
                 "     with the command that did it; then the read-back, with the output it printed; "
                 "     and last the lesson at length, because the lesson is the part that always\n"
                 "     escapes into the handoff instead of the owning doc, which is exactly the move\n"
-                "     this ceiling exists to refuse.\n")
+                "     this reminder only ever prints.\n")
         rc, out = run(*_pair(tmp / "para", FIXTURE, _grown(para)))
-        arm("(b) a one-paragraph story REDDENS the ceiling", rc == 1 and "CEILING" in out,
+        arm("(b) a one-paragraph story PRINTS the size reminder and stays GREEN — the reminder is "
+            "live, and only the prose rules redden",
+            rc == 0 and ("SIZE bytes" in out and "SIZE lines" in out),
             "rc %d: %s" % (rc, out[-220:]))
 
-        # (c) Neither half of the ceiling is dead code: bytes alone, then lines alone.
+        # (c) Neither half of the reminder is dead code: bytes alone, then lines alone.
         long_line = "2. ⏳ **X** — " + "y" * 500 + "\n"
         rc, out = run(*_pair(tmp / "long", FIXTURE, _grown(long_line)))
-        arm("(c) one long line REDDENS the byte rule alone",
-            rc == 1 and "CEILING bytes" in out and "CEILING lines" not in out, out[-220:])
+        arm("(c) one long line trips the byte half alone (and prints nothing about lines)",
+            rc == 0 and "SIZE bytes" in out and "SIZE lines" not in out, out[-220:])
         short = "".join("%d. a\n" % (i + 2) for i in range(GROWTH_TOLERANCE_LINES + 3))
         rc, out = run(*_pair(tmp / "short", FIXTURE, _grown(short)))
-        arm("(c) a run of short lines REDDENS the line rule alone",
-            rc == 1 and "CEILING lines" in out and "CEILING bytes" not in out, out[-220:])
+        arm("(c) a run of short lines trips the line half alone", rc == 0
+            and "SIZE lines" in out and "SIZE bytes" not in out, out[-220:])
 
         # (d) HISTORY keys on markers, not on prose. The answered bullet IS the shape that grew file.
         answered = "   - ✅ **The thing — ANSWERED: yes, and it landed in the owning doc.**\n"
@@ -763,7 +788,7 @@ def self_test() -> int:
         rc, out = run(*_pair(tmp / "outside", FIXTURE,
                              FIXTURE.replace("A ✅ that stayed outside §2",
                                              "A ✅ narrative that stayed here, outside §2")))
-        arm("(d) a ✅ outside §2 is not HISTORY — the ceiling alone bounds §1 and §3 (declared)",
+        arm("(d) a ✅ outside §2 is not HISTORY — only the size reminder sees §1 and §3 (declared)",
             rc == 0, "rc %d: %s" % (rc, out[-220:]))
 
         # The DECISION-INDEX exemption, both arms. A ruled decision that says where the ruling lives
@@ -843,7 +868,7 @@ def self_test() -> int:
         arm("(h) the seal it wrote parses back, with the injected rev and no complaints",
             not bad and fields["sealed_at"] == FIXTURE_REV and sum(x.count for x in sites) >= 2,
             str(bad))
-        arm("(h) reseal printed the ceiling direction and the site delta",
+        arm("(h) reseal printed the size direction and the site delta",
             "GREW +" in seal_out and "FROZEN " in seal_out and "frozen sites" in seal_out,
             seal_out[:200])
         arm("(h) reseal kept the seal's own header (explanation survives, data is rewritten)",
@@ -856,16 +881,19 @@ def self_test() -> int:
         rc, out = run(*_pair(tmp / "reseal-trim", grown, prose_trim))
         arm("(h) TRIMMING bytes off a looser seal is GREEN — smaller is always free", rc == 0,
             "rc %d: %s" % (rc, out[-200:]))
-        rc, out = run(*_pair(tmp / "reseal-grow", trimmed, grown))
-        arm("(h) GROWTH against a tighter seal REDDENS, which is the whole point of the guard",
-            rc == 1 and "CEILING" in out, "rc %d: %s" % (rc, out[-200:]))
+        # growth with no new site behind it: the same text, one long pointer added
+        size_only = trimmed.replace("## 3.", "2. ⏳ **A long pointer** — " + "z" * 500 + "\n\n## 3.")
+        rc, out = run(*_pair(tmp / "reseal-grow", trimmed, size_only))
+        arm("(h) SIZE growth against a tighter seal PRINTS the reminder and reddens nothing — that "
+            "is the whole of what a size bound does now", rc == 0 and "SIZE bytes" in out,
+            "rc %d: %s" % (rc, out[-200:]))
 
     if fails:
         print("FAIL: self-test — %d arm(s) did not behave" % fails)
         return 1
-    print("OK: self-test — the ceiling tells two lines from a paragraph with neither half dead code, "
-          "HISTORY keys on markers, its ⏳/⛔ and one-clause-ruling exemptions and its §2 scope proved, "
-          "DERIVED reddens "
+    print("OK: self-test — the size reminder tells two lines from a paragraph with neither half dead "
+          "code and never reddens, HISTORY keys on markers, its ⏳/⛔ and one-clause-ruling exemptions "
+          "and its §2 scope proved, DERIVED reddens "
           "on every listed count shape and ignores a fenced example, the seal is proved in both "
           "directions, and --reseal prints what it froze")
     return 0
@@ -876,8 +904,9 @@ def self_test() -> int:
 def main() -> int:
     ap = argparse.ArgumentParser(
         prog="check_handoff_size.py",
-        description="Prove the standing handoff cannot regrow: a size ceiling, a history-shape rule "
-                    "and the derived-values ban. Read-only; --reseal writes only the seal.",
+        description="Keep the standing handoff a handoff: a SIZE reminder (non-blocking), a "
+                    "history-shape rule and the derived-values ban. Read-only; --reseal writes only "
+                    "the seal.",
         epilog="exit 0 inside the seal · 1 finding(s) · 2 could not run")
     ap.add_argument("--verbose", action="store_true", help="list the frozen sites as well")
     ap.add_argument("--show-baseline", action="store_true",

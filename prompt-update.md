@@ -204,6 +204,9 @@ closed by definition, not by a change. ⛔ Never shred or delete a transcript (H
   those rotations close (HD-1181). Measured on the WSL seat: 134 items, 1 red = HD-1211. A seat whose reader has no
   SDK spends ~143 vault requests per gate run instead of 4 — the seat act is `python3
   scripts/lib/vault_read.py --install-sdk` ([docs/1password.md](docs/1password.md) §What a gate run costs the vault).
+  The size halves of the backlog/handoff/doc gates never belong in that red list: they print a reminder and exit
+  green, so a brief or row that grew with real content changes the item count by nothing
+  ([CONVENTIONS.md](CONVENTIONS.md) §6.4).
 - [ ] `todo.md` — only if a prerequisite row of its own exists; otherwise nothing.
 
 ### Phase 2 — rotations that need no device in front (pile 1 + `op_api`)
