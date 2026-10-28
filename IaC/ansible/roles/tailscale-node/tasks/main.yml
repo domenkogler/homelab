@@ -20,6 +20,11 @@
   ansible.builtin.command: dpkg --print-architecture
   register: _dpkg_arch
   changed_when: false
+  # `check_mode: false` because this is a READ, not a mutation: under `--check` the task would be
+  # skipped, the register would carry no `stdout`, the set_fact below would set the arch to the empty
+  # string and the digest assert in front would abort the rehearsal with `architecture ''` — a dry run
+  # that cannot reach the leg it exists to rehearse (HD-1128's ⚠, re-measured on the pi canary).
+  check_mode: false
   when: tailscale_host_arch | default('', true) | length == 0
 
 - name: Set the architecture used for the pinned .deb (explicit var wins, else the dpkg read)
