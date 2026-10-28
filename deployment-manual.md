@@ -136,8 +136,12 @@ bash scripts/harness/pi-seat-sync.sh --plane llm-path --check      # the same ve
 
 The pin exists only while spark's Home-VLAN address answers TCP/443 and it holds ONE name — the zone-wide "ask the home
 resolver at home" switch is rejected, because the LAN view answers some names with an edge that refuses them
-([docs/network-dns.md](docs/network-dns.md) §Host-side resolver). ⚠ WSL regenerates `/etc/hosts` at boot: re-run the push
-(or the seat fan-out) after a boot until **HD-1176** tail 5 gives it a timer of its own. The resolver's own answer is
+([docs/network-dns.md](docs/network-dns.md) §Host-side resolver). ⚠ WSL regenerates `/etc/hosts` at boot, so the pin needs
+the re-assert arm installed per seat — `sudo bash scripts/harness/seat-llm-path-timer.sh --install` **from the primary
+checkout** (a linked worktree is refused, because the unit's `ExecStart` names the repo by path). That installs
+`seat-llm-path.service` + `.timer` (`OnBootSec=10s`, then every 120 s); the read is
+`bash scripts/harness/seat-llm-path-timer.sh --check --strict`, or the `--plane llm-path` leg of `pi-seat-sync.sh`.
+The resolver's own answer is
 unchanged by the pin, so the read-back below still holds while `getent hosts llm.kogler.si` shows the Home address.
 
 ✔ In the guest: `dig +short llm.kogler.si @127.0.0.53` answers the tailnet edge, `dig +noanswer +comments AAAA

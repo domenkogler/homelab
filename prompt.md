@@ -395,9 +395,9 @@ not this list, holds the steps, the file ownership and the converge host. Waves,
     symlink-requiring venv arms).
     **HD-1176**'s mechanism is in place on the seat and its row stays **open** for what it
     still owes: the four seat artifacts have **no repo owner** (the `wsl` seat plane in `scripts/harness/`), the
-    headscale-side call on MagicDNS `SERVFAIL`ing most of `zone_kogler_si`, the suspend/resume + away-from-home
-    re-measure, and a re-assert arm for the `llm-path` pin (tail 5: WSL regenerates `/etc/hosts` at boot, so the pin rides
-    this row's `OnUnitActiveSec` shape and `pi-seat-sync.sh --plane llm-path` is what reports it gone). The runner seat
+    headscale-side call on MagicDNS `SERVFAIL`ing most of `zone_kogler_si`, and the suspend/resume + away-from-home
+    re-measure. The `llm-path` pin's re-assert arm is NOT among them: `scripts/harness/seat-llm-path-timer.sh` owns the
+    `seat-llm-path.service` + `.timer` pair and it is installed and active on this seat. The runner seat
     answers `path=lan` for the inference name, so its converge legs do not cross the tailnet edge.
     Record: [scripts/README.md](scripts/README.md) `validate-all.sh` + `lib/python.sh` + `lib/repo_root.py` ·
     [docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1.
