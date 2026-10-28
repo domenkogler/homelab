@@ -27,6 +27,18 @@ inside one session. The LIVE wave table is
 7. **Orchestrator discipline:** for multi-step/multi-host/live-deploy changes, one parent co-ordinates bounded single-deliverable subagent lanes (pi-subagents); the parent holds final acceptance + runs validate-all. **Delegation is the default, not an escalation** (O10), and a child's silence is a compaction pause, not a hang — the run budget is 2 h per child, so steer on a *needs-attention* notice or the deadline, never on quiet (O11).
 8. **Escalation ladder — a stalled task has three rungs, in this order, and no fourth.** The ban on reaching for a hosted model is [README.md](../README.md) §3's; what to do INSTEAD is stated here, once. **Rung 1 — retry with a narrower read list:** the same task and the same acceptance, with fewer files opened; when the context is what failed, re-reading the same corpus is not an attempt. **Rung 2 — split the task:** two bounded children where one could not hold the whole thing. **Rung 3 — ask the owner,** who may authorize an external model **for that task only**; an answer naming one task authorizes that task, never the session, and it never makes the hosted lane selectable by the agent. **A task is never run identically a third time** — a third launch with the same read list and the same acceptance is the rung being skipped, so escalate one rung instead of re-launching. A task that flips **done→open twice** is not a task any more, it is an unknown: it becomes an owner question, not a third attempt.
 
+9. **A host on the session's own model path is as off-limits as the host that serves it.** The generalization of the
+   spark-served rule below: the session converges things over a path, and that path is a dependency of the act, not a
+   property of the seat. Before any act on a host, read what the inference name currently resolves to on this seat —
+   `bash scripts/harness/seat-llm-path.sh --check` prints `path=lan` (the lane is `seat → inference host :443`, so an act
+   on the tailnet edge or the VPS cannot cut it) or `path=edge` (the lane rides `*.kogler.si` → the tailnet edge → WG S2S,
+   so restarting that edge ends the session that is converging it, mid-request). Where the verdict is `path=edge`, an edge
+   or sidecar act is either taken last and alone, or taken from a seat whose lane does not cross that host. The plane is
+   the seat's own (`scripts/harness/seat-llm-path.sh`, the `llm-path` seat plane in
+   [`lib/seat-planes.yml`](../scripts/lib/seat-planes.yml)); it pins **one** name's answer while the address answers TCP/443
+   and removes the pin when it stops, and it changes no answer plane — the zone rows, the netmap and the tailnet policy are
+   outside it ([network-dns.md](network-dns.md) §Host-side resolver, [network-vpn.md](network-vpn.md) §Tailnet boundary).
+
 **Ask-if-unsure:** planned/multi-host/deploy-gated/irreversible → orchestrator pattern; re-deciding → check owning doc + rejected log first; unsure of the owning doc → `docs/index.md` map.
 
 
@@ -129,6 +141,12 @@ inside one session. The LIVE wave table is
   `if (!verdict.blockers)` test exactly as a clean review does, so a verdict-gated fix stage silently no-ops and the run ships
   a review it never received. A script must treat a MISSING verdict as a blocker and dispatch the fix from the reviewer's
   **prose**, which is the half that always comes back.
+- **The model path is a dependency of the act, and a launch states it.** "Do not converge spark from a spark-served run"
+  is one instance of a wider rule: the run also must not cut the path its own model lane travels. Read
+  `bash scripts/harness/seat-llm-path.sh --check` before composing a lane whose target is the tailnet edge or the VPS, and
+  write the verdict into the launch (`path=lan` ⇒ a VPS edge act cannot reach the lane; `path=edge` ⇒ it can, so the act
+  goes last and alone or moves to another seat). The failure this rule exists for is a lane that severs the inference path
+  of the session driving it and every child inside it, which reads as a hung fleet rather than as a self-inflicted cut.
 - **Dispatch filter on a spark-served seat.** If the session's own model is spark, the spark engine brief is
   out of scope for the **whole run** — no child may be launched against it, timed or not (standing rule 2 in
   [todo-table.md](../todo-table.md) §C). A provably engine-safe spark converge stays allowed, with the engine
@@ -201,7 +219,9 @@ inside one session. The LIVE wave table is
 5. Read the seat's own model (`echo $PI_PROVIDER`): on a spark-served seat the spark engine brief is excluded
    from the whole run, for the parent and for every child alike (O11's dispatch filter). Say which briefs are
    excluded and why, in the same breath as the lane map — a lane that discovers the exclusion mid-flight has
-   spent a slot learning it.
+   spent a slot learning it. Read the seat's **model path** with it
+   (`bash scripts/harness/seat-llm-path.sh --check` → `path=lan|edge`) and name it in the launch: it is what says
+   whether a lane's own act can sever the lane (§3 item 9).
 6. Read the seat's **placement** the same way: whether this box is the target of any leg it is about to drive. A
    lockout-class role on the controller's own host is refused by the guard and must be re-driven from another control node
    (the seat brief names the legs), and an externally-served run belongs on the designated runner station — naming the seat
