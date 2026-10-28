@@ -92,6 +92,7 @@ tags: [network, rejected, decision-log]
 | Reordering the Home resolver chain for latency | rejected | HA-independence: Home must resolve with oldsrv down; forwarding closed the gap |
 | Self-hosted DERP on the VPS | rejected | Another relay leg; latency sits on the phone leg |
 | Single shared WireGuard keypair on both wg-s2s ends | rejected | WireGuard silently refuses to handshake with your own key |
+| Spark tailnet node under another node's tag | rejected | By-tag widening; spark's grant names its own address |
 | Split-DNS routes and client --accept-dns toggles for tailnet names | rejected | A client-side stopgap; the headscale chain is the durable fix |
 | systemd-networkd as the nas and oldsrv config manager | superseded | Neither: oldsrv is NetworkManager, nas is configured by ifupdown — the netd units named nothing (fact clause superseded 2026-10-18: nas adopted NetworkManager; the no-networkd ruling on nas/oldsrv stands) |
 | systemd-networkd as the oldsrv config manager | rejected | NetworkManager already holds the routes; cutover risks the converge leg itself |
@@ -106,6 +107,7 @@ tags: [network, rejected, decision-log]
 | The VPS public address as the tailnet's resolver | rejected | Same zone, views by source: NXDOMAIN away for names the node serves |
 | Truenas 92:47:15:04:EB:49 | dropped | Locally-administered MAC never owned; the VM is deleted |
 | Two config managers, or none, on one box | rejected | Per-box file ownership is unpredictable and self-conflicting |
+| Two home tailnet nodes | superseded | spark is the third home node; the NAS stays out, still zero home subnets |
 | UPS web-UI firewall rule | rejected | UPS left the Mgmt VLAN; its web UI and Modbus stay unused |
 | v4 dst-nat + input accept for tailscale punches | dropped | Scan traffic proves the mechanism; the phone cannot ask |
 | VLAN 21 IoT-Internet as a Wi-Fi-reachable network | dropped | wifi-qcom-ac cannot tag per client; VLAN 20 plus wan_allow is reality |

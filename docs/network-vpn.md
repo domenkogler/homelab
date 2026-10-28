@@ -342,13 +342,17 @@ rides a **direct** session end to end rather than a forwarded port. The accepted
 listener on the vault-token box, bounded by the `tag:dev` preauth-key tag and the port-scoped ACL in
 `headscale/policy.hujson.j2`.
 
-**Two home nodes are permitted on the tailnet, and the NAS is not one of them**
+**Three home nodes are permitted on the tailnet, and the NAS is not one of them**
 (the decision is logged in [network-rejected.md](network-rejected.md)). Node **`oldsrv`**: `tag:dev`,
 headscale node id 11, joined by `roles/tailscale-node`. Node **`pi`**:
 headscale id 13, address in SSOT `tailnet_pi_ip`, tag `tag:home-edge`, granted **`tcp/443` from
 `domen@kogler.si` and nothing else** — and the tag is **read back** from `headscale nodes list -o json`
 rather than trusted from the mint command, because the grant follows whatever tag the node actually landed
-with.
+with. Node **`spark`**: address in SSOT `tailnet_spark_ip`, its own tag `tag:spark`, joined by the same
+role, granted **`tcp/443` on its node address** and nothing else. The reason it joins is the reason the
+other two joined: the tailnet answer for spark's AI names rides the **VPS** edge node, so while that node
+is down the names are missing from every tailnet client even though the engine behind them answers on the
+Home VLAN — spark's own node keeps the endpoint reachable with the VPS on the control plane only.
 ✅ `https://pi.ts.kogler.si/` → **200** from a laptop's own tailnet client, the peer
 listed as `active; direct 193.77.156.222:41641` — a direct session, no relay.
 
@@ -367,6 +371,26 @@ node-direct shape as oldsrv's, which is what makes HA survivable when either hom
 still works is `pi.ts.kogler.si`. Publishing **both** addresses (`tailnet: dual`) is what makes the answer
 survive either box.
 
+⚠ **`tag:spark` grants nothing, and that is the point.** An ACL grants by TAG, so spark taking
+`tag:dev` or `tag:home-edge` would have widened the dev seat's or the Pi's inbound surface to a third box —
+the same silent-inheritance hazard the note above names. So spark's rule in `policy.hujson.j2` is written on
+the node **address** (`<tailnet_spark_ip>/32:443`, rendered under the same condition as the listener below,
+so a half-done join leaves neither a grant nor a listener), and its tag does one job only: it lands the node
+in headscale's synthetic `tagged-devices` user, where `dst: ["domen@kogler.si:*"]` cannot reach it. What the
+node serves is a single listener — the `traefik-spark` **`lm-ts`** entrypoint, bound to that same address
+(never `0.0.0.0`, and bindable before tailscaled is up because `net.ipv4.ip_nonlocal_bind=1` is already set
+by the spark role) and carrying the existing `llm.kogler.si` / `llm.ts.kogler.si` router. **No `udp/53`**:
+spark hosts no DNS instance, so naming it a tailnet nameserver would be a decision nobody made.
+⏳ **IaC done, not live**: the preauth key, the join, the address read-back into `tailnet_spark_ip` and
+the two converges (`headscale` policy + `spark-dashboard`) are owner-present acts. While
+`tailnet_spark_ip` is empty neither the listener nor the grant renders, so what is authored stays inert.
+
+⚠ **The node answers the port; it does not yet answer the NAME.** The AI names stay `tailnet: edge` in
+`zone_kogler_si`, and `node`/`dual` are the only classes that publish a `.ts` twin from a home node address
+(the field contract is on the list itself, in `group_vars/all/main.yml`). Until that record-vocabulary
+decision is made — and it is a decision about the answer plane, never a listener flag — the node-direct probe
+names the address itself: `curl -sk --resolve llm.kogler.si:443:<tailnet_spark_ip> https://llm.kogler.si/v1/models`.
+
 `tailscale_node_expected_ip` (host_vars) is the **per-host** address the join guard compares the assignment
 against — its default is `""`, which reads as "not yet asserted", not as "wrong".
 
@@ -374,16 +398,19 @@ The scope is enforced, not intended:
 no `--advertise-routes` (so `headscale routes list` stays empty and no home subnet is reachable from the
 tailnet at all), no exit node (the exit node stays the Pi — §Slovenian exit node), no Tailscale SSH,
 `--accept-dns=false` (oldsrv *runs* a Technitium instance; a DNS takeover would put a resolver in front of
-the tier it serves), and the ACL admits **`tag:dev:443`** plus **one DNS rule** — `udp 53` to that node's own
-address, written on the address rather than on the tag so a second `tag:dev` node cannot inherit a resolver
-grant (docs/network-dns.md §The resolution requirement). Port 443 and UDP/53 on one node,
-not `:*` on the box that holds the vault token — and no TCP/53, no other port, nothing by tag. The boundary's
-purpose survives on purpose: Shelly/KNX/IoT/guest stay
+the tier it serves), and the ACL admits the home nodes on **port 443 and nothing else** — `tag:dev:443`,
+`tag:home-edge:443`, and spark's grant written on its **node address** rather than on any tag — plus
+**one DNS rule**: `udp 53` to that resolver node's own address, written on the address rather than on the
+tag so a second `tag:dev` node cannot inherit a resolver grant (docs/network-dns.md §The resolution
+requirement). Port 443 and UDP/53 on one node,
+not `:*` on the box that holds the vault token — and no TCP/53, no other port, nothing by tag toward a
+resolver. The boundary's purpose survives on purpose: Shelly/KNX/IoT/guest stay
 non-tailnet-reachable, and VLAN 99 keeps its seal (decision A).
 
 Because a preauth-key node lands in headscale's synthetic `tagged-devices` user rather than the owner's
-user, `dst: ["domen@kogler.si:*"]` cannot reach it — the ONLY path in is the explicit `tag:dev:443` rule in
-`policy.hujson.j2`. Joining by interactive OIDC login instead would put the node under the user and inherit
+user, `dst: ["domen@kogler.si:*"]` cannot reach it — the ONLY path in is an explicit rule in
+`policy.hujson.j2`, scoped per node: by tag for oldsrv and the Pi, on the node address for spark.
+Joining by interactive OIDC login instead would put the node under the user and inherit
 `:*`; the preauth key is therefore a security control, not just a bootstrap convenience.
 
 **What oldsrv serves on that node** is its own home edge (`traefik-internal`, a `websecure-ts` entrypoint
