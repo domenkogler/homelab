@@ -123,11 +123,14 @@ installer is idempotent on a second run; the row's tail loses the "no repo owner
 
 The headscale-side question **HD-1176** carries — should MagicDNS forward the parent zone instead of
 `SERVFAIL`ing the names outside the netmap — has no `Options` section, so today it is an argument.
-Mint it in [docs/network-dns.md](docs/network-dns.md) to CONVENTIONS §8.3's shape: derive the next id
-(`git grep -hoE 'OQ-[0-9]+' -- '*.md' | sed 's/OQ-//' | sort -n | tail -1`, then +1 — never type one), two or
-more option rows, and a `Cheap test` cell that could actually settle it (a probe against the resolver for a
-netmap name and a non-netmap name, read from a device ON the tailnet). No recommendation in the section: the
-answer is the owner's act, and when it lands it becomes state prose plus a `network-rejected.md` row if an
+Mint it in [docs/network-dns.md](docs/network-dns.md) to CONVENTIONS §8.3's shape. `check_open_questions.py`
+is the authority and it prints the **derived next id** — read it instead of typing one — and it enforces the
+rest: an `Options` heading at level 2 or 3 naming the id, the header exactly
+`| Option | For | Against | Cost | Cheap test |`, **two or more** option rows, every `Cheap test` cell
+non-empty, and no recommend/decided/decision wording anywhere inside the section. Make the cheap test one
+that could actually settle it: a resolver probe for a netmap name and a non-netmap name, run from a device ON
+the tailnet, since a home Technitium instance cannot see this plane at all. No recommendation in the section —
+the answer is the owner's act, and when it lands it becomes state prose, plus a `network-rejected.md` row if an
 alternative dies.
 
 ---
