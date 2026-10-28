@@ -359,8 +359,12 @@ tailnet_spark_ip: ""
 #              `.ts` twin; `node` and `dual` publish the `.ts` twin ONLY, because a
 #              tailnet address answering a plain name client-side is the
 #              resolver-ambiguity trap (a phone standing at home stops seeing the LAN
-#              answer). `dual` = the same name answered by two home nodes;
-#              no entry uses it yet and nothing renders differently for it today.
+#              answer). `dual` = the same `.ts` name answered by BOTH home nodes: the first
+#              row takes the class default, the second is always `tailnet_pi_ip`, and that
+#              second row renders only when the address is set — a node the deploy never
+#              filled costs one answer, never the config. Publishing two addresses is what
+#              keeps the ANSWER alive across a home-box death; the service behind the name
+#              surviving is a different claim (docs/smart-home-failover.md).
 #   tailnet_ip: literal tailnet IPv4. OMIT it to take the class default
 #              (`tailnet_sidecar_ip` for edge, `tailnet_oldsrv_ip` for node/dual).
 #              A literal is deliberate: group_vars gets no second Jinja pass, so

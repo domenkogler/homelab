@@ -12,9 +12,12 @@
    holds, so neither key may reorder the netmap. The tailnet address is an entry's `tailnet_ip:`,
    never its `ip:` — `ip:` is the LAN (Technitium) answer. `edge` entries answer BOTH namespaces,
    `node`/`dual` entries the `.ts` twin ONLY; that split is a per-name decision recorded in the zone
-   list, not here. The address is assigned SEQUENTIALLY by headscale at node join, so it is not known
-   at authoring time: it comes from the class defaults (`tailnet_sidecar_ip`, `tailnet_oldsrv_ip`)
-   that the deploy step fills from `headscale nodes list` after each node joins. An entry whose
+   list, not here. A `dual` entry adds a SECOND `.ts` row for the same name at `tailnet_pi_ip`, after
+   the `tailnet_oldsrv_ip` row and only where that address is set — the same rows in the same order
+   `config.yaml.j2` writes them, which is the equality above. The address is assigned SEQUENTIALLY by
+   headscale at node join, so it is not known
+   at authoring time: it comes from the class defaults (`tailnet_sidecar_ip`, `tailnet_oldsrv_ip`,
+   `tailnet_pi_ip`) that the deploy step fills from `headscale nodes list` after each node joins. An entry whose
    address resolves to nothing renders no record, and no address at all renders `[]` rather than a
    half-populated netmap. -#}
 {%- set _any_ip = tailnet_sidecar_ip | default('', true) or tailnet_oldsrv_ip | default('', true) -%}
@@ -32,8 +35,11 @@
 {%- for sub in tailnet_ts_only_subdomains -%}
 {%- set _ip = sub.tailnet_ip | default(tailnet_oldsrv_ip) -%}
 {%- if _ip -%}
-{%- set ns.rows = ns.rows + [{"name": sub.name | regex_replace('\\.' ~ domain_public ~ '$', '.' ~ tailnet_base_domain),
-                              "type": "A", "value": _ip}] -%}
+{%- set _ts_name = sub.name | regex_replace('\\.' ~ domain_public ~ '$', '.' ~ tailnet_base_domain) -%}
+{%- set ns.rows = ns.rows + [{"name": _ts_name, "type": "A", "value": _ip}] -%}
+{%- if sub.tailnet == 'dual' and tailnet_pi_ip -%}
+{%- set ns.rows = ns.rows + [{"name": _ts_name, "type": "A", "value": tailnet_pi_ip}] -%}
+{%- endif -%}
 {%- endif -%}
 {%- endfor -%}
 {%- endif -%}

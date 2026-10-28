@@ -957,9 +957,11 @@ black hole with extra steps.
    the netmap — and a `lan_only: true` name has no public answer to fall back to, so a tailnet client away from
    home would be sent a home LAN address it cannot route (this ruling's own invariant above). The node-direct path
    the flip was wanted for does not need the answer to move: the node answers TCP/443 under the address-scoped
-   grant ([network-vpn.md](network-vpn.md) §Tailnet boundary), and two-address `dual` rendering is HD-435's owed
-   half, so `node` and `dual` are the same single record today. A seat at home reaches the node directly without
-   any of this — the `llm-path` seat plane ([§Host-side resolver](#host-side-resolver)).
+   grant ([network-vpn.md](network-vpn.md) §Tailnet boundary). `dual` differs from `node` by ONE row and
+   nothing else: the same `.ts` twin answered a second time at `tailnet_pi_ip`, rendered only where that
+   address is set, so which home nodes answer a name is the field's and never a listener flag. A seat at
+   home reaches the node directly without any of this — the `llm-path` seat plane
+   ([§Host-side resolver](#host-side-resolver)).
 
 ⚠ **The two planes are disjoint — no single *forwarded* answer covers both**, and that decides the workstation
 half of this refactor. From one box, one interface, both nameservers probed directly: MagicDNS
@@ -1075,6 +1077,11 @@ Facts that hold in either shape:
   is unconditional (`_extra_templates.headscale`), because an absent bind SOURCE is what Docker
   helpfully auto-creates — as a root-owned directory — and that is a longer diagnosis than a file
   that exists and is unused.
+* A `dual` zone entry contributes **two** rows for one `.ts` name — `tailnet_oldsrv_ip` then
+  `tailnet_pi_ip` — at the same document position in both shapes, and the second one is simply absent
+  while the Pi's address is unset, so a home node that never joined costs an answer and not the config.
+  `require_same_records` is what keeps the shapes agreeing on that order, and `--self-test` proves a shape
+  that drops the second row is RED there rather than a netmap with one address.
 * Mode and owner are the deploy default, `0644 root:root` — world-readable, the pair `./config.yaml`
   is mounted with, so no uid the image may run as is denied by this file.
 * **The body is JSON and carries no comment line, including no `ansible_managed` header** — JSON has no

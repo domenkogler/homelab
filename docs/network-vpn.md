@@ -366,10 +366,14 @@ nameserver is its own address-scoped decision. What the Pi does serve there is H
 `websecure-ts` listener (`ha.ts.kogler.si` / `pi.ts.kogler.si`, XFF stripped, no Forward-Auth) — the same
 node-direct shape as oldsrv's, which is what makes HA survivable when either home box dies.
 
-⚠ **The edge survives either box; the ANSWER does not yet.** MagicDNS answers `ha.ts.kogler.si` with
-**oldsrv's node address** (SSOT `tailnet_oldsrv_ip`), so when that node is not answering the away path that
-still works is `pi.ts.kogler.si`. Publishing **both** addresses (`tailnet: dual`) is what makes the answer
-survive either box.
+⚠ **The edge survives either box; the ANSWER survives it only where the field says so.** Which home nodes
+answer a `.ts` name is that entry's `tailnet:` field in `zone_kogler_si`: `node` renders one address
+(`tailnet_oldsrv_ip`), `dual` renders that address **and** `tailnet_pi_ip` — the second row appearing only
+where that address is set. `ha` is `node`, so when oldsrv's node is not answering, the away path that still
+works is `pi.ts.kogler.si`. Two addresses are what make the ANSWER survive either box — and only where BOTH
+boxes answer TCP/443 under that name, because a second address behind a listener that is not there is one more
+timeout, not survivability. The SERVICE surviving either box is the VIP's second advertiser, a different
+claim ([smart-home-failover.md](smart-home-failover.md) §Away access (tailnet)).
 
 ⚠ **`tag:spark` grants nothing, and that is the point.** An ACL grants by TAG, so spark taking
 `tag:dev` or `tag:home-edge` would have widened the dev seat's or the Pi's inbound surface to a third box —

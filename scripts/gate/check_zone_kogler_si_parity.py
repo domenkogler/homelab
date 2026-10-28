@@ -370,7 +370,8 @@ def self_test() -> int:
                 row["ip"] = "10.10.10.10"
     cases.append(("re-pointing sso to a LAN IP is RED", bool(compare(golden, mutated))))
 
-    # 4. moving a .ts-only name into the plain namespace (the HD-382/389 trap)
+    # 4. moving a .ts-only name into the plain namespace (the resolver-ambiguity class the
+    #    plain/`.ts` split exists to hold)
     mutated = json.loads(json.dumps(current))
     moved = [r for r in mutated["headscale"]["ts_only"] if r["name"].startswith("spark.")]
     if not moved:
@@ -438,6 +439,47 @@ def self_test() -> int:
     findings = compare(golden, _render_with_field(zone, published, "public", False))
     cases.append((f"flipping {published} public→false reddens the public surface",
                   any(f.startswith("cloudflare:") for f in findings)))
+
+    # 11b. `dual` is the one flag that adds an ADDRESS instead of moving a name: the `.ts` twin must
+    #      answer at BOTH home nodes, in BOTH record shapes, in the same document position
+    #      (`render_all` already refuses the two shapes in a different order). Canary: the second row
+    #      going missing from one shape — the shape that leaves the away path pointed at whichever home
+    #      box is the dead one. The first address is read out of the unflipped render, never re-typed,
+    #      so an entry carrying a literal `tailnet_ip:` is still tested honestly. The third half is the
+    #      degradation an unfilled Pi node must produce: one address, not a half-populated netmap.
+    node = next((e["name"] for e in zone if e.get("tailnet") == "node"), None)
+    if not node:
+        raise ParityError("self-test found no `tailnet: node` entry to flip to dual — the zone changed shape")
+    _ctx = zr.build_context()
+    ts_name = f"{node[: -len('.' + str(_ctx['domain_public']))]}.{_ctx['tailnet_base_domain']}"
+    pi_ip = str(_ctx["tailnet_pi_ip"])
+    first_ip = {r["value"] for r in current["headscale"]["ts_only"] if r["name"] == ts_name}
+    dual = _render_with_field(zone, node, "tailnet", "dual")
+    answers_both = all({r["value"] for r in dual[s]["ts_only"] if r["name"] == ts_name} == first_ip | {pi_ip}
+                       for s in ("headscale", "headscale_file"))
+    def _red(payload):
+        findings = compare(golden, payload)
+        return {s for s in ("headscale:ts_only", "headscale_file:ts_only")
+                if any(f.startswith(f"{s}:") for f in findings)}
+    # The canary: strip the second address from ONE shape and the diff must go green THERE and stay red
+    # in the other — the pair a one-sided template produces, which is why the case asks for BOTH shapes
+    # rather than "a row appeared".
+    missing = json.loads(json.dumps(dual))
+    missing["headscale_file"]["ts_only"] = [r for r in missing["headscale_file"]["ts_only"]
+                                            if not (r["name"] == ts_name and r["value"] == pi_ip)]
+    sees_it_gone = _red(dual) == {"headscale:ts_only", "headscale_file:ts_only"} \
+        and _red(missing) == {"headscale:ts_only"}
+    true_vars = zr._raw_vars
+    zr._raw_vars = lambda: dict(true_vars(), tailnet_pi_ip="")
+    try:
+        degraded = _render_with_field(zone, node, "tailnet", "dual")
+    finally:
+        zr._raw_vars = true_vars
+    degrades = all({r["value"] for r in degraded[s]["ts_only"] if r["name"] == ts_name} == first_ip
+                   for s in ("headscale", "headscale_file"))
+    cases.append((f"{node} → dual answers {ts_name} at BOTH home nodes in both shapes, sees the second "
+                  "address go missing, and degrades to one address when the Pi's is unset",
+                  bool(first_ip) and answers_both and sees_it_gone and degrades))
 
     # 12. the key's LINE, in BOTH engines — the shape that put a `dns:` block with no records on a live
     #     control plane. Same source, trim_blocks False (this repo's renderer) and True (Ansible's

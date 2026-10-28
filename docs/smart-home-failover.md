@@ -260,12 +260,16 @@ when the VIP is on oldsrv. Because the VIP already tracks the active HA node, th
   §Edge model); `ha.ts.kogler.si` / `oldsrv.ts.kogler.si` on its tailnet listener route to
   `ha-backend = VIP:8123`.
 - ⚠ The weak half is the **answer**, not the edge: MagicDNS (the loopback resolver in
-  [network-dns.md](network-dns.md)) answers `ha.ts.kogler.si` with **one node address only** — oldsrv's,
-  SSOT `tailnet_oldsrv_ip` — so when that node is not answering, an away client gets a dead answer for the
-  `ha`-shaped names and must reach HA as `pi.ts.kogler.si`. The dual-A publish is the `zone_kogler_si`
-  `tailnet: dual` step — deliberately NOT a bolt-on to `tailnet_subdomains`, which would
-  answer the PLAIN `ha.kogler.si` client-side for a phone standing at home. Reasons:
-  [network-dns.md](network-dns.md) §The answer-plane model.
+  [network-dns.md](network-dns.md)) answers a `.ts` name with the addresses its `zone_kogler_si` entry
+  publishes, and a `tailnet: node` entry publishes **one** — oldsrv's, SSOT `tailnet_oldsrv_ip` — so while
+  `ha` is `node` an away client gets a dead answer for the `ha`-shaped names whenever that node is silent and
+  must reach HA as `pi.ts.kogler.si`. `tailnet: dual` publishes the Pi's address beside it
+  (`tailnet_pi_ip`, second row rendered only when it is set); it is deliberately NOT a bolt-on to
+  `tailnet_subdomains`, which would answer the PLAIN `ha.kogler.si` client-side for a phone standing at home.
+  Reasons: [network-dns.md](network-dns.md) §The answer-plane model.
+- ⚠ A dual-A publish makes the **answer** survive either home box and does not make the **service** survive
+  it. Both `ha`/`ha-ts` routers target the VIP, and the VIP has one advertiser until the standby is
+  cold-created (§Nodes & Deployment), so the drill that proves failover is owed independently of the record.
 - Plain `ha.kogler.si` deliberately does **not** resolve from away: publishing the internal home zone's answer
   publicly is the exposure the design refuses. **The coupling:** `ha.ts` is a `.ts` name, so its *resolution*
   lives in the netmap (headscale, VPS) while its *answer* is the VIP — it carries both dependencies. Same

@@ -111,7 +111,10 @@ dns:
   # group_vars/vps.yml and keyed by their FQDN `name`. The tailnet address is an entry's
   # `tailnet_ip:`, never its `ip:` — `ip:` is the LAN (Technitium) answer. `edge` entries answer BOTH
   # namespaces, `node`/`dual` entries the `.ts` twin ONLY; that split is a per-name decision recorded
-  # in the zone list, not here. Each record is {name, type, value}.
+  # in the zone list, not here. Each record is {name, type, value}. A `dual` entry answers its `.ts`
+  # twin at BOTH home nodes — `tailnet_oldsrv_ip` first, then `tailnet_pi_ip` — and the second row
+  # appears only where that address is set, so a node that has not joined costs one answer and never
+  # the config. Two rows for one name are the point: the answer must not depend on one box.
   #
   # ⛔ ONE record key, never two. `dns.extra_records` (the block below) and
   # `dns.extra_records_path` (the records file `extra_records.json`, a JSON array rendered next to
@@ -152,6 +155,12 @@ dns:
     - name: "{{ _ts_name }}"
       type: "A"
       value: "{{ _ip }}"
+{% if sub.tailnet == 'dual' and tailnet_pi_ip %}
+{% set ns.rendered = ns.rendered + 1 %}
+    - name: "{{ _ts_name }}"
+      type: "A"
+      value: "{{ tailnet_pi_ip }}"
+{% endif %}
 {% endif %}
 {% endfor %}
 {% endif %}
