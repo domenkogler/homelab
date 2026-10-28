@@ -248,6 +248,32 @@ inside one session. The LIVE wave table is
    after a merge (O5's exempt form); "dirty, then commit, then gate" is not that.
 
 
+10. **The fan-out is authored as a script FILE, validated, then launched** — `subagent({ action: "validate", workflow: "/tmp/pi-lanes-<date>-<HHMM>.js" })`
+    first, then `subagent({ workflow: "<that path>", async: true })`. Validation compiles the script **without launching a child**, and it is the cheapest
+    gate in orchestration: a script that throws fails the *workflow*, not the lane, so the lane worktrees stay empty and nothing costs a slot. Why a file and
+    not the inline block: a lane brief here is a thousand tokens of read-first lists and hard constraints, and a file holds it verbatim where `read` can
+    review it and a re-launch is the same path instead of a re-typed payload; `/tmp` keeps the repo tree untouched, so no gate sees it. Two traps the file
+    form closes — a fenced ```js block in the reply **plus** a string `workflow` argument is read as a **path**, not as the script, and a long brief carried
+    inside a JSON argument dies on string escaping. The sandbox API inside a script is `runs.run` / `runs.all` / `runs.lanes` / `runs.steer` / `emit`;
+    `parallel(...)` is **not** a script helper (it is the `{ workflow: "parallel", args: { tasks: [...] } }` tool form), and naming it is the one-line way to
+    spend a launch on a `ReferenceError`. ⚠ After any workflow failure, run `git status --porcelain` **and** `git log main..HEAD` in every lane worktree before
+    re-launching: a script error means **no child ran**, and re-launching into a lane that did run puts two writers in one tree.
+    Each `runs.all` item carries `key` (the stable lane id), `label` (verb + behaviour, the human row), `agent`, `cwd` (that lane's own worktree — one writer
+    per cwd, O9), and a task that names the worktree path, the fork commit, the read-first list, the deliverables, the hard constraints (`todo.md` /
+    `prompt*.md` / `todo-table.md` / `plan/` belong to the parent), and the evidence block to finish with.
+
+    ```js
+    // /tmp/pi-lanes-<date>-<HHMM>.js — one runs.all batch, one cwd per lane
+    const results = await runs.all([
+      { key: "laneC-seat-reassert", label: "Author seat re-assert unit + timer",
+        agent: "worker", cwd: "../homelab-wt-<date>-<HHMM>", task: "…the brief, verbatim…" },
+      { key: "laneB-extra-records-path", label: "Author extra_records_path swap",
+        agent: "worker", cwd: "../homelab-wt-<date>-<HHMM+1>", task: "…the brief, verbatim…" },
+    ])
+    return results.map((r) => ({ key: r.key ?? null, ok: r.ok, output: r.output }))
+    ```
+
+
 ### Merge + cleanup (the parent — none of this is ever a lane's job)
 
 1. Touch nothing until both lane branches are **committed and green in their own worktree** — and prove that to yourself: `git -C <lane-worktree> log --oneline -1` + `git show --stat` + `git status --short`. **A lane's own report is not evidence; only `git log` decides.** A finished-sounding report naming files, line numbers, validator output and a commit message can describe a worktree with no commit and no changed byte. (A report that does not match the tree is refused: stop the run, keep the row open, take the work over.)
