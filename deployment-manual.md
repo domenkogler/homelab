@@ -127,6 +127,19 @@ sudo resolvectl domain eth0 "~ts.kogler.si" "~kogler.si"
 sudo resolvectl flush-caches
 ```
 
+The inference name is answered **ahead of both** arms by ONE `/etc/hosts` line, kept by the repo plane and never written by hand:
+
+```bash
+sudo bash scripts/harness/seat-llm-path.sh --push                  # root act: the file is root-owned (--check needs none)
+bash scripts/harness/pi-seat-sync.sh --plane llm-path --check      # the same verdict, read-only, no privilege
+```
+
+The pin exists only while spark's Home-VLAN address answers TCP/443 and it holds ONE name — the zone-wide "ask the home
+resolver at home" switch is rejected, because the LAN view answers some names with an edge that refuses them
+([docs/network-dns.md](docs/network-dns.md) §Host-side resolver). ⚠ WSL regenerates `/etc/hosts` at boot: re-run the push
+(or the seat fan-out) after a boot until **HD-1176** tail 5 gives it a timer of its own. The resolver's own answer is
+unchanged by the pin, so the read-back below still holds while `getent hosts llm.kogler.si` shows the Home address.
+
 ✔ In the guest: `dig +short llm.kogler.si @127.0.0.53` answers the tailnet edge, `dig +noanswer +comments AAAA
 llm.kogler.si @127.0.0.53` reads `NOERROR`, `getent hosts stats.ts.kogler.si` answers. A `NXDOMAIN` that stands
 while `dig @100.100.100.100` answers the same name is the negative-cache class — `sudo resolvectl flush-caches`,

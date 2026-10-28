@@ -83,7 +83,7 @@ onto their **Home leg**; the **Mgmt plane (VLAN 99) is same-site only** (`router
 > own model, **2 h per child**, and a minutes-long silence is a compaction pause rather than a stall (O11, and the
 > numbers in `pi-agent/settings-ssot.json`). Read `echo $PI_PROVIDER` **before routing**: on a spark-served seat the
 > spark engine brief and every timed/engine leg are excluded for the whole run, for children as well as the parent
-> (standing rule 2 in [todo-table.md](todo-table.md) §C). Which rows are AI-doable with no owner step in front is the
+> (standing rule 2 in [todo-table.md](todo-table.md) §C). `bash scripts/harness/seat-llm-path.sh --check` says which path the inference lane travels (`path=lan` = seat → inference host, `path=edge` = through the tailnet edge), and it is read with `echo $PI_PROVIDER`: the session converges things over a path, so a leg that restarts the edge or the host the lane rides would end the run that launched it ([docs/orchestration.md](docs/orchestration.md) §3 item 9). Which rows are AI-doable with no owner step in front is the
 > `Who` column of [todo-table.md](todo-table.md) §B/§B9, never this list.
 >
 > **Read the seat too, not only the model.** A lockout-class leg is gated by *which box drives* (the self-converge guard fires
@@ -149,7 +149,7 @@ not this list, holds the steps, the file ownership and the converge host. Waves,
    at this merge. Never retag `qwen38-flash-dgx:iter6c|iter6d`; never prune the build cache.
    → [prompt-spark-llm.md](prompt-spark-llm.md) (one spark slot; HD-473 rides it)
 2. ⏳ **The transport / answer plane** — **HD-436** owes ONLY the live half: the two converges in the parked table
-   below, both still PARKED. **HD-477** — make the resolver actually float with the VIP; the row carries the three
+   below, both still PARKED, **plus the `llm.kogler.si` answer flip** the row now carries (both halves on the zone entry — `tailnet: node`/`dual` **and** an explicit `tailnet_ip:` — it moves the answer for every client, and it is an owner-present act). **HD-477** — make the resolver actually float with the VIP; the row carries the three
    gates. **HD-487** — config-manager truth is DECLARED per host in `host_vars/<host>.yml`, held by
    [`scripts/gate/check_net_manager.py`](scripts/gate/check_net_manager.py) and read with
    `scripts/ansible/probe-net-manager.sh`; the ONE thing owed is the **VPS** delete of the dead
@@ -395,8 +395,11 @@ not this list, holds the steps, the file ownership and the converge host. Waves,
     symlink-requiring venv arms).
     **HD-1176**'s mechanism is in place on the seat and its row stays **open** for what it
     still owes: the four seat artifacts have **no repo owner** (the `wsl` seat plane in `scripts/harness/`), the
-    headscale-side call on MagicDNS `SERVFAIL`ing most of `zone_kogler_si`, and the suspend/resume + away-from-home
-    re-measure. Record: [scripts/README.md](scripts/README.md) `validate-all.sh` + `lib/python.sh` + `lib/repo_root.py` ·
+    headscale-side call on MagicDNS `SERVFAIL`ing most of `zone_kogler_si`, the suspend/resume + away-from-home
+    re-measure, and a re-assert arm for the `llm-path` pin (tail 5: WSL regenerates `/etc/hosts` at boot, so the pin rides
+    this row's `OnUnitActiveSec` shape and `pi-seat-sync.sh --plane llm-path` is what reports it gone). The runner seat
+    answers `path=lan` for the inference name, so its converge legs do not cross the tailnet edge.
+    Record: [scripts/README.md](scripts/README.md) `validate-all.sh` + `lib/python.sh` + `lib/repo_root.py` ·
     [docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1.
     ⏳ the hybrid route (merged): re-take the A/B wall on both engines on a quiet box, set `GATE_WIN_PAR` from a
     re-derived number, rule each seat-tool-bound leg, and watch the WSL seat's starvation flake (HD-1117) ·

@@ -249,7 +249,7 @@
   pinned-AI Vulkan legs on the RX 7600, spark as the generation tier — the live `fast` profile on a **20 GB KV pool** through its per-profile ceiling, with the certified **16 GiB** global still binding every other profile (HD-489) — ⚠ under the graphics-clock cap (`-lgc 300,2418`) **since 2026-09-29**, but the cap has **no read-back on GB10**, so no figure here is a certified under-cap number until a sustained `clocks.sm` trace exists (HD-469; `clocks.max.sm` is a capability field and stays 3003) — and
   **two home headscale nodes, not one**: `oldsrv` (`tag:dev:443`) and — since 2026-09-25, HD-435 —
   `pi` (`tag:home-edge:443`), whose own `traefik-ha` answers `pi.ts.kogler.si` → 200 **direct**, which is
-  the difference between "HA is up" and "HA is reachable" when the other home node is not answering. Also live: the apex
+  the difference between "HA is up" and "HA is reachable" when the other home node is not answering. A **third** home node (spark) is **authored-only**: `tag:spark` (granting nothing on its own), an address-scoped `tcp/443` grant and the `lm-ts` listener sit inert in IaC until the node joins and its address is read back into `tailnet_spark_ip` (HD-436). Also live: the apex
   `/.well-known/matrix/{client,server}` are **public** with the launchpad still behind SSO (HD-47), the VPS's
   tailnet node is reached **directly** on a pinned 41641 (HD-460), and a `nut` converge reports `changed=0` — what
   postgres analogue (HD-452) closed 2026-09-27 — the sync now reads a cluster-stored marker before it writes — and the residue that measurement exposed, an unconditional `Restart Homepage`, is fixed under HD-440: the same VPS commit now reports `changed=1` twice, all of it renovate's honest exit-0 one-shot.
