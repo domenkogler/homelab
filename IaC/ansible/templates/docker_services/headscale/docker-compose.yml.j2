@@ -40,7 +40,8 @@ services:
       # startup failure while an absent bind SOURCE is a root-owned directory Docker helpfully
       # creates. Mode/owner are the deploy default 0644 root:root — world-readable, the same pair
       # ./config.yaml is mounted with, so no uid the image may run as is denied by this file.
-      - ./extra_records.yaml:/etc/headscale/extra_records.yaml:ro
+      # The body is a JSON array — headscale unmarshals this path as JSON, not YAML.
+      - ./extra_records.json:/etc/headscale/extra_records.json:ro
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     labels:

@@ -114,15 +114,16 @@ dns:
   # in the zone list, not here. Each record is {name, type, value}.
   #
   # ⛔ ONE record key, never two. `dns.extra_records` (the block below) and
-  # `dns.extra_records_path` (the records file `extra_records.yaml`, rendered next to this config
-  # from the SAME zone views and bind-mounted read-only) are mutually exclusive on the pinned
-  # headscale: with both set the shape is undefined AND silent — the pinned image's `configtest` accepts
-  # it (measured on the pin in `headscale_version`), so nothing downstream catches it. What keeps one key
-  # here is the renderer (`_dns_record_key` refuses both) and `check_zone_kogler_si_parity.py`, which
-  # asserts exactly one key at the start of its own line in both shapes and under both whitespace engines. `headscale_extra_records_path`
-  # (group_vars/vps.yml) selects which key renders — empty renders the inline block, so a switch to
-  # the file is an explicit opt-in and never a side effect of a converge. `check_zone_kogler_si_parity.py`
-  # renders BOTH shapes and requires the same records from both.
+  # `dns.extra_records_path` (the records file `extra_records.json`, a JSON array rendered next to
+  # this config from the SAME zone views and bind-mounted read-only) are mutually exclusive on the
+  # pinned headscale: with both set the shape is undefined AND silent — the pinned image's
+  # `configtest` accepts it (measured on the pin in `headscale_version`), so nothing downstream
+  # catches it. What keeps one key here is the renderer (`_dns_record_key` refuses both) and
+  # `check_zone_kogler_si_parity.py`, which asserts exactly one key at the start of its own line in
+  # both shapes and under both whitespace engines.
+  # `headscale_extra_records_path` (group_vars/vps.yml) selects which key renders — empty renders the
+  # inline block, so a switch to the file is an explicit opt-in and never a side effect of a converge.
+  # The same gate renders BOTH shapes and requires the same records from both.
 {% if headscale_extra_records_path %}
   extra_records_path: "{{ headscale_extra_records_path }}"
 {% else %}

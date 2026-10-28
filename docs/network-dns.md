@@ -927,16 +927,14 @@ black hole with extra steps.
    the kids' MACs onto the primary, which filters nothing (§Per-Subnet DNS Policy) — but they mean **IoT devices lose DNS with the Pi** and kids' devices lose it
    with the VPS resolver, even though their DHCP options list three servers. Re-open trigger: an IoT or kids
    incident where DNS, not WAN, is the dead leg.
-5. **`extra_records` move to the watched file** (`dns.extra_records_path`), so no record edit ever
-   restarts the control plane again. The hazards it carries are now measured, not predicted: a "container
-   is Running" post-check is **not** liveness, because a fatal config leaves a crash-looping container
-   reporting `running` — that is exactly what happened when the key was turned on, and the guarded
-   converge's sampled probe is what caught it and reverted it. ⛔ The consumer **unmarshals the file as
-   JSON**, so a YAML records file is a control-plane crash loop while `headscale configtest` (which never
-   opens the file, and also accepts a config carrying both record keys) says nothing at all. The key is
-   back off, the inline block is in force, and the file must be rendered as a JSON array before the flip
-   is re-attempted: §The MagicDNS records FILE. **Precondition for any re-attempt:** the sampled probe —
-   `configtest` is not it. The IaC shape lives behind one variable
+5. **`extra_records` move to the watched file** (`dns.extra_records_path`). A "container is Running"
+   post-check is **not** liveness: a fatal config leaves a crash-looping container reporting `running`,
+   so the only verdict this leg accepts is the guarded converge's **sampled** probe. ⛔ The consumer
+   **unmarshals the file as JSON** — the render is a JSON array with no comment line and no managed
+   header, because a single `#` is a crash loop that `headscale configtest` cannot see (it never opens
+   the file, and it also accepts a config carrying both record keys). The key is off and the inline
+   block is in force; §The MagicDNS records FILE carries the shape and the switch. **Precondition for
+   any flip:** the sampled probe — `configtest` is not it. The IaC shape lives behind one variable
    (`headscale_extra_records_path`, default `""` = the inline block).
 6. **The Pi joins the tailnet and HA's names get two A records** (Pi + oldsrv). Both boxes
    proxy to the VIP, so the answer follows HA in either direction. Flagged as **designed, not yet
@@ -1050,9 +1048,8 @@ variable — `headscale_extra_records_path` in
 
 | `headscale_extra_records_path` | the key `dns:` carries | where the rows live |
 |---|---|---|
-| `""` — **the shape in force** (the flip was tried live and reverted) | `dns.extra_records` | inline in `/opt/headscale/config.yaml` |
-| `/etc/headscale/extra_records.yaml` | `dns.extra_records_path` | **needs a JSON array first** — headscale unmarshals this file as JSON, so the commented YAML the template renders today crash-loops the control plane; rendered from `extra_records.yaml.j2` next to the config and mounted `:ro` in both shapes |
-| `/etc/headscale/extra_records.yaml` | `dns.extra_records_path` | `/opt/headscale/extra_records.yaml`, rendered from `extra_records.yaml.j2` next to the compose file and mounted `:ro` |
+| `""` — **the shape in force** | `dns.extra_records` | inline in `/opt/headscale/config.yaml` |
+| `/etc/headscale/extra_records.json` | `dns.extra_records_path` | `/opt/headscale/extra_records.json`, rendered from `extra_records.json.j2` next to the compose file and mounted `:ro` in both shapes — a **JSON array** of `{name, type, value}`, which is the only shape the consumer parses |
 
 `headscale/config.yaml.j2` renders exactly ONE key, and
 `scripts/gate/check_zone_kogler_si_parity.py` renders BOTH shapes from one context and requires the
@@ -1070,7 +1067,15 @@ Facts that hold in either shape:
   that exists and is unused.
 * Mode and owner are the deploy default, `0644 root:root` — world-readable, the pair `./config.yaml`
   is mounted with, so no uid the image may run as is denied by this file.
-* `dns.extra_records_path` must name the **container** path of the `./extra_records.yaml` bind. The
+* **The body is JSON and carries no comment line, including no `ansible_managed` header** — JSON has no
+  comments, so the header every other render opens with would be the byte that kills the control plane.
+  Provenance is `extra_records.json.j2` and git. `check_zone_kogler_si_parity.py` renders and JSON-parses
+  this file in BOTH shapes on every run, so a YAML body, a comment line, or a render that differs between
+  the two whitespace engines reddens in `validate-all.sh` rather than in the control plane's first sample.
+* The superseded `/opt/headscale/extra_records.yaml` comes out via `retired_artifacts` on the registry
+  entry: a raw copy never deletes, and a records file that is mounted by nothing sits beside the live one
+  reading exactly like the answer plane.
+* `dns.extra_records_path` must name the **container** path of the `./extra_records.json` bind. The
   gate reads the bind out of the rendered compose and compares, so a path that points at nothing is
   RED in `validate-all.sh` rather than fatal at startup.
 * ⛔ A record edit still restarts the control plane. The restart-on-config-change guard in
@@ -1091,11 +1096,12 @@ fires and the control plane bounces once — `headplane` with it, same compose p
    SHAPE only and never leaves the laptop:
    ```bash
    mkdir -p /tmp/hs-render
-   python3 scripts/ansible/zone_kogler_si_render.py --render-config /etc/headscale/extra_records.yaml \
+   python3 scripts/ansible/zone_kogler_si_render.py --render-config /etc/headscale/extra_records.json \
      > /tmp/hs-render/config.yaml
-   python3 scripts/ansible/zone_kogler_si_render.py --render-records > /tmp/hs-render/extra_records.yaml
+   python3 scripts/ansible/zone_kogler_si_render.py --render-records > /tmp/hs-render/extra_records.json
    grep -c '^  extra_records' /tmp/hs-render/config.yaml    # exactly 1 — one key, never two
-   grep -c '^- name:' /tmp/hs-render/extra_records.yaml     # the row count the live file must match
+   python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1]))))' \
+     /tmp/hs-render/extra_records.json                      # the row count the live file must match
    ```
    ⚠ The pinned image's `configtest` is **not** evidence about the record keys: measured 2026-10-28 on
    0.29.4 it passes the inline shape, the file shape, **and** a config carrying BOTH keys — the same
@@ -1122,11 +1128,13 @@ fires and the control plane bounces once — `headplane` with it, same compose p
    ```bash
    # (a) ONE record key on the host, and the file headscale opens is the mounted one
    ssh vps "grep -nE '^ *extra_records(_path)?:' /opt/headscale/config.yaml"
-   # (b) the record set, BOTH directions, against the derived render
-   ssh vps "cat /opt/headscale/extra_records.yaml" > /tmp/live-records.yaml
-   grep -c '^- name:' /tmp/live-records.yaml        # == the preflight count
-   diff <(grep -vE '^[[:space:]]*(#|$)' /tmp/hs-render/extra_records.yaml) \
-        <(grep -vE '^[[:space:]]*(#|$)' /tmp/live-records.yaml)               # empty = no delta
+   # (b) the record set, BOTH directions, against the derived render — compared PARSED, because the
+   #     file is JSON and a comment-stripping diff would be comparing nothing
+   ssh vps "cat /opt/headscale/extra_records.json" > /tmp/live-records.json
+   python3 -c 'import json,sys; A={json.dumps(r,sort_keys=True) for r in json.load(open(sys.argv[1]))}; \
+     B={json.dumps(r,sort_keys=True) for r in json.load(open(sys.argv[2]))}; \
+     print("derived-only:",sorted(A-B) or "none"); print("live-only:  ",sorted(B-A) or "none")' \
+     /tmp/hs-render/extra_records.json /tmp/live-records.json   # both "none" = no delta
    # (c) a dig, from a device ON the tailnet: MagicDNS answers these client-side, so a home
    #     Technitium instance proves nothing about this plane (it publishes no `*.ts` zone at all)
    dig +short @100.100.100.100 A stats.kogler.si    # unchanged: the tailnet edge address

@@ -6,7 +6,7 @@ The zone's membership is consumed by THREE renderers:
   * the Technitium seed task (``roles/docker_services/tasks/technitium-seed.yml``)
     — per instance: VPS ``primary``, oldsrv ``secondary``, Pi ``secondary-pi``;
   * headscale's MagicDNS records (``templates/docker_services/headscale/config.yaml.j2`` and the
-    ``extra_records.yaml.j2`` file its ``dns.extra_records_path`` key may point at) — the plain
+    ``extra_records.json.j2`` file its ``dns.extra_records_path`` key may point at) — the plain
     ``*.kogler.si`` list and the ``*.ts.kogler.si``-only list, rendered in BOTH record shapes so a
     comparison can prove the key switch moves no answer;
   * the public Cloudflare set (``roles/cloudflare_dns/tasks/main.yml`` + its vars).
@@ -44,14 +44,14 @@ CF_TASK = "Ensure public DNS records are present (idempotent)"
 SEED_FILE = ANSIBLE / "roles/docker_services/tasks/technitium-seed.yml"
 HEADSCALE_TEMPLATE = ANSIBLE / "templates/docker_services/headscale/config.yaml.j2"
 HEADSCALE_COMPOSE_TEMPLATE = ANSIBLE / "templates/docker_services/headscale/docker-compose.yml.j2"
-HEADSCALE_RECORDS_TEMPLATE = ANSIBLE / "templates/docker_services/headscale/extra_records.yaml.j2"
+HEADSCALE_RECORDS_TEMPLATE = ANSIBLE / "templates/docker_services/headscale/extra_records.json.j2"
 # The rendered form of that template — the compose bind SOURCE name. The `.j2` suffix is not
 # cosmetic: the deploy copies the whole template dir raw and then renders every `_extra_templates`
 # entry OVER that copy with the suffix stripped, so a records source without `.j2` would reach the
 # host as unrendered template text.
 HEADSCALE_RECORDS_FILE = HEADSCALE_RECORDS_TEMPLATE.with_suffix("").name
-# The two keys headscale can take its MagicDNS records from. Exactly ONE may be rendered: the
-# pinned headscale exits at startup when both are set, and the container still reports `Running`.
+# The two keys headscale can take its MagicDNS records from. Exactly ONE may be rendered: with both
+# set the shape is undefined AND silent — `configtest` accepts it, so nothing but this probe refuses it.
 RECORD_KEYS = ("extra_records", "extra_records_path")
 CF_TASKS_FILE = ANSIBLE / "roles/cloudflare_dns/tasks/main.yml"
 CF_VARS_FILE = ANSIBLE / "roles/cloudflare_dns/vars/main.yml"
@@ -420,13 +420,29 @@ def _render_yaml_template(path: Path, ctx: dict, where: str):
         raise RenderError(f"rendered {path.name} ({where}) is not valid YAML: {exc}") from exc
 
 
+def _render_json_template(path: Path, ctx: dict, where: str):
+    """Render a file whose CONSUMER parses it as JSON, and parse it the same way.
+
+    ``yaml.safe_load`` reads JSON happily, so a checker that parsed the records file as YAML could
+    never see the shape headscale chokes on — the consumer's own parse is the only one worth having.
+    A body that is not JSON is reported, never handed back parsed-by-half.
+    """
+    text = _render_text(path, ctx, where)
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise RenderError(f"rendered {path.name} ({where}) is not valid JSON: {exc} — headscale "
+                          "unmarshals this file as JSON, so a YAML body or a single comment line is "
+                          "a crash loop, not a warning") from exc
+
+
 def _dns_record_key(dns, where: str) -> str:
     """The ONE key this headscale config takes its MagicDNS records from.
 
-    `dns.extra_records` and `dns.extra_records_path` are mutually exclusive on the pinned headscale:
-    both set exits the process at startup while `docker` still reports the container `Running`, so a
-    render that emits both is a dead control plane, not a config. This is the probe; the parity
-    gate's `--self-test` plants that shape to prove the probe fires.
+    `dns.extra_records` and `dns.extra_records_path` are mutually exclusive on the pinned headscale,
+    and the both-set shape is UNDEFINED and silent — `configtest` accepts it, so a render that emits
+    both is a config no offline check refuses. This is the probe; the parity gate's `--self-test`
+    plants that shape to prove the probe fires.
     """
     present = [key for key in RECORD_KEYS if key in (dns or {})]
     if len(present) != 1:
@@ -491,9 +507,9 @@ def _headscale_rows(ctx: dict, shape: str) -> list[dict]:
         if configured != bind:
             raise RenderError(f"dns.extra_records_path is {configured!r} but the compose bind mounts the "
                               "records file at {bind!r} — headscale would open a path that is not there")
-        rows = _render_yaml_template(HEADSCALE_RECORDS_TEMPLATE, ctx, "headscale records file")
+        rows = _render_json_template(HEADSCALE_RECORDS_TEMPLATE, ctx, "headscale records file")
         if not isinstance(rows, list):
-            raise RenderError(f"the headscale records file renders {type(rows).__name__}, expected a list")
+            raise RenderError(f"the headscale records file renders {type(rows).__name__}, expected a JSON array")
     else:
         rows = doc["dns"]["extra_records"]
         if not isinstance(rows, list):

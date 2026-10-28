@@ -211,11 +211,14 @@
 #                                     from a row. headscale's records are rendered in BOTH key shapes —
 #                                     the inline `dns.extra_records` block and the `dns.extra_records_path`
 #                                     file — and must come out the same rows in the same order, so moving
-#                                     the records between the keys cannot move an answer. `--self-test`
-#                                     proves it refuses the five above PLUS the shapes a running config
-#                                     cannot report: both record keys at once, a records path the compose
-#                                     bind does not provide, and a `zone_kogler_si` flag flip that fails to
-#                                     redden the matching surface in either shape.
+#                                     the records between the keys cannot move an answer. The file shape is
+#                                     parsed AS JSON, which is what headscale does to it, so a YAML body, a
+#                                     comment line, or rows that differ between the two Jinja whitespace
+#                                     engines are RED here and not in the control plane's first sample.
+#                                     `--self-test` proves it refuses all of that PLUS the shapes a running
+#                                     config cannot report: both record keys at once, a records path the
+#                                     compose bind does not provide, and a `zone_kogler_si` flag flip that
+#                                     fails to redden the matching surface in either shape.
 #  29. install-tmux-conf.sh --self-test + --check --strict — seat terminal-harness gate
 #                                     (HD-1085): repo pi-agent/tmux/tmux.conf == ~/.tmux.conf AND the
 #                                     config actually TAKES EFFECT. The "and" is the whole item: a tmux

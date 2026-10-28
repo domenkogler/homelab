@@ -134,6 +134,22 @@
   # to also watch the copy step's result.
   register: extra_templates_result
 
+# ---- Retired deploy artifacts (opt-in: `retired_artifacts` on the registry entry) ----
+# "Copy template files" copies the template DIR and never deletes, so a file this service stopped
+# rendering survives every converge beside the one that IS bind-mounted — an artifact that reads like
+# live config and is not. Removal belongs here rather than on the host, and `state: absent` on an
+# already-gone path is `ok`, so it costs one skipped loop and never makes a later converge `changed`.
+- name: "Remove retired deploy artifacts for {{ svc.name }}"
+  # per-service tag: lets --tags select this service's tasks (tag semantics at the top of this file)
+  tags: "{{ svc.name }}"
+  ansible.builtin.file:
+    path: "{{ docker_compose_dir }}/{{ svc.name }}/{{ retired_artifact }}"
+    state: absent
+  loop: "{{ svc.retired_artifacts | default([], true) }}"
+  loop_control:
+    label: "{{ retired_artifact }}"
+  when: svc.retired_artifacts is defined
+
 # ---- First-boot guard: home-assistant-primary bind-mount sources ----
 # Render-first order (home_assistant BEFORE docker_services on the Pi) means ./config/configuration.yaml,
 # keepalived.conf and secrets.yaml must already be regular files when `docker compose up` first runs. If one

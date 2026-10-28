@@ -411,9 +411,8 @@ action so no lane re-derives it. An entry marked RULED is AI work, not an owner 
 
 | HD | the one blocked action | slot / host | 📋 brief |
 |----|------------------------|-------------|----------|
-| **HD-436** (a) | ONE guarded converge re-rendering headscale's `config.yaml` — it reports changed and restarts the control plane: sampled liveness probe, never a one-shot inspect | **VPS** slot | [prompt-dns-transport.md](prompt-dns-transport.md) |
 | **HD-436** (b) | `IaC/ansible/playbooks/dns.yml` run where the Cloudflare token is IP-filtered; expected to report no record change | home control plane | [prompt-dns-transport.md](prompt-dns-transport.md) |
-| **HD-436** step 2 | the `extra_records_path` swap that **HD-435**'s `tailnet: dual` publish rides | **VPS** | [prompt-dns-transport.md](prompt-dns-transport.md) |
+| **HD-436** step 2 | the `extra_records_path` swap that **HD-435**'s `tailnet: dual` publish rides — it rewrites `config.yaml` AND recreates the container for the `extra_records.json` bind, so it reports changed: sampled liveness probe, and ⛔ `configtest` is not a verdict because it never opens the records file | **VPS** | [prompt-dns-transport.md](prompt-dns-transport.md) |
 | **HD-487** | the narrow `--tags netd` delete of `/etc/systemd/network/20-eno1.netdev` — only the role's removal leg reaches it | **VPS** | [prompt-dns-transport.md](prompt-dns-transport.md) |
 | **HD-1152** | the first REAL `playbooks/dns-seed.yml` apply per instance, and only after its two defects are repaired — `--check` can never name candidates | vps · oldsrv · pi | [prompt-dns-transport.md](prompt-dns-transport.md) |
 | **HD-1160** | render + `routeros-apply-delta.sh` for the converge template's twin of the retagged `#`-comment (a `#`-line IS rendered output — [network-dns.md](docs/network-dns.md) §Host-side resolver); ⛔ never `--diff`, never from a docs lane, and **no converge is behind it** | router window, global slot | [prompt-dns-transport.md](prompt-dns-transport.md) |

@@ -121,7 +121,7 @@ docker_services:
   - { name: matrix,         template_dir: matrix,    public: true, enabled: true }
   - { name: chat,           template_dir: element-web, subdomain: chat, public: true, enabled: true }
   # === Edge accessories (VPS residency) ===
-  - { name: headscale,      template_dir: headscale, subdomain: vpn, public: true, enabled: true }  # public coordination (rev. network-vpn.md)
+  - { name: headscale,      template_dir: headscale, subdomain: vpn, public: true, enabled: true, retired_artifacts: [extra_records.yaml] }  # public coordination (rev. network-vpn.md); retired_artifacts: the records file this service no longer renders or mounts — the raw copy never deletes, so IaC must, or a dead records file sits beside the live one reading like the answer plane
   # Metabase does not run here: the VPS is the RAM-constrained box and its revival target is
   # OLDSRV, so this list carries NO metabase entry — a registry entry is the switch that deploys,
   # and an absent one is what keeps a host from re-rendering a service it does not own. The two
@@ -316,9 +316,11 @@ tailnet_ts_only_subdomains: "{{ zone_kogler_si_tailnet_ts }}"
 # are mutually exclusive on the pinned headscale and setting both leaves a crash-looping control
 # plane that still reports `Running`. The records file itself is rendered and mounted in both
 # shapes (an absent bind source is auto-created by Docker as a root-owned DIRECTORY), so opting in
-# moves the key only. ⛔ The value must be the CONTAINER path of the `./extra_records.yaml` bind in
+# moves the key only. ⛔ The value must be the CONTAINER path of the `./extra_records.json` bind in
 # this service's compose file; `check_zone_kogler_si_parity.py` reads that bind and renders both
-# shapes, so a path that points at nothing is RED here rather than a dead control plane.
+# shapes, so a path that points at nothing is RED here rather than a dead control plane. The file is
+# a JSON array of `{name, type, value}` because headscale UNMARSHALS it as JSON — a comment line in it
+# is a crash loop that `configtest` cannot see, because it never opens the file.
 # → docs/network-dns.md §The MagicDNS records FILE
 headscale_extra_records_path: ""
 

@@ -10,10 +10,12 @@ once ``zone_kogler_si`` exists, so the fixture cannot be made self-fulfilling).
 
 This script is the gate over the two: any dropped name, re-pointed address, or name moved
 between the plain and the ``.ts`` namespace is RED here rather than an NXDOMAIN at 3am. Headscale
-renders its MagicDNS records through ONE of two mutually exclusive keys -- the ``dns.extra_records``
+takes its MagicDNS records from ONE of two mutually exclusive keys -- the ``dns.extra_records``
 block and the ``dns.extra_records_path`` file -- so BOTH shapes are rendered and compared against the
 same fixture, and a config that emits both keys, or a path the compose bind does not provide, is a
-hard error: either one is a control plane that exits at startup while ``docker`` calls it ``Running``.
+hard error. The file shape is parsed as JSON on every run, because that is the parse the consumer
+performs: a YAML body, or a single comment line in it, is a crash-looping control plane that
+``configtest`` (which never opens the file) reports as fine.
 A deliberate change is allowed, but only out loud: read the diff it prints and land the
 new fixture in the SAME commit, or the gate stays red.
 
@@ -146,14 +148,22 @@ def compare(golden: dict, current: dict) -> list[str]:
 # in both engines, not in the one that is convenient to test.
 KEY_LINE = re.compile(r"^[ \t]*extra_records(_path)?:")
 KEY_IN_COMMENT = re.compile(r"^[^#\n]*#.*\bextra_records(_path)?:")
-RECORD_PATH_VALUE = "/etc/headscale/extra_records.yaml"
+
+
+def record_bind_path() -> str:
+    """The container path the records file is mounted at, DERIVED from the compose bind.
+
+    Never typed here: the bind is the thing headscale opens, so a re-typed path is a second source
+    that survives the day the bind is renamed.
+    """
+    return zr._records_bind_path(zr.build_context())
 
 
 def config_render_checks(src: str | None = None) -> list[str]:
     """Exactly ONE record key, on its own line, in both record shapes and under both engines."""
     findings: list[str] = []
     text = zr.HEADSCALE_TEMPLATE.read_text(encoding="utf-8") if src is None else src
-    for value, shape in (("", "inline"), (RECORD_PATH_VALUE, "file")):
+    for value, shape in (("", "inline"), (record_bind_path(), "file")):
         ctx = zr.build_context(extra={"headscale_extra_records_path": value})
         for trim_blocks, engine in ((False, "renderer"), (True, "ansible")):
             env = zr._env(strict=False)
@@ -176,37 +186,62 @@ def config_render_checks(src: str | None = None) -> list[str]:
     return findings
 
 
-def records_file_format_checks(force_key: str | None = None) -> list[str]:
+def records_file_format_checks(text: str | None = None) -> list[str]:
     """⛔ The file `dns.extra_records_path` names is read by headscale as **JSON**.
 
-    Measured the way everything about the answer plane is measured here: the key was turned on behind the
-    guarded converge and the control plane crash-looped on the FIRST sample — `setting up extrarecord
-    manager: reading extra records from path: unmarshalling records … invalid character '#' looking for
-    beginning of value`, because the file this repo renders is commented YAML. `headscale configtest`
-    passes all three shapes (inline, file, both keys at once) because it never opens the file, so an
-    offline config check cannot see this and a one-shot `Running` cannot either. While the key is empty
-    the rule is inert and says so through the self-test's forced case, which is where its teeth live.
+    So it is parsed as JSON here, on every run, whatever key the tree authors: `render_all` renders
+    the file shape unconditionally, which is why this rule is never inert — waiting for the key to be
+    set would defer the only offline read that sees this class. `headscale configtest` passes the
+    inline shape, the file shape AND a config carrying both keys because it never opens the file, and
+    a one-shot `Running` cannot see a crash loop either, so nothing downstream would.
+
+    `text` overrides the render so `--self-test` can plant the body shapes this rule exists to refuse
+    (a comment line, a YAML list) and prove the rule still fails.
     """
     findings: list[str] = []
-    ctx = zr.build_context()
-    if force_key is not None:
-        ctx["headscale_extra_records_path"] = force_key
-    key = str(ctx.get("headscale_extra_records_path") or "")
-    if not key:
-        return findings
-    text = zr._render_text(zr.HEADSCALE_RECORDS_TEMPLATE, ctx, "records-file format check")
+    if text is None:
+        ctx = zr.build_context()
+        text = zr._render_text(zr.HEADSCALE_RECORDS_TEMPLATE, ctx, "records-file format check")
     try:
         doc = json.loads(text)
     except json.JSONDecodeError as exc:
-        findings.append(f"dns.extra_records_path is set to {key!r} but the rendered records file is not "
-                        f"JSON — headscale unmarshals it as JSON, so this is a crash loop, not a warning: {exc}")
+        findings.append("the records file is not JSON — headscale unmarshals it as JSON, so this is a "
+                        f"crash loop, not a warning: {exc}")
         return findings
-    if not isinstance(doc, list) or not doc:
-        findings.append(f"the records file must be a NON-EMPTY JSON array of records, got {type(doc).__name__}")
+    # `[]` is a legal render (every tailnet_*_ip unset); an answer plane that is empty against the
+    # fixture is reddened by the parity diff, not by the shape of one file.
+    if not isinstance(doc, list):
+        findings.append(f"the records file must be a JSON ARRAY of records, got {type(doc).__name__}")
         return findings
     for n, rec in enumerate(doc):
         if not isinstance(rec, dict) or {"name", "type", "value"} - set(rec):
             findings.append(f"records file entry {n} is not an object with name/type/value: {rec!r}")
+    return findings
+
+
+def records_engine_checks() -> list[str]:
+    """The records render must be the SAME JSON document under BOTH whitespace engines.
+
+    Ansible's templar runs with `trim_blocks` true, this repo's renderer with it false, and a block tag
+    that moves a newline moves bytes into or out of the rendered file. JSON is whitespace-insensitive,
+    so that is safe — but only if nothing outside the Jinja tags emits text. Both engines are parsed
+    and compared, so a template that grew a literal line, or a comment line, reddens here rather than
+    in the control plane's first sample.
+    """
+    findings: list[str] = []
+    ctx = zr.build_context()
+    src = zr.HEADSCALE_RECORDS_TEMPLATE.read_text(encoding="utf-8")
+    docs: dict[str, object] = {}
+    for trim_blocks, engine in ((False, "renderer"), (True, "ansible")):
+        env = zr._env(strict=False)
+        env.trim_blocks = trim_blocks
+        try:
+            docs[engine] = json.loads(env.from_string(src).render(**ctx))
+        except Exception as exc:  # noqa: BLE001 - a body that is not JSON on one engine is a finding
+            findings.append(f"the records render is not a JSON document under the {engine} engine: {exc}")
+    if len(docs) == 2 and docs["renderer"] != docs["ansible"]:
+        findings.append("the two whitespace engines render DIFFERENT record sets — the file's rows "
+                        "would depend on which templar wrote it")
     return findings
 
 
@@ -252,7 +287,16 @@ def main() -> int:
         for line in format_findings:
             print("  " + line, file=sys.stderr)
         print("\nheadscale unmarshals `dns.extra_records_path` as JSON; render the rows as a JSON array "
-              "of {name, type, value}. configtest will not tell you — it never opens the file.", file=sys.stderr)
+              "of {name, type, value} with no comment line. configtest will not tell you — it never "
+              "opens the file.", file=sys.stderr)
+        return 1
+
+    engine_findings = records_engine_checks()
+    if engine_findings:
+        print("FAIL: the records render is not one JSON document under both whitespace engines",
+              file=sys.stderr)
+        for line in engine_findings:
+            print("  " + line, file=sys.stderr)
         return 1
 
     shape_findings = config_render_checks()
@@ -364,17 +408,17 @@ def self_test() -> int:
     cases.append(("a re-ordered records file is refused", _raises(
         zr.require_same_records, current["headscale"]["plain"][::-1], current["headscale"]["plain"], "fixture")))
 
-    # 9. ⛔ the shape that kills the control plane: both record keys at once. `docker` reports such a
-    #    container Running, so this probe is the only thing between the tree and a crash loop.
+    # 9. ⛔ the shape that kills the control plane: both record keys at once. `configtest` accepts it,
+    #    so this probe is the only thing between the tree and an undefined, silent config.
     cases.append(("both dns record keys at once is refused", _raises(
         zr._dns_record_key,
-        {"extra_records": [{"name": "x.kogler.si"}], "extra_records_path": "/etc/headscale/extra_records.yaml"},
+        {"extra_records": [{"name": "x.kogler.si"}], "extra_records_path": record_bind_path()},
         "fixture")))
 
     # 10. `extra_records_path` must name the path the compose bind provides — a path that is not
-    #     mounted is a fatal config that still reports Running.
+    #     mounted is a config that names a file headscale never gets.
     cases.append(("a records path the bind does not provide is refused", _raises(
-        zr._headscale_rows, zr.build_context(extra={"headscale_extra_records_path": "/etc/headscale/nowhere.yaml"}),
+        zr._headscale_rows, zr.build_context(extra={"headscale_extra_records_path": "/etc/headscale/nowhere.json"}),
         "default")))
 
     # 11. the flag flips themselves, at the SOURCE: one field of one `zone_kogler_si` entry changed,
@@ -412,14 +456,21 @@ def self_test() -> int:
                   "comment line, under Ansible's trim_blocks)",
                   bool(config_render_checks(trimmed))))
 
-    # 13. the FILE shape, read the way the CONSUMER reads it. headscale unmarshals the records file as
-    #     JSON; the first live attempt at the key flip crash-looped the control plane over a YAML body,
-    #     and configtest — which never opens the file — had said nothing. Inert while the key is empty,
-    #     so the forced case below is what proves the rule can fail at all.
-    cases.append(("the records-file format rule is inert while the inline key is in force",
+    # 13. the FILE shape, read the way the CONSUMER reads it: headscale unmarshals it as JSON, so a
+    #     comment line anywhere in it — a managed header is the one a renderer adds without thinking —
+    #     is the crash loop no offline config check sees. The rule runs whether or not the key is set,
+    #     because `render_all` renders the file shape anyway, and these canaries prove it has teeth.
+    cases.append(("the shipped records render is a JSON array the consumer can read",
                   not records_file_format_checks()))
-    cases.append(("the records-file format rule is RED when the key is on and the file is not JSON",
-                  bool(records_file_format_checks(force_key=RECORD_PATH_VALUE))))
+    cases.append(("the records render is the same JSON document under both whitespace engines",
+                  not records_engine_checks()))
+    shipped = zr._render_text(zr.HEADSCALE_RECORDS_TEMPLATE, zr.build_context(), "self-test canary")
+    cases.append(("a comment line in the records file is RED (the '#' is what headscale chokes on)",
+                  bool(records_file_format_checks("# Ansible managed\n" + shipped))))
+    cases.append(("a YAML body in the records file is RED",
+                  bool(records_file_format_checks('- name: "x.kogler.si"\n  type: "A"\n  value: "100.64.0.1"\n'))))
+    cases.append(("a records entry missing `value` is RED",
+                  bool(records_file_format_checks('[{"name": "x.kogler.si", "type": "A"}]'))))
 
     failed = [name for name, ok in cases if not ok]
     for name, ok in cases:

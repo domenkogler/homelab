@@ -228,6 +228,13 @@ deploy-service.yml and are BIND-MOUNTED into the containers. Two consequences:
 If a future extra must NOT trigger this restart, extend the guard's exclusion list in
 deploy-service.yml rather than bypassing the render registration.
 
+3. **A renamed or retired extra has to be REMOVED, not merely unregistered.** "Copy template files"
+   copies the template DIR and never deletes, so a file a service stopped rendering survives every
+   converge beside the one that IS bind-mounted — an artifact that reads like live config and is not.
+   Say so on the registry entry: `retired_artifacts: [<path under the service dir>]` (headscale carries
+   one for the records file its `.json` render replaced). The removal task is `state: absent`, so it
+   costs one skipped loop for every service that declares nothing and never makes a converge `changed`.
+
 ---
 
 ## Secret Resolution

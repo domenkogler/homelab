@@ -1,0 +1,40 @@
+{# headscale MagicDNS records — the file `dns.extra_records_path` names, rendered next to
+   `config.yaml` and bind-mounted read-only by this service's compose file. -#}
+{# ⛔ The body is JSON, not YAML, and carries NO comment line and NO `ansible_managed` header.
+   headscale UNMARSHALS this file as JSON, so a `#` anywhere in it — a managed header included — is
+   `unmarshalling records, content: … invalid character '#' looking for beginning of value` and a
+   crash-looping tailnet control plane that still reports `Running`, while `headscale configtest` says
+   nothing because it never opens the file. Provenance here is this template and git, not a header
+   line; `scripts/gate/check_zone_kogler_si_parity.py` parses this render as JSON on every validation. -#}
+{# The rows are the tailnet views of `zone_kogler_si` (group_vars/all/main.yml) reached through the
+   aliases in group_vars/vps.yml, keyed by their FQDN `name`, in the same order
+   `config.yaml.j2` loops the inline `dns.extra_records` block — that equality is what the parity gate
+   holds, so neither key may reorder the netmap. The tailnet address is an entry's `tailnet_ip:`,
+   never its `ip:` — `ip:` is the LAN (Technitium) answer. `edge` entries answer BOTH namespaces,
+   `node`/`dual` entries the `.ts` twin ONLY; that split is a per-name decision recorded in the zone
+   list, not here. The address is assigned SEQUENTIALLY by headscale at node join, so it is not known
+   at authoring time: it comes from the class defaults (`tailnet_sidecar_ip`, `tailnet_oldsrv_ip`)
+   that the deploy step fills from `headscale nodes list` after each node joins. An entry whose
+   address resolves to nothing renders no record, and no address at all renders `[]` rather than a
+   half-populated netmap. -#}
+{%- set _any_ip = tailnet_sidecar_ip | default('', true) or tailnet_oldsrv_ip | default('', true) -%}
+{%- set ns = namespace(rows=[]) -%}
+{%- if _any_ip -%}
+{%- for sub in tailnet_subdomains -%}
+{%- set _ip = sub.tailnet_ip | default(tailnet_sidecar_ip) -%}
+{%- if _ip -%}
+{%- set ns.rows = ns.rows + [
+        {"name": sub.name, "type": "A", "value": _ip},
+        {"name": sub.name | regex_replace('\\.' ~ domain_public ~ '$', '.' ~ tailnet_base_domain),
+         "type": "A", "value": _ip}] -%}
+{%- endif -%}
+{%- endfor -%}
+{%- for sub in tailnet_ts_only_subdomains -%}
+{%- set _ip = sub.tailnet_ip | default(tailnet_oldsrv_ip) -%}
+{%- if _ip -%}
+{%- set ns.rows = ns.rows + [{"name": sub.name | regex_replace('\\.' ~ domain_public ~ '$', '.' ~ tailnet_base_domain),
+                              "type": "A", "value": _ip}] -%}
+{%- endif -%}
+{%- endfor -%}
+{%- endif -%}
+{{ ns.rows | to_json }}
