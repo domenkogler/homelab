@@ -36,10 +36,18 @@ import os
 import re
 import sys
 import urllib.request
+from pathlib import Path
 from urllib.parse import urljoin
 
-DEFAULT_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir,
-                            'IaC', 'ansible', 'group_vars', 'all', 'versions.yml')
+# HD-1118 Stage 1: FOUND, not assumed from a depth — scripts/lib/repo_root.py. A literal count of
+# `os.pardir` is exactly what the `scripts/` foldering breaks: one level up from here is `scripts/`,
+# so the old join pointed at `scripts/IaC/ansible/…` and EVERY documented invocation — `--debs`
+# included — died on FileNotFoundError before it asked a registry anything.
+sys.path.insert(0, str(next(p for p in Path(__file__).resolve().parents
+                            if p.name == "scripts") / "lib"))
+from repo_root import root as _hl_root  # noqa: E402
+
+DEFAULT_ROOT = str(_hl_root(__file__) / 'IaC' / 'ansible' / 'group_vars' / 'all' / 'versions.yml')
 CACHE = os.path.join(os.environ.get('XDG_CACHE_HOME', os.path.expanduser('~/.cache')), 'homelab-pin-probe')
 UA = {'User-Agent': 'homelab-image-pin-probe/1.0'}
 SEM = r'(?P<v>\d+\.\d+\.\d+)'
@@ -47,7 +55,7 @@ LS = r'(?P<v>\d+\.\d+\.\d+(?:\.\d+)?(?:-ls\d+)?)'
 PRERE = re.compile(r'alpha|beta|rc|preview|nightly|snapshot|canary|unstable|debug|enterprise|fips', re.I)
 
 # var -> (source, tag pattern, [, gh=upstream GitHub slug] [, pages] [, line] [, strip_v])
-# `src` kinds: hub | ghcr | quay | codeberg | gh | npm | npmall | pypi | node | apt | tailscale
+# `src` kinds: hub | ghcr | quay | codeberg | gh | npm | npmall | pypi | node | apt | dockerapt | tailscale
 # Deliberately absent (never suggest a change): the digest-pinned `*_image` pins, the sha256
 # artifact digests, and `spark_sglang_image` (empty pin IS the gate, HD-469).
 SOURCES = {
@@ -132,6 +140,14 @@ SOURCES = {
     'qdrant_version': dict(src=('hub', 'qdrant/qdrant'), pat=r'(?P<tag>v' + SEM + ')'),
     'home_assistant_version': dict(src=('ghcr', 'home-assistant/home-assistant'), gh='home-assistant/core', pat=r'(?P<v>\d{4}\.\d+\.\d+)'),
     'alloy_version': dict(src=('apt',), pat=r'(?P<v>\d+\.\d+\.\d+)(?:-\d+)?'),
+    # The download.docker.com host-APT family. ONE source package per row, the pin states the dpkg
+    # UPSTREAM part only and `roles/docker` installs it as `<pkg>=<pin>-*`, because the same release
+    # is stamped with a different revision per suite — so the version LIST comes from the vendor APT
+    # index and the release DATES from the upstream feed, exactly as `apt_alloy_versions` does it.
+    'docker_ce_version': dict(src=('dockerapt', 'docker-ce', 'moby/moby'), pat=r'(?P<v>\d+:\d+\.\d+\.\d+)'),
+    'containerd_io_version': dict(src=('dockerapt', 'containerd.io', 'containerd/containerd'), pat=r'(?P<v>\d+\.\d+\.\d+)'),
+    'docker_buildx_plugin_version': dict(src=('dockerapt', 'docker-buildx-plugin', 'docker/buildx'), pat=r'(?P<v>\d+\.\d+\.\d+)'),
+    'docker_compose_plugin_version': dict(src=('dockerapt', 'docker-compose-plugin', 'docker/compose'), pat=r'(?P<v>\d+\.\d+\.\d+)'),
     'pi_host_node_version': dict(src=('node',), major=22, pat=r'(?P<v>22\.\d+\.\d+)'),
     'pi_host_npm_version': dict(src=('npmall', '@earendil-works/pi-coding-agent'), pat=r'(?P<v>\d+\.\d+\.\d+)'),
     'pi_web_access_version': dict(src=('npmall', 'pi-web-access'), pat=r'(?P<v>\d+\.\d+\.\d+)'),
@@ -320,6 +336,51 @@ def apt_alloy_versions():
     return {v: dates.get(v) or _iso(v) for v in vers}, e
 
 
+# The suites `roles/docker`'s fail-loud assert says the fleet can run — add a distro there and here in
+# the same change. The candidate set is the INTERSECTION across them, never the union: a fleet-wide
+# pin has to be installable on every host that carries the suite, and a release one suite does not
+# publish is the silent-skip class roles/docker's read-back assert exists to catch (the apt module
+# finds no candidate, installs nothing and reports OK).
+DOCKER_APT_SUITES = [('debian', 'bookworm'), ('debian', 'trixie'),
+                     ('ubuntu', 'jammy'), ('ubuntu', 'noble')]
+
+
+def apt_docker_versions(package, slug):
+    """The download.docker.com family: versions from the vendor's own Packages index, dates from the
+    upstream GitHub release feed — the index publishes none, and `stabilityDays` needs a date.
+    Keys are PIN-SHAPED: the dpkg revision is the suite's distro stamp (`5:29.9.2-1~debian.13~trixie`
+    and `-1~ubuntu.24.04~noble` are one release), so everything from the last hyphen is dropped and
+    the several revisions of one upstream release collapse to the one value `versions.yml` can hold."""
+    common, err = None, None
+    for dist, suite in DOCKER_APT_SUITES:
+        d = _get(f'https://download.docker.com/linux/{dist}/dists/{suite}/stable/binary-amd64/Packages.gz',
+                 binary=True)
+        if 'err' in d:
+            return {}, f'{dist}/{suite}: {d["err"]}'
+        txt = gzip.decompress(d['body']).decode('utf8', 'replace')
+        vers = set()
+        for blk in txt.split('\n\n'):
+            if not blk.startswith(f'Package: {package}\n'):
+                continue
+            m = re.search(r'^Version: (\S+)', blk, re.M)
+            if m:
+                vers.add(m.group(1).rsplit('-', 1)[0] if '-' in m.group(1) else m.group(1))
+        common = vers if common is None else (common & vers)
+    rel, e2 = gh_releases(slug)
+    if e2:
+        err = (err or '') + f' {slug} releases: {e2}'
+    # Keyed on the NUMERIC core, because the four upstreams tag differently: moby ships
+    # `docker-v29.9.2`, containerd `v2.4.2`, buildx `v0.38.1`, compose `v5.6.1` — and the APT package
+    # carries the epoch (`5:29.9.2`), which is dpkg's, not part of any tag.
+    dates = {}
+    for tag, when in rel.items():
+        core = re.search(r'\d+(?:\.\d+)+', tag)
+        if core:
+            dates.setdefault(core.group(0), when)
+    # `5:29.9.2` and `29.9.2` are the same release; the epoch is dpkg's, not upstream's tag.
+    return {v: dates.get(v.rsplit(':', 1)[-1]) for v in (common or set())}, err
+
+
 def tailscale_versions():
     d = _get('https://pkgs.tailscale.com/stable/')
     if 'err' in d:
@@ -381,6 +442,8 @@ def pick(cfg, cutoff):
         dates, err = node_versions(cfg['major'])
     elif src[0] == 'apt':
         dates, err = apt_alloy_versions()
+    elif src[0] == 'dockerapt':
+        dates, err = apt_docker_versions(src[1], src[2])
     elif src[0] == 'tailscale':
         dates, err = tailscale_versions()
     else:
