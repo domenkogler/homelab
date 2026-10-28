@@ -13,8 +13,8 @@
 # write uses the SA token deployed to /etc/op/provision-token (never in Git).
 #
 # One item, one title: the write branch re-reads and verifies instead of treating a non-zero
-# `op item edit` rc as "item missing" — see the note on the sync task below, and the 2026-10-28
-# incident in this file's history where that shape minted a duplicate item.
+# `op item edit` rc as "item missing" — see the note on the sync task below for the duplicate-item class
+# that shape mints.
 - name: "Wait for kopia-server TLS fingerprint file (container boot writes it)"
   # slurp ERRORS (returns no result) when the file is absent, so the retry is driven by a stat that
   # tolerates absence until the container boot script has written tls-sha256.
