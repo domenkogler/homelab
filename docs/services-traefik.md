@@ -508,10 +508,27 @@ networks:
 1. **CrowdSec bouncer** — blocks malicious IPs. Plugin contract: module
    `github.com/maxlerebourg/crowdsec-bouncer-traefik-plugin` (note spelling), pin in
    `versions.yml` (`crowdsec_bouncer_plugin_version`, registry-verified; v1.7.1 REQUIRES
-   `crowdsecLapiKey`) — key lives in vault item `crowdsec-bouncer_api`, generated via
-   `cscli bouncers add traefik-bouncer`. The container needs a `/plugins-storage` tmpfs:
+   `crowdsecLapiKey`) — key lives in vault item `crowdsec-bouncer_api` and is the LAPI bouncer row
+   **`traefik-bouncer-20261028`** (`cscli bouncers add <row> -o raw`, run inside the `crowdsec`
+   container; the row NAME is the identity, the key is just its value). Both edges — `traefik` and
+   `traefik-tailnet` — read the one item, so the render is the far end and one converge moves both.
+   The container needs a `/plugins-storage` tmpfs:
    under `read_only: true` the plugin manager cannot create it and plugins silently disable,
    killing every router that references the chain.
+
+   **Rotating it** — `cscli bouncers add` refuses a name that exists and there is no rename or
+   `edit`, so a rotation cannot happen in place. The order is **mint a dated row → write the vault →
+   re-render both edges → prove → delete the old row**: `cscli bouncers add
+   traefik-bouncer-<yyyymmdd>` (capture, never print) → the `credential` field of
+   `crowdsec-bouncer_api` → `playbooks/vps.yml --tags docker_services,traefik,traefik-tailnet
+   -e docker_services_scope=traefik,traefik-tailnet` → then `cscli bouncers delete
+   traefik-bouncer-<previous>`, which cascades to that row's auto-created `@<ip>` aliases.
+   ⛔ Deleting the live row first 403s the public edge: the plugin **fails closed** on a key the LAPI
+   does not know (`handleNoStreamCache` → `crowdsecQuery` error → `cache.BannedValue`), so a
+   vault-only write or an early delete is an outage, not a rotation. Proof is both directions at the
+   LAPI itself — `GET /v1/decisions?ip=203.0.113.7` with `X-Api-Key` **from inside the `crowdsec`
+   container** answers **200 for the live key and 403 for the superseded one** (the `/v1` prefix is
+   the API path; `/` and `/api/v1/…` are 404s, not evidence).
 2. **Authentik Forward Auth** — redirects unauthenticated users to SSO
 3. **Security headers** — applied to all responses
 
