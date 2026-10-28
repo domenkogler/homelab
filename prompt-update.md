@@ -242,6 +242,14 @@ closed by definition, not by a change. ⛔ Never shred or delete a transcript (H
 - [ ] `echo "seat=$(uname -n) provider=$PI_PROVIDER"` — if the session is **spark-served**, Phase 6 cannot run in it (Rule 0: no engine restart, no `spark-ai` re-render): take it in an externally-served session, stated by the owner in-session (README §3).
 - [ ] Delegation plane: `wsl` is unverified (HD-1180) ⇒ lanes run **foreground-sequential**, or pay the two acts (push the `settings` plane + `pi install npm:pi-subagents@0.80.0` FROM this seat, accepted by its own `async: true` launch).
 - [x] ⏭ `python3 scripts/gate/check_secret_leak.py` **from this seat** — read taken (HD-1181 leg 3); with the oldsrv and win11 reads it is the rotation list for Phase 2.
+- [ ] **The model-path verdict, read before every converge act in this window:** `bash scripts/harness/seat-llm-path.sh --check`.
+  `path=lan` = the seat's inference lane is `seat → spark Home :443`, so an act on the VPS edge cannot cut it; `path=edge` =
+  the lane rides the tailnet edge and a VPS edge/sidecar restart **will** cut it mid-request (the 2026-10-28 loss class, HD-1212/HD-1213).
+  The verdict is read, never assumed, and it is read again after any act that moves an answer.
+- [ ] `sudo bash scripts/harness/seat-llm-path.sh --push` — land the pin for this sitting (the push half is a root act; `--check` needs no privilege).
+  ⛔ Never by hand: the name and the address are read from `zone_kogler_si` and `network_static_hosts`, the pin exists only while that address answers TCP/443,
+  and the plane removes it the moment it stops. One name only — the zone-wide "ask the home resolver at home" shape is rejected (HD-1212), and the seat's
+  resolver artifacts and re-assert timer (HD-1176) are outside this plane and stay untouched.
 - [ ] `todo.md`: record the window start (one line in the rows this file rides; no new ids).
 
 ### Phase 1 — prerequisites (the pins session's commits, consumed here)
@@ -332,6 +340,9 @@ never `--diff` (§7).
 - [ ] OTA `OTA2610` → **reboot** → the boot checks: `kho=off` in `/proc/cmdline`, the `nvidia-spark-cloud-init` drop-ins, `nvidia-spark-mlnx-firmware-manager` ran its boot pass, the headless masks and `multi-user.target` survived, `spark-gpu-clock-cap.service` ran, `jupyterlab_ports.yaml` still maps admin → `11002`, and `dgx-dashboard.service` is still the only dashboard unit, loopback-bound and now **masked**.
 - [ ] Re-derive [docs/hardware-spark.md](docs/hardware-spark.md) §Identity from the box: kernel, OTA level, dashboard version, UEFI date, QSFP delta #2.
 - [ ] The pin converge (`docker`), then `curl -sf localhost:8000/health` **on the box** — the edge 502s for reasons that are not the engine's, and `traefik-spark` restarts with the daemon regardless of its restart-guard exclusion.
+- [ ] **spark joins headscale as the THIRD home node** — the IaC is already on `main` (`tailnet_spark_ip` + `tag:spark` + the address-scoped `tcp/443` grant + the `lm-ts` entrypoint), and every bit of it is inert while the var is empty. In this order: mint the key (`docker exec headscale headscale preauthkeys create --tags tag:spark --reusable --expiration 8760h -o json`, the value is under the JSON key `key`) → store it as `tailscale-spark_api` → the join leg **off-box** (`--tags tailscale-node`; the self-converge guard refuses it on-box) → read the tag AND the address back from `headscale nodes list -o json` → set `tailnet_spark_ip` and commit → the vps `headscale` policy converge → the spark `spark-dashboard` converge. ⚠ The tag is read back, never trusted from the mint command, and `tag:dev`/`tag:home-edge` are refused — a borrowed tag is by-tag widening ([docs/network-rejected.md](docs/network-rejected.md)).
+- [ ] Its read-back: `ss -ltnp | grep ':443'` on spark lists `spark_home_ip` and the node address and **never** `0.0.0.0`; `curl -sk --resolve llm.kogler.si:443:<tailnet_spark_ip> https://llm.kogler.si/v1/models` answers with the bearer and 401s without it; `tailscale status --json` keeps `PrimaryRoutes` empty on every peer — the boundary must not have moved because a third node arrived.
+- [ ] ⛔ **The `llm.kogler.si` answer flip is NOT in this window.** It needs BOTH halves on the zone entry — `tailnet: node`/`dual` **and** an explicit `tailnet_ip:`, since the class default for those is oldsrv's node — it moves the answer for every client, and `node`/`dual` publish the `.ts` twin only. It rides HD-436's owner-present converge. Tonight the node answers the **port**, not the **name**: prove it with the `--resolve` form above, not with `dig`.
 - [ ] `spark-llm_api` + `litellm-engine_api` rotation → spark converge carries the new accepted list → prove the second key live **by hand** (`scripts/secrets/rotate-spark-llm-key.sh` does not know it) → HD-384 step 2: converge `lan-litellm` + `litellm`. ⛔ Inverting this order 401s every upstream call.
 - [ ] The A+ **runtime dispatch check**: does a real bf16 GEMM land on a `(12, 1)` plan rather than the `F.linear` fallback. No build can answer this.
 - [ ] Flip `fast-v32-bf16` (`-e spark_llm_profile=fast-v32-bf16 -e spark_llm_allow_uncertified=true`, detached; ~20 min cold boot) and read the engine's `GPU KV cache size` line — expecting **644,599 slots / 2.46×**. Another number means the pool arithmetic moved under the port.
@@ -365,6 +376,9 @@ never `--diff` (§7).
 - **`home_assistant` minors are release-train jumps** — read the breaking changes for every version crossed; its config entry holds plaintext that rsyncs to the oldsrv standby.
 - **A held package is not a pinned package.** The role asserts it; a hand check on oldsrv needs the `sudo -S` pipe form (§8) — and ⛔ never a `NOPASSWD` added to make a verification loop quiet.
 - **The gauge goes red on purpose** between the pin commit and the last converge; `differ` non-empty is the window in flight, and an empty read is not fleet health — a host that publishes nothing contributes no rows ([docs/observability.md](docs/observability.md) §Silent-failure hygiene).
+- **A VPS edge/sidecar act is a MODEL-LANE act.** Unless the seat's answer for the inference name is the Home address, the session's own
+  inference path is `llm.kogler.si` → the tailnet edge → WG S2S → spark — so restarting that edge ends the session that is converging it.
+  Read `bash scripts/harness/seat-llm-path.sh --check` before an act on the vps edge, and keep edge/sidecar restarts LAST in a host's leg order (HD-1213).
 - **No new row for this work.** If the window mints anything it is a `⏳` on a row that already exists (§0).
 
 ## 8. Verify before closing the window
@@ -391,7 +405,9 @@ Mask-then-delete for the tombstone (§4) · patch + minor for the pin sweep with
 rotated first, re-seats batched at the end, on the owner-set grace window (§5) · `radarr_api`/`sonarr_api`/
 `lidarr_api`/`n8n_password` **in** this window (§3, Phase 3) · the v32 artifact **used as built** on the pre-bump
 toolchain, no rebuild (§1) · converges driven from the WSL seat (§10) · **Wi-Fi PSKs out of this window** (§11), with
-the accepted consequence that the leak gate stays red on exactly those items (§0, Phase 7) · no row minted for any of
+the accepted consequence that the leak gate stays red on exactly those items (§0, Phase 7) · spark joins the tailnet as the THIRD home node, its
+grant written on its node **address** with its own `tag:spark` granting nothing (§6 Phase 6) · the seat pins ONE name's answer through the `llm-path`
+plane rather than re-pointing the whole zone at the home resolver (§6 Phase 0) · no row minted for any of
 it (§7).
 
 ## 10. Driver and seat contract
@@ -412,7 +428,7 @@ present; nothing else in it changes.
 | **vps** | HD-1166, HD-1173, HD-1106, HD-436, HD-487, HD-1150 | HD-1166's page is the ticket — one `--tags monitoring`, no UI mute; HD-1106 fixes the `onlyoffice-docs` named volume **before** any `docker volume rm` by name; HD-436 behind `guarded-converge.sh`; HD-487 `--tags netd`; HD-1150's token re-seat is issued **from this laptop** |
 | **nas** | HD-1093 | `storage_samba_password_force` lands the already-rotated SMB pair — a vault edit alone changes nothing on the box; the replica retag and the wedge reap are in [docs/storage.md](docs/storage.md) §A |
 | **oldsrv** | HD-1122, HD-1088, HD-1175 | HD-1122 flips `ai_tier_metrics_publish` and recreates two serving containers (engine panel 1 → 3); HD-1088 needs the Box key registered first; HD-1175 is a root-only journal/`pstore` read while you are at that box |
-| **spark** | HD-1206, HD-384, HD-473, HD-1210 | the dispatch check → `fast-v32-bf16` → gates 0–7 → `fast8` → gates 8–9, one boot shared with the rotation |
+| **spark** | HD-1206, HD-384, HD-473, HD-1210, HD-436 | the dispatch check → `fast-v32-bf16` → gates 0–7 → `fast8` → gates 8–9, one boot shared with the rotation |
 | **router** | HD-1160, HD-1142, HD-1140, HD-1136 | the global slot, and none of them is a converge |
 
 **Held out, on purpose:** the Wi-Fi PSKs (`wifi-kogler*` — live PSKs, every device rejoins by hand, the Shellys
