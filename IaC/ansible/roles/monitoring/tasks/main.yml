@@ -114,9 +114,10 @@
 - name: Decide whether held Alloy has to move
   # Held AND off its pin — the exact set apt refuses under `-y`. The comparison is the fleet's
   # `matches_pin()` rule (templates/homelab-hygiene.py.j2, shared with the pin-lag gauge): a pin that
-  # carries a dpkg revision — `alloy_version` = `1.20.1-1` — is a deb pin and compares EXACTLY, one
-  # that carries none compares on the dpkg upstream part. Equality, never `>=`: a box ahead of its
-  # pin is the same drift as a box behind it.
+  # carries a dpkg revision — its value contains a hyphen, which every `alloy_version` does — is a
+  # deb pin and compares EXACTLY; a pin that carries none compares on the dpkg upstream part. No
+  # version is written here, only the shape. Equality, never `>=`: a box ahead of its pin is the same
+  # drift as a box behind it.
   ansible.builtin.set_fact:
     # `default('', true)` is load-bearing: a Jinja block that emits NOTHING comes back as Python None,
     # not an empty string, and `None.split()` yields ['None'] — without the cast a host that needs no

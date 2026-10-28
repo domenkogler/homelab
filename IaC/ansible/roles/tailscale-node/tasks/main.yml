@@ -96,8 +96,9 @@
   # `host_apt_pin_vars` maps the package to (`tailscale_host_version`), and the comparison is the
   # fleet's `matches_pin()` rule (roles/monitoring/templates/homelab-hygiene.py.j2, shared with the
   # pin-lag gauge): a pin that carries a dpkg revision compares EXACTLY, one that carries none
-  # compares on the dpkg upstream part — so a box reporting `1.102.5-1` is at pin for a `1.102.5` pin
-  # and off pin for a `1.104.2` one. Equality, never `>=`.
+  # compares on the dpkg upstream part — so a box reporting a revision-suffixed version sits at pin
+  # for the same upstream version pinned without one. Equality, never `>=`, and no version is written
+  # here, only the shape.
   ansible.builtin.set_fact:
     # `default('', true)` is load-bearing: a Jinja block that emits NOTHING comes back as Python None,
     # not an empty string, and `None.split()` yields ['None'] — without the cast a host that needs no
