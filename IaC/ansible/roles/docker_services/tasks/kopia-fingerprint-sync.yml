@@ -11,6 +11,10 @@
 #
 # Runs on the VPS ONLY (kopia-server is VPS-resident) and only after the cert files exist. Host-side
 # write uses the SA token deployed to /etc/op/provision-token (never in Git).
+#
+# One item, one title: the write branch re-reads and verifies instead of treating a non-zero
+# `op item edit` rc as "item missing" — see the note on the sync task below, and the 2026-10-28
+# incident in this file's history where that shape minted a duplicate item.
 - name: "Wait for kopia-server TLS fingerprint file (container boot writes it)"
   # slurp ERRORS (returns no result) when the file is absent, so the retry is driven by a stat that
   # tolerates absence until the container boot script has written tls-sha256.
@@ -53,26 +57,63 @@
     - kopia_tls_fp_file.skipped is not defined
 
 - name: "Sync kopia-server_fingerprint 1P item from live cert"
+  # ⛔ The write branch must never be `edit failed -> create`. `op item edit` returns a non-zero rc on
+  # the documented op-CLI 2.39 spurious post-write 404 WHILE THE WRITE HAS ALREADY LANDED
+  # (docs/1password.md §Troubleshooting), and an `elif create` on that rc mints a SECOND item with the
+  # same title — a duplicate trust anchor whose title-based reads then resolve arbitrarily, which is
+  # worse than the failure it was papering over. So: edit, and on a non-zero rc RE-READ and verify;
+  # create only when the title demonstrably does not exist, and fail loudly in every other case.
   ansible.builtin.shell:
     cmd: |
       set -euo pipefail
+      TITLE="kopia-server_fingerprint"
+      VAULT="Homelab-ansible"
       FP="$(cat /srv/docker/kopia-server/config/tls-sha256 | tr -d '[:space:]' | tr 'A-Z' 'a-z')"
       if [ -r /etc/op/provision-token ]; then
         export OP_SERVICE_ACCOUNT_TOKEN="$(cat /etc/op/provision-token)"
       fi
-      # Compare with the current item value (no-op when already in sync).
-      CUR="$(op item get kopia-server_fingerprint --vault="Homelab-ansible" --field password --reveal 2>/dev/null | tr -d '[:space:]' || true)"
+      read_value() {
+        op item get "$TITLE" --vault="$VAULT" --field password --reveal < /dev/null 2>/dev/null \
+          | tr -d '[:space:]' || true
+      }
+      # EXACTLY ONE item must carry the title. Zero = create is legitimate; two or more = the duplicate
+      # class itself, and a third write would deepen it, so refuse and name the ids.
+      count_title() {
+        op item list --vault="$VAULT" --format json < /dev/null 2>/dev/null \
+          | python3 -c "import json,sys;print(sum(1 for i in json.load(sys.stdin) if i.get('title')=='$TITLE'))" \
+          || echo unknown
+      }
+      CUR="$(read_value)"
       if [ "$CUR" = "$FP" ]; then
         echo "kopia-server_fingerprint already in sync"
         exit 0
       fi
-      if op item edit kopia-server_fingerprint --vault="Homelab-ansible" "password=$FP" < /dev/null >/dev/null 2>&1; then
-        echo "updated kopia-server_fingerprint"
-      elif op item create --vault="Homelab-ansible" --category="Password" \
-          --title="kopia-server_fingerprint" "password=$FP" < /dev/null >/dev/null 2>&1; then
-        echo "created kopia-server_fingerprint"
+      N="$(count_title)"
+      if [ "$N" != "1" ] && [ "$N" != "0" ]; then
+        echo "ERROR: $N items are titled $TITLE — refusing to write; resolve the duplicates first:" >&2
+        op item list --vault="$VAULT" --format json < /dev/null 2>/dev/null \
+          | python3 -c "import json,sys;[print('  '+i['id']+'  '+i['title']) for i in json.load(sys.stdin) if i.get('title')=='$TITLE']" >&2 || true
+        exit 1
+      fi
+      if [ "$N" = "1" ]; then
+        if op item edit "$TITLE" --vault="$VAULT" "password=$FP" < /dev/null >/dev/null 2>&1; then
+          echo "updated $TITLE"
+          exit 0
+        fi
+        # Non-zero edit rc proves NOTHING on its own — re-read and judge the value, not the rc.
+        NOW="$(read_value)"
+        if [ "$NOW" = "$FP" ]; then
+          echo "updated $TITLE (op reported an error; the re-read proves the write landed)"
+          exit 0
+        fi
+        echo "ERROR: $TITLE exists but still does not hold the live cert fingerprint — not creating a second item" >&2
+        exit 1
+      fi
+      if op item create --vault="$VAULT" --category="Password" --title="$TITLE" "password=$FP" \
+          < /dev/null >/dev/null 2>&1; then
+        echo "created $TITLE"
       else
-        echo "ERROR: could not write kopia-server_fingerprint to 1Password" >&2
+        echo "ERROR: could not write $TITLE to 1Password" >&2
         exit 1
       fi
     executable: /bin/bash
