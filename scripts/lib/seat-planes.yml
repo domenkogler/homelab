@@ -174,6 +174,12 @@ installer: none
 # name answering exactly as it does today. `wsl` only, and `installer: none` because the push half
 # writes a root-owned file — a from-zero bootstrap converging a HOME cannot converge `/etc/hosts`, and
 # failing a bootstrap on a file it must not touch would be the wrong lesson.
+#
+# The plane's RE-ASSERT ARM is not a row here and gets no key of its own: `seat-llm-path-timer.sh`
+# renders and installs the unit pair that re-runs this record's `push:` after the distro regenerates
+# `/etc/hosts`. The fields above describe what the fan-out runs per seat; a timer runs on ONE seat on
+# systemd's clock, not the driver's, so a key for it would be a second source about a plane this reader
+# never fans out — and the reader's own rule is that one that guesses is worse than one that stops.
 plane: llm-path
 harness: all
 owner: seat-llm-path.sh

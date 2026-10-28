@@ -445,6 +445,7 @@ rejected. The read that shows the split, from one client at home:
 dig +short llm.kogler.si @100.100.100.100      # the netmap answer: the tailnet edge address
 dig +short llm.kogler.si @"$(ip route | sed -n 's/^default via \([^ ]*\).*/\1/p')"   # the LAN answer: spark's Home address
 bash scripts/harness/seat-llm-path.sh --check  # what the seat itself decided, and why (path=lan / path=edge)
+bash scripts/harness/seat-llm-path-timer.sh --check  # and whether the arm that keeps it decided is installed
 ```
 
 ⛔ **A seat-side pin is a seat act, never an answer-plane change.** The plane owner
@@ -455,6 +456,26 @@ are untouched by it, so no other client and no other name moves and away-from-ho
 What it does depend on is the ordering fact above: `files` answers before `resolve`/`dns`, which is why one
 line there is sufficient — and why a wrong one there is invisible to every resolver probe, which is why the
 plane reports the entry it found rather than the answer it hoped for.
+
+**The pin has a re-assert arm, and it is a unit pair owned by the repo.** The distro writes its own
+`/etc/hosts` at every start — `generateHosts` is on, and the generated header in that file says so — so
+every distro start deletes the pin's marker block, and the plane's `MISSING` is a read, not an act. The
+act is [`../scripts/harness/seat-llm-path-timer.sh`](../scripts/harness/seat-llm-path-timer.sh), which
+renders and installs `seat-llm-path.service` (`Type=oneshot` **without** `RemainAfterExit`, for the reason
+the per-link paragraph above gives) whose `ExecStart` is
+`/bin/bash <repo>/scripts/harness/seat-llm-path.sh --push`, and `seat-llm-path.timer`
+(`OnBootSec=10s OnUnitActiveSec=120s`, `WantedBy=timers.target`) — the `homelab-dns-route.timer` shape, as
+a SIBLING pair rather than a fold-in, because one unit carries one `Type=` and one cadence and a drift
+verdict has to say which arm moved. Two parts of that shape are load-bearing: the `ExecStart` names the
+**repo** path, so the arm converges from the clone and a checkout that moves reads as drift instead of
+living on as an unowned copy no converge reaches, and the unit goes inactive when it finishes, so the next
+fire re-runs the probe instead of reporting a successful no-op. The arm owns the two unit files and nothing
+else: the hosts WRITE stays `seat-llm-path.sh --push`, run BY the unit as root, still with the SSOT read
+and the reachability probe inside that script, and still converged by no installer — `installer: none` on
+the plane record is a statement about the hosts write, and the timer runs the same half a person would.
+`--check` compares the installed pair with the render (`OK` is byte equality, and a `RemainAfterExit`
+reappearing in a drop-in is drift, because that is how the neutered-timer defect comes back); `systemctl
+list-timers seat-llm-path.timer` shows the next fire.
 
 ⚠ **A `#` line in a keyfile template is file content, so a comment edit is a write.** The rendered
 keyfile carries the template's leading `#` block verbatim — it is output, not a `{# … #}` Jinja comment —
