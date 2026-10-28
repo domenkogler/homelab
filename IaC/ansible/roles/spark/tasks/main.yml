@@ -220,6 +220,25 @@
   when: not (spark_headless | bool)
   tags: [spark, headless]
 
+# ---- Retired-stack tombstone ----
+# The retired alpine/socat LAN bridge `dgx-dashboard` keeps a rendered
+# /opt/dgx-dashboard/docker-compose.yml that the VENDOR package regenerates, so its
+# `docker-compose@dgx-dashboard.service` boot unit re-runs `compose up` for a socat container that can
+# no longer bind {{ spark_home_ip }}:11000 (the spark-dashboard Traefik edge owns it) — a crash-loop on
+# every boot. The mask is the guard rather than a disable or an `enabled: false` registry row: a package
+# upgrade re-enables a disabled unit and starts it again, but it cannot start a masked one. ⛔ Never
+# delete /opt/dgx-dashboard while the unit is merely disabled — that path IS the unit's
+# WorkingDirectory, so a re-enabled unit fails at CHDIR on every boot, forever.
+- name: Mask the retired dgx-dashboard boot unit (tombstone — a mask survives a package upgrade)
+  ansible.builtin.command: systemctl mask --now {{ item }}
+  register: _tombstone_mask
+  changed_when: "'masked' in _tombstone_mask.stdout + _tombstone_mask.stderr"
+  failed_when: _tombstone_mask.rc != 0 and 'already masked' not in _tombstone_mask.stderr
+  loop:
+    - docker-compose@dgx-dashboard.service
+  become: true
+  tags: [spark, docker_services]
+
 # ---- OOM forensics watchdog ----
 # Continuous sampler + forensic bundle catcher for the global-OOM class. Installed
 # as a systemd unit that is OOM-immune (OOMScoreAdjust=-1000) because the killer takes
