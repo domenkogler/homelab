@@ -283,7 +283,10 @@
   # `check_mode: false` for the same reason as the arch read above: under `--check` this command
   # would be skipped, `_ts_ip.stdout` would be empty and the assert below would fail the rehearsal
   # with an IP mismatch the host does not have — a read, so there is nothing for check mode to skip.
+  # A node that has not joined yet exits non-zero here (the same shape as the backend-state read
+  # above), which is a state and not a failure: the assert below is what judges the answer.
   check_mode: false
+  failed_when: false
 
 # The tailnet IP is assigned by headscale at join time, so the repo cannot know it in
 # advance — same contract as `tailnet_sidecar_ip`: leave the per-host expectation EMPTY until
