@@ -322,7 +322,7 @@ tailnet_ts_only_subdomains: "{{ zone_kogler_si_tailnet_ts }}"
 # a JSON array of `{name, type, value}` because headscale UNMARSHALS it as JSON — a comment line in it
 # is a crash loop that `configtest` cannot see, because it never opens the file.
 # → docs/network-dns.md §The MagicDNS records FILE
-headscale_extra_records_path: ""
+headscale_extra_records_path: "/etc/headscale/extra_records.json"
 
 # WG-S2S reach for the internal all-app edge.
 # The internal edge (`traefik-tailnet`, container) listens on :443 in its bridge

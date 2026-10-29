@@ -89,11 +89,20 @@ http:
 
 # Wildcard *.kogler.si cert pair, pulled from the VPS `traefik` (the single ACME issuer,
 # Cloudflare DNS-01) by the ha-cert-sync timer. File names come from the shared
-# File names come from the shared
 # `wildcard_cert_file` / `wildcard_cert_key_file` vars in group_vars/all/ so the
 # VPS issuer, the pull timer and this config can never drift.
 # Offline-safe: both routes stay TLS-valid even when WAN/ACME is down.
+#
+# The SECOND issued wildcard (`*.ts.kogler.si`) is what makes the `ha-ts` router above answer
+# that SNI at all: a `tls: true` router with no loaded cert whose name matches gets Traefik's
+# self-signed DEFAULT cert, which is a TLS failure and not a redirect — the same trap
+# `traefik-internal/dynamic/routes.yml.j2` records for oldsrv. Guarded by the same condition as
+# the listener and defaulted, so the standalone validator render still parses this template.
 tls:
   certificates:
     - certFile: "/etc/traefik/certs/{{ wildcard_cert_file }}"
       keyFile: "/etc/traefik/certs/{{ wildcard_cert_key_file }}"
+{% if tailnet_pi_ip is defined and tailnet_pi_ip %}
+    - certFile: "/etc/traefik/certs/{{ wildcard_ts_cert_file }}"
+      keyFile: "/etc/traefik/certs/{{ wildcard_ts_cert_key_file }}"
+{% endif %}

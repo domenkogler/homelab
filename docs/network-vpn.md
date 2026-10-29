@@ -353,8 +353,14 @@ role, granted **`tcp/443` on its node address** and nothing else. The reason it 
 other two joined: the tailnet answer for spark's AI names rides the **VPS** edge node, so while that node
 is down the names are missing from every tailnet client even though the engine behind them answers on the
 Home VLAN — spark's own node keeps the endpoint reachable with the VPS on the control plane only.
-✅ `https://pi.ts.kogler.si/` → **200** from a laptop's own tailnet client, the peer
-listed as `active; direct 193.77.156.222:41641` — a direct session, no relay.
+⚠ The Pi's tailnet listener **answers TCP/443 but not that NAME with a trusted cert**: an
+SNI of `ha.ts.kogler.si` or `pi.ts.kogler.si` on `tailnet_pi_ip` gets `CN=TRAEFIK DEFAULT CERT`
+(self-signed), because `traefik-ha`'s `tls.certificates` loaded only the internal wildcard — the
+pair the pull timer already delivers (`ts.kogler.si.pem`, `live-verified 2026-10-29`, valid to
+2027-01-26) was never named there. The session itself is direct, not relayed (`active; direct
+193.77.156.222:41641`). Both certs are declared now; until the Pi's `traefik-ha` converges, a
+`-k`-free client gets a TLS failure on this path, and a `200` here is only ever a `200` with the
+verification switched off.
 
 ⚠ **`tag:home-edge` is deliberate, and the tag IS the reach surface.** An ACL grants by TAG, so joining the
 Pi as `tag:dev` would widen every existing `tag:dev` rule to a second box (the DNS-tertiary host) and hand it
@@ -372,9 +378,12 @@ answer a `.ts` name is that entry's `tailnet:` field in `zone_kogler_si`: `node`
 where that address is set. `ha` is `node`, so when oldsrv's node is not answering, the away path that still
 works is `pi.ts.kogler.si`. Two addresses are what make the ANSWER survive either box — and only where BOTH
 boxes answer TCP/443 under that name, because a second address behind a listener that is not there is one more
-timeout, not survivability. Both home edges do answer under that name: `ha-ts` is served on each box's own
-node address, both targeting the VIP (`live-verified 2026-10-29`), so the field flip buys survivability and
-not a second timeout. The SERVICE surviving either box is the VIP's second advertiser, a different
+timeout, not survivability. **Under that name, only one home edge answers today** (`live-verified 2026-10-29`):
+oldsrv's internal edge serves the `*.ts` pair and returns 200 for SNI `ha.ts.kogler.si` on
+`tailnet_oldsrv_ip`, while the Pi's `traefik-ha` answers the same SNI on `tailnet_pi_ip` with Traefik's
+default self-signed cert (the default-cert note earlier in this section) — a TLS failure, not a fallback. So `tailnet: dual` on `ha` is
+**blocked on that Pi converge**: setting the field first would send half of all away clients into a cert error
+and is a regression, not survivability. The SERVICE surviving either box is the VIP's second advertiser, a different
 claim ([smart-home-failover.md](smart-home-failover.md) §Away access (tailnet)).
 
 ⚠ **`tag:spark` grants nothing, and that is the point.** An ACL grants by TAG, so spark taking

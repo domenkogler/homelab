@@ -959,10 +959,10 @@ black hole with extra steps.
    so the only verdict this leg accepts is the guarded converge's **sampled** probe. ⛔ The consumer
    **unmarshals the file as JSON** — the render is a JSON array with no comment line and no managed
    header, because a single `#` is a crash loop that `headscale configtest` cannot see (it never opens
-   the file, and it also accepts a config carrying both record keys). The key is off and the inline
-   block is in force; §The MagicDNS records FILE carries the shape and the switch. **Precondition for
+   the file, and it also accepts a config carrying both record keys). The key is on and the records FILE
+   is the shape in force; §The MagicDNS records FILE carries the shape and the switch. **Precondition for
    any flip:** the sampled probe — `configtest` is not it. The IaC shape lives behind one variable
-   (`headscale_extra_records_path`, default `""` = the inline block).
+   (`headscale_extra_records_path`; `""` renders the inline block).
 6. **The Pi joins the tailnet and HA's names get two A records** (Pi + oldsrv). Both boxes
    proxy to the VIP, so the answer follows HA in either direction. Flagged as **designed, not yet
    measured**: multi-A fall-over on a real client must be proven with a plug-pull before it is relied on.
@@ -1077,8 +1077,8 @@ variable — `headscale_extra_records_path` in
 
 | `headscale_extra_records_path` | the key `dns:` carries | where the rows live |
 |---|---|---|
-| `""` — **the shape in force** | `dns.extra_records` | inline in `/opt/headscale/config.yaml` |
-| `/etc/headscale/extra_records.json` | `dns.extra_records_path` | `/opt/headscale/extra_records.json`, rendered from `extra_records.json.j2` next to the compose file and mounted `:ro` in both shapes — a **JSON array** of `{name, type, value}`, which is the only shape the consumer parses |
+| `""` | `dns.extra_records` | inline in `/opt/headscale/config.yaml` — the shape every render of this service predates |
+| `/etc/headscale/extra_records.json` — **the shape in force** | `dns.extra_records_path` | `/opt/headscale/extra_records.json`, rendered from `extra_records.json.j2` next to the compose file and mounted `:ro` in both shapes — a **JSON array** of `{name, type, value}`, which is the only shape the consumer parses |
 
 `headscale/config.yaml.j2` renders exactly ONE key, and
 `scripts/gate/check_zone_kogler_si_parity.py` renders BOTH shapes from one context and requires the
@@ -1090,7 +1090,7 @@ the claim is a case, not a sentence.
 
 Facts that hold in either shape:
 
-* The records FILE is rendered and mounted while the inline key is the one in force too. The render
+* The records FILE is rendered and mounted whether or not the key names it. The render
   is unconditional (`_extra_templates.headscale`), because an absent bind SOURCE is what Docker
   helpfully auto-creates — as a root-owned directory — and that is a longer diagnosis than a file
   that exists and is unused.

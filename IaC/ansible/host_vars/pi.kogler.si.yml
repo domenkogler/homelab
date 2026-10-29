@@ -75,10 +75,15 @@ monitoring_hygiene_units:
   - nut-client.service
 
 # The ha-cert-sync.sh DST here is `/opt/traefik-ha/certs/` (hardcoded in that template, unlike
-# oldsrv's var-derived one) and the pair carries the same 90-day wildcard.
+# oldsrv's var-derived one) and the pair carries the same 90-day wildcard. The `.ts` pair is
+# listed beside it because `traefik-ha` now SERVES it on the tailnet listener: a pair that ages
+# out there is a TLS failure on the away path, and the hygiene check is what catches an aged-out
+# pair before a client does.
 monitoring_hygiene_certs:
   - consumer: traefik-ha
     path: "/opt/traefik-ha/certs/{{ wildcard_cert_file }}"
+  - consumer: traefik-ha
+    path: "/opt/traefik-ha/certs/{{ wildcard_ts_cert_file }}"
 
 # This host is a NUT CLIENT: `nut-monitor`/`nut-client` stay `active` while the master is unreachable,
 # so the unit results above do not answer "can this client read the master". The collector runs the

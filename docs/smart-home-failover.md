@@ -266,6 +266,10 @@ when the VIP is on oldsrv. Because the VIP already tracks the active HA node, th
   must reach HA as `pi.ts.kogler.si`. `tailnet: dual` publishes the Pi's address beside it
   (`tailnet_pi_ip`, second row rendered only when it is set); it is deliberately NOT a bolt-on to
   `tailnet_subdomains`, which would answer the PLAIN `ha.kogler.si` client-side for a phone standing at home.
+  ⚠ **It is also gated on the Pi answering that name**: the Pi's `traefik-ha` serves Traefik's default
+  self-signed cert for SNI `ha.ts.kogler.si` / `pi.ts.kogler.si` until its `tls.certificates` block carries
+  the `.ts` pair and that edge converges, so flipping the field first turns half of all away clients into a
+  TLS error ([network-vpn.md](network-vpn.md) §Tailnet boundary).
   Reasons: [network-dns.md](network-dns.md) §The answer-plane model.
 - ⚠ A dual-A publish makes the **answer** survive either home box and does not make the **service** survive
   it. Both `ha`/`ha-ts` routers target the VIP, and the VIP has one advertiser until the standby is
