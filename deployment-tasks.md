@@ -480,8 +480,10 @@ HD-358 (Seerr → \*arr link — IaC-seeded by `roles/docker_services/tasks/arr-
 - [ ] **HD-353** — **[MANUAL, owner]** verify own Jellyfin login at the `seerrng` route. · [services-media.md](docs/services-media.md)
 - [ ] **HD-357** — Homepage tiles: wire the Jellyfin/Seerr/Immich widgets to the verified endpoints (the edge model
       and route tables are final now). · [services.md](docs/services.md)
-- [ ] **HD-362** — music pillar tails: overwrite the placeholder 1P values with real ones, wire the Lidarr download
-      clients in-UI, refresh the Navidrome Box library. **Tube Archivist stays torn down** — re-enabling it requires
+- [ ] **HD-362** — music pillar tails: wire the Lidarr download
+      clients in-UI, refresh the Navidrome Box library (the pillar's `*_api` items hold the values their app or
+      provider issues — issuer map: [services-media.md](docs/services-media.md) §Credential rotation).
+      **Tube Archivist stays torn down** — re-enabling it requires
       `path.repo` in the ES `elasticsearch.yml` directly first (env-var/`-E` forms destabilize ES bootstrap). · [services-media.md](docs/services-media.md)
 - [x] **HD-386 tail** — **CLOSED 2026-09-21: no owner step, it was already decided.** — the `dsh`/`pi-dev` tailnet names + `dsh-backend`/`pi-backend` routes still answer **502 by design**: the names and their `.ts` twins keep their headscale `extra_records` and their `traefik-tailnet` routers, and the two load-balancer URLs point at `oldsrv:3080` / `oldsrv:8080` over the WG S2S where nothing listens — so they resolve to an edge with no backend to call, which is not an outage to chase, and the `zone_kogler_si` entry says so where the name lives. Deletion is a decision of its own: it removes MagicDNS records, so it must clear `tailnet:` on both those entries, the routers and the two service blocks as ONE change. · [network-vpn.md](docs/network-vpn.md)
 - [ ] **HD-288** — `sunshine` deployment tail on oldsrv (the enable decision is resolved in IaC; the deploy +
