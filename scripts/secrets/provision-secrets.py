@@ -185,7 +185,7 @@ CATALOG = [
     # people to ignore it. It STAYS in NOT_AUTO_ROTATABLE below so --rotate-all can never
     # regenerate the live item while it still exists in the vault (owner deletes it, by hand).
     # ("Password",       "authentik-ldap_bind",     lambda: [f"password={gen_pw()}"]),
-    # NAS Samba share logins (HD-1093): the credentials `roles/storage/tasks/samba.yml` writes
+    # NAS Samba share logins: the credentials `roles/storage/tasks/samba.yml` writes
     # into the NAS passdb with `smbpasswd -a -s`. username is FIXED (the unix/Samba account name
     # in host_vars storage_samba_users) — it must match, or the entry is created but unmountable.
     # Propagation exists (the converge writes the passdb), so rotation = rotate + re-run with

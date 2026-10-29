@@ -1593,7 +1593,7 @@ ping -c3 <router-mgmt-ip>            ; router mgmt over the tunnel (0% loss; IP 
 > sudo umount /mnt/<share>
 > ls /mnt/<share>                   # re-mounts cleanly once the export is live
 > ```
-6. **Samba — family shares on the NAS (HD-131 / HD-1093).** Auth is **local tdbsam**: the account
+6. **Samba — family shares on the NAS.** Auth is **local tdbsam**: the account
    list lives in `host_vars/nas.kogler.si.yml` (`storage_samba_users`) and each account's password in
    the 1Password item `smb-<name>_login`. Nothing external is involved — no IdP, no VPS, no tunnel.
    (The `ldapsam`/`storage_samba_passdb` switch described here for a while is **retired**; its evidence is in

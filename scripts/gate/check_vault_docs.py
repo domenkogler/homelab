@@ -45,7 +45,7 @@ def referenced_items(root: Path) -> dict[str, set[str]]:
             for item in re.findall(r"'([a-z0-9_.-]+)'", line):
                 if item.endswith(("_api", "_login", "_password", "_db")) and "<" not in item:
                     refs.setdefault(item, set()).add(f"{defaults.relative_to(root)} (registry)")
-    # Registry-key class in host_vars (the HD-244 rule, extended 2026-10-07 with HD-1093):
+    # Registry-key class in host_vars:
     # a `*_item:` scalar whose value is an item NAME, consumed through a VARIABLE — so no
     # template contains a literal lookup and the pass above can never see it. Found here:
     # storage_samba_users[].vault_item (roles/storage, the NAS Samba logins) and

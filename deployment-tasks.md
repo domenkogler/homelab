@@ -353,7 +353,7 @@ here (its record is the owning doc + the commit). Run `todo.md` for the full sta
 - [ ] **HD-06** — **[MANUAL, owner]** the one thing left in the UPS lane: a short power-pull → poweroff + WoL
       wake **end-to-end** re-test (the full defect fix set deployed to nas/oldsrv/pi 2026-09-09; the 2026-09-09
       drill is what found those three latent defects). · [hardware-ups.md](docs/hardware-ups.md)
-- [x] **HD-1093** — ✅ done + live-verified 2026-10-07: family NAS shares authenticate with **local Samba accounts**; the Authentik-as-LDAP
+- [x] **NAS family shares — local tdbsam accounts** — ✅ done + live-verified 2026-10-07: the shares authenticate with **local Samba accounts**; the Authentik-as-LDAP
       path (HD-132/HD-360) is **retired** and torn down: `authentik-ldap` out of the authentik compose, the
       D5 `sync-authentik-users` glue deleted from the NAS (it had exited 127 on all 823 runs), `storage_samba_passdb`
       deleted from the storage role. ✅ Converged + matrix-verified 2026-10-07 (`domen`→media+private,

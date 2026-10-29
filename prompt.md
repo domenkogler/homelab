@@ -229,10 +229,9 @@ not this list, holds the steps, the file ownership and the converge host. Waves,
    no-autosnap template: the invariant, the `zfs send -I` subtlety and the proof reads are
    [storage.md](docs/storage.md) §Snapshot & Replication, and ⛔ a hand-`zfs destroy` of replica snapshots stays out.
    **HD-1105** — the three enabled-but-dead nas units are all ruled and `--failed` lists 0. **HD-1106** — the
-   prune itself is owed: one `docker volume rm` per row the table marks `prune`, plus a named volume or bind for the
-   two `onlyoffice-docs` paths, whose WOPI/JWT keypair is **re-minted at every recreate**. **HD-1093** ⏳ land the
-   rotated family SMB passwords on the NAS with `storage_samba_password_force` — a vault rotate alone changes nothing
-   on the box. Plus **HD-207** and **HD-238**. ⛔ **HD-1174** is registered and open: kopia's `repository connect
+   prune itself is owed: one `docker volume rm` per row the table marks `prune` — the two `onlyoffice-docs`
+   paths sit in named volumes now, so the WOPI/JWT keypair that recreate re-mints survives the bounce.
+   Plus **HD-207** and **HD-238**. ⛔ **HD-1174** is registered and open: kopia's `repository connect
    server` echoes the URL it was handed, so the `kopia-server-internal_api` credential sits in plaintext in the
    kopia-agent's container log and in the log store for the retention window — scrub that connect line, then rotate
    with the agent **re-connected**, because its `repository.config` caches the credential. **HD-1183**'s fix lives
@@ -417,11 +416,10 @@ action so no lane re-derives it. An entry marked RULED is AI work, not an owner 
 | **HD-1152** | the first REAL `playbooks/dns-seed.yml` apply per instance, and only after its two defects are repaired — `--check` can never name candidates | vps · oldsrv · pi | [prompt-dns-transport.md](prompt-dns-transport.md) |
 | **HD-1160** | render + `routeros-apply-delta.sh` for the converge template's twin of the retagged `#`-comment (a `#`-line IS rendered output — [network-dns.md](docs/network-dns.md) §Host-side resolver); ⛔ never `--diff`, never from a docs lane, and **no converge is behind it** | router window, global slot | [prompt-dns-transport.md](prompt-dns-transport.md) |
 | **HD-384** step 2 | point the two LiteLLM gateways at `litellm-engine_api` — only AFTER spark reboots with it in its accepted-key list; inverting the order 401s every upstream call | spark window (PLE load, ~20 min) | [prompt-litellm-consumers.md](prompt-litellm-consumers.md) |
-| **HD-1122** | flip `ai_tier_metrics_publish: true` and converge `--tags docker_services,monitoring` — ONE change that recreates two serving containers, so not at night | **oldsrv** | [prompt-observability-alerting.md](prompt-observability-alerting.md) |
+| **HD-1122** | add the authored `llamacpp:*` panel to `homelab-llm` through `scripts/ansible/build-llm-dashboard.py` — `ai_tier_metrics_publish` is already `true` and both legs are scraped, so no flip and no recreate is owed | **oldsrv** | [prompt-observability-alerting.md](prompt-observability-alerting.md) |
 | **HD-1088** | register oldsrv's public key on the live Box — port 23 is key-auth-only, there is no other way in; then `storage_push_music.enabled: true`, converge `--tags storage --limit oldsrv.kogler.si`, `systemctl start push-music.service` once | **oldsrv** | [prompt-media-arrs.md](prompt-media-arrs.md) |
-| **HD-1091** | rotate `lidarr_api` — the order is forced: mint → Lidarr's own `config.xml` → restart lidarr → re-render soularr's `config.ini` → re-point Seerr | **oldsrv** | [prompt-media-arrs.md](prompt-media-arrs.md) |
-| **HD-1093** | land the rotated family SMB passwords with `storage_samba_password_force` — a vault rotate alone changes nothing on the box | **nas** | [prompt-storage-backup.md](prompt-storage-backup.md) |
-| **HD-1106** RULED | the prune — one `docker volume rm` per row the table marks `prune`, plus a named volume or bind for the two `onlyoffice-docs` paths | **VPS** | [prompt-storage-backup.md](prompt-storage-backup.md) |
+| **HD-1091** | rotate `lidarr_api` — the order is forced: mint → Lidarr's own `config.xml` → restart lidarr → re-render soularr's `config.ini` → re-point Seerr. ⏳ what is left of the row is the one-album end-to-end proof | **oldsrv** | [prompt-media-arrs.md](prompt-media-arrs.md) |
+| **HD-1106** RULED | the prune — one `docker volume rm` per row the table marks `prune` (the two `onlyoffice-docs` paths are on named volumes, which is what the ruling gated the set on) | **VPS** | [prompt-storage-backup.md](prompt-storage-backup.md) |
 | **HD-1103 · HD-1167 · HD-1109** | ONE owner-window Pi visit: the boot that makes the fstab `mode=0755` true on the mount, the UNTAGGED converge that applies `ai_diag`'s derived smartd mask, and the one-time re-render of `pi-eth0.nmconnection`. ⛔ the `nm-resolver` applies and HD-418's reconcile are DONE on both hosts — do not re-run them; on a keyfile host the write leg is `nm-pi` | **pi** | [prompt-smart-home.md](prompt-smart-home.md) |
 | **HD-1143** | one privileged act (`docker exec` into the HA container, or a KNX integration reload) so exactly one `GroupValueRead` leaves the Pi, with the reverse rule's counters read either side | oldsrv + **pi** | — |
 | **HD-443** RULED | revoke the Pi's `admin` on the neutralized state — the volatile journal cannot prove a 30-day silence | **pi** | [prompt-seat-cockpit-grants.md](prompt-seat-cockpit-grants.md) |

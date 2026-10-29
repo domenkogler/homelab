@@ -16,6 +16,7 @@
 - A phase is **done** when every box in it is ticked; tick a box only on its own host/slot, and never tick a converge box on a `--check` verdict (§7). One converge in flight per host (O3); live ones run **detached**, `--check` first, ⛔ never `--diff` (§7).
 - **`todo.md` is updated once per phase**, after that phase's last box — the fold-in rows' `⏳` tails and the rotation ledger, not per task. ⛔ No `HD-` is minted for anything in this file (§7).
 - The **last content act, before this file dies, is the `prompt-*.md` pass** (`prompt.md` + the briefs whose rows the window touched) — once, at the end, not per task. Phase 8 holds the order, ending with this file deleted.
+- **Per-lane execution state — the shas, the parks, the measurements — is [`plan/tasks-update-window-20261028.md`](plan/tasks-update-window-20261028.md)**, the window's work package. The boxes here say what is owed; that file carries what each lane proved and what it parked, and it dies in the same commit as this one (Phase 8).
 
 ## 1. State this brief was written against
 
@@ -23,26 +24,44 @@
 - Every Debian host sits at its pin with the whole set held (`hi` in `dpkg -l`, live-verified on all five): oldsrv 8, pi 8, vps 7, spark 7, nas 1 (`alloy` only — `nas` runs no Docker), so `homelab_pkg_pin_result{result="differ"}` is empty before the window ([docs/observability.md](docs/observability.md) §Pin-lag report).
 - spark: kernel `7.0.0-1019-nvidia`, driver `580.178.04`, DGX OS OTA level 7.6.0, `/` 165 G free, up 5+ weeks. The offered OTA `OTA2610` moves no kernel image and no GPU driver; its delta is `dgx-dashboard`, `dgx-oobe{,-desktop}`, `nvidia-dgx-telemetry`, `nvidia-spark-mlnx-firmware-manager`, `nvidia-disable-aqc-nic` + two NEW packages (`nvidia-spark-grub-kho` adds `kho=off` to the kernel command line; `nvidia-spark-cloud-init` configures a NoCloud `OEMDATA` datasource). A reboot-scoped platform act.
 - **The v0.32 lineage is built and pinned** — `spark_vllm_ultrafast_v32_image` = `sha256:72eb432f…`, `spark_llm_fp8_kv_capable_images` = `[ultrafast-v32]`, so `fast8` and `fast-v32-bf16` boot today and what is owed on them is certification, not a build (HD-1206, [spark/reports/hd1206-v32-port-20261026/](spark/reports/hd1206-v32-port-20261026/README.md)). It was built on the toolchain this window replaces: **ruled (owner) — use it as built, no rebuild here**; the certification measures the platform, not the build toolchain.
-- ⚠ §2 and §4 are **not implemented**; §3 is **not committed**. Phases 0–1 exist to close that.
-- **No phase of this window has run** — nothing converged, `versions.yml` untouched. One sitting on the WSL seat
-  proved the legs that need no apply: every one of the five hosts answers SSH, and `~/ansible-venv` +
-  `ansible-playbook` are present there, so that SKIP names the other seats and not this one (live-verified
-  2026-10-27). The `wsl` delegation plane is still unverified (HD-1180), and a spark-served sitting bars its own
+- **The prerequisites are in the tree** — §2(a), §2(b) and §4 — and the §3 pin commit is on `main`: the hold-lift legs in
+  `roles/monitoring` + `roles/tailscale-node`, the `image-pin-probe.py` root fix with `SOURCES` rows for the four
+  docker-family vars, the `dgx-dashboard` mask with its registry entry deleted, and the pin set at the §3 targets with
+  `tailscale_host_deb_sha256_by_arch` re-fetched in the same change. What is left of §4 is the mask **on the box**,
+  which is a spark converge (Phase 6).
+- **Four of the five hosts are converged** — `pi`, `vps`, `nas`, `oldsrv`: the docker family, `alloy`, and the
+  `tailscale-node` deb where the role applies, with the holds re-asserted by the role's own assert. **spark carries the
+  `monitoring`/`alloy` legs only** (ruling S8), so it publishes the NEW pin map over OLD packages: six `differ` rows,
+  all docker family, plus `tailscale` = `missing`. That is the parked Phase-6 apply made visible by a render, not drift,
+  and `--tags hygiene` is the leg that bakes a host's pin map — a `differ` row is a statement about a render, never
+  about packages ([docs/observability.md](docs/observability.md) §Pin-lag report).
+- **Phase 5 (router/switch) and Phase 6 (spark) have not run**, Phase 7 ran its re-seats but not its ledger commit,
+  Phase 8 is owed. The `wsl` delegation plane is still unverified (HD-1180), and a spark-served sitting bars its own
   Phase 6 (Rule 0).
-- **Rotated already — ⛔ do not rotate again inside this window:** `radarr_api` + `sonarr_api` (the instance's own
-  `config.xml` issued the key, the vault holds the copy), `op_api`, `entrim_api`, `openrouter_api`,
-  `opencode-go_api`. What they owe is **propagation**: `litellm` + `lan-litellm` render a retired openrouter value
-  until they converge, the harness renders still hold the old provider keys, and four `op_api` installs wait a
-  re-seat ([docs/1password.md](docs/1password.md) §Rotating the control-node token). Of the 19 items the register
-  still names, these need no device in front: `litellm_api`, the NUT pair, `authentik_db`/`forgejo_db`/`immich_db`.
-  Not rotatable, recorded: `pppoe_login` (ISP-provisioned) and `slskd_login`/`soulseek_login` (no reset e-mail).
-  `ha_api` and `privado-vpn_api` are rotated too and neither is a second rotation: `ha_api` propagates to nothing
-  (its only write path is the disabled `alloy_ha_exporter` leg) and owes one human click in HA, and
-  `privado-vpn_api` owes the paired `privado_vpn_*` edit in `group_vars` plus a converge — §5b/§5c carry both.
+- **Rotated — ⛔ do not rotate again inside this window:** `radarr_api`, `sonarr_api`, `lidarr_api`, `bazarr_api`,
+  `soulseek_api` + `soulseek-internal_api`, `qbittorrent_api`, `op_api`, `entrim_api`, `openrouter_api`,
+  `opencode-go_api`, `litellm_api`, the NUT pair (`nut_password` + `nut-exporter_password`, one act across the three
+  hosts), `authentik_db`, `forgejo_db`, `immich_db`, `onlyoffice_db`, `kopia-server-internal_api`,
+  `kopia-server_fingerprint`, `crowdsec-bouncer_api`, `headplane_api`, `signal-internal_api`,
+  `victoria-metrics_api` + `victoria-logs_api`, `grafana_login`, `opencloud-collab_password`, `technitium_login` with
+  its `admin @dns.kogler.si` copy, `ha_api`, and `privado-vpn_api` with its `privado_vpn_*` fields landed in
+  `group_vars`. Each moved at the end that ISSUES it, propagated, and was proved new→accepted / superseded→refused;
+  the mechanics and per-item far ends are §5a/§5b. `grafana_login` is the case where the render is NOT the far end —
+  `grafana cli admin reset-admin-password` moves the app, `GF_SECURITY_ADMIN_PASSWORD` only seeds it.
+  **Rotated with the residue elsewhere:** `ha_api` propagates to nothing and owes one click in HA (prune the
+  long-lived-token list); `op_api` owes the three owner residues of HD-1171; `kopia-server_fingerprint`'s current
+  value is a TLS cert fingerprint, so its ledger line stays (ruling S7).
+  **Not rotatable, recorded:** `pppoe_login` (ISP-provisioned), `slskd_login` / `soulseek_login` (no reset e-mail).
+  **Parked, with the reason in the row:** `immich-ml-internal_api` and `n8n-webhook_api` (nothing enforces the
+  credential, so a rotation buys nothing), `immich_oidc` (an owner call — ruling S4), `pgvector_db` (retired service:
+  delete the item WITH its parked cluster dirs), `opencloud_login` and `openclaw_gateway_token` (the probe answered
+  "no far-end path", §5c), the two media web-auth users and `jellyfin-seer_api` (UI-only, no machine mint),
+  `network-snmp_api` (a router/switch write — Phase 5), `spark-llm_api` + `litellm-engine_api` (Phase 6), and the two
+  re-keys `kopia_password` + `n8n_password`, whose consequences must fit the same sitting.
 
 ## 2. Prerequisites — the pins session's deliverable (the window does not run without them)
 
-**(a) Two pinned-and-held packages have no lift leg, so a pin bump fails the converge.** The `apt` module always
+**(a) Two pinned-and-held packages needed a lift leg, or a pin bump dies in apt.** The `apt` module always
 passes `-y`, and apt refuses to move a held package under `-y`:
 
 ```
@@ -50,25 +69,29 @@ apt-get -s -y install alloy=1.21.0-1   →  E: Held packages were changed and -y
 apt-get -s     install alloy=1.21.0-1  →  Inst alloy [1.20.1-1] (1.21.0-1 …)
 ```
 
-`roles/docker` is the only role that lifts (unhold → versioned install → re-hold in `always`, asserted). Port
-that block — lift **only** the names the run moves, re-hold in `always`, assert `apt-mark showhold` — into:
+The shape is `roles/docker`'s (unhold → versioned install → re-hold in `always`, asserted), ported — lifting
+**only** the names the run moves, re-holding in `always`, asserting `apt-mark showhold` in both directions — into:
 
 - [`IaC/ansible/roles/monitoring/tasks/main.yml`](IaC/ansible/roles/monitoring/tasks/main.yml) — `name: "alloy={{ alloy_version }}"`
 - [`IaC/ansible/roles/tailscale-node/tasks/main.yml`](IaC/ansible/roles/tailscale-node/tasks/main.yml) — `apt: deb: …tailscale_<ver>_<arch>.deb`
 
 ⚠ **Tag vocabulary, or the port defeats itself:** `home_servers.yml` / `storage.yml` / `raspberry_pi.yml` list
-`monitoring` as a **bare role entry with no role-level tag** (`vps.yml` gives it `tags: [monitoring]`), so the new
-tasks in that role must carry `tags: [monitoring, alloy]` explicitly — otherwise a `--tags monitoring` run drops the
-lift silently and dies at apt's `-y` refusal (the "scoped deploys need BOTH tags" trap,
-[scripts/README.md](scripts/README.md)). Add the both-directions assert `roles/docker` carries. ⛔ Never
+`monitoring` as a **bare role entry with no role-level tag** (`vps.yml` gives it `tags: [monitoring]`), so those
+tasks carry `tags: [monitoring, alloy]` explicitly — otherwise a `--tags monitoring` run drops the lift silently and
+dies at apt's `-y` refusal (the "scoped deploys need BOTH tags" trap, [scripts/README.md](scripts/README.md)) — and
+the both-directions assert `roles/docker` carries is there too. `tailscale-node` keeps its single role tag on
+purpose: widening it would have to enter `homelab_guard_tags` AND the guard task's own `tags:` in one change
+(`scripts/gate/check_self_converge_guard.py`), and both playbooks already tag the role, so nothing was repaired by
+the extra tag. ⛔ Never
 `--allow-change-held-packages`, never a blanket `apt-mark unhold $(apt-mark showhold)` — documented refusals in
 [docs/deployment-ansible.md](docs/deployment-ansible.md) §Role Catalog.
 
-**(b) `scripts/ansible/image-pin-probe.py` cannot find the pin file.** `DEFAULT_ROOT` joins one `os.pardir` where the
-`scripts/` foldering needs two, so every documented invocation dies on `FileNotFoundError` — including `--debs`, the
-tool that fetches the tailscale digests this window needs. One-line fix; workaround meanwhile `--file
-IaC/ansible/group_vars/all/versions.yml`. Its `SOURCES` table has no entry for the four `docker_*`/`containerd_io`
-vars, so the tool is blind to this window's host-APT family and those values came from the vendor indexes.
+**(b) `scripts/ansible/image-pin-probe.py` finds the pin file, and the host-APT family.** `DEFAULT_ROOT` joined one
+`os.pardir` where the `scripts/` foldering needs two, so every documented invocation died on `FileNotFoundError` —
+including `--debs`, the tool that fetches the tailscale digests — and there is no `--file` workaround left. Its
+`SOURCES` table now carries the four `docker_*`/`containerd_io` vars, and those rows print `PIN EXISTS = feed-only`:
+the tool sees the pin but has no upstream index to re-derive it from, so a docker-family value stays a vendor-index
+read.
 
 ## 3. The pin set
 
@@ -91,7 +114,8 @@ minor, 7 major, 4 date-ordered **downgrades**.
 (`image-pin-probe.py --debs` after the bump); a transcribed or neighbour-release digest passes every offline gate and
 dies at `get_url`'s checksum gate mid-play. Verified published, both arches: amd64 `4c342bec…`, arm64 `a093315c…`. The
 two versions are one fact: a host node and a sidecar must not speak different wire versions. ⚠ `alloy 1.21.2-1` came
-from the vendor index, not from a repo listing here — re-derive it with the fixed probe before the commit.
+from the vendor index, not from a repo listing here; the fixed probe's `--verify` reads it as published, which is as
+far as a deb pin is provable offline.
 
 **Container pins — ruled (owner): patch + minor, flagged rows one by one.** Take the 16 patch + 34 minor rows,
 **excluding** every flag below; `keepalived` and `technitium` run as their own mini-windows (VIP and DNS, three live
@@ -106,17 +130,17 @@ carries its own session brief outside this window: [pin-major-onlyoffice.md](pin
 date-downgrades (`authentik_db`, `litellm_db`, `radarr`, `pairdrop`); every digest-pinned `*_image` (CONVENTIONS §7 —
 this is why `spark_vllm_ultrafast_v32_image` and `spark_sglang_image` stay put); ⛔ `--allow-downgrades` anywhere. A
 pin value is the HIGHEST release already running in the fleet, not the newest upstream — no box runs the `29.9.x`
-docker family yet, so this bump is first contact for the whole fleet at once.
+docker family and spark does not, which is the six `differ` rows §1 names.
 
 ## 4. The tombstone (spark) — ruled (owner): mask, then delete
 
-`group_vars/spark.yml` carries a `dgx-dashboard` entry with `enabled: false`, and the box holds no container, no
-`docker-compose@dgx-dashboard` symlink, the unit `disabled`, and `/opt/dgx-dashboard/{docker-compose.yml,.j2}`
-still present (regenerated by the vendor package, not owned by it). Add a mask of
-`docker-compose@dgx-dashboard.service` to the `spark` role — it already masks with `systemctl mask --now`, and
-masking, not disabling, survives a package upgrade — then delete the registry entry and rewrite the
-[docs/hardware-spark.md](docs/hardware-spark.md) §Remote management sentence so the mask is the named guard and
-the ⏳ is gone. Generalizing the mask to every `enabled: false` entry was offered and not taken. ⛔ Do not delete
+`group_vars/spark.yml` carries no `dgx-dashboard` entry, the `spark` role masks
+`docker-compose@dgx-dashboard.service` (it already masked other units with `systemctl mask --now`, and masking, not
+disabling, survives a package upgrade), and the
+[docs/hardware-spark.md](docs/hardware-spark.md) §Remote management sentence names the mask as the guard. The box
+still holds `/opt/dgx-dashboard/{docker-compose.yml,.j2}` (regenerated by the vendor package, not owned by it), and
+the mask is inert until a spark converge applies it (Phase 6). Generalizing the mask to every `enabled: false` entry
+was offered and not taken. ⛔ Do not delete
 `/opt/dgx-dashboard` while the unit is merely disabled: a re-enabled unit with no directory fails at `CHDIR` on
 every boot, forever.
 
@@ -221,6 +245,11 @@ file, so a fresh file and a `403` are compatible observations.
   different item and is ours — its converge recreates the container and drops the session, so HD-1091's one-album proof
   comes after it.
 - `pppoe_login` — ISP-provisioned, not rotatable from here ([docs/network-rejected.md](docs/network-rejected.md)).
+- `opencloud_login` — **moved here by probe**, and the probe is the reason: the compose renders `IDM_ADMIN_PASSWORD`,
+  which the identity provider applies at **init**, so a re-render does not move a live admin password and a vault write
+  alone is the divergence §5a names. The IdP's own admin-password path is the far end.
+- `openclaw_gateway_token` — **moved here by probe**: the value is generated on the gateway host by `openclaw onboard`,
+  and the gateway was never onboarded, so there is no far end to move until that service exists.
 - The provider keys the register still may name (`openrouter_api`, `entrim_api`, `opencode-go_api`) are rotated at
   their consoles already: what they owe is **every** harness client re-rendered — a converge leg, not a rotation, and
   not a human.
@@ -236,49 +265,53 @@ closed by definition, not by a change. ⛔ Never shred or delete a transcript (H
 
 - [ ] `prompt-laptop-wsl.md` §0 pre-flight in full; record the gate count with `validate-all.sh --list | wc -l` and name every SKIP (tmux, the font plane, `ansible-playbook`, `rsync`, the venv symlink arms — HD-1202).
 - [ ] Driver clone fast-forwarded: `git fetch origin && git merge --ff-only origin/main`. oldsrv will report `STALE-CLONE` from here until its **own** clone is fast-forwarded on oldsrv — not fixed from the laptop.
-- [ ] `~/ansible-venv` present and `ansible-playbook` on PATH — **true on the WSL seat**, so that SKIP names the
-  other seats only (live-verified 2026-10-27, together with SSH reachability to all five hosts); `ansible all -m
-  ping` still has to answer from the driver before any apply.
-- [ ] `echo "seat=$(uname -n) provider=$PI_PROVIDER"` — if the session is **spark-served**, Phase 6 cannot run in it (Rule 0: no engine restart, no `spark-ai` re-render): take it in an externally-served session, stated by the owner in-session (README §3).
+- [x] `~/ansible-venv` present and `ansible-playbook` on PATH — **true on the WSL seat**, so that SKIP names the
+  other seats only; `ansible all -m ping` answered from the driver, since every Phase-4 leg ran from it.
+- [x] `echo "seat=$(uname -n) provider=$PI_PROVIDER"` — the sittings read **spark**, so Phase 6 could not run in them
+  (Rule 0: no engine restart, no `spark-ai` re-render): take it in an externally-served session, stated by the owner
+  in-session (README §3).
 - [ ] Delegation plane: `wsl` is unverified (HD-1180) ⇒ lanes run **foreground-sequential**, or pay the two acts (push the `settings` plane + `pi install npm:pi-subagents@0.80.0` FROM this seat, accepted by its own `async: true` launch).
 - [x] ⏭ `python3 scripts/gate/check_secret_leak.py` **from this seat** — read taken (HD-1181 leg 3); with the oldsrv and win11 reads it is the rotation list for Phase 2.
-- [ ] **The model-path verdict, read before every converge act in this window:** `bash scripts/harness/seat-llm-path.sh --check`.
-  `path=lan` = the seat's inference lane is `seat → spark Home :443`, so an act on the VPS edge cannot cut it; `path=edge` =
+- [x] **The model-path verdict, read before every converge act in this window:** `bash scripts/harness/seat-llm-path.sh --check`.
+  This window read **`path=lan`** ⇒ a VPS edge/sidecar act cannot cut the session's own inference lane (the §7 trap is
+  armed but not loaded). `path=lan` = the seat's inference lane is `seat → spark Home :443`; `path=edge` =
   the lane rides the tailnet edge and a VPS edge/sidecar restart **will** cut it mid-request (the 2026-10-28 loss class, HD-1212/HD-1213).
   The verdict is read, never assumed, and it is read again after any act that moves an answer.
 - [ ] `sudo bash scripts/harness/seat-llm-path.sh --push` — land the pin for this sitting (the push half is a root act; `--check` needs no privilege).
   ⛔ Never by hand: the name and the address are read from `zone_kogler_si` and `network_static_hosts`, the pin exists only while that address answers TCP/443,
   and the plane removes it the moment it stops. One name only — the zone-wide "ask the home resolver at home" shape is rejected (HD-1212), and the seat's
   resolver artifacts and re-assert timer (HD-1176) are outside this plane and stay untouched.
-- [ ] `todo.md`: record the window start (one line in the rows this file rides; no new ids).
+- [x] `todo.md`: record the window start (one line in the rows this file rides; no new ids).
 
 ### Phase 1 — prerequisites (the pins session's commits, consumed here)
 
-- [ ] §2(a) lift legs in `roles/monitoring` + `roles/tailscale-node`, with the `[monitoring, alloy]` tag vocabulary and the both-directions assert.
-- [ ] §2(b) `image-pin-probe.py` `DEFAULT_ROOT` fix (+ a note if the `docker_*` SOURCES entries stay absent).
-- [ ] §4 tombstone mask, registry entry deleted, `docs/hardware-spark.md` sentence rewritten.
-- [ ] §3 pin commit — versions plus the re-fetched `tailscale_host_deb_sha256_by_arch` in the same change.
-- [ ] `bash scripts/validate-all.sh` green **except the named leak-gate red**: the live-value debts the
-  pi-dev seat's own transcripts hold, which only those rotations close (HD-1181). A seat whose reader has no
+- [x] §2(a) lift legs in `roles/monitoring` + `roles/tailscale-node`, with the `[monitoring, alloy]` tag vocabulary and the both-directions assert.
+- [x] §2(b) `image-pin-probe.py` `DEFAULT_ROOT` fix (+ a note if the `docker_*` SOURCES entries stay absent) — they were added, and they report `PIN EXISTS = feed-only`.
+- [x] §4 tombstone mask, registry entry deleted, `docs/hardware-spark.md` sentence rewritten. ⏭ the mask ON the box rides the spark converge (Phase 6).
+- [x] §3 pin commit — versions plus the re-fetched `tailscale_host_deb_sha256_by_arch` in the same change.
+- [x] `bash scripts/validate-all.sh` green **except the named leak-gate reds**: the live-value debts the seats' own
+  transcripts still hold, which only the remaining rotations close (HD-1181) — today that set is the `wifi-kogler*`
+  PSKs, `jellyfin-seer_api` (no machine mint), `spark-llm_api`/`litellm-engine_api` (Phase 6), `kopia_password` and
+  `n8n_password` (the unstarted re-keys), the two host credentials, and `pppoe_login`/Soulseek (not rotatable). A seat whose reader has no
   SDK spends ~143 vault requests per gate run instead of 4 — the seat act is `python3
   scripts/lib/vault_read.py --install-sdk` ([docs/1password.md](docs/1password.md) §What a gate run costs the vault).
   The size halves of the backlog/handoff/doc gates never belong in that red list: they print a reminder and exit
   green, so a brief or row that grew with real content changes the item count by nothing
   ([CONVENTIONS.md](CONVENTIONS.md) §6.4).
-- [ ] `todo.md` — only if a prerequisite row of its own exists; otherwise nothing.
+- [x] `todo.md` — only if a prerequisite row of its own exists; otherwise nothing. Nothing was owed.
 
 ### Phase 2 — rotations that need no device in front (pile 1 + `op_api`)
 
 - [x] `op_api` **rotated — done**; re-seats deferred to Phase 7 (the owner-set grace covers the window — 3 days for this rotation). Re-confirm the Forgejo Actions holder on the day.
-- [ ] The pile-1 items the register still names — `litellm_api`, `nut_password`, `nut-exporter_password` — one by
+- [x] The pile-1 items the register still names — `litellm_api`, `nut_password`, `nut-exporter_password` — one by
   one, `--rotate <item> --yes`. `entrim_api`/`openrouter_api`/`opencode-go_api` are rotated already: they owe the
   harness re-render, not another rotation.
-- [ ] The exposed `db_role_sync: true` items — `authentik_db`, `forgejo_db`, `immich_db` — a vault write only (⛔
-  `--rotate` refuses them, they are `NOT_AUTO_ROTATABLE`); the converge does the `ALTER ROLE` against its own
-  `pgsync:<sha256>` marker, and a hand-run `ALTER ROLE` desyncs that marker. `pgvector_db` has no IaC consumer:
-  retire the item or name what reads it.
-- [ ] NUT as one act across `nas` + `oldsrv` + `pi` (a vault-only edit loses the clients the master).
-- [ ] `todo.md` — the rows whose rotation landed.
+- [x] The exposed `db_role_sync: true` items — `authentik_db`, `forgejo_db`, `immich_db` (and `onlyoffice_db`) — a vault
+  write only (⛔ `--rotate` refuses them, they are `NOT_AUTO_ROTATABLE`); the converge did the `ALTER ROLE` against its
+  own `pgsync:<sha256>` marker, and a hand-run `ALTER ROLE` desyncs that marker. `pgvector_db` has no IaC consumer:
+  **owner act** — delete the item WITH `/opt/.retired-pgvector` + `/srv/docker/.retired-pgvector` on `vps`.
+- [x] NUT as one act across `nas` + `oldsrv` + `pi` (a vault-only edit loses the clients the master).
+- [x] `todo.md` — the rows whose rotation landed.
 
 ### Phase 3 — rotations with an app or device at the other end (§5b lanes; §5c is the human residue)
 
@@ -286,23 +319,34 @@ Every box below is a **lane** act unless it names the owner: far end first → v
 (§5a). The window-bound ones are taken in their window, not here — `spark-llm_api` in Phase 6, `wg_password` with the
 router items in Phase 5, and the two re-keys (`kopia_password`, `n8n_password`) as their own sittings.
 
-- [ ] The arr instance keys: mint → the instance's `config.xml` → restart → re-render the consumers. ✅ `radarr_api` / `sonarr_api` **done** — the instance issued the key and the vault holds the copy, so ⛔ nothing re-rotates them for this window. ⏭ `lidarr_api` — in the window, forced order (HD-1091): mint → Lidarr `config.xml` → restart → soularr `config.ini` → Seerr.
-- [ ] The §5b device/API far ends, each in its row's order: `network-snmp_api` (router + switch `/snmp community` over
-  the API, in the same window as the monitoring render), `kopia-server_fingerprint` (cert, then
+- [x] The arr instance keys: mint → the instance's `config.xml` → restart → re-render the consumers. ✅ `radarr_api` /
+  `sonarr_api` / `lidarr_api` / `bazarr_api` **done** — the instance issued each key and the vault holds the copy, so
+  ⛔ nothing re-rotates them for this window; `lidarr_api` moved in HD-1091's forced order and its three holders
+  (`lidarr-ydl` env, soularr `config.ini`, SeerrNG `settings.json`) were re-taught. ⏭ the two `admin @…` web-auth
+  users and `jellyfin-seer_api` have **no machine path** (hashed-in-DB / UI-only mint) — owner act, in their rows.
+- [ ] The §5b device/API far ends, each in its row's order — three of the four landed: `kopia-server_fingerprint` (cert, then
   `kopia-fingerprint-sync.yml` + both pins), `crowdsec-bouncer_api` (`cscli` + both Traefik edges), `headplane_api`
-  (headscale mint + expire, `guarded-converge.sh`). All four are lane acts, not owner acts — the "by hand" wording
-  this file carried was about ORDER, not about agency.
-- [ ] The probe-first trio — `technitium_login` (+ its `admin @dns.kogler.si` copy, which must move with it),
-  `opencloud_login`, `openclaw_gateway_token`: prove the far-end change path answers before scheduling anything; if it
-  does not answer, the item moves to §5c with a line in its row rather than becoming a vault-only write.
-- [ ] `privado-vpn_api` — **rotated**; what is left is the paired `privado_vpn_public_key` / `privado_vpn_address`
-  (endpoint if it moved) edit in `IaC/ansible/group_vars/home_servers.yml` from the item's `notes` field, read
-  field-wise (§5b), then Phase 4's oldsrv leg proves the egress IP.
-- [ ] `kopia_password` — rotate **and re-connect** the agent, then verify the repository (HD-1174).
-- [ ] `n8n_password` (`N8N_ENCRYPTION_KEY`) with the stored workflow credentials re-entered.
-- [ ] `oldsrv-domen_login` on the host + in the vault together, second session open.
-- [ ] `privado-vpn_api` at the provider, written back. `openrouter_api`/`entrim_api`/`opencode-go_api` are **rotated and in the vault**; what they owe is **every** harness client re-rendered, not just LiteLLM restarted — a converge leg, not a rotation.
-- [ ] Soulseek: ⛔ blocked — the upstream reset e-mail never arrives, so the network login cannot change here; the record is [docs/services-rejected.md](docs/services-rejected.md) and the exposure stays a ledger debt. `soulseek_api` (the slskd web-UI password) is still ours: a write + converge, with HD-1091's album proof after it.
+  (headscale mint + expire, `guarded-converge.sh`). ⏭ `network-snmp_api` is **parked** — it is a router + switch
+  `/snmp community` write and the router/switch acts are out of this run (Phase 5). ⚠ Two owner-visible residues
+  came out of this box: `headscale apikeys list` holds **two live keys (ids 1 and 2, expiring 2050) that no vault
+  item or rendered config matches** — revoking them is an owner call — and `provision-secrets.py` judged a landed
+  write by a spurious `op` rc, since fixed by re-reading.
+- [x] The probe-first trio — the probes answered, so none of the three is a vault-only write: `technitium_login`
+  (+ its `admin @dns.kogler.si` copy, moved with it) is **one credential held three times** and rotated as three acts
+  on the vps primary, the oldsrv secondary and the pi tertiary; `opencloud_login` and `openclaw_gateway_token` are
+  **parked to §5c** — the probe found no far-end path that a lane can drive (the IdP applies `IDM_ADMIN_PASSWORD` at
+  init; `openclaw onboard` never ran here), which is the answer this box asked for.
+- [x] `privado-vpn_api` — **rotated**; the paired `privado_vpn_public_key` / `privado_vpn_address` / endpoint are in
+  `IaC/ansible/group_vars/home_servers.yml`, read field-wise out of the item's `notes` (the note body carries a
+  `[Interface] PrivateKey` line and was never printed), both gluetun renders re-rendered, the egress IP proved.
+- [ ] `kopia_password` — rotate **and re-connect** the agent, then verify the repository (HD-1174). ⏭ **not started**:
+  a re-key whose consequences did not run in the same sitting is a broken backup, not a partial success.
+- [ ] `n8n_password` (`N8N_ENCRYPTION_KEY`) with the stored workflow credentials re-entered. ⏭ **not started** — the
+  export-under-the-old-key gate has to precede any vault write.
+- [ ] `oldsrv-domen_login` on the host + in the vault together, second session open. ⏭ **parked on the owner** — a
+  lockout-class mistake here breaks the seat that every other leg authenticates through.
+- [ ] `privado-vpn_api` at the provider, written back — **done, including the `group_vars` half**. `openrouter_api`/`entrim_api`/`opencode-go_api` are **rotated and in the vault**; what they owe is **every** harness client re-rendered, not just LiteLLM restarted — a converge leg, not a rotation. ⏭ that re-render is owed on the seats, not proved here.
+- [x] Soulseek: ⛔ the **network** login stays blocked — the upstream reset e-mail never arrives, the record is [docs/services-rejected.md](docs/services-rejected.md) and the exposure stays a ledger debt. `soulseek_api` + `soulseek-internal_api` (the slskd web-UI password) moved with the render as the far end, and HD-1091's one-album proof stays after it.
 - [ ] `spark_login` — the act (`sudo passwd admin` over the `ansible-admin` SSH) is a lane act, the vault write is not:
   the item lives in the **human** vault and the runner's token is scoped to `Homelab-ansible`. Fresh `ssh spark` proven
   in a second session before anyone reboots.
@@ -310,7 +354,7 @@ router items in Phase 5, and the two re-keys (`kopia_password`, `n8n_password`) 
   in HA's long-lived list (nothing propagates it, so the rotation is not closed until the old token is gone); the
   `spark_login` write into the human vault; `pppoe_login` and the Soulseek network login stay **not rotatable** and
   stay ledger debt, with no box to tick.
-- [ ] `todo.md` — the rotation rows' `⏳` tails, once.
+- [x] `todo.md` — the rotation rows' `⏳` tails, once.
 
 ### Phase 4 — the converges, one host at a time, canary first
 
@@ -318,25 +362,26 @@ Detached form, every leg: `nohup bash scripts/ansible/ansible-run.sh playbooks/<
 /tmp/converge-<host>-$(date +%Y%m%d-%H%M).log 2>&1 &`, then poll the log. `--check` first, in the foreground, and ⛔
 never `--diff` (§7).
 
-- [ ] **pi** (canary): `docker` → `monitoring` → `tailscale-node`. Then read the fleet gauge back (§8) and watch `RestartCount`. Pi fold-ins per §11.
-- [ ] **vps**: `docker` → `monitoring`; then the guarded legs per §11 (`guarded-converge.sh` for headscale/headplane — `Running=true` between crashes is not liveness).
-- [ ] **nas**: `--skip-tags alloy` (that collector is under debugging in another session — §11) + the storage legs.
-- [ ] **oldsrv**: `docker` → `monitoring` → `tailscale-node` — **from this seat only**, the guard refuses the `tailscale-node` leg from oldsrv. Fold-ins per §11.
-- [ ] **spark**: docker family **after** the OTA in Phase 6 (§7: the toolchain, then the flip).
-- [ ] Per host after it converges: the roster is up, `RestartCount` flat, and the role's own `apt-mark showhold` assert passed.
-- [ ] `todo.md` — the fold-in rows this phase proved, once.
+- [x] **pi** (canary): `docker` → `monitoring` → `tailscale-node`. Then read the fleet gauge back (§8) and watch `RestartCount`. Pi fold-ins per §11 — **none of them landed**, so the Pi visit is still owed.
+- [x] **vps**: `docker` → `monitoring`; then the guarded legs per §11 (`guarded-converge.sh` for headscale/headplane — `Running=true` between crashes is not liveness). ⚠ the `docker` leg restarts the tailnet sidecar and Traefik: on `vps` those acts go **LAST**, or the converge kills the channel it runs on (measured the hard way — both Phase-4 lanes died on it once).
+- [x] **nas**: the monitoring leg with `--skip-tags alloy` + the storage legs; the `alloy` re-render followed in its own lane, so `nas` reports (§11).
+- [x] **oldsrv**: `docker` → `monitoring` → `tailscale-node` — **from this seat only**, the guard refuses the `tailscale-node` leg from oldsrv. Read back: docker family at the pins, `alloy 1.21.2-1`, `tailscale 1.104.2`, the same 8 holds, `match 8 / differ 0`, `RestartCount` sum 0. Fold-ins per §11.
+- [ ] **spark**: docker family **after** the OTA in Phase 6 (§7: the toolchain, then the flip). ⏭ not this run — the `monitoring`/`alloy` legs are the S8 exception and they landed, which is why spark publishes the new pin map over old packages (§1).
+- [x] Per host after it converges: the roster is up, `RestartCount` flat, and the role's own `apt-mark showhold` assert passed.
+- [x] `todo.md` — the fold-in rows this phase proved, once.
 
 ### Phase 5 — router / switch items (global slot, after the Debian hosts)
 
-- [ ] WG / PPPoE / NUT-client / SNMP re-apply legs that the router or switch must see (the VPS `wireguard` leg restarts the tunnel every off-box converge rides — run it **last**, then re-verify every tunnel path).
-- [ ] Anything needing a router window (HD-1160, HD-1142, HD-1140) is taken here or explicitly parked in its row; ⛔ never `--diff` on that playbook (it dumps the PPPoE password).
-- [ ] `todo.md` — the network rows, once.
+- [ ] ⏭ **parked (ruling N3 — no router/switch act this run).** WG / PPPoE / NUT-client / SNMP re-apply legs that the router or switch must see (the VPS `wireguard` leg restarts the tunnel every off-box converge rides — run it **last**, then re-verify every tunnel path).
+- [ ] ⏭ **parked (N3)** — anything needing a router window (HD-1160, HD-1142, HD-1140) is taken here or explicitly parked in its row; ⛔ never `--diff` on that playbook (it dumps the PPPoE password).
+- [ ] `todo.md` — the network rows, once (nothing to fold in while Phase 5 is parked).
 
 ### Phase 6 — spark, last and solo (one slot; not in a spark-served session)
 
-- [ ] Preflight: no other converge in flight, every lane worktree idle, `/` free-space number recorded. **Phase 6
-  is unrun** — `spark-llm_api` and `litellm-engine_api` are still the values the fleet runs, and the engine's
-  accepted-key list means neither can be rotated without this phase.
+- [ ] **Phase 6 is unrun** — no OTA, no spark docker-family apply, no engine-key rotation, no profile flip. Preflight:
+  no other converge in flight, every lane worktree idle, `/` free-space number recorded. It needs an
+  **externally-served** session (Rule 0) and the owner present. The one spark act that did run is the
+  `monitoring`/`alloy` pair ruling S8 allows, with the engine id / `StartedAt` / `RestartCount` read either side.
 - [ ] OTA `OTA2610` → **reboot** → the boot checks: `kho=off` in `/proc/cmdline`, the `nvidia-spark-cloud-init` drop-ins, `nvidia-spark-mlnx-firmware-manager` ran its boot pass, the headless masks and `multi-user.target` survived, `spark-gpu-clock-cap.service` ran, `jupyterlab_ports.yaml` still maps admin → `11002`, and `dgx-dashboard.service` is still the only dashboard unit, loopback-bound and now **masked**.
 - [ ] Re-derive [docs/hardware-spark.md](docs/hardware-spark.md) §Identity from the box: kernel, OTA level, dashboard version, UEFI date, QSFP delta #2.
 - [ ] The pin converge (`docker`), then `curl -sf localhost:8000/health` **on the box** — the edge 502s for reasons that are not the engine's, and `traefik-spark` restarts with the daemon regardless of its restart-guard exclusion.
@@ -352,7 +397,12 @@ never `--diff` (§7).
 
 ### Phase 7 — re-seat and re-check
 
-- [ ] Re-seat every `op_api` consumer: oldsrv control node, oldsrv seat `domen`, this laptop, and (re-confirmed) Forgejo Actions; prove by Integration ID + `sha256[:12]`.
+- [ ] Re-seat every `op_api` consumer: oldsrv control node, oldsrv seat `domen`, and this laptop are re-seated — each was found
+  presenting the superseded generation and re-seated with the **pipe form**, proved by Integration ID + `sha256[:12]`
+  on the file route AND in a fresh interactive shell (a running shell's exported value beats the file, and
+  `bootstrap-runner.sh` is create-only). ⏭ the three residues are HD-1171's and all three are owner-side: the scope of
+  the integration the new ID belongs to, the Forgejo Actions secret store, and `oldsrv:/root/.config/op/homelab-sa-token`
+  (a deleted service account).
 - [ ] `python3 scripts/gate/check_secret_leak.py --update-ledger --class run-capture`; delete the STALE lines by hand; commit the shrunk ledger — the commit that turns the gate green.
 - [ ] The leak read is green on every seat **except the named Wi-Fi items** (§11) — the window's accepted end-state (HD-1181).
 - [ ] `todo.md` — the rotation rows close or shrink here.
@@ -401,7 +451,10 @@ tombstone's boot unit masked, `llm.kogler.si/health` 200.
 ## 9. Rulings (owner) — do not re-decide
 
 Mask-then-delete for the tombstone (§4) · patch + minor for the pin sweep with the flagged rows decided individually
-(§3) · rotate everything the gate names, the n8n/kopia consequences scheduled rather than avoided (§5) · `op_api`
+(§3) · rotate everything the gate names, the n8n/kopia consequences scheduled rather than avoided (§5) — a re-key
+starts only when its consequences fit the same sitting · the unattended sittings run **no router/switch act** and
+**no spark act**, narrowed for spark to the `monitoring`/`alloy` scope that cannot touch the engine or the network
+(Phase 5/6) · `op_api`
 rotated first, re-seats batched at the end, on the owner-set grace window (§5) · `radarr_api`/`sonarr_api`/
 `lidarr_api`/`n8n_password` **in** this window (§3, Phase 3) · the v32 artifact **used as built** on the pre-bump
 toolchain, no rebuild (§1) · converges driven from the WSL seat (§10) · **Wi-Fi PSKs out of this window** (§11), with
@@ -424,18 +477,18 @@ present; nothing else in it changes.
 
 | host | rows this window's converge carries | notes |
 |---|---|---|
-| **pi** | HD-443, HD-1103 · HD-1167 · HD-1109 | revoke `admin` after `ansible-admin` + `domen` are proven; pair the converge with the Pi visit so the box boots once (fstab `mode=`, the ruled `rotate 1` + `maxsize` logrotate file, the one-time `pi-eth0.nmconnection` re-render, the UNTAGGED leg applying `ai_diag`'s derived smartd mask). ⛔ the `nm-resolver` applies and HD-418's reconcile are done |
-| **vps** | HD-1166, HD-1173, HD-1106, HD-436, HD-487, HD-1150 | HD-1166's page is the ticket — one `--tags monitoring`, no UI mute; HD-1106 fixes the `onlyoffice-docs` named volume **before** any `docker volume rm` by name; HD-436 behind `guarded-converge.sh`; HD-487 `--tags netd`; HD-1150's token re-seat is issued **from this laptop** |
-| **nas** | HD-1093 | `storage_samba_password_force` lands the already-rotated SMB pair — a vault edit alone changes nothing on the box; the replica retag and the wedge reap are in [docs/storage.md](docs/storage.md) §A |
-| **oldsrv** | HD-1122, HD-1088, HD-1175 | HD-1122 flips `ai_tier_metrics_publish` and recreates two serving containers (engine panel 1 → 3); HD-1088 needs the Box key registered first; HD-1175 is a root-only journal/`pstore` read while you are at that box |
-| **spark** | HD-1206, HD-384, HD-473, HD-1210, HD-436 | the dispatch check → `fast-v32-bf16` → gates 0–7 → `fast8` → gates 8–9, one boot shared with the rotation |
-| **router** | HD-1160, HD-1142, HD-1140, HD-1136 | the global slot, and none of them is a converge |
+| **pi** | HD-443, HD-1103 · HD-1167 · HD-1109 | the pin legs ran; ⏭ **none of the fold-ins landed** — `access_admit_extra` still lists `admin` in `host_vars/pi.kogler.si.yml`, the ruled `rotate 1` + `maxsize` logrotate file is not in the tree, `pi-eth0.nmconnection` is unedited, so the Pi visit is still owed (fstab `mode=`, the boot that makes it true, the one-time re-render, the UNTAGGED leg applying `ai_diag`'s derived smartd mask). ⛔ the `nm-resolver` applies and HD-418's reconcile are done |
+| **vps** | HD-1166, HD-1173, HD-1106, HD-436, HD-487, HD-1150 | HD-1166's page is closed on the box (one `--tags monitoring`, no UI mute); HD-1106's named-volume fix applied **before** any `docker volume rm`, so the WOPI keypair survived the recreate; HD-436's guarded re-render is live with the parsed delta empty both ways. ⏭ HD-487 parked by ruling — `--check` shows one `20-eno1.netdev` removal, and a networkd apply does not ride the act that costs the control channel; HD-1150's token re-seat is issued **from this laptop** and stays an owner act; HD-1173 needs the VPS converge that drops the routers + MagicDNS records |
+| **nas** | the rotated SMB pair (its row is closed) | `storage_samba_password_force` landed the pair and the passdb was re-read **over SMB** — authenticated tree connects, cross-share denied, anonymous refused; a vault edit alone changes nothing on the box. The replica retag and the wedge reap are in [docs/storage.md](docs/storage.md) §A |
+| **oldsrv** | HD-1122, HD-1088, HD-1175 | HD-1122: ⚠ **no flip was owed** — `ai_tier_metrics_publish` is already `true` and both llama.cpp legs are scraped, so the owed half is an authored `llamacpp:*` panel. HD-1088 needs the Box key registered in the Hetzner console first (port 23, key-auth-only). HD-1175's root-only journal/`pstore` read ran: one boot ended in a `crash`, `/sys/fs/pstore` empty, only `efi_pstore` (no ERST/ramoops/`memmap=`), no mcelog/EDAC ⇒ no cause is recoverable and the box is structurally un-instrumented for the next one |
+| **spark** | HD-1206, HD-384, HD-473, HD-1210, HD-436 | the dispatch check → `fast-v32-bf16` → gates 0–7 → `fast8` → gates 8–9, one boot shared with the rotation. ⏭ only the `monitoring`/`alloy` legs landed (ruling S8); everything else here waits for Phase 6 |
+| **router** | HD-1160, HD-1142, HD-1140, HD-1136 | the global slot, and none of them is a converge. ⏭ **nothing ran** (ruling N3): no router or switch act, no WG / PPPoE / device-SNMP write |
 
 **Held out, on purpose:** the Wi-Fi PSKs (`wifi-kogler*` — live PSKs, every device rejoins by hand, the Shellys
 re-provisioned one by one, and nothing in IaC writes them because `routeros_capsman_enabled: false` leaves the rendered
-rsc as the delivery path) ⇒ the leak gate stays red on exactly those items; `alloy` on `nas` (another session is
-debugging that collector — converge nas with `--skip-tags alloy` and name `differ{instance="nas"}` as the window's one
-live gauge exception); the 7 majors + 4 downgrades, hence HD-1100's PG 18 legs; `ollama`'s `-rocm` alias;
+rsc as the delivery path) ⇒ the leak gate stays red on exactly those items; `alloy` on `nas` was held out of the
+monitoring leg (`--skip-tags alloy`, another session was debugging that collector) and the collector has since been
+re-rendered and reports, so that gauge exception is **closed** — `nas` needs no `differ` exception; the 7 majors + 4 downgrades, hence HD-1100's PG 18 legs; `ollama`'s `-rocm` alias;
 `home_assistant` minors; every digest-pinned image; and the §D owner-eyes items (visual passes, device walks, drills),
 which need neither a converge nor this window.
 

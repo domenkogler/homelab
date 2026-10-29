@@ -186,10 +186,10 @@ missing_items "$out"; count_rows "$MI"
 expect_eq "case7 scoped+strict: exactly 1 missing remains (metabase gap only)" "$CR_N" "1"
 rm -rf "$CTRL" "$GATED"
 
-# --- Case 8: host_vars `*_item:` registry class (HD-1093) ---------------------------
+# --- Case 8: host_vars `*_item:` registry class ------------------------------------
 # roles/storage names each Samba credential through a VARIABLE — storage_samba_users[].vault_item
 # in host_vars/nas.kogler.si.yml — so no template lookup contains the item name and only a
-# host_vars scan can see the dependency (the HD-244 blind spot, one directory over).
+# host_vars scan can see the dependency (the group_vars blind spot, one directory over).
 # The control copy renames the key to `vaultitem:`, breaking the class convention: the item must
 # then VANISH from MISSING, proving the rule matches the KEY CLASS and not the literal string.
 mk_hostvars() { # $1 = key name -> MD = copy dir (out-parameter, see mk_copy)
