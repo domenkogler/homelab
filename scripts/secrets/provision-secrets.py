@@ -29,7 +29,8 @@ landed, spurious-error-on-a-landed-write, genuine failure, a zero-rc edit that l
 landed only half a pair, partial write, unprovable re-read, absent item, duplicate title, an empty field
 set, create-when-absent, create-failure (one attempt, never retried), --rotate-all's mixed and clean
 verdicts, a call that never answers at all (the timeout leg: UNPROVEN, never a success, never retried),
-and the fail-closed leg where a vault listing that fails must attempt ZERO writes.
+and the fail-closed legs where a vault listing that fails OR answers rc 0 with a body that is not a JSON
+list must attempt ZERO writes.
 
 === Rotate + reprovision with Ansible (the clean workflow) ===
 1Password is the single source of truth: Ansible resolves every secret at
@@ -461,7 +462,9 @@ def existing_items() -> dict[str, list[str]] | None:
     skip everything — both silently masking an auth/scope/vault problem. So a
     failure returns None and every caller ABORTS loudly instead of proceeding.
     That listing is also what makes `op item create` a proven-absent act and never
-    a duplicate mint.
+    a duplicate mint. FAILED covers the non-zero rc AND a zero-rc body that is not a JSON
+    list, because an unparseable listing and an empty vault are indistinguishable downstream:
+    both take the abort path, never a traceback and never a guess.
 
     A title maps to a LIST because two items CAN carry the same title, and then the
     CLI resolves that title arbitrarily: a title-addressed write can land on the
@@ -474,9 +477,35 @@ def existing_items() -> dict[str, list[str]] | None:
               file=sys.stderr)
         print("  check OP_SERVICE_ACCOUNT_TOKEN scope and vault name", file=sys.stderr)
         return None
+    # rc 0 with a body that is not JSON (empty, truncated, an HTML error page) is a FAILED lookup, not
+    # an empty vault. `json.loads` alone raises JSONDecodeError out of every write command as a
+    # traceback, and the tempting guard — `or "[]"` — answers an EMPTY map, which is precisely the state
+    # this function exists to refuse: `--create` would then mint the entire catalog. So an unreadable
+    # listing takes the identical exit: name it, return None, attempt ZERO writes.
+    try:
+        listed = json.loads(r.stdout)
+    except json.JSONDecodeError as exc:
+        print(f"error: cannot read the item listing for vault '{VAULT}' — `op item list` answered rc 0 "
+              f"with a body that is not JSON ({exc})", file=sys.stderr)
+        print("  treating it as a failed lookup: nothing was created, edited or rotated", file=sys.stderr)
+        return None
+    if not isinstance(listed, list):
+        # `{}` and `null` are valid JSON but not a listing: iterating them raises or yields no titles,
+        # and a silently-empty map is the one outcome this function exists to refuse.
+        print(f"error: cannot read the item listing for vault '{VAULT}' — `op item list` answered JSON "
+              f"that is not a list ({type(listed).__name__})", file=sys.stderr)
+        print("  treating it as a failed lookup: nothing was created, edited or rotated", file=sys.stderr)
+        return None
     out: dict[str, list[str]] = {}
-    for it in json.loads(r.stdout):
-        out.setdefault(it["title"], []).append(it["id"])
+    for it in listed:
+        # A row with no title or id is not a catalog entry. Refuse it rather than let `it["title"]`
+        # raise mid-loop, or let `.get()` invent a title-less row that reads to `--create` as "absent".
+        if not isinstance(it, dict) or not it.get("title") or not it.get("id"):
+            print(f"error: the item listing for vault '{VAULT}' has a row with no title or id: "
+                  f"{it!r:.120}", file=sys.stderr)
+            print("  treating it as a failed lookup: nothing was created, edited or rotated", file=sys.stderr)
+            return None
+        out.setdefault(str(it["title"]), []).append(str(it["id"]))
     return out
 
 
@@ -607,7 +636,7 @@ def rotate(title: str, category: str, fields_builder, item_ids: list[str] | None
 # ---------------------------------------------------------------------------
 _STUB_ENV = ("HL_STUB_VAULT", "HL_STUB_LOG", "HL_STUB_EDIT_RC", "HL_STUB_EDIT_LANDS",
              "HL_STUB_SKIP_FIELDS", "HL_STUB_GET_RC", "HL_STUB_LIST_RC", "HL_STUB_CREATE_RC",
-             "HL_STUB_ECHO_ARGV", "HL_STUB_HANG", "OP_SERVICE_ACCOUNT_TOKEN")
+             "HL_STUB_ECHO_ARGV", "HL_STUB_HANG", "HL_STUB_LIST_BODY", "OP_SERVICE_ACCOUNT_TOKEN")
 
 _STUB_OP = r'''#!/usr/bin/env python3
 """Stub 1Password CLI for provision-secrets.py --self-test.
@@ -623,6 +652,8 @@ State is one JSON file: {"items":[{"id","title","fields":{label:value}}]}. Knobs
                        provisioner's own timeout kills it — the hung-CLI class no rc can summon. On
                        the edit/create legs the state change is applied FIRST, i.e. the request went
                        out and only the answer is missing, which is what a hung CLI actually means.
+  HL_STUB_LIST_BODY    when SET, `item list` prints exactly this instead of the JSON rows and exits 0 —
+                       the zero-rc body that is not a listing (empty, truncated, an HTML error page)
 """
 import json
 import os
@@ -680,7 +711,10 @@ if ARGV[:2] == ["item", "list"]:
     if code("HL_STUB_LIST_RC"):
         sys.exit(code("HL_STUB_LIST_RC"))
     hang("list")
-    print(json.dumps([{"id": i["id"], "title": i["title"]} for i in load()["items"]]))
+    if "HL_STUB_LIST_BODY" in os.environ:
+        print(os.environ["HL_STUB_LIST_BODY"], end="")
+    else:
+        print(json.dumps([{"id": i["id"], "title": i["title"]} for i in load()["items"]]))
     sys.exit(0)
 
 if ARGV[:2] == ["item", "get"]:
@@ -1001,6 +1035,22 @@ def cmd_self_test(_args) -> int:
         check("create never answers -> rc 1, ONE attempt per title, never retried", got == 1
               and created_titles(calls) == [t_single, t_pair, t_coupled]
               and "timed out" in err, f"got {got}: {created_titles(calls)}")
+
+        # 18 — a listing that answers rc 0 with something that is not a JSON list. Downstream it is
+        # indistinguishable from an EMPTY vault, and an empty map is the one state the fail-closed rule
+        # (arm 10) exists to refuse: `--create` would mint the whole catalog, which is the duplicate-
+        # mint invariant wearing a different hat. So the unparseable body must abort, not raise.
+        for label, body in (("empty", ""), ("not JSON", "op: command not found"), ("JSON but a dict", "{}")):
+            got, out, err, calls = run(lambda: cmd_create(opts(yes=True)), items=seed_single,
+                                       env={"HL_STUB_LIST_BODY": body}, catalog=test_catalog)
+            check(f"--create on a rc-0 listing that is {label} -> rc 1, zero creates, no traceback",
+                  got == 1 and created_titles(calls) == [] and "Traceback" not in out + err
+                  and "failed lookup" in err, f"got {got}: {verbs(calls)}")
+        got, out, err, calls = run(lambda: cmd_rotate(opts(rotate=t_single, rotate_all=False, yes=True)),
+                                   items=seed_single, env={"HL_STUB_LIST_BODY": ""},
+                                   catalog=test_catalog)
+        check("--rotate on an unparseable listing -> rc 1, zero writes", got == 1
+              and edit_targets(calls) == [] and created_titles(calls) == [], f"got {got}: {verbs(calls)}")
 
     print(f"\nprovision-secrets.py self-test: {tally['n']} checks, "
           f"{len(tally['bad'])} failure(s) — zero vault contact, zero writes outside the fixture")
