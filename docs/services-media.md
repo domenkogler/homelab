@@ -241,8 +241,12 @@ host), with exactly one exception.** Measured from inside the Bazarr container:
 | Bazarr → provider | `opensubtitlescom` with `opensubtitles_login` | ❌ `Throttling opensubtitlescom for 12 hours … AuthenticationError … 'Login failed'` — the credential, not the network |
 
 **Keys are app state, documented as such:** Bazarr's own API key is the vault `bazarr_api` (proved equal
-to the instance `auth.apikey` by sha256 — vault-vs-instance key drift is a real failure class here), and
-Jellyfin's read-only key minted for Bazarr is `jellyfin-bazarr_api` →
+to the instance `auth.apikey` by sha256 — vault-vs-instance key drift is a real failure class here). **The
+instance issues it, so a rotation goes there first**: `auth.apikey` in
+`/srv/docker/bazarr/config/config/config.yaml`, edited with the container STOPPED — a running Bazarr
+rewrites that file on a graceful exit and would restore the old value — then Bazarr starts, then the vault
+copy is written. No IaC file reads `bazarr_api`, so no converge propagates it and `--rotate` on the item
+alone writes a value the app never issued. Jellyfin's read-only key minted for Bazarr is `jellyfin-bazarr_api` →
 [deployment-secrets.md](deployment-secrets.md).
 
 **App state read over the API:** languages enabled
@@ -345,12 +349,12 @@ cannot be answered until the provider login works.
 - **Auth:** Aurral / Tube Archivist / Slskd = **own local logins** (same home-edge pattern — *arr UIs use
   built-in Forms auth); no Forward-Auth. `lidarr_api` = the Lidarr instance key, read from its
   `config.xml` ApiKey (see deployment-secrets.md). **The instance is the issuer, so it rotates first:**
-  the key lives in `/srv/docker/lidarr/config/config.xml` `<ApiKey>` and must be changed there with the
-  container STOPPED (a running Lidarr rewrites the file on a graceful exit and would restore the old
-  value), then restarted, then the vault copy written, then the four holders re-rendered or re-saved —
-  `lidarr-ydl` (`LIDARR_API_KEY` env) and soularr (`[Lidarr] api_key`, both by converge) and SeerrNG's
-  own `lidarr[].apiKey` in `/srv/docker/seerrng/config/settings.json` (app state, no IaC consumer, applied
-  at container start). `seerr` carries NO Lidarr server entry, so it never holds this key. **Slskd's UI is `slskd` + the `soulseek_api`
+  the key lives in `/srv/docker/lidarr/config/config.xml` `<ApiKey>` — change it there and restart the
+  container, then write the vault copy, then move the holders: `lidarr-ydl` (`LIDARR_API_KEY` env) and
+  soularr (`[Lidarr] api_key`) by converge, and SeerrNG's own `lidarr[].apiKey` in
+  `/srv/docker/seerrng/config/settings.json` (app state, no IaC consumer, read at container start).
+  **`seerr` carries NO Lidarr server entry at all**, so a rotation that "re-renders Seerr" changes nothing
+  there — prove the holder set by reading both `settings.json` files, not by assuming the pair is symmetric. **Slskd's UI is `slskd` + the `soulseek_api`
   credential** as `SLSKD_PASSWORD` — slskd 0.26 has no token option, so a compose that sets only
   `SLSKD_TOKEN` answers at `slskd.kogler.si` with the stock `slskd`/`slskd` login. Proven shape:
   `POST /api/v0/session` → 200 with the vault password, 401 for the stock pair.
