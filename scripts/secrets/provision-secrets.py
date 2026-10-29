@@ -26,7 +26,8 @@ flagged as externally-coupled).
 Runs every WRITE branch against a stubbed `op` CLI — no vault, no token, no network, nothing to
 converge. It is the proof that a write is judged by the re-read value, not by the `op` exit code:
 landed, spurious-error-on-a-landed-write, genuine failure, a zero-rc edit that landed nothing or
-landed only half a pair, partial write, unprovable re-read, absent item, duplicate title, an empty field
+landed only half a pair, partial write, unprovable re-read, absent item, duplicate title (through
+`rotate()` AND through the `--rotate` entry path, where the ids come from the listing), an empty field
 set, create-when-absent, create-failure (one attempt, never retried), --rotate-all's mixed and clean
 verdicts, a call that never answers at all (the timeout leg: UNPROVEN, never a success, never retried),
 and the fail-closed legs where a vault listing that fails OR answers rc 0 with a body that is not a JSON
@@ -1051,6 +1052,20 @@ def cmd_self_test(_args) -> int:
                                    catalog=test_catalog)
         check("--rotate on an unparseable listing -> rc 1, zero writes", got == 1
               and edit_targets(calls) == [] and created_titles(calls) == [], f"got {got}: {verbs(calls)}")
+
+        # 19 — THE DUPLICATE TITLE THROUGH THE ENTRY PATH. Arm 6 hands rotate() its ids directly, so a
+        # title->ids collapse anywhere in cmd_rotate — a `[0]`, a dict built last-wins, an
+        # `existing[name][:1]` — would still pass it. Here the ids come from the stub's OWN listing,
+        # which is the only route a real `--rotate` takes: two items, one title, and the refusal has to
+        # name both before anything is written.
+        got, out, err, calls = run(lambda: cmd_rotate(opts(rotate=t_single, rotate_all=False, yes=True)),
+                                   items=[seed_single[0],
+                                          entry("stub-id-b", t_single, {"credential": old_pw})],
+                                   catalog=test_catalog)
+        check("--rotate on a duplicate title -> rc 1 and zero writes", got == 1
+              and edit_targets(calls) == [] and created_titles(calls) == [], f"got {got}: {verbs(calls)}")
+        check("--rotate on a duplicate title -> names both ids", id_a in err and "stub-id-b" in err,
+              err.strip())
 
     print(f"\nprovision-secrets.py self-test: {tally['n']} checks, "
           f"{len(tally['bad'])} failure(s) — zero vault contact, zero writes outside the fixture")
