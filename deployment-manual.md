@@ -904,8 +904,8 @@ sudo docker restart kopia-server
 
 `kopia_sftp_path` stays RELATIVE (`kopia`) — absolute paths break create-path on Hetzner.
 If the crowdsec volume is also fresh: regenerate the bouncer key (`sudo docker exec crowdsec
-cscli bouncers add traefik-bouncer -o raw`) and update 1Password item `crowdsec-bouncer_api`
-→ re-run vps.yml (re-renders middleware).
+cscli bouncers add traefik-bouncer-20261028 -o raw`) and update 1Password item
+`crowdsec-bouncer_api` → re-run vps.yml (re-renders middleware).
 
 ### 1.9 Verification
 
