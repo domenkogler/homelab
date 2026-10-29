@@ -192,9 +192,11 @@ Owner rulings for this sitting (in-session, 2026-10-29 00:45):
 | S5 | `onlyoffice_db` and `soulseek-internal_api` — named by §5b, owned by no R lane — are **taken**: the first by the `db_role_sync` vault-write-plus-converge shape, the second on the slskd render |
 | S6 | the leak union: this seat's read + the **oldsrv-domen** read are taken; the **win11** read is a named gap unless a Windows-side session runs it |
 | S7 | `kopia-server_fingerprint`'s CURRENT value still hits (a later lane re-captured the post-rotation value) ⇒ Phase 7's `--update-ledger` **keeps** the line. It is a TLS cert fingerprint, not a credential: named, not re-rotated |
+| S8 | **spark, 07:08 (owner):** spark converges are authorized **only where they cannot interfere with the engine or the network** — `monitoring`/`alloy` yes; the docker-family pin converge, any engine restart, the `spark-ai`/`lan-litellm`/`litellm` renders, the profile flip, the OTA, any build/prune, and **every network leg** (`tailscale-node`, `netd`, wireguard, `tailscaled`, `dockerd`) no. This narrows N4 for the monitoring scope only: the "spark is not converged for the docker family" exception **stays**, and the seat still runs under Rule 0 for engine legs — an act that restarts the engine or its network ends this session and every child in it, so the engine id / `StartedAt` / `RestartCount` are read before and after any spark leg |
 
-**Structural rule for this sitting:** at most **one** live child holds a host slot, the second is always author-only — so
-host lanes are serial by construction and O3 cannot be broken by dispatch shape. Queue order: R2 → R4 → R6 → R3 → R5 →
+**Structural rule for this sitting:** **one converge in flight per host**, so two children may run at once only when their host
+slots are **disjoint** (a spark lane beside an oldsrv/vps lane is legal; two lanes naming `vps` is not) and an author-only
+lane never blocks a host lane. Seriality applies per host, not per run. Queue order: R2 → R4 → R6 → R3 → R5 →
 R7 → R8, with author-only lanes (P1-c, R9) overlapped.
 
 | lane | scope | worktree / branch | state |
