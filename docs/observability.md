@@ -467,6 +467,17 @@ shows) → `.id` on the linked oldsrv daemon, stored in `group_vars/all/main.yml
   actual-budget `:5006`, immich-ml `:3003`). **`:8080` belongs to something else** — never reuse it here.
   **⚠ The gateway takes the token ONLY as `Authorization: Bearer <token>`**: against `:8082`,
   `X-Api-Key` → **401** and `Bearer` → **200** on `/v1/about`.
+- **`signal-internal_api` is one credential with THREE render sites on TWO hosts, and only one of them
+  enforces.** The enforcing copy is the gateway's `config.yaml` `api.tokens` list on oldsrv (a
+  **single-entry** list, so the accepted set is exactly that one value); the two container-env copies —
+  `SIGNAL_CLI_API_TOKEN` on the upstream daemon (the image has **no** auth feature, so it is inert) and
+  `SIGNAL_API_TOKEN` on the VPS n8n — are the sender and a comment. Consequence for a rotation: the
+  converge legs are `-e docker_services_scope=signal-cli-rest-api --tags docker_services,signal-cli-rest-api`
+  on oldsrv and `-e docker_services_scope=n8n --tags docker_services,n8n` on vps, **and the two hosts can
+  agree with each other while both lag the vault** — the pair reads green and Signal alert delivery
+  breaks at the *next* converge of either service, not at the rotation. A vault write alone is therefore
+  a half-move, and a half-move here is silent. Prove it per site: `sha256[:12]` + a byte count of each
+  rendered copy against the item's, then both directions at `:8082/v1/about`.
 - **Three converge-time traps that are repo rules:** every vault item a template reads must be declared in
   `_template_vault_items`, or the render dies with `dict has no attribute …`; Jinja `default()` fallbacks in
   YAML need single quotes, or the fallback renders nested quotes and `docker compose config` fails; and a
