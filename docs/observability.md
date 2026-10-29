@@ -180,12 +180,16 @@ it would silently pull down every other package whose pin lags its box. The fix 
 `versions.yml`: raise the pin to the highest release **already running** somewhere in the fleet, then
 converge (which costs one Alloy restart per host).
 
-✅ **Live-verified 2026-10-29, four of the five collectors report**: `alloy_build_info` answers with
-`version` == the pin on `oldsrv`, `vps`, `pi` and `nas`, each with `up{job="alloy"}` = **1**.
-`spark.kogler.si` publishes NOTHING — no series carries its `instance` at all — so the group's read is
-4/5. That host was NOT diagnosed: no act ran against it, so which shape it is (`BLIND` or a refused
-write) is an open gap, and the reads to take there are `check_host_reporting.py`'s verdict and its own
-collector log. The read that proves the set at once is
+✅ **Live-verified 2026-10-29, all five collectors report**: `alloy_build_info` answers with
+`version` == the pin on every `[monitoring]` host, each with `up{job="alloy"}` = **1**.
+The shape `spark.kogler.si` carried until 2026-10-29 is §Silent-failure hygiene's second one — a **host
+package + unit that ships nothing because the backend refuses the write** — and the reads that separate it
+from a dead scrape leg are the counter pair there plus the credential digests:
+`prometheus_remote_storage_samples_failed_total` moving by exactly the delta of
+`prometheus_remote_storage_samples_total`, log lines in the class `server returned HTTP status 401
+Unauthorized`, and a rendered-vs-item `sha256[:12]` that disagrees while the `instance` carries **zero**
+series. `check_host_reporting.py` files it `BLIND`, not `SCRAPE LEG DEAD`: with every write refused,
+nothing carries the `instance` at all, so the verdict cannot name this shape. The read that proves the set at once is
 `scripts/gate/check_host_reporting.py`, because the read that does NOT prove it is the package:
 `dpkg` will happily confirm the pinned deb while the process ships no series. That gap between
 "installed", "running" and "scraping" is §Silent-failure hygiene's class, and `nas` sat in it for eight
@@ -632,8 +636,12 @@ rotation of that pair is a per-host re-render, so a host left on the superseded 
 degraded). Prove it with a digest of the rendered value against the item's, `sha256[:12]` + length only —
 never the line.
 The repair is the credential's re-render leg; a restart re-serves the same rejected file and the failure
-counter simply keeps climbing. `check_host_reporting.py` files this shape as `SCRAPE LEG DEAD`, which is
-why its verdict names the counter instead of the unit.
+counter simply keeps climbing. ⚠ **This shape files as `BLIND`, not `SCRAPE LEG DEAD`, and that is a limit
+of the verdict, not of the host.** `SCRAPE LEG DEAD` needs series to exist, and a host the backend refuses
+outright has none in the store — `spark.kogler.si` read exactly that: zero series carrying its `instance`,
+a `BLIND` verdict, and the counter pair plus the log class naming the real cause. So read the verdict as
+"this host is not in the store" and the counter pair as "why"; the two are different questions and only
+the second one distinguishes a dead scrape leg from a refused write.
 
 **The paging half is one generated `absent_over_time` rule per `[monitoring]` host, and that form was chosen
 against the anti-join on purpose.** `roles/monitoring/vars/main.yml` builds `grafana_alert_rules_blind_host`
@@ -849,6 +857,16 @@ the same release as `5:29.9.2-1~debian.13~trixie` on Debian 13 and `5:29.9.2-1~u
 Ubuntu 24.04, and a fleet-wide value can only name the part both share. `roles/docker` asserts the same
 rule after installing the suite, so a box the converge never moved reddens instead of reporting green.
 
+**The map has ONE author, and it is not the package legs.** `--tags hygiene` is the leg that renders
+`host_apt_pin_vars` into `/usr/local/sbin/homelab-hygiene.py`; the `docker`, `tailscale-node` and `alloy`
+legs move PACKAGES and never touch that file. So the gauge can disagree with the box in either direction
+depending on which half ran last, and both directions are now measured: `pi` on 2026-10-28 read six
+`differ` rows between its `--tags docker` apply and its `--tags monitoring` re-render (packages at the new
+pin, map still the old one), and `spark` on 2026-10-29 read six the other way — a `hygiene` re-render on a
+host with no `docker` apply since the bump puts the NEW map on a box still running the OLD packages.
+Neither is drift; both clear the same way, by the apply the row names. ⛔ A `--tags hygiene` run is not a
+package change and must never be reached for as one.
+
 **It cannot change anything — and that is a property of the reads, not a promise.** `dpkg-query -W` reads
 the status file without ever taking the dpkg lock; the solver runs as `apt-get -s` (simulate), which
 prints a plan and executes nothing; `apt-mark` is not called; the reboot leg is one `stat`. Two details
@@ -867,10 +885,10 @@ make the read HONEST rather than merely harmless:
 
 | Question | The read that answers it |
 | --- | --- |
-| Is a host off its pin? | `homelab_pkg_pin_result{result="differ"}` — the two labels ARE the proof (`pin=`, `running=`). Fleet-wide it is EMPTY, and the render rule above is why: a host that has not converged since a pin-set bump compares against the pin map its own last `monitoring` converge rendered, so it reads `match` against the PRE-bump set. Read 2026-10-28: `pi` carries the post-bump set (`5:29.9.2` / `2.4.2` / `0.38.1` / `5.6.1`, `alloy 1.21.2-1`, `tailscale 1.104.2`); at that read the other four were still reporting the pre-bump one (`5:29.8.2` / `2.3.6` / `0.37.1` / `5.5.1`, `alloy 1.20.1-1`). ⚠ An empty read is **not** fleet health — a host that publishes nothing contributes no rows here either, and that verdict is §Silent-failure hygiene's, not this table's. See the fleet table below |
+| Is a host off its pin? | `homelab_pkg_pin_result{result="differ"}` — the two labels ARE the proof (`pin=`, `running=`). Fleet-wide it answers ONLY on `spark` (six docker-family rows, live-verified 2026-10-29) and the render rule above is why every other host is quiet: a host that has not converged since a pin-set bump compares against the pin map its own last `monitoring` converge rendered, so it reads `match` against the PRE-bump set. Read 2026-10-28: `pi` carries the post-bump set (`5:29.9.2` / `2.4.2` / `0.38.1` / `5.6.1`, `alloy 1.21.2-1`, `tailscale 1.104.2`); at that read the other four were still reporting the pre-bump one (`5:29.8.2` / `2.3.6` / `0.37.1` / `5.5.1`, `alloy 1.20.1-1`). ⚠ An empty read is **not** fleet health — a host that publishes nothing contributes no rows here either, and that verdict is §Silent-failure hygiene's, not this table's. See the fleet table below |
 | How far from current is the box? | `homelab_upgrade_plan_count` — measured 2026-10-17: oldsrv **56**, vps 74, pi 93, nas 95, spark 230. None of those are the pinned packages, because a HELD package is kept back rather than listed (the ⚠ below): the count is the whole unpinned OS tail. It is the staleness signal, never a pin signal |
 | Does this host even carry the package? | `result="missing"` — what a fleet-wide list reads on a host that legitimately does not carry it, and the reason a first rule keys on `result="differ"` rather than on the ok gauge. Measured 2026-10-17: `nas` reports `missing` for the whole docker family (no Docker there) and for `tailscale` |
-| …and if dpkg answers nothing at all? | `result="unknown"` — measured on spark for `docker-ce-rootless-extras`: an empty version with rc 0, because the dpkg state is `hold ok not-installed`. A held package the box never installed is NOT the same fact as `missing`, and neither one is drift |
+| …and if dpkg answers nothing at all? | `result="unknown"` — the branch for an empty version with rc 0, the dpkg state `hold ok not-installed`: a held package the box never installed is NOT the same fact as `missing`, and neither one is drift. No `[monitoring]` host lands in it today; the package that used to answer empty on `spark`, `docker-ce-rootless-extras`, reads `hold ok installed` (live-verified 2026-10-29) |
 | Is a reboot still owed? | `homelab_reboot_required` |
 
 ⚠ **A HELD package does not appear in the plan count** — the solver keeps held packages back instead of
@@ -887,14 +905,15 @@ pages `nas` forever), and it takes `noDataState: OK` because a filtered-empty re
 (§Operational gotchas) — `Alerting` here would page every evaluation on a fleet that is entirely in sync.
 
 **What the fleet reads** (`count by (instance, result) (homelab_pkg_pin_result)` out of VictoriaMetrics,
-cross-checked against each host's own `:9098`; live-verified 2026-10-27):
+cross-checked against each host's own `:9098`; live-verified 2026-10-27, `spark` re-read 2026-10-29 after its
+`hygiene` re-render):
 
 | Host | `match` | `differ` | `missing` | `unknown` |
 | --- | --- | --- | --- | --- |
 | oldsrv | 8 (`alloy`, `tailscale` + the docker family) | — | — | — |
 | nas | 1 (`alloy`) | — | 7 (`missing` for the docker family + `tailscale`, because it runs neither) | — |
 | pi | 8 (`alloy`, `tailscale` + the docker family) | — | — | — |
-| spark | 7 (`alloy` + the docker family) | — | 1 (`tailscale`) | — |
+| spark | 1 (`alloy`, at the pin since its own `alloy` apply) | 6 (the whole docker family — `apt-mark hold` froze it at `5:29.8.2` / `2.3.6` / `0.37.1` / `5.5.1` and no `docker` apply has run here since the bump) | 1 (`tailscale`) | — |
 | vps | 7 (`alloy` + the docker family) | — | 1 (`tailscale`) | — |
 
 ⚠ **A `differ` reading is true, never a false positive.** The gap it names is a pending `--tags docker`
@@ -922,9 +941,10 @@ What that means host by host: on `vps` the 2026-10-18 `--tags docker` apply move
 `5:29.8.2` with the rest of the family (their `differ` entries cleared and the collector re-reads
 `match` on vps — measured on the host itself); `pi` has since had the same apply at the `5:29.9.2` pin and
 carries the whole family plus `docker-ce-rootless-extras` at it; on `spark`
-the same apply INSTALLS it — its dpkg state today is `hold ok not-installed`, `dpkg-query` answers empty
-with rc 0, and the simulate there reads `5 upgraded, 1 newly installed` with this package as the new one
-and `dbus-user-session` + `libc6` as its only dependencies, both already present; on `nas` nothing
+the family is INSTALLED but FROZEN — `dpkg-query -s docker-ce-rootless-extras` reads `Status: hold ok
+installed` at `5:29.8.2-1~ubuntu.24.04~noble` and the simulate there reads `6 upgraded, 0 newly installed`
+at the post-bump pins (live-verified 2026-10-29). That number IS the parked `--tags docker` apply on that
+host, stated as a read, and it is what spark's six docker-family `differ` rows are; on `nas` nothing
 changes, because `playbooks/storage.yml` carries no docker role at all, so the `missing` reading there
 is structural and stays. ⚠ And the apply has to lift the hold to work, which is now the role's job and
 not the operator's: a held package is NOT movable by an apt-module install
@@ -932,25 +952,33 @@ not the operator's: a held package is NOT movable by an apt-module install
 SHAPE, not the release these reads were taken on — answers `E: Held packages were changed and -y was used
 without --allow-change-held-packages`, rc 100, where the same command without `-y` resolves), so
 `roles/docker` unholds the names it moves, installs, and re-holds them in the same play — see
-[deployment-ansible.md](deployment-ansible.md) §common. What is left of that warning is `spark`, and it does
-not show as red: spark has not converged since the pin bump, so it reports `match` against the pre-bump map
-it still renders. `pi` is the one host reporting the post-bump set (live-verified 2026-10-28).
+[deployment-ansible.md](deployment-ansible.md) §common. `spark` is the host this rule speaks loudest
+about, and it now reads TRUE in both halves (live-verified 2026-10-29): `alloy` `match`, because its own
+`--tags alloy` apply moved that package to the pin, over six docker-family `differ` rows, because no
+`--tags docker` apply has run there since the bump. Those six are the parked Phase-6 docker converge made
+visible by a render — a named, waiting apply — not a package that moved on its own. `pi` is the other host
+reporting the post-bump set (live-verified 2026-10-28).
 
-⚠ **`unknown` is a fourth reading, and the hold leg explains it.** On spark `dpkg-query -W
--f='${Version}' docker-ce-rootless-extras` answers **empty with rc 0** — the dpkg status is
-`Status: hold ok not-installed`, a package the database knows and holds but has never installed — so the
-absent-package branch (`"no packages found" in stderr`) does not fire and the collector reports `unknown`
-rather than `missing`. That is the fail-loud branch working: "no version" never collapses into "match". It
-is also a standing correction to the idea that a host holds only what it runs — the hold leg's "which
+⚠ **`unknown` is a fourth reading, and the hold leg explains it.** A `dpkg-query -W
+-f='${Version}'` that answers **empty with rc 0** — the dpkg status `Status: hold ok not-installed`, a
+package the database knows and holds but has never installed — does NOT reach the absent-package branch
+(`"no packages found" in stderr`), so the collector reports `unknown` rather than `missing`. That is the
+fail-loud branch working: "no version" never collapses into "match". No `[monitoring]` host lands in it
+today — `spark`'s `docker-ce-rootless-extras`, the package that used to answer empty there, reads
+`hold ok installed` (live-verified 2026-10-29) — so the reading is carried by the code and by the row above
+rather than by a live example, and a host that does reach that state still reports `unknown`. It is also a
+standing correction to the idea that a host holds only what it runs — the hold leg's "which
 packages does this host carry" probe is `dpkg-query -W -f='${Package}'`, which answers for a deinstalled
 package too, so a held-but-not-installed package is a real state in this fleet (read `apt-mark showhold`
 against `dpkg-query -s <pkg>`, never against each other).
 
-**Deploy state: 🟢 LIVE — the collector on all five hosts and the rule loaded in the ruler; the rule is
-QUIET fleet-wide (`homelab_pkg_pin_result{result="differ"}` answers zero series, live-verified 2026-10-28),
-which is the render rule, not five hosts on one pin set: `pi` is on the post-bump set since its
-docker/monitoring/tailscale-node applies (the canary of this window), and at that read the other four were
-still rendering the pre-bump map and therefore reading `match` at it.** The
+**Deploy state: 🟢 LIVE — the collector on all five hosts and the rule loaded in the ruler; the rule
+answers SIX `differ` rows fleet-wide, all of them on `spark`
+(`count by (instance) (homelab_pkg_pin_result{result="differ"})`, live-verified 2026-10-29), and they are a
+render row rather than five hosts on one pin set: `pi` is on the post-bump set since its
+docker/monitoring/tailscale-node applies (the canary of this window), `spark` carries all six because its
+`hygiene` leg rendered the post-bump map while its parked `--tags docker` apply never ran, and the other
+three still render the pre-bump map and therefore read `match` at it.** The
 collector half landed with the `--tags monitoring` converges and was verified per host with
 `curl -s 127.0.0.1:9098/metrics | grep -E '^homelab_(pkg|upgrade|reboot)'` — 8 pin pairs +
 `homelab_upgrade_plan_ok`/`_count` + `homelab_reboot_required` on each of `oldsrv · vps · nas · pi ·
