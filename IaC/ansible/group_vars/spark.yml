@@ -606,7 +606,10 @@ spark_llm_profiles:
 # The dial name `fast` marks the AR-hybrid winner today (docs/spark-llm-profiles.md §7); this block
 # prices the NVFP4 weights this lane was authored for.
 # WHY bf16 KV HERE: on the vLLM side fp8 KV lives on the v32 lineage (`fast8` /
-# `fast-v32-bf16`, `image: ultrafast-v32`); on the SGLang side it needs sglang#36644, still open.
+# `fast-v32-bf16`, `image: ultrafast-v32`). On SGLang the QSA fp8-KV path is FIXED on the release
+# line (#38851 + #38855, both in v0.5.20+) but sits in no verified GB10 cell, so fp8 there is a
+# measurement this lane has not made — not a missing build. The `sg-radix` block below carries
+# what it costs and what it buys.
 # So this lane measures ONE variable — the weights (and the engine), never two. Carrying
 # fp8 here would make it fail for a reason that is not NVFP4's.
 # ⚠ An fp8 slot count built on the ×2 constant is WRONG TWICE: the real ratio is
@@ -634,6 +637,8 @@ spark_llm_profiles:
     served_name: spark/qwen3.8-flash-next
     max_model_len: 262144                 # context-length (per-request)
     max_num_seqs: 4                       # --max-running-requests
+    mamba_state_slots: 5                  # extra_buffer reserves 5 states/request (extra_buffer_lazy: 4,
+                                          # no_buffer: 1) → renders --max-mamba-cache-size = 20
     max_num_batched_tokens: 4096          # --chunked-prefill-size
     kv_cache_dtype: auto
     kv_cache_memory: "0"                  # unused by SGLang (pool is --mem-fraction-static driven)
@@ -698,8 +703,11 @@ spark_llm_profiles:
       - "4"
       - --speculative-draft-model-quantization
       - unquant
-      - --max-mamba-cache-size
-      - "24"
+      # `--max-mamba-cache-size` is NOT set here: the render derives it as
+      # `max_num_seqs × mamba_state_slots` (the vendor's own pin: requests × slots), because a
+      # hand-typed slot count silently caps concurrency below `--max-running-requests` — the
+      # scheduler admits only what the mamba pool can hold, and reads the number from the startup
+      # log, not from the flag. See `mamba_state_slots` on the profile.
       - --mamba-radix-cache-strategy
       - extra_buffer
       # --mamba-track-interval is NOT set here: the vendor's DGX Spark cells run
@@ -716,7 +724,8 @@ spark_llm_profiles:
       # single-Spark pools (93k / 174k, both at bf16) say this boot must FAIL. Do not lower
       # it to make it boot — a server that serves 174k while models.json promises 262,144
       # 400s mid-session (docs/spark-llm-profiles.md §Client contract). Doubling the pool is
-      # fp8 KV's job (sglang #36644, unmerged) — 2 × 174k clears 262k, 2 × 93k does not.
+      # fp8 KV's job — fixed on the SGLang release line since #38851/#38855 (v0.5.20+), never
+      # measured on GB10 — 2 × 174k clears 262k, 2 × 93k does not.
       - --max-total-tokens
       - "262144"
       # 0.80, NOT the flash-next cells' 0.85: 0.85 × 128 GB leaves ~8 GB for the OS, which
@@ -763,7 +772,8 @@ spark_llm_profiles:
       carrying support ≥ v0.5.20 plus the #38121 export loader; (2) the single-Spark KV
       pool sglang measures for this checkpoint (~93k RadixArk / ~174k NVIDIA export, MTP
       on) cannot hold the 262,144 window the client contract promises, and closing that
-      gap needs sglang fp8 KV (#36644, still open); (3) PLE + SGLang on GB10 has never
+      gap needs sglang fp8 KV — fixed on the release line (#38851/#38855, shipped in v0.5.20+),
+      never verified on GB10, and this arm's image would have to be re-pinned to carry it; (3) PLE + SGLang on GB10 has never
       been booted here (BENCHMARK-PLAN: "PLE is vLLM-only today"), and a failed boot
       competes with the certified engine for the same 121.62 GiB pool. The file-backed
       table (#37068) is the vendor's own fix for (1 Spark, weights) and is already
@@ -812,6 +822,31 @@ spark_llm_profiles:
   #     why (exit -15, no traceback).
   #   * a `--max-total-tokens` below 262,144 to make the boot fit: that is the 400-mid-session
   #     failure (docs/spark-llm-profiles.md §Client contract), and it would be a lie in models.json.
+  #
+  # WHAT THE UPSTREAM ACTUALLY OFFERS GB10 TODAY (registry + release-line facts, read off the
+  # vendor's own docs and the Docker Hub manifest list, not off a forum):
+  #   * **fp8 KV is not a custom-build story any more.** The QSA fp8-KV crashes (#36545) were fixed
+  #     by #38851 (dequant on gather) and #38855 (dequant FP8 cached prefixes in the sparse prefill
+  #     kernels), both merged to `main` and both contained in v0.5.20 (and every later release).
+  #     #36644 is still open and is NOT the blocker — it targets the `qwen4-main-squashed` branch.
+  #     What remains true is the weaker sentence: **no verified GB10 cell runs fp8 KV**, so on this
+  #     box it is an unverified flag on a released build, and the first boot that sets it is a
+  #     measurement, not a config change.
+  #   * `--kv-cache-dtype` also accepts `nvfp4` and `fp4_mx_block16` (FP4 KV recipes, CUDA 12.8+ /
+  #     torch 2.8+). Untested here and on a QSA model that is a numerics question for gates 8–9,
+  #     not a capacity dial to reach for first.
+  #   * the state side is where the pool actually goes. `--mamba-ssm-dtype` sizes each state
+  #     (fp32 → bf16 halves it, already pinned here), `--mamba-radix-cache-strategy` decides how
+  #     many states per request, and `--mamba-full-memory-ratio` splits state memory against KV
+  #     memory; `--enable-unified-memory` replaces the two static pools with one dynamically split
+  #     buffer, and `--enable-int8-mamba-checkpoint` stores radix-cached linear-attn states in int8
+  #     (~2× cached-prefix capacity at fixed memory). None of these is set by any arm here — see
+  #     the row for the lane, because on a 36-of-48-layer GDN model the state pool, not the KV
+  #     dtype, is the first thing to price.
+  #   * **the table's boot cost is per-boot, not per-deploy**: `--ple-offload-dir`'s sparse file is
+  #     REWRITTEN on every startup — read-modify-write over an existing file is ~17 MB/s ≈ 55 min,
+  #     a fresh sparse file fills at GB/s ≈ 10 min. Stop every server using the directory and
+  #     delete its `ple_table_*.bin` before a boot you intend to time, or the timer measures XFS.
   sg-radix:
     label: "PROBE — SGLang with RadixAttention ON (arm A of the A/B; image pin still empty)"
     engine: sglang
@@ -829,8 +864,12 @@ spark_llm_profiles:
                                                # (docs/harness-pi-engines.md §6)
     max_model_len: 262144                 # the contract stays whole; the POOL is what we measure
     max_num_seqs: 8                       # --max-running-requests (fan-out note above)
+    mamba_state_slots: 5                  # → --max-mamba-cache-size 40: 8 requests × 5 extra_buffer slots.
+                                          # 24 would have silently capped this arm at 4 running requests.
     max_num_batched_tokens: 4096          # --chunked-prefill-size
-    kv_cache_dtype: auto                  # bf16: fp8 KV on the QSA path is sglang #36644, open
+    kv_cache_dtype: auto                  # bf16: fp8 KV is IN the SGLang release line (v0.5.20+,
+                                          # #38851/#38855) but no verified GB10 cell runs it — it is
+                                          # a leg to measure, not a flag to flip blind
     kv_cache_memory: "0"                  # unused by SGLang (the pool is --mem-fraction-static's)
     max_cudagraph_capture_size: 0
     enforce_eager: false
@@ -887,6 +926,7 @@ spark_llm_profiles:
     served_name: spark/qwen3.8-flash-next-sg
     max_model_len: 262144
     max_num_seqs: 8
+    mamba_state_slots: 5                  # identical to `sg-radix`: the control must not differ here
     max_num_batched_tokens: 4096
     kv_cache_dtype: auto
     kv_cache_memory: "0"

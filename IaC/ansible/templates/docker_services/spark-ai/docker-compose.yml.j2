@@ -88,6 +88,12 @@
     to `command_extra` is how they silently never reach argv — which is exactly what an earlier
     revision of this block did, and the render dump is what shows it. #}
 {% set sglang_extra = [] %}
+{% if profile.engine == 'sglang' and profile.get('mamba_state_slots') %}{%   set sglang_extra = sglang_extra + ['--max-mamba-cache-size', (profile.max_num_seqs | int) * (profile.mamba_state_slots | int)] %}{% endif %}
+{#  DERIVED, never typed: the vendor pins this flag to requests × state-slots, and a hand-typed
+    number silently caps concurrency below --max-running-requests (the scheduler admits only what
+    the mamba pool holds and reports the effective count in the startup log). Slots per request come
+    from the strategy: extra_buffer 5, extra_buffer_lazy 4, no_buffer 1 — declare the real one on
+    the profile as `mamba_state_slots` beside max_num_seqs. #}
 {% if profile.engine == 'sglang' and profile.get('cache_report', false) %}{%   set sglang_extra = sglang_extra + ['--enable-cache-report'] %}{% endif %}
 {#  Without cache-report the prefix tree is invisible on the wire: `usage.prompt_tokens_details.cached_tokens`
     is filled only when the engine may report it, and the point of the radix pair is to COUNT cached

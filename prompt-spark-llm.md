@@ -2,7 +2,7 @@
 
 > **Role:** dispatch note for **one** lane session on the **spark** GB10 engine. **The rows are the authority** for what is
 > missing and how to do it — this file carries the contract, the order of work and the traps, nothing else:
-> [todo.md](todo.md) **HD-469 · HD-473 · HD-475 · HD-489 · HD-494 · HD-1206 · HD-1214 · HD-1215 · HD-1220 · HD-376 · HD-400 · HD-359 · HD-367 · HD-380**
+> [todo.md](todo.md) **HD-469 · HD-473 · HD-475 · HD-489 · HD-494 · HD-1206 · HD-1214 · HD-1215 · HD-1220 · HD-1221 · HD-376 · HD-400 · HD-359 · HD-367 · HD-380**
 > (row ids as of `c1fdbd66` — re-derive with `grep -c "^| HD-<id> " todo.md` before quoting one).
 > **Linked from:** [todo-table.md](todo-table.md) §B0 · [todo.md](todo.md)
 
@@ -45,6 +45,7 @@ the test plan) → [docs/hardware-spark.md](docs/hardware-spark.md) §Unified-me
 | 11 | **HD-1214** | Read the second fp8 dial on the built v32 image (`--attention-config.indexer_kv_dtype`, vllm#54890) and author it as an arm beside `fast8` | It is a **dtype** change, so gates 8–9 bind and gate 9's long-reasoning battery is the leg that sees it — indexer keys move what the indexer *selects*, needles stay green. The bytes/token constant moves only from a boot-log read, never from a ratio; never edit `fast` to test it |
 | 12 | **HD-1215** | Read what the live arm's MTP head holds, then price the drafter-quant axis (vendor overlays 5.03 → 2.52/1.42 GB; SGLang: `--speculative-draft-model-quantization`) | The draft's bytes come out of the **pool**, so this is a new arm that moves `fixed_cost_bytes`, not a dial. `draft_vocab` is a different axis; the `v16b*` arms already run a built dense drafter, so the read is per-arm. Quote gate 8's acceptance before quoting any pool gain |
 | 13 | **HD-1220** | The RadixAttention A/B: verify the SGLang arm64 digest → pin it → converge `sg-radix` uncertified → flip to `sg-radix-off` for the control leg | **Read the pool line before the timer**: a pool below 262,144 makes both legs fail identically and that is a pool verdict, not a radix verdict. The legs differ by ONE rendered flag (`radix_cache`) — a hand-run `docker run` with an extra flag is a different engine, not a control. Never enable `--enable-hierarchical-cache` here: host RAM is the same pool |
+| 14 | **HD-1221** | Price the STATE side of the sglang pool — `--mamba-full-memory-ratio`, `--enable-unified-memory`, `--enable-int8-mamba-checkpoint` — on the `sg-radix` shape | 36 of 48 layers are GDN, so the state budget is a coordinate of this pool and no arm sets any of the three; fp8 KV (fixed on the release line, unverified on GB10) is a fourth coordinate, not a substitute. Read the split from the boot log HD-1220 already owes before touching one |
 
 ## ⛔ Traps that cost a round
 

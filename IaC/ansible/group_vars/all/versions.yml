@@ -458,13 +458,34 @@ homelable_version: "3.6.0"
 # is the pin. `graded`'s `--kv-cache-dtype fp8` cannot boot on THIS lineage (bf16-only QSA KV) → docs/spark-llm-profiles.md
 spark_vllm_image: "vllm/vllm-openai:qwen38-flash-next@sha256:fc120ece0a388cc0aa1caad4a9f1cd92113484ab7ec2fd0efadd62585be05bf8"
 
-# SGLang (`fast-sglang` profile) — INTENTIONALLY EMPTY, and that is the gate.
-# CONVENTIONS §7 forbids a bare `latest`/mutable alias, and no SGLang image has been
-# verified for the GB10 arm64-cu130 manifest yet. roles/spark-llm-profile refuses any
-# profile whose image resolves empty, so flipping spark_llm_profile to `fast-sglang` fails
-# loud instead of pulling a floating tag. To unblock: verify the arm64 manifest + take the
-# digest, pin it HERE, record the verification in docs/hardware-spark.md §Bench + engine
-# selection in the same change (fluid-tag first-pin rule, §7) — then the gate opens by itself.
+# SGLang (`fast-sglang` / the `sg-radix` pair) — INTENTIONALLY EMPTY, and that is the gate.
+# CONVENTIONS §7 forbids a bare `latest`/mutable alias, and no SGLang image has been verified for
+# the GB10 arm64 manifest from this box yet. roles/spark-llm-profile refuses any profile whose
+# image resolves empty, so flipping spark_llm_profile to a sglang arm fails loud instead of pulling
+# a floating tag. To unblock: `docker buildx imagetools inspect <candidate>`, take the arm64 digest,
+# pin it HERE, record the verification in docs/hardware-spark.md §Bench + engine selection in the
+# same change (fluid-tag first-pin rule, §7) — then the gate opens by itself.
+#
+# THE CANDIDATES, read off the registry manifest lists (arch + digest + push date, so the choice is
+# made before anyone pays for a pull), and what each one can and cannot load:
+#   nightly-cu134                          arm64 @sha256:3ec37ac899c195c4fb7936196ded349fcd73bd45ee4917edd58bb3f08fa30253
+#                                          (rebuilt daily; = nightly-cu134-<date>-<sha>). Main line at
+#                                          ≥ v0.5.22, so it carries the model AND the QSA fp8-KV fixes
+#                                          (#38851/#38855). It does NOT carry the ModelOpt MIXED_PRECISION
+#                                          loader #38121, so it serves the RadixArk export, not `nvidia/…`.
+#   dev-qwen38-next-local (arm64)          @sha256:a1e17bbf0e9618364dc6395a4de5f9c3e8dfc9f43d603995b7a6aebc83de6e06
+#                                          (built on `qwen4-main-squashed`). The only published GB10 image
+#                                          that loads the NVDA MIXED_PRECISION export — pushed before
+#                                          #38851/#38855, so its fp8-KV path is the unfixed one.
+#   qwen38flashnext (arm64)                @sha256:c93d57460ce7fca986c7c8150b5a2231b540ca226d17ef5563ac0dcee506c136
+#                                          — predates #38121, cannot load the NVDA export.
+#   spark (arm64-only)                     @sha256:16dec654b13e4d10a2d9eefa0560e85fed0d1fc9536986e1dfb1bcb0077cbc7a
+#                                          — a Spark-tuned build from before this model existed: it is
+#                                          arm64 and it is named `spark`, and it still cannot serve
+#                                          Qwen3.8-Flash-Next. A tag named for the box is not a build for
+#                                          the checkpoint.
+# So the first arm to boot is RadixArk-on-`nightly-cu134`; the NVDA export needs the branch-built image,
+# and no published tag carries BOTH #38121 and the fp8-KV fixes (that combination is a build we make).
 spark_sglang_image: ""
 
 # ==== Spark ultra-fast profile matrix — the upstream patch-lineage pins ====
