@@ -397,8 +397,8 @@ never `--diff` (§7).
 
 ### Phase 7 — re-seat and re-check
 
-- [ ] Re-seat every `op_api` consumer: oldsrv control node, oldsrv seat `domen`, and this laptop are re-seated — each was found
-  presenting the superseded generation and re-seated with the **pipe form**, proved by Integration ID + `sha256[:12]`
+- [x] Re-seat every `op_api` consumer: all four Debian installs — oldsrv control node, oldsrv seat `domen`, this laptop, and
+  the `vps` control account `ansible-admin` — are re-seated with the **pipe form**, proved by Integration ID + `sha256[:12]`
   on the file route AND in a fresh interactive shell (a running shell's exported value beats the file, and
   `bootstrap-runner.sh` is create-only). ⏭ the three residues are HD-1171's and all three are owner-side: the scope of
   the integration the new ID belongs to, the Forgejo Actions secret store, and `oldsrv:/root/.config/op/homelab-sa-token`

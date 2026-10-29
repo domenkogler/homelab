@@ -30,7 +30,7 @@ one vault):
 
 | Item | Scope | Who uses it |
 |---|---|---|
-| `op_api` | **read** `Homelab-ansible` | the control node (`op` CLI + Ansible's `community.general.onepassword` lookup) and every Debian **seat**. No CI holder — **there is no Forgejo runner holding it** ([../deployment-tasks.md](../deployment-tasks.md) §Vault inventory), and the only workflow in the tree (`spark/.github/workflows/ansible-ci.yml`) carries no OP secret. The item is the **single mint point** for all three Debian installs: the oldsrv control node, the oldsrv seat and the laptop |
+| `op_api` | **read** `Homelab-ansible` | the control node (`op` CLI + Ansible's `community.general.onepassword` lookup) and every Debian **seat**. No CI holder — **there is no Forgejo runner holding it** ([../deployment-tasks.md](../deployment-tasks.md) §Vault inventory), and the only workflow in the tree (`spark/.github/workflows/ansible-ci.yml`) carries no OP secret. The item is the **single mint point** for all four Debian installs: the oldsrv control node, the oldsrv seat, the laptop, and the `vps` control account |
 | `op-write_api` | **read + write** | anything that must CREATE/ROTATE items: `scripts/secrets/provision-secrets.py`, and the host-side glue deployed to `/etc/op/provision-token`; it reaches those hosts only through an `op-provision-token` converge ([deployment-secrets.md](deployment-secrets.md) §`op-write_api`) |
 
 The two scopes cannot be told apart by `op vault list` — both service accounts list the one vault;
@@ -42,6 +42,7 @@ see §Proving which service account an install holds.
 | **`oldsrv` — the on-site control node** (`ansible-admin`) | `op_api` | `~/.config/op/homelab-sa-token` (0600), written by `bootstrap-runner.sh --token-stdin` from `op read` — the value never crosses a prompt or a shell history |
 | **`oldsrv` SEAT — `domen`, the cockpit/authoring account** | `op_api` | `~/.config/op/homelab-sa-token` (0600, owner `domen`), sourced from `~/.bashrc` — this is what makes the seat able to author ([deployment-ansible.md](deployment-ansible.md) §Runner placement) |
 | **control node (rescue)** — this WSL Debian laptop; not the only place `ansible-playbook` is run interactively, and it stays installed as the door you open when the on-site runner is the thing that is broken ([deployment-ansible.md](deployment-ansible.md) §Runner placement) | `op_api` | `~/.config/op/homelab-sa-token` (0600) |
+| **`vps` — the VPS control account** (`ansible-admin`) | `op_api` | `~/.config/op/homelab-sa-token` (0600), sourced from `~/.bashrc` — the same shape and the same pipe-form re-seat as the on-site control node, so `op` on that box reads the vault headless. An `op_api` rotation reaches this host by **two** paths: this file, and the `/etc/op/provision-token` render below (different item, so one rotation does not cover the other). It is the install a seat-side sweep cannot see — `~` and `/home/*` are the paths of the host the sweep runs on, so enumerating it means running the sweep there (§Proving which service account an install holds) |
 | **`oldsrv` — the `root` account** | a **dead** `op_api` generation | `/root/.config/op/homelab-sa-token` (0600 root), sourced from `/root/.bashrc`, and nothing re-seats it: its service account is **deleted**, so `op` there answers `(403) Forbidden (Service Account Deleted)`. It is on the list because the sweep finds it and no leg does — a root shell on that box cannot read the vault while every seat reads it fine |
 | Forgejo CI runner | — | **no holder**: no `.forgejo/` workflow, no runner, so nothing renews this token in CI |
 | **vps** — the Authentik secret-egress glue + `kopia-fingerprint-sync.yml` | `op-write_api` | `/etc/op/provision-token`, 0600 root, deployed by the docker_services pre-pass |
@@ -185,12 +186,13 @@ passes — so scope a seat only from `op_api/credential`, and prove it by Integr
 |---|---|---|
 | `op_api` — **current** | `d633b4f9190e` | Integration `QO3TQ6IMYJF5LFB5EUERCEGJEY` (the read item's own integration — see the scope note below) |
 | `op_api` — superseded, live until ~2026-10-30 | `6a1342f44e65` | Integration `DUW6UPKY5JGG3MM6WF3HBHQWGQ` (read) |
-| `op-write_api` — **current** | `af0e1cffc9e4` | Integration `WN7FJT54IVHDDC4XR3YJ73R2CY` (read+write) |
+| `op-write_api` — **current** | `c387f297133f` | Integration `RBULV4SW7JDKLDXRG25LC44VVI` (read+write) |
+| `op-write_api` — superseded, and still the value every host's `/etc/op/provision-token` presents until the re-render lands | `af0e1cffc9e4` | Integration `WN7FJT54IVHDDC4XR3YJ73R2CY` (read+write) |
 
 Each minted generation of these items answers with **its own Integration ID** — `op_api`'s superseded
 generation answers `DUW6UPKY5JGG3MM6WF3HBHQWGQ` and its current one `QO3TQ6IMYJF5LFB5EUERCEGJEY`, and
-the write item's two measured generations answered `PR4Z2FGWW5BRXNL6OR3FNYL3R4` then
-`WN7FJT54IVHDDC4XR3YJ73R2CY`. So an ID that matches no row here is a generation this table has not
+the write item's measured generations answered `PR4Z2FGWW5BRXNL6OR3FNYL3R4`, then
+`WN7FJT54IVHDDC4XR3YJ73R2CY`, then `RBULV4SW7JDKLDXRG25LC44VVI`. So an ID that matches no row here is a generation this table has not
 recorded, and the value hash (the sweep below) settles which item it belongs to — the current `op_api`
 value hashes apart from `op-write_api`'s AND answers an ID apart from its integration, which is what
 separates a re-seated seat from a mis-seeded one.
@@ -220,6 +222,21 @@ for f in ~/.config/op/homelab-sa-token /home/*/.config/op/homelab-sa-token /root
 ⚠ **The `/root` path is part of the sweep, not an extra.** Run as an ordinary user it silently matches
 nothing and the root install goes unlisted — that is how a dead-token root install survived every audit
 on `oldsrv` (§Where a token is installed). Run the sweep with `sudo` on a host that has one.
+
+⚠ **A sweep sees one host.** `~` and `/home/*` are the paths of the machine the loop runs on, so the
+control node's sweep never lists `vps`'s install. Enumerating consumers means running the loop on
+every host in §Where a token is installed, not on the one you are standing in.
+
+⚠ **A bare-value token file is hashed, never sourced.** `~/.config/op/homelab-sa-token` is
+`export OP_SERVICE_ACCOUNT_TOKEN=…`, so the dot-and-hash above is safe. `/etc/op/provision-token` is the
+**bare token**, and `. "$f"` executes it: bash answers `command not found` **with the whole value on the
+line**, which writes the credential into whatever is capturing that output — the leak class
+[`deployment-secrets.md`](deployment-secrets.md) §Creation & Rotation Workflow item 7 bans. For that shape
+hash the bytes, and prove liveness without a value in the environment of anything that prints:
+```bash
+printf '%s  %s\n' "$f" "$(printf %s "$(cat "$f")" | tr -d '\r\n' | sha256sum | cut -c1-12)"
+OP_SERVICE_ACCOUNT_TOKEN=$(cat "$f") op item list --vault Homelab-ansible   # value: in the child env, never on a command line
+```
 
 ⚠ **Sweep the whole value — a prefix is not evidence.** In an `ops_`-family token the leading bytes are
 an envelope, not entropy: the first 80 characters are byte-identical between `op_api` and
