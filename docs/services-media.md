@@ -344,7 +344,13 @@ cannot be answered until the provider login works.
   stay **manual / not-IaC** by owner choice — Tube Archivist is the headless yt-dlp piece of that set.
 - **Auth:** Aurral / Tube Archivist / Slskd = **own local logins** (same home-edge pattern — *arr UIs use
   built-in Forms auth); no Forward-Auth. `lidarr_api` = the Lidarr instance key, read from its
-  `config.xml` ApiKey (see deployment-secrets.md). **Slskd's UI is `slskd` + the `soulseek_api`
+  `config.xml` ApiKey (see deployment-secrets.md). **The instance is the issuer, so it rotates first:**
+  the key lives in `/srv/docker/lidarr/config/config.xml` `<ApiKey>` and must be changed there with the
+  container STOPPED (a running Lidarr rewrites the file on a graceful exit and would restore the old
+  value), then restarted, then the vault copy written, then the four holders re-rendered or re-saved —
+  `lidarr-ydl` (`LIDARR_API_KEY` env) and soularr (`[Lidarr] api_key`, both by converge) and SeerrNG's
+  own `lidarr[].apiKey` in `/srv/docker/seerrng/config/settings.json` (app state, no IaC consumer, applied
+  at container start). `seerr` carries NO Lidarr server entry, so it never holds this key. **Slskd's UI is `slskd` + the `soulseek_api`
   credential** as `SLSKD_PASSWORD` — slskd 0.26 has no token option, so a compose that sets only
   `SLSKD_TOKEN` answers at `slskd.kogler.si` with the stock `slskd`/`slskd` login. Proven shape:
   `POST /api/v0/session` → 200 with the vault password, 401 for the stock pair.
