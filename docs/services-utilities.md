@@ -54,6 +54,23 @@ tags: [services, utilities, tools, automation]
   not, and the next time anyone needs the break-glass seat it fails. The item's only IaC site is the compose
   render, and the render is not the propagator: re-converging the service moves nothing at the store.
   · [deployment-secrets.md](deployment-secrets.md) §Master Secret List row
+- **`openclaw_gateway_token` is not rotatable yet, because the thing that would check it does not exist —
+  the blocked act is HD-104's `openclaw onboard` leg, not a rotation.** Measured on the live gateway: there is
+  **no `openclaw.json`** (`/home/node/.openclaw/` has the state dirs and no config), so the container runs
+  `gateway --allow-unconfigured` and **authenticates with nothing** — the WebSocket upgrade answers `101` with
+  no credential and with a wrong one alike, and every probed HTTP path answers identically either way. The env
+  var is correct (`OPENCLAW_GATEWAY_TOKEN` == the vault value, digest-compared), it simply gates nothing.
+  ⛔ So a rotation here has no far end: it cannot be proved new-accepted / superseded-refused, and a vault write
+  would be the divergence this list names. `openclaw onboard --non-interactive` **does** exist (with
+  `--accept-risk`, and `--gateway-token` / `--gateway-token-ref-env <NAME>`), so the machine path is real — but
+  running it is the **first-time bring-up of the agent** (auth providers, models, workspace, channels, skills),
+  which is HD-104's deploy act and Stage 4/10, never a secret rotation.
+  **The design fact worth keeping:** onboard with `--gateway-token-ref-env OPENCLAW_GATEWAY_TOKEN` makes
+  `openclaw.json` *reference the env var* instead of embedding a token — after that the compose render **is** the
+  far end and the item becomes lane-rotatable (`--rotate` is refused: the item sits in `NOT_AUTO_ROTATABLE`, so
+  the vault write is the round-trip form) with the container recreate as the propagation and the WS handshake as
+  the two-way verdict. Until then it stays here.
+  · [deployment-ai-stack-secrets.md](deployment-ai-stack-secrets.md) §item 7 · [services-ai.md](services-ai.md)
 
 ## Automation & Alerting
 
