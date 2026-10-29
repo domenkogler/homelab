@@ -322,6 +322,7 @@ shows) → `.id` on the linked oldsrv daemon, stored in `group_vars/all/main.yml
 - **Provisioning does NOT overwrite `secureJsonData` of an existing datasource.** A rotated datasource
   password must be re-applied by delete+recreate **with the same uid** (or an API update) — otherwise
   queries keep 401-ing while the rendered files look perfect.
+
 - **Pin the edge IP.** Docker's dynamic bridge assignment silently drifts the Traefik edge address off
   `GF_AUTH_PROXY_WHITELIST`, which reads as "SSO stopped working after an unrelated redeploy".
 - **`noDataState` is the loudest footgun in the stack.** A rule whose PromQL matches **no series** fires a
@@ -1207,7 +1208,13 @@ future secret-free datasource.
 
 **Rotation of `victoria-metrics_api` / `victoria-logs_api` = delete the datasource (API or UI), then
 converge.** Seeding is create-only and provisioning never rewrites the `secureJsonData` of an existing
-uid, so a re-render alone leaves queries 401-ing (§Operational gotchas → Grafana).
+uid, so a re-render alone leaves queries 401-ing (§Operational gotchas → Grafana). The two items are **one
+act** — `username` moves with `password` and every consumer reads them as a pair — and the propagation is
+**two hosts**: the `vps` leg recreates both stores and re-seeds both datasources, the `oldsrv` leg re-renders
+that host's Alloy push (`prometheus.remote_write` + `loki.write`) and both MCP servers'
+`*_INSTANCE_HEADERS`. ⚠ Every other host in the `monitoring` group renders these same two items into its own
+Alloy push config, so a rotation converged only where the stores live leaves those collectors writing to a
+store that no longer accepts them.
 
 ---
 
