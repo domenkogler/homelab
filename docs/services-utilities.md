@@ -51,6 +51,13 @@ tags: [services, utilities, tools, automation]
   appears: **no `max_budget` cap, local rows only** (`spark/qwen3.8-flash-next`; `rpm` as KV-contention
   protection), minted through the **LAN** instance (`lan-litellm` → `home_servers.yml` `litellm_scoped_keys`),
   which is where every internal querier's key lives.
+- ⚠ **`n8n-webhook_api` has no enforcing far end.** The compose renders `N8N_BASIC_AUTH_ACTIVE: "true"`
+  with both `N8N_BASIC_AUTH_USER` and `N8N_BASIC_AUTH_PASSWORD` non-empty, and the running build still
+  answers `GET /` **200 with no credential** — basic auth is not active at the pinned `n8n_version`, so
+  the Grafana contact point's `basicAuthPassword` (observability.md §Alerting) is a credential the app
+  never checks. **A rotation of this item buys nothing until basic auth actually enforces in this
+  version** — it is a park, not owed §5b work; what protects the alert route today is its placement
+  (tailnet-only, no public path) and n8n's own credential store, not this token.
 - n8n also runs **office automation** flows — see [`services-office.md`](services-office.md).
 
 ## Zipline — public bin & shortener
