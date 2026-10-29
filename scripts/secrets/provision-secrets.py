@@ -21,6 +21,14 @@ Regenerates the secret value of ONE existing item and updates it in place.
 Rotates every whitelisted, safely-rotatable item in the catalog (skips items
 flagged as externally-coupled).
 
+=== Self-test ===
+    python3 scripts/secrets/provision-secrets.py --self-test
+Runs every WRITE branch against a stubbed `op` CLI — no vault, no token, no network, nothing to
+converge. It is the proof that a write is judged by the re-read value, not by the `op` exit code:
+landed, spurious-error-on-a-landed-write, genuine failure, partial write, unprovable re-read, absent
+item, duplicate title, create-when-absent, and the fail-closed leg where a vault listing that fails
+must attempt ZERO writes.
+
 === Rotate + reprovision with Ansible (the clean workflow) ===
 1Password is the single source of truth: Ansible resolves every secret at
 deploy-time via `lookup('community.general.onepassword', ..., vault=op_vault)`
@@ -48,6 +56,8 @@ Auth: OP_SERVICE_ACCOUNT_TOKEN must be a WRITE-scoped Service Account token
 from __future__ import annotations
 
 import argparse
+import contextlib
+import io
 import json
 import os
 import secrets
@@ -55,6 +65,8 @@ import shutil
 import string
 import subprocess
 import sys
+import tempfile
+from pathlib import Path
 
 VAULT = "Homelab-ansible"
 
@@ -342,8 +354,71 @@ def gen_token(n: int = 32) -> str:
     return "".join(secrets.choice(al) for _ in range(n))
 
 
+# ONE seam for every `op` invocation, so --self-test can point the whole tool at a stubbed CLI and
+# exercise each write branch without a vault. It is a module constant, deliberately NOT an env var: an
+# env seam would let a stray variable in someone else's shell redirect a vault WRITE somewhere nobody
+# reviewed. stdin is DEVNULL on every leg: with a non-TTY stdin `op item create` tries to parse piped
+# JSON and dies with "invalid JSON in piped input" (found live 2026-08-22 under WSL), and an `op` that
+# inherits the caller's stdin is the CONVENTIONS §6 ssh class — stdin is whatever the parent was
+# reading, so the call can consume the loop or script that launched it.
+OP_ARGV = ["op"]
+
+
 def op(*args: str) -> subprocess.CompletedProcess:
-    return subprocess.run(["op", *args], capture_output=True, text=True, encoding="utf-8", errors="replace")
+    return subprocess.run([*OP_ARGV, *args], capture_output=True, text=True,
+                          encoding="utf-8", errors="replace", stdin=subprocess.DEVNULL)
+
+
+def field_map(fields: list[str]) -> dict[str, str]:
+    """{label: value} for the `label=value` argv form `op` takes. The FIRST '=' splits: a generated
+    value may itself contain '='."""
+    out: dict[str, str] = {}
+    for f in fields:
+        label, _sep, value = f.partition("=")
+        out[label] = value
+    return out
+
+
+def redact(text: str, values: dict[str, str]) -> str:
+    """Scrub the values THIS process generated out of anything it is about to print.
+
+    `op` echoes its own argv in argument-resolution errors, and a write's argv CARRIES the values — so
+    a failure print is a disclosure path (CONVENTIONS §6: a probe prints verdicts, never values).
+    Short values are skipped so a fixed label like `username=admin` is not mangled into noise.
+    """
+    for value in values.values():
+        if len(value) >= 8 and value in text:
+            text = text.replace(value, "<redacted>")
+    return text
+
+
+def item_field_values(item_id: str, labels: list[str]) -> dict[str, str] | None:
+    """Re-read ONE item by id and return {label: value} for `labels`; None when the read FAILED.
+
+    This is the verify half of a write. A non-zero `op item edit` rc proves nothing on its own: op CLI
+    2.39 answers a write that has ALREADY LANDED with a spurious post-edit HTTP error
+    (docs/1password.md §Troubleshooting) — the same defect the fix in
+    IaC/ansible/roles/docker_services/tasks/kopia-fingerprint-sync.yml removed on the host side. It
+    goes through the `op` CLI rather than scripts/lib/vault_read.py so the re-read answers on the SAME
+    surface the write used, which is also what lets --self-test stub it. `--reveal` is mandatory: a
+    Concealed field's JSON carries no `value` without it. Values are compared in-process and never
+    printed, and the read is ID-addressed — a title held by two items resolves arbitrarily.
+    """
+    r = op("item", "get", item_id, "--vault", VAULT, "--format", "json", "--reveal")
+    if r.returncode != 0:
+        return None
+    try:
+        item = json.loads(r.stdout)
+    except json.JSONDecodeError:
+        return None
+    want = {label.lower(): label for label in labels}
+    got: dict[str, str] = {}
+    for field in item.get("fields") or []:
+        for key in (field.get("id"), field.get("label")):
+            label = want.get(str(key or "").lower())
+            if label is not None and label not in got and field.get("value") is not None:
+                got[label] = str(field["value"])
+    return {label: got[label] for label in labels if label in got}
 
 
 def require_write_token() -> int:
@@ -353,13 +428,20 @@ def require_write_token() -> int:
     return 0
 
 
-def existing_items() -> dict[str, str] | None:
-    """Return {title: id} for the vault, or None if the lookup FAILED.
+def existing_items() -> dict[str, list[str]] | None:
+    """Return {title: [item id, ...]} for the vault, or None if the lookup FAILED.
 
     A failed lookup is FATAL for any write command (HD-205): proceeding with an
     empty map would make `--create` try to create EVERY item and `--rotate-all`
     skip everything — both silently masking an auth/scope/vault problem. So a
     failure returns None and every caller ABORTS loudly instead of proceeding.
+    That listing is also what makes `op item create` a proven-absent act and never
+    a duplicate mint.
+
+    A title maps to a LIST because two items CAN carry the same title, and then the
+    CLI resolves that title arbitrarily: a title-addressed write can land on the
+    other item and its re-read would "prove" the wrong object. `rotate` refuses that
+    state and names the ids instead of writing through it.
     """
     r = op("item", "list", "--vault", VAULT, "--format", "json")
     if r.returncode != 0:
@@ -367,7 +449,10 @@ def existing_items() -> dict[str, str] | None:
               file=sys.stderr)
         print("  check OP_SERVICE_ACCOUNT_TOKEN scope and vault name", file=sys.stderr)
         return None
-    return {it["title"]: it["id"] for it in json.loads(r.stdout)}
+    out: dict[str, list[str]] = {}
+    for it in json.loads(r.stdout):
+        out.setdefault(it["title"], []).append(it["id"])
+    return out
 
 
 def bcrypt_hash(password: str) -> str:
@@ -398,32 +483,365 @@ def homelable_login_item() -> list[str]:
 
 
 def create(category: str, title: str, fields: list[str]) -> bool:
-    # stdin=DEVNULL: with a non-TTY stdin, `op item create` tries to parse piped JSON
-    # and fails with "invalid JSON in piped input" (found live 2026-08-22 under WSL).
-    r = subprocess.run(
-        ["op", "item", "create", "--category", category,
-         "--title", title, "--vault", VAULT] + fields,
-        capture_output=True, text=True, encoding="utf-8", errors="replace", stdin=subprocess.DEVNULL)
+    # Reached ONLY for a title the listing proved absent (cmd_create), so a non-zero rc here is a real
+    # failure with nothing to re-read: the next `--create` re-derives absence from the listing, so
+    # there is no create-on-failure branch that could mint the duplicate.
+    r = op("item", "create", "--category", category, "--title", title, "--vault", VAULT, *fields)
     if r.returncode != 0:
-        print(f"FAILED {title}: {r.stderr.strip()}", file=sys.stderr)
+        print(f"FAILED {title}: {redact(r.stderr.strip(), field_map(fields))}", file=sys.stderr)
         return False
     print(f"created {title}")
     return True
 
 
-def rotate(title: str, category: str, fields_builder):
-    """Regenerate + overwrite a single existing item's secret fields in place."""
+def rotate(title: str, category: str, fields_builder, item_ids: list[str] | None = None) -> bool:
+    """Regenerate + overwrite a single existing item's secret fields in place.
+
+    The verdict comes from the VALUE, never from the `op` exit code (see
+    item_field_values for the op-2.39 spurious-error class), and there is no create
+    fallback on this path: the item is HERE, so a create would only mint the
+    duplicate whose title-based reads then resolve arbitrarily — the defect the
+    sibling fix in kopia-fingerprint-sync.yml removed.
+    """
     if title in NOT_AUTO_ROTATABLE:
         print(f"SKIP {title}: externally-coupled item (see NOT_AUTO_ROTATABLE); rotate manually.", file=sys.stderr)
         return False
-    fields = fields_builder()
-    edit_args = ["op", "item", "edit", title, "--vault", VAULT] + fields
-    r = subprocess.run(edit_args, capture_output=True, text=True, encoding="utf-8", errors="replace")
-    if r.returncode != 0:
-        print(f"FAILED rotate {title}: {r.stderr.strip()}", file=sys.stderr)
+    ids = list(item_ids or [])
+    if len(ids) != 1:
+        print(f"FAILED rotate {title}: {len(ids)} items are titled {title} — resolve the duplicates "
+              f"first (ids: {', '.join(ids)}); an ambiguous title cannot be written and verified", file=sys.stderr)
         return False
-    print(f"rotated {title}")
-    return True
+    item_id = ids[0]
+    fields = fields_builder()
+    want = field_map(fields)
+    r = op("item", "edit", item_id, "--vault", VAULT, *fields)
+    if r.returncode == 0:
+        print(f"rotated {title}")
+        return True
+    err = redact(r.stderr.strip(), want)
+    now = item_field_values(item_id, list(want))
+    if now is None:
+        print(f"FAILED rotate {title}: op reported an error AND the re-read failed, so the write is "
+              f"UNPROVEN — confirm the item's current value before retrying: {err}", file=sys.stderr)
+        return False
+    if now == want:
+        print(f"rotated {title} (op reported an error; the re-read proves the write landed)")
+        return True
+    stuck = sorted(label for label, value in want.items() if now.get(label) != value)
+    print(f"FAILED rotate {title}: op reported an error and the re-read shows field(s) "
+          f"{', '.join(stuck)} still hold the previous value — not retried, not re-created: {err}",
+          file=sys.stderr)
+    return False
+
+
+# ---------------------------------------------------------------------------
+# Self-test: every write branch against a STUBBED `op` — no vault, no token, no network.
+#
+# Why a stub rather than the live vault: the branch under test exists because a non-zero `op` rc can
+# arrive on a write that LANDED, and that is not an exit code anyone can summon on purpose. So the CLI
+# itself is replaced (OP_ARGV) by a script that answers list/get/edit/create from a JSON state file and
+# can be told to fail in each of the ways the real one fails. Every call is logged, because "no create
+# was attempted" is a claim only the call log can prove — a `--rotate` that reports FAILED and then
+# mints a second item is exactly the defect this arm exists to keep dead.
+# ---------------------------------------------------------------------------
+_STUB_ENV = ("HL_STUB_VAULT", "HL_STUB_LOG", "HL_STUB_EDIT_RC", "HL_STUB_EDIT_LANDS",
+             "HL_STUB_SKIP_FIELDS", "HL_STUB_GET_RC", "HL_STUB_LIST_RC", "HL_STUB_CREATE_RC",
+             "HL_STUB_ECHO_ARGV", "OP_SERVICE_ACCOUNT_TOKEN")
+
+_STUB_OP = r'''#!/usr/bin/env python3
+"""Stub 1Password CLI for provision-secrets.py --self-test.
+
+State is one JSON file: {"items":[{"id","title","fields":{label:value}}]}. Knobs, all env:
+  HL_STUB_VAULT    the state file
+  HL_STUB_LOG      call log, one line per invocation, argv joined with \x01
+  HL_STUB_LIST_RC / HL_STUB_GET_RC / HL_STUB_EDIT_RC / HL_STUB_CREATE_RC   forced exit codes
+  HL_STUB_EDIT_LANDS   0 = a failing edit leaves the state untouched (default 1 = it was applied)
+  HL_STUB_SKIP_FIELDS  comma-separated labels an edit does NOT apply (a partial write)
+  HL_STUB_ECHO_ARGV    1 = echo argv on stderr, the error shape that can carry a value
+"""
+import json
+import os
+import sys
+
+SEP = "\x01"
+STATE = os.environ["HL_STUB_VAULT"]
+LOG = os.environ.get("HL_STUB_LOG")
+ARGV = sys.argv[1:]
+
+
+def code(name):
+    return int(os.environ.get(name, "0"))
+
+
+def load():
+    with open(STATE, encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def save(doc):
+    with open(STATE, "w", encoding="utf-8") as fh:
+        json.dump(doc, fh)
+
+
+def find(doc, ref):
+    # ID first, then title — the CLI's own order, and the reason the provisioner addresses by ID.
+    for it in doc["items"]:
+        if it["id"] == ref:
+            return it
+    for it in doc["items"]:
+        if it["title"] == ref:
+            return it
+    return None
+
+
+def assigns(args):
+    for a in args:
+        if a.startswith("--") or "=" not in a:
+            continue
+        yield a.partition("=")[0], a.partition("=")[2]
+
+
+if LOG:
+    with open(LOG, "a", encoding="utf-8") as fh:
+        fh.write(SEP.join(ARGV) + "\n")
+
+if ARGV[:2] == ["item", "list"]:
+    if code("HL_STUB_LIST_RC"):
+        sys.exit(code("HL_STUB_LIST_RC"))
+    print(json.dumps([{"id": i["id"], "title": i["title"]} for i in load()["items"]]))
+    sys.exit(0)
+
+if ARGV[:2] == ["item", "get"]:
+    if code("HL_STUB_GET_RC"):
+        sys.exit(code("HL_STUB_GET_RC"))
+    it = find(load(), ARGV[2])
+    if it is None:
+        sys.exit(1)
+    fields = [{"id": k, "label": k, "type": "Concealed", "value": v} for k, v in it["fields"].items()]
+    print(json.dumps({"id": it["id"], "title": it["title"], "fields": fields}))
+    sys.exit(0)
+
+if ARGV[:2] == ["item", "edit"]:
+    if os.environ.get("HL_STUB_ECHO_ARGV") == "1":
+        sys.stderr.write("error: while resolving arguments: " + " ".join(ARGV) + "\n")
+    skip = [s for s in os.environ.get("HL_STUB_SKIP_FIELDS", "").split(",") if s]
+    doc = load()
+    it = find(doc, ARGV[2])
+    if it is not None and os.environ.get("HL_STUB_EDIT_LANDS", "1") == "1":
+        for label, value in assigns(ARGV[3:]):
+            if label not in skip:
+                it["fields"][label] = value
+        save(doc)
+    sys.exit(code("HL_STUB_EDIT_RC"))
+
+if ARGV[:2] == ["item", "create"]:
+    if code("HL_STUB_CREATE_RC"):
+        sys.exit(code("HL_STUB_CREATE_RC"))
+    doc = load()
+    title = ARGV[ARGV.index("--title") + 1]
+    doc["items"].append({"id": "stub-" + str(len(doc["items"])), "title": title,
+                         "fields": dict(assigns(ARGV[ARGV.index("--vault") + 2:]))})
+    save(doc)
+    print("created " + title)
+    sys.exit(0)
+
+sys.stderr.write("stub op: unsupported invocation\n")
+sys.exit(64)
+'''
+
+
+def cmd_self_test(_args) -> int:
+    """Run every write branch against the stub. Prints one line per arm, then the count."""
+    tally = {"n": 0, "bad": []}
+
+    def check(label: str, ok: bool, detail: str = "") -> None:
+        tally["n"] += 1
+        if not ok:
+            tally["bad"].append(label if not detail else f"{label} — {detail}")
+        print(f"  arm {label}: {'ok' if ok else 'FAIL'}" + (f" — {detail}" if (detail and not ok) else ""))
+
+    def opts(**kw):
+        return argparse.Namespace(**kw)
+
+    old_pw, new_pw = "selftest-previous-value", "selftest-generated-value"
+    new_db_pw, user_new = "selftest-generated-db-password", "selftest-svc"
+    t_single, t_pair = "selftest-rotatable_api", "selftest-rotatable_db"
+    t_coupled, t_absent = "selftest-coupled_api", "selftest-absent_api"
+    id_a, id_p, id_c = "stub-id-a", "stub-id-p", "stub-id-c"
+    test_catalog = [
+        ("API Credential", t_single, lambda: [f"credential={new_pw}"]),
+        ("Database", t_pair, lambda: [f"username={user_new}", f"password={new_db_pw}"]),
+        ("Password", t_coupled, lambda: [f"password={new_pw}"]),
+    ]
+
+    with tempfile.TemporaryDirectory(prefix="provision-selftest-") as tmp:
+        stub = Path(tmp) / "op_stub.py"
+        with open(stub, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(_STUB_OP)
+        state, log = Path(tmp) / "vault.json", Path(tmp) / "calls.log"
+
+        def entry(item_id, title, fields):
+            return {"id": item_id, "title": title, "fields": dict(fields)}
+
+        def items_in_state():
+            return json.loads(state.read_text(encoding="utf-8"))["items"]
+
+        def value_of(item_id, label):
+            return next((it["fields"].get(label) for it in items_in_state() if it["id"] == item_id), None)
+
+        def verbs(calls):
+            return ["/".join(c[:2]) for c in calls]
+
+        def edit_targets(calls):
+            return [c[2] for c in calls if c[:2] == ["item", "edit"]]
+
+        def created_titles(calls):
+            return [c[c.index("--title") + 1] for c in calls if c[:2] == ["item", "create"]]
+
+        def run(fn, *, items, env=None, catalog=None, coupled=None):
+            """Seed a stub vault, point the tool at the stub, run fn(), return the verdict + the log."""
+            state.write_text(json.dumps({"items": [dict(i) for i in items]}), encoding="utf-8")
+            log.write_text("", encoding="utf-8")
+            saved = {k: os.environ.get(k) for k in _STUB_ENV}
+            saved_cat, saved_auto, saved_op = CATALOG, NOT_AUTO_ROTATABLE, OP_ARGV
+            for key in _STUB_ENV:
+                os.environ.pop(key, None)
+            os.environ["HL_STUB_VAULT"] = str(state)
+            os.environ["HL_STUB_LOG"] = str(log)
+            os.environ["OP_SERVICE_ACCOUNT_TOKEN"] = "selftest-token-is-not-a-vault-credential"
+            os.environ.update(env or {})
+            globals()["OP_ARGV"] = [sys.executable, str(stub)]
+            if catalog is not None:
+                globals()["CATALOG"] = catalog
+            if coupled is not None:
+                globals()["NOT_AUTO_ROTATABLE"] = set(NOT_AUTO_ROTATABLE) | set(coupled)
+            out, err = io.StringIO(), io.StringIO()
+            try:
+                with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                    got = fn()
+            finally:
+                globals()["CATALOG"], globals()["NOT_AUTO_ROTATABLE"] = saved_cat, saved_auto
+                globals()["OP_ARGV"] = saved_op
+                for key, val in saved.items():
+                    if val is None:
+                        os.environ.pop(key, None)
+                    else:
+                        os.environ[key] = val
+            calls = [ln.split("\x01") for ln in log.read_text(encoding="utf-8").splitlines() if ln]
+            return got, out.getvalue(), err.getvalue(), calls
+
+        def rotate_single(ids=None):
+            return lambda: rotate(t_single, "API Credential", lambda: [f"credential={new_pw}"],
+                                  [id_a] if ids is None else ids)
+
+        seed_single = [entry(id_a, t_single, {"credential": old_pw})]
+
+        # 1 — the ordinary write.
+        got, out, err, calls = run(rotate_single(), items=seed_single)
+        check("edit rc 0 -> rotated", got is True and value_of(id_a, "credential") == new_pw,
+              f"got {got}, vault holds {value_of(id_a, 'credential')!r}")
+        check("edit rc 0 -> one ID-addressed edit, no create", edit_targets(calls) == [id_a]
+              and created_titles(calls) == [], str(calls))
+
+        # 2 — THE DEFECT: op-2.39's spurious error on a write that landed.
+        got, out, err, calls = run(rotate_single(), items=seed_single,
+                                  env={"HL_STUB_EDIT_RC": "1", "HL_STUB_EDIT_LANDS": "1"})
+        check("edit rc != 0 + re-read proves the value -> rotated", got is True
+              and "the re-read proves the write landed" in out, f"got {got}: {err.strip()}")
+        check("edit rc != 0 + landed -> zero creates (no duplicate mint)", created_titles(calls) == [],
+              str(verbs(calls)))
+
+        # 3 — a write that genuinely failed.
+        got, out, err, calls = run(rotate_single(), items=seed_single,
+                                  env={"HL_STUB_EDIT_RC": "1", "HL_STUB_EDIT_LANDS": "0"})
+        check("edit rc != 0 + not landed -> FAILED", got is False and "FAILED rotate" in err,
+              f"got {got}")
+        check("edit rc != 0 + not landed -> old value intact, zero creates",
+              value_of(id_a, "credential") == old_pw and created_titles(calls) == [], str(verbs(calls)))
+
+        # 4 — a two-field item where only ONE field landed: the re-read must judge the whole set.
+        got, out, err, calls = run(
+            lambda: rotate(t_pair, "Database",
+                           lambda: [f"username={user_new}", f"password={new_db_pw}"], [id_p]),
+            items=[entry(id_p, t_pair, {"username": "selftest-old-svc", "password": old_pw})],
+            env={"HL_STUB_EDIT_RC": "1", "HL_STUB_SKIP_FIELDS": "password"})
+        check("partial write -> FAILED and names the stuck field", got is False
+              and "password still hold" in err, f"got {got}: {err.strip()}")
+        check("partial write is really partial (the arm can fail)",
+              value_of(id_p, "username") == user_new and value_of(id_p, "password") == old_pw)
+
+        # 5 — the re-read itself failed: an unproven write is never a success.
+        got, out, err, calls = run(rotate_single(), items=seed_single,
+                                  env={"HL_STUB_EDIT_RC": "1", "HL_STUB_EDIT_LANDS": "1",
+                                       "HL_STUB_GET_RC": "1"})
+        check("re-read fails -> UNPROVEN, reported as FAILED", got is False and "UNPROVEN" in err,
+              f"got {got}")
+
+        # 6 — the duplicate-title class: ambiguous, so nothing gets written anywhere.
+        got, out, err, calls = run(rotate_single([id_a, "stub-id-b"]),
+                                  items=[seed_single[0], entry("stub-id-b", t_single, {"credential": old_pw})])
+        check("duplicate title -> refuses to write", got is False and edit_targets(calls) == []
+              and created_titles(calls) == [], str(verbs(calls)))
+        check("duplicate title -> names both ids", "stub-id-b" in err and id_a in err, err.strip())
+
+        # 7 — the missing-item path, through the CLI flag.
+        got, out, err, calls = run(lambda: cmd_rotate(opts(rotate=t_absent, rotate_all=False, yes=True)),
+                                  items=[], catalog=test_catalog)
+        check("--rotate on an absent title -> rc 1, zero writes", got == 1
+              and edit_targets(calls) == [] and created_titles(calls) == [], f"got {got}: {verbs(calls)}")
+
+        # 8 — the externally-coupled guard still fires before any argv is built.
+        got, out, err, calls = run(lambda: rotate(t_coupled, "Password", lambda: [f"password={new_pw}"], [id_c]),
+                                   items=[entry(id_c, t_coupled, {"password": old_pw})], coupled=[t_coupled])
+        check("NOT_AUTO_ROTATABLE -> skipped, zero writes", got is False
+              and edit_targets(calls) == [] and "externally-coupled" in err, f"got {got}")
+
+        # 9 — create, both halves of the proven-absent rule.
+        got, out, err, calls = run(lambda: cmd_create(opts(yes=True)), items=[], catalog=test_catalog)
+        check("--create seeds each proven-absent title once", got == 0
+              and sorted(i["title"] for i in items_in_state()) == sorted([t_single, t_pair, t_coupled])
+              and len(created_titles(calls)) == 3, f"got {got}: {created_titles(calls)}")
+        got, out, err, calls = run(lambda: cmd_create(opts(yes=True)),
+                                   items=[entry(id_a, t_single, {"credential": old_pw}),
+                                          entry(id_p, t_pair, {"username": "selftest-old-svc", "password": old_pw}),
+                                          entry(id_c, t_coupled, {"password": old_pw})],
+                                   catalog=test_catalog)
+        check("--create never re-mints a title that exists", got == 0 and created_titles(calls) == []
+              and edit_targets(calls) == [], str(verbs(calls)))
+
+        # 10 — a vault listing that fails must attempt NOTHING (HD-205 fail-closed).
+        got, out, err, calls = run(lambda: cmd_create(opts(yes=True)), items=seed_single,
+                                   env={"HL_STUB_LIST_RC": "1"}, catalog=test_catalog)
+        check("listing fails -> --create aborts, zero creates", got == 1 and created_titles(calls) == [],
+              f"got {got}: {verbs(calls)}")
+        got, out, err, calls = run(lambda: cmd_rotate(opts(rotate=t_single, rotate_all=False, yes=True)),
+                                   items=seed_single, env={"HL_STUB_LIST_RC": "1"}, catalog=test_catalog)
+        check("listing fails -> --rotate aborts, zero writes", got == 1 and edit_targets(calls) == [],
+              f"got {got}: {verbs(calls)}")
+
+        # 11 — canary for the print path: `op` echoes argv, the tool must not echo the value with it.
+        got, out, err, calls = run(rotate_single(), items=seed_single,
+                                  env={"HL_STUB_EDIT_RC": "1", "HL_STUB_EDIT_LANDS": "0",
+                                       "HL_STUB_ECHO_ARGV": "1"})
+        check("failure text was printed (the canary ran)", "while resolving arguments" in err)
+        check("failure text discloses no generated value", got is False and new_pw not in out + err)
+
+        # 12 — --rotate-all: every rotatable item by id, the coupled one untouched.
+        got, out, err, calls = run(lambda: cmd_rotate(opts(rotate=None, rotate_all=True, yes=True)),
+                                   items=[seed_single[0],
+                                          entry(id_p, t_pair, {"username": "selftest-old-svc", "password": old_pw}),
+                                          entry(id_c, t_coupled, {"password": old_pw})],
+                                   catalog=test_catalog, coupled=[t_coupled])
+        check("--rotate-all edits each rotatable item by id, creates nothing",
+              got == 0 and sorted(edit_targets(calls)) == sorted([id_a, id_p])
+              and created_titles(calls) == [], f"got {got}: {edit_targets(calls)}")
+        check("--rotate-all leaves the coupled item's value alone", value_of(id_c, "password") == old_pw)
+
+    print(f"\nprovision-secrets.py self-test: {tally['n']} checks, "
+          f"{len(tally['bad'])} failure(s) — zero vault contact, zero writes outside the fixture")
+    for bad in tally["bad"]:
+        print(f"  FAIL {bad}", file=sys.stderr)
+    return 1 if tally["bad"] else 0
 
 
 def cmd_list(_args) -> int:
@@ -475,7 +893,7 @@ def cmd_rotate(args) -> int:
             if name not in existing:
                 print(f"skip (absent): {name}")
                 continue
-            if rotate(name, cat, fb):
+            if rotate(name, cat, fb, existing[name]):
                 n += 1
         print(f"\nRotated {n} item(s).")
         return 0
@@ -489,7 +907,7 @@ def cmd_rotate(args) -> int:
         print(f"error: '{name}' is not in the generated catalog; not auto-rotating.", file=sys.stderr)
         return 1
     _cat, _nm, fb = entry
-    return 0 if rotate(name, _cat, fb) else 1
+    return 0 if rotate(name, _cat, fb, existing[name]) else 1
 
 
 def main() -> int:
@@ -506,8 +924,12 @@ def main() -> int:
                    help="rotate all whitelisted items (requires --yes)")
     p.add_argument("--yes", action="store_true",
                    help="confirm an explicit write action")
+    p.add_argument("--self-test", action="store_true",
+                   help="run every write branch against a stubbed `op` (no vault, no token)")
     a = p.parse_args()
 
+    if a.self_test:
+        return cmd_self_test(a)
     if a.list:
         return cmd_list(a)
     if a.create:
