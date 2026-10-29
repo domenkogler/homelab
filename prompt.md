@@ -103,6 +103,16 @@ not by the box: the Rule-0 legs a spark-served session may not run, and the whol
 **Window brief (not a wave):** [prompt-update.md](prompt-update.md) — the fleet pin bump + host-package window: phases
 0–8 driven from the WSL seat, the secret rotations scheduled into it, no rows carried, and it dies with the window.
 
+**Leak-debt brief:** [prompt-secrets.md](prompt-secrets.md) — the secrets-hygiene residue the pin window left: the four
+leak tools (a tool-result masker, a debt register that answers *did it rotate*, a containment instrument, a pre-push
+gate), the register read that generates the list, and the rotations that close a capture leak — most of which are
+**lane** work through the item's far end, not owner work. ⚠ Read `NOT_AUTO_ROTATABLE` in
+[`scripts/secrets/provision-secrets.py`](scripts/secrets/provision-secrets.py) as the auto-rotation guard it is: the
+name means *a vault-only `--rotate` would leave the far end on the old value*, so those items are rotated by AI work
+— far end first, then the vault write, then the converge — and only the no-machine-channel and human-vault ones
+(`op_api`'s console re-issue) or the ones outside our scope (`pppoe_login`, the Soulseek network account) wait for a
+person. Containment is for that last set alone, and it lowers the copy count rather than closing anything.
+
 Ranked by what unblocks the most. Each line is the item + **the domain brief that carries its order of work** — the brief,
 not this list, holds the steps, the file ownership and the converge host. Waves, pairing and the host/slot rule are
 [docs/orchestration.md](docs/orchestration.md) §4 (O1–O11); the row→brief index is [todo-table.md](todo-table.md) §B0.

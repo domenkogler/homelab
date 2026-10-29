@@ -1,4 +1,4 @@
-# prompt-secrets.md — the leak-debt lane: the four tools that stop the next leak, and the debts only an owner closes
+# prompt-secrets.md — the leak-debt lane: the four tools that stop the next leak, and the debts a rotation is the only close for
 
 > **Role:** the runbook for the secrets-hygiene residue: the four tools that keep a vault value out of a
 > capture (HD-1216 · HD-1217 · HD-1218 · HD-1219), the row hygiene that keeps the debt register readable,
@@ -43,13 +43,15 @@
   on hits this one cannot see, so the seat travels with the verdict. `scripts/gate/secret_leak_ledger.txt`
   is a debt register, not a mute button, and a line whose hit is gone prints `STALE` on every run until it is
   removed by hand.
+- **A register line is a debt, not an assignment to a human.** Most of what the register names is rotatable by a
+  lane through its far end; the lines that genuinely wait for a person are the no-channel and human-vault ones
+  (§4a), and the fourth shape — credentials outside our scope — never closes, it only gets contained.
 - **Nothing in the tree can un-leak a value.** `~/.pi/agent/sessions/**/*.jsonl` and the `/tmp/pi-subagents-*/`
-  scratch are outside the repo and grow for the life of a session: a rotated value stops being a finding, an
-  unrotated one is never closed by deleting, shredding or `git rm`-ing a transcript
+  scratch live outside the repo and grow for the life of a session, so a rotated value stops being a finding while
+  an unrotated one is never closed by deleting, shredding or `git rm`-ing a transcript
   ([docs/deployment-secrets.md](docs/deployment-secrets.md) §Creation & Rotation Workflow item 7). Ruled, and
   recorded as a rejection: transcript redaction as *remediation*
-  ([docs/deployment-rejected.md](docs/deployment-rejected.md)) — containment lowers the copy count and keeps
-  the debt line open.
+  ([docs/deployment-rejected.md](docs/deployment-rejected.md)).
 - **The four tools the rows name are tasks, not references** — each is named again where it is owed:
   `pi-agent/extensions/vault-mask.ts` does not exist yet,
   `scripts/gate/secret_debt_register.txt` does not exist yet,
@@ -72,11 +74,10 @@
 ## 2. The register read — the only list this brief uses
 
 ```bash
-python3 scripts/gate/check_secret_leak.py                       # this seat, all three classes
-python3 scripts/gate/check_secret_leak.py --update-ledger --class run-capture   # after a rotation, on a
-                                                                                 # signed-in seat that HAS the store
-python3 scripts/lib/vault_read.py --list                        # titles + ids + VERSION numbers, ONE request,
-                                                                                 # no values — the rotation probe
+python3 scripts/gate/check_secret_leak.py                     # this seat, all three classes
+python3 scripts/gate/check_secret_leak.py --update-ledger --class run-capture
+    # after a rotation, on a signed-in seat that HAS the store
+python3 scripts/lib/vault_read.py --list                      # titles + ids + VERSION numbers, ONE request
 ```
 
 - Run it on **each seat that has a store** (`win11`, `wsl`, `oldsrv`); the rotation list is the **union**, and a
@@ -166,17 +167,21 @@ starts protecting the commits the other three are made of.
 
 - **File:** `scripts/secrets/contain-leaked-values.py` (to be written) — **manual invocation only**, never a
   `validate-all.sh` item, never an automatic sweep.
-- ⚠ **The scope derivation the row names does not yet resolve, and that is the first box.** The row derives
-  scope from `NOT_AUTO_ROTATABLE` in [`scripts/secrets/provision-secrets.py`](../scripts/secrets/provision-secrets.py)
-  ∩ the register — but the items containment is *for* (`pppoe_login`, `slskd_login`, `soulseek_login`) are
-  hand-seeded and appear **nowhere** in that file: their "not rotatable" ruling lives as prose in
-  [docs/network-rejected.md](docs/network-rejected.md) and [docs/services-rejected.md](docs/services-rejected.md).
-  So the intersection as written answers "nothing", and the tool would either do nothing or reach for a
-  hand-typed list — which the row itself forbids. **Settle it before writing code:** put the machine-readable
-  `not-rotatable` fact in ONE place (HD-1217's register is the natural home, since that book already answers
-  "who acts, and did it rotate"), and have both the tool and the gate derive from it. Cheap test: print the
-  derived scope and count it — it must be non-empty, must contain the not-rotatable ids the register carries,
-  and must contain nothing that `--rotate` would accept.
+- ⚠ **Two lists, one misleading name.** `NOT_AUTO_ROTATABLE` in
+  [`scripts/secrets/provision-secrets.py`](../scripts/secrets/provision-secrets.py) is the **auto-rotation
+  guard**: it asserts one narrow thing — *a vault-only `--rotate` write here would leave the far end running the
+  old value* — so `--rotate` refuses the item and `--rotate-all` reports `skip (coupled)`. Most of its members are
+  rotatable by a **lane**, because the far end is a host command, an app's config file, a device API, or the
+  converge itself (§4). Containment is for the set with **no rotation path at all** — a human act (a provider or
+  1Password console, where `op_api`'s re-issue sits, or a write into the **human** vault), or a credential outside
+  our scope (`pppoe_login`, the Soulseek network account). The two sets overlap and neither contains the other,
+  so containment derives from the register's `path: none` half and never from the guard.
+- **The fact needs one home.** HD-1217's register carries the machine-readable `path:` half — `lane` /
+  `lane+converge` / `human` / `none` — containment derives `none` ∩ the register, and the gate reads the same
+  column. ⛔ Do not repurpose or rename the provisioner's set for this: its meaning belongs to the auto-provision
+  path, and renaming it moves a decision every rotate leg already depends on.
+  Cheap test: print the derived scope and count it — non-empty, holding every register line whose far end has no
+  machine channel, and holding nothing `--rotate` would accept today.
 - **Replace by value, never by shape**; refuse git objects, IaC and rendered live config, and the invoking
   session's own `SESSION_DIR` (the tool editing the file the harness is appending to is the fourth leak);
   `--dry-run` by default; print item ids and counts only.
@@ -186,27 +191,42 @@ starts protecting the commits the other three are made of.
   forbids; the verdict word is therefore part of the tool, not a follow-up.
 - Proving a mask landed is the scanner's hit count before and after, which prints no value.
 
-## 4. The residue that closes only with an owner act
+## 4. The residue — four shapes, and only two of them wait for a human
 
-⛔ **No lane rotates, re-issues or deletes a vault item here.** Every act in this section is O4-parked: the
-lane's job is to keep the list honest and the tools ready, not to approximate the act.
+⚠ **A register line is not automatically a human's job** — read `NOT_AUTO_ROTATABLE` as the auto-rotation guard
+it is (§3d), never as "cannot be rotated". Most secrets here are **AI-rotatable**: where a lane has a channel to
+the far end, the rotation IS lane work — far end first, then the vault write, then the converge that propagates
+it. The mechanism and the write-scoped-token form are [prompt-update.md](prompt-update.md) §5a/§5b and the per-item
+far ends live there, not here; what this section adds is only the **shape** of each remaining line, which is the
+fact no machine holds.
 
-**4a. What closes each register line** — derive the lines from the ledger file, never from this table; the
-table states the *channel* each class of item closes through, which is what no machine holds:
-
-| the line's shape | the channel that closes it | example class |
+| shape | who acts | what closes the line |
 |---|---|---|
-| not rotatable at all (ISP-provisioned, a network account with no reset mail) | nothing — containment lowers the copy count, the line stays | `run-capture` |
-| rotatable only where the service issues it (an engine accepted-key list, a device community, a WG keypair) | the far end first, then the vault, then the converge — in a named window, on the slot that service owns | `run-capture`, `git-history` |
-| an item with no consumer (a retired service) | the owner deletes the **item** together with the retired paths it still guards — a vault write there is the divergence the guard names | `run-capture` |
-| a trust anchor rather than a credential (a certificate fingerprint) | the cert is regenerated, both pinning sides re-render — and the line's meaning changes with it | `run-capture` |
-| a credential that lives in the **human** vault | an owner write; a lane's token cannot reach it | `run-capture` |
+| the far end answers a lane's channel — a host command, an app's config file, a device API, the converge itself | **AI** | rotate, propagate, then `--update-ledger --class run-capture` and delete the `STALE` lines |
+| the far end answers, but the propagation costs a restart inside someone's window | **AI, in that window** | the same act, run when that slot is free (engine argv, a router WG write) |
+| no machine channel exists, or the write target is the **human** vault | **owner** (O4) | the act itself; until then the line stays and the register says `human` |
+| outside our scope — an ISP credential, a network account whose reset mail never arrives | **nobody** | containment only (§3d), and the line stays open by design |
+
+**4a. The current lines, by shape** — derive the lines from the ledger file, never from this prose; what is
+stated here is the channel each one closes through:
+
+- **lane, needs the router slot:** the WireGuard pair (`wg genkey` on both ends, both items written, the converge
+  renders the private key) and the device SNMP community (`/snmp community` on both MikroTiks plus the exporter
+  render — the exporter and the device must not sit on different communities).
+- **lane, needs a converge:** `kopia-server_fingerprint` — ⚠ its current value is a cert **fingerprint**, so the
+  line stays even after the cert moves (ruling S7); a rotated-out fingerprint is a dead value, not a closed debt.
+- **lane, inside the spark window:** `spark-llm_api` with `litellm-engine_api` riding it — see §4b.
+- **lane + owner split:** `spark_login` — `passwd` on the box is a lane act, the vault write is not, because the
+  item lives in the human vault. Prove the fresh SSH in a second session before anyone reboots.
+- **owner:** `immich_oidc` (an owner call — ruling S4) and `pgvector_db`, which closes when the owner deletes the
+  item **with** the retired paths it guards; a vault write there is the divergence the guard names.
+- **nobody:** the `pppoe_login` and Soulseek-account lines — containment is the only act available, it lowers the
+  copy count, and it closes nothing.
 
 **4b. HD-1170 — the published bearer.** ⏳ Rotate `spark-llm_api` (with `litellm-engine_api` riding it) in one
 spark window; `git rm` stops the ongoing exposure at HEAD and touches no history, and a history rewrite buys
 tidy history, not containment. It is parked on the owner's word, unscheduled — **do not re-surface it as a
 blocked lane**, and do not treat the gate's `git-history` lines as a repo defect.
-
 **4c. HD-1181 — the row itself.** It is the largest row in the backlog and it carries the register's
 per-pair narration, which is what `secret_leak_ledger.txt` and the owning doc own. ⏳ Move that half to
 [docs/deployment-secrets.md](docs/deployment-secrets.md) §Creation & Rotation Workflow, leave the row stating
@@ -261,12 +281,14 @@ follows them. Clearing this is **not** a trim: it is the state-only rule (CONVEN
       before/after hit count as the proof that a mask landed.
 - [ ] `todo.md` — HD-1218's tail, and the register lines that now read `CONTAINED` stay open.
 
-### Phase 5 — the owner batch
+### Phase 5 — the rotations, by shape
 
-- [ ] The §4a channels, in the windows their owners choose; each rotation followed by
-      `--update-ledger --class run-capture` on a signed-in seat **that has the store**, and the `STALE` lines
-      deleted in the same commit.
-- [ ] The §4a channels the owner schedules.
+- [ ] The **lane** lines, driven in the lane that owns the item and the slot it needs (§4a): far end → vault →
+      propagate → new-accepted / superseded-refused. ⛔ never the vault first, and never a `--rotate` on a name
+      the guard refuses as coupled.
+- [ ] The **owner** lines, when the owner takes them; the ones with **no path** stay open and go to §3d instead.
+- [ ] After any rotation: `--update-ledger --class run-capture` on a signed-in seat **that has the store**, and
+      the `STALE` lines deleted in the same commit — that commit is what makes the gate honest again.
 - [ ] `todo.md` — the register rows shrink here; the rows whose ⏳ list empties are **deleted**, their record
       being the owning doc and the commit.
 
@@ -335,11 +357,16 @@ Plus, per tool, the cheap test that only passes because of the fix: the version-
 - **A leak check runs at a push, not at a commit** — the per-commit form costs the vault and is declined.
 - **The register is a companion book, not ledger columns** — `--update-ledger` rewrites the ledger body.
 - **Prevention and remediation never share a verdict word**: `CONTAINED` is neither `STALE` nor `OK`.
+- **`NOT_AUTO_ROTATABLE` is the auto-rotation ordering guard, not a list of the unrotatable.** Membership means
+  "a vault-only write leaves the far end behind", and the lane rotates those items through their far end. The
+  set containment derives from is the **no-path** one — human-only or outside our scope — and the provisioner's
+  name is not renamed to make that readable.
 
 ## 10. Held out on purpose
 
-The rotations themselves (owner, §4) · every spark-window act, including HD-1170's close, which a spark-served
-session may not run (Rule 0) · the router/switch legs `wg_password` and `network-snmp_api` wait on · HD-1174's
+The rotations themselves — each driven by the lane that owns the item and the slot it needs (§4a), never from
+this brief · every spark-window act, including HD-1170's close, which a spark-served
+session may not run (Rule 0) · the router-slot legs the WireGuard pair and the device SNMP community wait on · HD-1174's
 kopia connect-line scrub, which is `prompt-storage-backup.md`'s cell · HD-442's rendered seat token, owned by
 `prompt-seat-cockpit-grants.md` · the app-side rotations HD-384 and HD-1091, owned by the litellm-consumers and
 media lanes · the Win11 seat-parity class HD-1202, which every new script here inherits but no lane closes
