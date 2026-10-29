@@ -56,8 +56,8 @@ tags: [services, utilities, tools, automation]
   answers `GET /` **200 with no credential** — basic auth is not active at the pinned `n8n_version`, so
   the Grafana contact point's `basicAuthPassword` (observability.md §Alerting) is a credential the app
   never checks. **A rotation of this item buys nothing until basic auth actually enforces in this
-  version** — it is a park, not owed §5b work; what protects the alert route today is its placement
-  (tailnet-only, no public path) and n8n's own credential store, not this token.
+  version** — it is a park, not a lane-rotatable rotation; what protects the alert route today is its
+  placement (tailnet-only, no public path) and n8n's own credential store, not this token.
 - n8n also runs **office automation** flows — see [`services-office.md`](services-office.md).
 
 ## Zipline — public bin & shortener
