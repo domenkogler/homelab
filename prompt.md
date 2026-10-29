@@ -122,7 +122,9 @@ not this list, holds the steps, the file ownership and the converge host. Waves,
 1. ⏳ **The spark engine lane** — its legs are **scripted**, so the external session runs them:
    `hd469-baseline.sh` (**HD-469** — only a sustained under-load `clocks.sm` trace proves the regime),
    `gate6-couple.sh` (**HD-489** — battery at `max_tokens 16,384` AND the B1 baseline in one act; exit 4 breaks a
-   broken pairing, `accuracy-gate.sh`'s default stays 1024), `usable-sampler.sh` (**HD-494**),
+   broken pairing, `accuracy-gate.sh`'s default stays 1024), `usable-sampler.sh` (**HD-494** — ruled: the delta picks
+   the CRIT-vs-WARN floor, so the number is taken before anything lands in IaC, and the run rides the pin window's
+   spark phase),
    `needle-window.sh` (**HD-376**), `text-only-preflight.sh` (**HD-400** — a read, legal from any seat; the profile
    stays NOT applied). Run order, exit codes, rollback:
    [spark/reports/external-window-card.md](spark/reports/external-window-card.md). **HD-473 does not wait on
@@ -251,7 +253,10 @@ not this list, holds the steps, the file ownership and the converge host. Waves,
    kopia-agent's container log and in the log store for the retention window — scrub that connect line, then rotate
    with the agent **re-connected**, because its `repository.config` caches the credential. **HD-1183**'s fix lives
    here — an **oldsrv** `--tags storage` act, run **off-box** (the self-converge guardrail); its paging half is the
-   observability lane's. → [prompt-storage-backup.md](prompt-storage-backup.md)
+   observability lane's. The **VPS still has no backup client**, so every Kopia line that names
+   a VPS path is policy — the shape is ruled in [docs/backup.md](docs/backup.md) §VPS-side backup client; price it
+   with `du -sh` + one throwaway snapshot before the include list is authored, and its converge rides the pin
+   window's VPS leg. → [prompt-storage-backup.md](prompt-storage-backup.md)
 7. ⏳ **The Pi's own box** — **HD-418**: reconciled at both ends and owned in IaC
    (`roles/home_assistant/tasks/pi.yml`, tag **`hd418`**). ⚠ The proof is BEHAVIOUR, not the YAML: the list HA
    **enforces** is the `.storage/http` object, so `grep -A6 trusted_proxies configuration.yaml` can neither prove nor
@@ -295,7 +300,8 @@ not this list, holds the steps, the file ownership and the converge host. Waves,
    bench, not a leaderboard — the corpus, both gates and the probe commands are in
    [docs/services-ai-bench.md](docs/services-ai-bench.md) §3d; the bench's first act is a `server-vulkan` pin bump that
    recreates the **reranker** leg with it. `EmbeddingGemma 2` stays rejected for the RAG leg and in scope only as the
-   code-retrieval candidate inside that bench (OQ-14 is open on that axis, and its docs half stands parked).
+   code-retrieval candidate inside that bench (OQ-14 stays open on that axis and is called **at the memory plane's
+   build** — HD-1178 rides that build instead of running alone, and the docs half stands parked).
    → [prompt-litellm-consumers.md](prompt-litellm-consumers.md)
 10. ⏳ **The Win11 seat's serving legs** — **HD-474** FIM latency and **HD-476** the VL `mmproj` on the iGPU. The
     laptop's local **agent** leg is retired, so this brief is FIM + vision only and claims no converge host — which is
@@ -375,7 +381,8 @@ not this list, holds the steps, the file ownership and the converge host. Waves,
       the gate/router/edge calls: [todo-table.md](todo-table.md) §A1 and each row's `RULED` note.
     - ⏳ The owner still runs the **secret rotations** (`HD-1170` · `HD-1181`, the last of them
       this seat's own pi transcript store, which keeps `check_secret_leak.py` red on the pi-dev seat and nowhere else
-      until it is rotated).
+      until it is rotated). HD-1170's history half is RULED — rotate, keep history as-is, no rewrite.
+      Contract: [docs/deployment-ai-stack-secrets.md](docs/deployment-ai-stack-secrets.md).
     - ✅ **The heading gate is registered and priced — growth refused, no clearing campaign owed** (owning index:
       [scripts/README.md](scripts/README.md) §Validation gate).
     - ⏸ **Retire the RB4011 deltas — RULED 2026-10-13: yes, and scheduled, not executed.** The retire procedure and its
