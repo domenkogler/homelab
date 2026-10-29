@@ -1,11 +1,12 @@
-# spark external-window card — one ordered run over eight rows
+# spark external-window card — one ordered run over the spark legs that need an external seat
 
-> **Role:** the dispatcher for ONE externally-served sitting of the spark rows — which leg runs in which
-> order, what must already be true when it runs, and what it must never touch. Every instrument named here
-> but the image probe is landed and registered with `--self-test` (`scripts/validate-all.sh:1489-1495`);
-> this page is an ORDER, not an instrument and not a verdict.
-> **Linked from:** [`todo.md`](../../todo.md) rows HD-469 · HD-473 · HD-475 · HD-489 · HD-494 · HD-376 ·
-> HD-400 · HD-380, and one line in [`prompt-spark-llm.md`](../../prompt-spark-llm.md).
+> **Role:** the dispatcher for ONE externally-served sitting of the spark legs that need a seat spark does not
+> serve — which leg runs in which order, what must already be true when it runs, and what it must never touch.
+> Every instrument named here but the image probe is landed and registered with `--self-test`
+> (`scripts/validate-all.sh`); this page is an ORDER, not an instrument and not a verdict. The spark rows it does
+> **not** dispatch are ordered by [`prompt-spark-llm.md`](../../prompt-spark-llm.md), which outranks it.
+> **Linked from:** [`todo.md`](../../todo.md) rows HD-376 · HD-380 · HD-400 · HD-469 · HD-475 · HD-489 · HD-494,
+> and one line in [`prompt-spark-llm.md`](../../prompt-spark-llm.md).
 > **Authority: none.** The owning doc named in §3 wins wherever this page disagrees with it. Flags,
 > verdicts and exit codes below are read out of the scripts, with the line cited, not from memory.
 
@@ -38,17 +39,21 @@ rests on the operator alone.
 
 Order rule: reads first — they cost nothing and can invalidate a later leg; then the legs that run on the
 profile **already serving**; then anything needing a flip, because a flip is an owner-window engine recreate
-of ~20 min, so legs are grouped one profile per boot window.
+of ~20 min, so legs are grouped one profile per boot window. **The boot windows follow HD-1206's flip order**
+([`todo.md`](../../todo.md)): the A+ runtime dispatch check, then `fast-v32-bf16`, then `fast8` after gates 0–7,
+then the dtype gates 8–9. HD-473 re-certifies `reasoning` gates 0–7 **before** `fast8`, so a `reasoning` boot
+window exists only if that re-cert is taken in the same sitting — and that window, not a standing state, is the
+only place a `reasoning`-serving leg can be taken.
 
 | Row | Script and the flags that decide it | Acceptance, one line | Must already be true | Must NOT touch |
 |---|---|---|---|---|
-| **HD-380** | [`metrics-window.sh`](../../scripts/bench/spark/metrics-window.sh) `--report` (`--status` to poll) — **already running, §6** | `--report` prints a hit rate and a preemption delta beside the pre-raise numbers read **by path** out of [`spark/stability-test.md`](../stability-test.md) — today the hit figure at its `:167`, quoted with path and line (`metrics-window.sh:385-397`) | ≥ 2 usable samples in the window file; `--interval` has a 5 s floor (`:179`) | nothing — one ssh per sample, no mutate verb (`:33-40`); a second sampler writing one CSV is refused by name (`:456-461`) |
+| **HD-380** | [`metrics-window.sh`](../../scripts/bench/spark/metrics-window.sh) `--report` (`--status` to poll) — **whether a sampler is live is that read's answer, not a fact this page carries (§6)** | `--report` prints a hit rate and a preemption delta beside the pre-raise numbers read **by path** out of [`spark/stability-test.md`](../stability-test.md), quoted with path and line (`metrics-window.sh:385-397`) | ≥ 2 usable samples in the window file, which `--status` prints; `--interval` has a 5 s floor (`:179`) | nothing — one ssh per sample, no mutate verb (`:33-40`); a second sampler writing one CSV is refused by name (`:456-461`) |
 | **HD-400** | [`text-only-preflight.sh`](../../scripts/bench/spark/text-only-preflight.sh) (`--config-file` judges a staged checkpoint off-line; `--dry-run` prints the four reads and contacts nothing, `:386-398`) | exit 0 with all four answers printed — "the ViT is loaded" is a FINDING, not a failure (`:63-64`) | the container is running, else exit 6 (`:281`); or `--config-file` was passed instead | nothing — and applying the `args_extra` line it prints is an **owner-window** IaC act that re-creates `spark-ai` (`:264-267`) |
-| **HD-473** | [`spark-fp8-image-probe.py`](../../scripts/bench/spark-fp8-image-probe.py) `--skip-box` = registry leg only, `--skip-registry` = box leg only (`:268-269`) — and `--image <ref>` to point either leg at a **candidate** ref, which is the only form that can move this row | a verdict line and exit 0; against the PIN it still reads **`BLOCKED-ON-IMAGE`** (`:309-324`) because the probe asks about the ref `versions.yml` names, and that ref has not moved — an undecided leg exits 1 and is NOT a verdict (`:29-31`). The fp8 merge itself ships in the upstream `v0.31.0`/`v0.32.0` releases ([`hd473-pin-check-20261025/`](hd473-pin-check-20261025/README.md)), so `BLOCKED-ON-IMAGE` is now a statement about the pin, not about what exists upstream | egress for Leg A; for the box leg, no converge in flight — the probe refuses one with exit 2 (`:277-280`) — and a candidate ref means a real pull, so say so before starting it | the container's state: Leg B is `docker run --rm --entrypoint sh`, never `--gpus`, `-p` or `-d`, and it pulls nothing on the pin (`:20-24`) |
+| **HD-473** | [`spark-fp8-image-probe.py`](../../scripts/bench/spark-fp8-image-probe.py) `--skip-box` = registry leg only, `--skip-registry` = box leg only (`:268-269`); with no `--image` it inspects `spark_vllm_image`, the day-0 pin (`:89-97`, `:276`) | a verdict line and exit 0 — against the **day-0 pin** it still reads **`BLOCKED-ON-IMAGE`** (`:309-324`), which is a statement about that ref and nothing else: the built v32 lineage is fp8-capable and is named in `spark_llm_fp8_kv_capable_images` ([`hd1206-v32-port-20261026/`](hd1206-v32-port-20261026/README.md)). An undecided leg exits 1 and is NOT a verdict (`:29-31`) | egress for Leg A; for the box leg, no converge in flight — the probe refuses one with exit 2 (`:277-280`) — and a candidate ref means a real pull, so say so before starting it | the container's state: Leg B is `docker run --rm --entrypoint sh`, never `--gpus`, `-p` or `-d`, and it pulls nothing on the pin (`:20-24`) |
 | **HD-489** | [`gate6-couple.sh --max-tokens 16384`](../../scripts/bench/spark/gate6-couple.sh) (the default already *is* the ruling, `:92`; `--dry-run` prints both legs and touches nothing, `:527-542`) | both legs graded at the SAME budget read back **off the wire**, on an engine whose boot identity did not move between them | an externally-served session on the runner station, and the battery running where the engine container is visible — it reads the bearer out of `docker inspect` | `--battery-only`, which refuses always (exit 4); never `accuracy-gate.sh` alone at 16 384 — its own default stays 1024 (`accuracy-gate.sh:35`) |
-| **HD-494** | [`usable-sampler.sh`](../../scripts/bench/spark/usable-sampler.sh) (`--profile fast` is the default, `:78`; `--tokens` only if IaC cannot answer, `:229-230`) | the floor over the window, the ledger's prediction and the delta between them — and **no** floor choice, which stays the owner's | the box serves the profile named; `MemAvailable` and `CmaFree` both arrive, since a missing field is never read as a zero | the certified constants — it reads the declared hold out of IaC and writes only its own evidence dir |
+| **HD-494** | [`usable-sampler.sh`](../../scripts/bench/spark/usable-sampler.sh) (`--profile fast` is the default; `--tokens` only if IaC cannot answer) | the floor over the window, the ledger's prediction and the delta between them — and **no** floor choice written by the leg: the CRIT-vs-WARN call is the owner's and it is made **from this delta**, which is why the number precedes any IaC edit | the box serves the profile named; `MemAvailable` and `CmaFree` both arrive, since a missing field is never read as a zero. It runs on the profile already serving, so it belongs in the same boot window as gate 6's act | the certified constants — it reads the declared hold out of IaC and writes only its own evidence dir |
 | **HD-376** | [`needle-window.sh`](../../scripts/bench/spark/needle-window.sh) `--profile <name> [--reps 3] [--no-window]` (`--dry-run` prints the plan the catalogue derived, `:568-595`) | PASS-DEPTH per profile = HTTP 200 **and** `prompt_tokens` ≥ 80 % of that profile's own `max_model_len` (`:133` — the floor gate 3 can actually clear) | the named profile is the one serving (a name the box is not serving exits 4, `:407`); an uncertified arm also needs the per-run `-e spark_llm_allow_uncertified=true` (`:327-331`) | any depth above 262,144 (exit 5, `:200`); any flip of its own — it never converges; and any claim that the needle *recalled*: this proves the window HELD |
-| **HD-469** | [`hd469-baseline.sh`](../../scripts/bench/spark/hd469-baseline.sh) (`--profile reasoning` is the default, `:66`; `--interval 5 --window 1800`, `:70-71`) | the file set under `spark/reports/hd469-reasoning/`, with the `clocks.sm` trace taken ACROSS the window and usable at BOTH ends — a spot read proves nothing | `reasoning` serving: `host_vars/spark.kogler.si.yml:46` says `fast`, so this leg waits on an owner-window flip | no converge, no restart, no profile write — every far-side command is a read, and `--self-test` asserts that (`:30-34`) |
+| **HD-469** | [`hd469-baseline.sh`](../../scripts/bench/spark/hd469-baseline.sh) (`--profile reasoning` is the default, `:66`; `--interval 5 --window 1800`, `:70-71`) | the file set under `spark/reports/hd469-reasoning/`, with the `clocks.sm` trace taken ACROSS the window and usable at BOTH ends — a spot read proves nothing | `reasoning` serving, so it waits on an **owner-window flip** and not on a flag. The live dial — `spark_llm_profile` in `host_vars/spark.kogler.si.yml` — reads `fast` and the next window's flips are HD-1206's v32 arms, so `reasoning` serves there only if HD-473's re-cert boot is taken in that sitting | no converge, no restart, no profile write — every far-side command is a read, and `--self-test` asserts that (`:30-34`) |
 | **HD-475** | the flip converge (the exact detached line `needle-window.sh` prints at `:327-331`), then [`spark-llm-probe.py`](../../scripts/bench/spark-llm-probe.py) `ctx 262144` and `concurrent 4`, then the two rows above | gate 3's full-window leg answers HTTP 200 instead of 502-ing at ~105 s, `concurrent 4` returns 4/4, and the battery is scored with engine / template / thinking / budget beside every score | the staged set is intact **as staged** — `.index-trimmed`, no `ple-bf16-*`, so do not gate on finding one | never re-fetch the ~117 GB; never `--quantization` on the CLI; never a raised `pool_ceiling_bytes` / `fixed_cost_bytes` to make a gate close |
 
 **Refusals are not failures** — a guard firing is a different fact from a measurement failing:
@@ -84,17 +89,22 @@ they win and this page is wrong.
   [`hd489-legs-20261006-1228/RESULTS.md`](hd489-legs-20261006-1228/RESULTS.md).
 * **HD-400 stays NOT applied.** The pre-flight is landed and legal from any seat; its IaC line is an
   owner-window act, so a sitting that found "just the one flag" easy to add has broken the row, not closed it.
-* **HD-473 no longer waits on upstream** — the fp8 merge ships in the vLLM `v0.31.0`/`v0.32.0` releases, so
-  what is owed is a ref choice plus a candidate probe (`--image`), not a wait. Re-running the probe against
-  the pin only re-proves the pin's verdict. Nothing on this box is waiting on an externally-served model.
+* **HD-473 is not a wait and not a ref choice.** The upstream fp8 merge ships in vLLM `v0.31.0`/`v0.32.0`, and
+  a stock release cannot serve this checkpoint anyway, so the arm names one lineage — the patch stack rebuilt ON
+  a v0.32 base — which is **built and pinned** by HD-1206. Re-running the probe against the day-0 pin only
+  re-proves the day-0 pin's verdict. What is owed is the flips in §2's order, from a seat spark does not serve.
+  Nothing on this box is waiting on an externally-served model.
 
 ## 5. Rollback
 
-The rows' own rollback is a variable and a detached converge, not a recipe: `spark_llm_profile: reasoning`
-with `spark_llm_allow_uncertified: false` (committed off, `group_vars/spark.yml:285`), converged **detached**
-— [`spark/llm-profiles/README.md`](../llm-profiles/README.md) §Rollback. `reasoning` needs no override, its
-artifacts are the ones already staged, and it is the only profile whose stability is certified, so rollback
-and switching are one operation in opposite directions.
+Rollback is a variable and a detached converge, not a recipe, and the direction is **the certified profile the
+box actually serves**: the profile `spark_llm_profile` names is the one a failed leg returns to (that is `fast` in
+`host_vars/spark.kogler.si.yml`), so a v32 arm goes back with one per-run
+`-e spark_llm_profile=fast` and a **detached** converge — `spark_llm_allow_uncertified` stays committed `false`
+(`IaC/ansible/group_vars/spark.yml`) and is never granted by a committed value. `reasoning` is certified as well
+and is the target for the arms that predate the v32 lineage; it is **not** what the box serves, so flipping to it
+is a profile change with its own ~20 min boot, not a no-op. The recipe itself is owned by
+[`spark/llm-profiles/README.md`](../llm-profiles/README.md) §Rollback, and that section wins on the mechanics.
 
 Standing, and not negotiable inside a window: live converges run **detached** (`nohup … &` + log + poll —
 `todo-table.md` §C rule 2), `--check` is the only safe foreground form and proves scoping only, and **never
@@ -102,22 +112,23 @@ Standing, and not negotiable inside a window: live converges run **detached** (`
 `docker update --restart=no vllm-qwen-spark && docker stop vllm-qwen-spark`, the var flipped, and a converge
 to raise it again — whoever stops the engine owns bringing it back.
 
-## 6. The live window — HD-380 is already accruing; never start a second one
+## 6. The window file — a read answers whether a sampler is live; never start a second one from a lane
 
-Started from the START-UP CARD by the **parent** session on the pi-dev seat (a lane may not leave a running
-process behind, so no lane runs the start line):
+Whether any sampler is running is a **read**, not a fact this page may assert, and it is the one line that
+settles the question: `bash scripts/bench/spark/metrics-window.sh --status` — read-only, side-effect-free, legal
+from any session. It prints the state it found and how many rows the window file holds; `sampler: not running` with
+`no rows yet` is what an empty window reads like — it is not a result, and it is not a reason to start one from a lane.
 
 | | |
 |---|---|
-| sampler | `bash scripts/bench/spark/metrics-window.sh --duration 9h` — pid `153123` |
-| first sample | `2026-10-22T11:55:54Z` |
+| start | `bash scripts/bench/spark/metrics-window.sh --duration 9h` from the START-UP CARD, run by the **parent** session only — a lane may not leave a running process behind, so no lane runs the start line |
 | window file | `/var/tmp/metrics-window/window.csv` |
-| poll | `bash scripts/bench/spark/metrics-window.sh --status` — read-only, side-effect-free, any session |
+| poll | `bash scripts/bench/spark/metrics-window.sh --status` |
 | stop | `kill "$(cat /var/tmp/metrics-window/sampler.pid)"` |
 
 It is a `/metrics` **read**, so Rule 0 never barred it and HD-380 does **not** wait on an externally-served
 model. A second sampler pointed at the same directory is refused while the first lives
-(`metrics-window.sh:456-461`), and the pid file now leaves only with its owner (`:446-448`) — both defects
-measured on 2026-10-22 across exactly this pair of pids. When the window fills, `--report` is the answer;
+(`metrics-window.sh:456-461`), and the pid file leaves only with its owner (`:446-448`) — both are the
+refusals that keep one window per directory. When the window fills, `--report` is the answer;
 the `gpu_top_mib` growth half belongs to `gate7-read.py` over the watchdog samples, and gate 7 is already
 closed (§4).
