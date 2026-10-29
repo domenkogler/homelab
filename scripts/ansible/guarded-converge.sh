@@ -71,7 +71,12 @@
 #   arm/verify path with "permission denied … docker.sock", so its compose services ran with
 #   NO auto-re-enable net and `--action prove` could never pass there. ⛔ The fix is NOT
 #   adding the runner to the `docker` group — that is root-equivalent on a host holding a
-#   Technitium instance and the HA VIP. Verify `sudo -n docker ps` is passwordless first.
+#   Technitium instance and the HA VIP. Verify the IDENTITY first, then the flag: every remote read
+#   this script makes is a plain `ssh "$TARGET"`, so `--target` must name the alias whose `Host` block
+#   lands as the deploy identity (`ssh -G <alias>` and read the `user` line) — a seat alias that lands
+#   as a human user fails the arm/verify reads with "permission denied … docker.sock" whatever
+#   `--docker-cmd` says. Prove `ssh -o BatchMode=yes <alias> docker ps` before arming; where docker
+#   genuinely needs sudo, verify `sudo -n docker ps` is passwordless for THAT identity first.
 #   bash scripts/ansible/guarded-converge.sh --action prove --target pi --container traefik-ha \
 #        --docker-cmd 'sudo -n docker'
 #   bash scripts/ansible/guarded-converge.sh --self-test   # exercises the verdict logic
