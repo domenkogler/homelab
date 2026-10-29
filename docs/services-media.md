@@ -165,6 +165,14 @@ the containers, not from the docs:
 | **Prowlarr → SABnzbd** | `sabnzbd:8080` | **403 — but NOT the API key**: SAB's own DNS-rebinding guard refuses `Host: sabnzbd`. A credential-free probe against the container separates the two walls: `Host: sab.kogler.si` and `Host: sabnzbd` → *"Access denied - Hostname verification failed"*, while `Host: 127.0.0.1:8080` / the container IP → `200 {"version":"5.1.1"}`. **Owned by `tasks/sabnzbd-seed.yml`** (the shipped whitelist holds only the container id); a client still unsavable after that IS an API-key problem. |
 | **Prowlarr → qBittorrent** | **`gluetun:8080`** — qBittorrent is `network_mode: service:gluetun`, so it owns no netns and **`qbittorrent:8080` does not connect** (`code=000`) | `gluetun:8080` → 200 |
 
+**qBittorrent's WebUI credential is the SOURCE, not a copy**: the vault `qbittorrent_api` is what
+`roles/docker_services/tasks/qbittorrent-seed.yml` writes into `qBittorrent.conf` as `WebUI\Password_PBKDF2`
+(the image translates no credential env and mints a random 9-char password at every start while the stored
+hash is empty), and `arr-client-torrent.yml` then writes the same value into the Sonarr/Radarr/Lidarr/Prowlarr
+torrent clients — so the propagation is a `qbittorrent_seed` + `arr_client_seed` converge, and between the
+vault write and that converge the four arrs 401 against qbit. The seed re-runs each app's client `test`, so
+four `arr client test HTTP 200` lines are the proof the consumers authenticate.
+
 **The three values every *arr form needs, and where each is true:**
 
 | App | API base | Root folder (what the app must be told) | Host path behind it | Profile Seerr pins |
