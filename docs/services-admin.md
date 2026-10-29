@@ -333,6 +333,12 @@ syntax for in expression position (`TemplateSyntaxError: expected token ',', got
 `not ansible_check_mode` — a leg can sit broken in the tree with every gate green. Whoever takes the leg
 fixes both before the first real run.
 
+⚠ **The dead read is not confined to `dns-seed.yml`:** the seed legs run on any `docker_services` run at
+`scope_is_all`, so a converge that came for something else on a DNS host — the `/etc/op/provision-token`
+render, for instance ([1password.md](1password.md) §Rotating the control-node token) — lands its own task,
+passes its own acceptance probe, and then ends `failed=1` here. The RECAP and the credential are
+compatible statements; read the run by task.
+
 **Read it back rather than assume it** (read-only, per instance):
 
 ```bash

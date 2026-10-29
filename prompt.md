@@ -358,7 +358,7 @@ not this list, holds the steps, the file ownership and the converge host. Waves,
     §Validation gate, and every count a gate prints is re-derived by running it here, never quoted.
     - ✅ **Ruled — do not re-decide.** HD-1160 · 1106 · 1103 · 1140 · 357 · 443 · 1110 · 448/460 +
       the gate/router/edge calls: [todo-table.md](todo-table.md) §A1 and each row's `RULED` note.
-    - ⏳ The owner still runs the **secret rotations** (`HD-1170` · `HD-1171` · `HD-1150` · `HD-1181`, the last of them
+    - ⏳ The owner still runs the **secret rotations** (`HD-1170` · `HD-1171` · `HD-1181`, the last of them
       this seat's own pi transcript store, which keeps `check_secret_leak.py` red on the pi-dev seat and nowhere else
       until it is rotated).
     - ✅ **The heading gate is registered and priced — growth refused, no clearing campaign owed** (owning index:

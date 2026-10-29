@@ -187,7 +187,6 @@ passes — so scope a seat only from `op_api/credential`, and prove it by Integr
 | `op_api` — **current** | `d633b4f9190e` | Integration `QO3TQ6IMYJF5LFB5EUERCEGJEY` (the read item's own integration — see the scope note below) |
 | `op_api` — superseded, live until ~2026-10-30 | `6a1342f44e65` | Integration `DUW6UPKY5JGG3MM6WF3HBHQWGQ` (read) |
 | `op-write_api` — **current** | `c387f297133f` | Integration `RBULV4SW7JDKLDXRG25LC44VVI` (read+write) |
-| `op-write_api` — superseded, and still the value every host's `/etc/op/provision-token` presents until the re-render lands | `af0e1cffc9e4` | Integration `WN7FJT54IVHDDC4XR3YJ73R2CY` (read+write) |
 
 Each minted generation of these items answers with **its own Integration ID** — `op_api`'s superseded
 generation answers `DUW6UPKY5JGG3MM6WF3HBHQWGQ` and its current one `QO3TQ6IMYJF5LFB5EUERCEGJEY`, and
@@ -276,10 +275,23 @@ cannot be scrubbed from the repo, only rotated.
 **Rotating `op-write_api` is not the re-seat.** Seat and runner files carry `op_api`, so a write-token
 rotation reaches them not at all; the write credential reaches its hosts only as the **rendered copy**
 `/etc/op/provision-token`, which no rotation touches. After rotating the item, the re-seat is the pass
-that re-renders that file: `op-provision-token.yml` (`docker_services_op_provision_token`, `scope_is_all`,
-laptop-issued) on a non-Authentik host, or the Authentik pre-pass on the VPS. Until that pass lands, the
-host keeps presenting the superseded value and every read-side check still passes — so prove a host with
-the hash sweep above plus its own `op item list --vault Homelab-ansible` answer, never with `[ -r … ]`.
+that re-renders that file: `op-provision-token.yml` (`docker_services_op_provision_token`) on a
+non-Authentik host, or the Authentik pre-pass on the VPS. **Both writers are gated `scope_is_all`, so the
+refresh cannot be narrowed by scope — only by tag, and only on top of a full-scope run:**
+
+```bash
+# vps — the pre-pass is the authoritative writer; `--tags secret-egress` keeps the run to the render +
+# the token + the glue, and touches no container:
+bash scripts/ansible/ansible-run.sh playbooks/vps.yml -e docker_services_scope=all --tags secret-egress
+# a home host (oldsrv today) — the token task carries only `docker_services`, so the run is the whole
+# role at full scope. It also reaches the Technitium seed's prune read, which is broken (HD-1152), so
+# expect a RED RECAP AFTER the token task lands and its own probe answers: read it by task, not by rc.
+bash scripts/ansible/ansible-run.sh playbooks/home_servers.yml -l oldsrv.kogler.si -e docker_services_scope=all --tags docker_services
+```
+
+Both are laptop-issued (`self-converge-guard.yml`). Until the pass lands, the host keeps presenting the
+superseded value and every read-side check still passes — so prove a host with the hash sweep above plus
+its own `op item list --vault Homelab-ansible` answer, never with `[ -r … ]`.
 **Trap that bites every time:** an already-running shell keeps exporting the OLD value, and the
 environment beats the file. `op whoami` returning `403 … You aren't authorized to access this
 resource` with a freshly-written file means exactly that — re-`source` the file (or open a new
