@@ -791,13 +791,16 @@ spark_llm_profiles:
   #   3. TTFT per leg, taken off-engine from the WSL2 seat (Rule 0: never timed by a session
   #      whose own model is spark).
   #
-  # WHAT DIFFERS FROM `fast-sglang` — exactly three things, so the pair stays readable:
+  # WHAT DIFFERS FROM `fast-sglang` — four things, so the pair stays readable:
   #   * `max_num_seqs` 4 → 8: a prefix tree with one running sequence has nothing to share. 8
   #     is the harness's real fan-out (one parent + children) with headroom, not a bigger number.
   #   * `ple_offload_bind` is set, so `--ple-offload-dir` names a path that is actually bound to
   #     the XFS store instead of an empty mount point inside the container's own storage.
   #   * the tree's state is DECLARATIVE (`radix_cache`). A flag hand-toggled in a hand-run
   #     `docker run` is not an A/B — it is two different engines, and neither of them is ours.
+  #   * `cache_report` is ON, so `usage.prompt_tokens_details.cached_tokens` arrives per response.
+  #     It is on BOTH legs — a reporting arm beside a blind one is not comparable, and this is the
+  #     only place the tree states how many tokens it served from cache rather than recomputed.
   # Everything else is `*sg_radix_args`, aliased off `fast-sglang` rather than copied.
   #
   # ⛔ NOT to be copied from any community recipe into this pair:
@@ -820,6 +823,7 @@ spark_llm_profiles:
     ple_offload: true
     ple_offload_bind: ple_offload         # → <spark_xfs_mount>/ple_offload:/ple_offload (RW, XFS)
     radix_cache: true                     # renders nothing: the tree is sglang's own default
+    cache_report: true                    # → --enable-cache-report: cached_tokens per response
     served_name: spark/qwen3.8-flash-next-sg   # NOT the fleet id: an uncertified engine is never
                                                # reachable through `spark/*` routing
                                                # (docs/harness-pi-engines.md §6)
@@ -879,6 +883,7 @@ spark_llm_profiles:
     ple_offload: true
     ple_offload_bind: ple_offload
     radix_cache: false                    # renders --disable-radix-cache — the ONLY delta
+    cache_report: true                    # the control must REPORT what it is not caching, too
     served_name: spark/qwen3.8-flash-next-sg
     max_model_len: 262144
     max_num_seqs: 8
