@@ -35,6 +35,26 @@ tags: [services, utilities, tools, automation]
 | Stirling PDF | pdf | P | 150–400 / 800 | **PDF toolkit** — merge/split/compress/convert/number/OCR (Tesseract `eng+slv`, `-fat` image bundles all langs); anonymous mode inside app + Authentik Forward-Auth at the Traefik edge (public `pdf.kogler.si`, SSO-gated); no local online-PDF-editor dependency;**stateless (in-memory, no disk/backup)**. ✅**live-verified**: container healthy, `pdf.kogler.si` → 302 Forward-Auth chain, OCR `eng+slv` |
 | Zipline | bin | P | ~200–350 / 700 (est.) | **Public bin + URL shortener + QR** — v4.7.0 pin, VPS, local datasource; `crowdsec-only` tier; native-OIDC dashboard; guestbin dropzone (no-login uploads, 6h TTL, quota-bounded); 🟢 IaC done ⏳ deploy-gated |
 
+## Credential rotation that has no machine channel
+
+- **`opencloud_login` (the OpenCloud `admin` break-glass login) is not lane-rotatable — the owner act is
+  `docker exec -it opencloud opencloud idm resetpassword -u admin` with the `opencloud` container STOPPED,
+  then write the item.** Measured on the live instance: the vault value IS the credential the app accepts
+  (an Argon2 hash in `/var/lib/opencloud/idm/idm.boltdb` verifies against it — verdict by a self-checked
+  verifier, the hash itself never printed), but neither propagation path answers from a seat:
+  *the render cannot move it* — `IDM_ADMIN_PASSWORD` is consumed by `opencloud init`, and `/etc/opencloud/opencloud.yaml`
+  still carries its first-boot timestamp across container restarts, so re-rendering + recreating changes the env
+  and not the stored credential; *the CLI cannot be driven live* — `opencloud idm resetpassword` takes the new
+  password from a TTY only (no flag: `Error reading password: inappropriate ioctl for device` on a pipe) and it
+  opens `idm.boltdb` **exclusively**, so against a running instance it dies with `Failed to open database:
+  'timeout' … requires exclusive access`. The password is also not the user-facing login: `OC_EXCLUDE_RUN_SERVICES`
+  drops the built-in `idp` and the web/App login is Authentik OIDC, so this item is break-glass for the local
+  `admin` seat only.
+  ⛔ **A vault-only write is the divergence this list exists to name** — the vault would move, the store would
+  not, and the next time anyone needs the break-glass seat it fails. The item's only IaC site is the compose
+  render, and the render is not the propagator: re-converging the service moves nothing at the store.
+  · [deployment-secrets.md](deployment-secrets.md) §Master Secret List row
+
 ## Automation & Alerting
 
 - **n8n** is the alert **router** (dedup / tier / format) from Grafana Alerting — see [`observability.md`](observability.md).
