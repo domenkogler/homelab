@@ -507,7 +507,7 @@ networks:
 
 1. **CrowdSec bouncer** — blocks malicious IPs. Plugin contract: module
    `github.com/maxlerebourg/crowdsec-bouncer-traefik-plugin` (note spelling), pin in
-   `versions.yml` (`crowdsec_bouncer_plugin_version`, registry-verified; v1.7.1 REQUIRES
+   `versions.yml` (`crowdsec_bouncer_plugin_version`, registry-verified; the plugin REQUIRES
    `crowdsecLapiKey`) — key lives in vault item `crowdsec-bouncer_api` and is the LAPI bouncer row
    **`traefik-bouncer-20261028`** (`cscli bouncers add <row> -o raw`, run inside the `crowdsec`
    container; the row NAME is the identity, the key is just its value). Both edges — `traefik` and

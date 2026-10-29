@@ -815,7 +815,7 @@ converged reads as "in sync" with the older value.
 One pin shape needs one comparison rule. A pin that carries a dpkg revision (`alloy_version` =
 `1.21.2-1`) compares EXACTLY; a pin that carries none is a FAMILY pin and compares on the running
 version's dpkg upstream part — everything before the last hyphen — because download.docker.com stamps
-the same release as `5:29.8.2-1~debian.13~trixie` on Debian 13 and `5:29.8.2-1~ubuntu.24.04~noble` on
+the same release as `5:29.9.2-1~debian.13~trixie` on Debian 13 and `5:29.9.2-1~ubuntu.24.04~noble` on
 Ubuntu 24.04, and a fleet-wide value can only name the part both share. `roles/docker` asserts the same
 rule after installing the suite, so a box the converge never moved reddens instead of reporting green.
 
@@ -898,7 +898,8 @@ and `dbus-user-session` + `libc6` as its only dependencies, both already present
 changes, because `playbooks/storage.yml` carries no docker role at all, so the `missing` reading there
 is structural and stays. ⚠ And the apply has to lift the hold to work, which is now the role's job and
 not the operator's: a held package is NOT movable by an apt-module install
-(`apt-get -s -y install 'docker-ce=5:29.8.2-*' …` answers `E: Held packages were changed and -y was used
+(`apt-get -s -y install 'docker-ce=<pin>-*' …` — the version is written as `<pin>` because the point is the
+SHAPE, not the release these reads were taken on — answers `E: Held packages were changed and -y was used
 without --allow-change-held-packages`, rc 100, where the same command without `-y` resolves), so
 `roles/docker` unholds the names it moves, installs, and re-holds them in the same play — see
 [deployment-ansible.md](deployment-ansible.md) §common. What is left of that warning is `spark`, and it does
@@ -1631,7 +1632,7 @@ chart next to the DGX System Monitor, which samples **1 Hz**.
 | `DCGM_FI_DEV_*` on `:9400/metrics` | **once per `DCGM_EXPORTER_INTERVAL`** (5 s today) | `DCGM_EXPORTER_INTERVAL: "5000"` in `templates/docker_services/spark-dcgm/docker-compose.yml.j2`; `DCGM_FI_DEV_GPU_UTIL` holds one value across twelve consecutive 1 Hz reads. Scraping faster than the exporter's own interval stores copies of one sample |
 | DGX System Monitor (the 1 s picture) | 1 Hz | authenticated `POST /api/login` (the JSON field is `token`) then `GET /api/v1/gpu_telemetry/stream` yields `percentage_utilization`, `memory_available_in_kib` / `memory_total_in_kib` (25,676,736 / 127,533,336 KiB = 19.7 % of the **host** pool — not a VRAM counter, see §LLM Dashboard → GPU), `temperature_in_c`, `power_draw_in_w`. It polls the **same** `spark-dcgm` exporter: the difference is cadence, plus a host-memory stat Alloy already scrapes directly |
 
-### What resolution costs (measured on the VPS VictoriaMetrics — re-measure before quoting these numbers; the pin is `victoria_metrics_version: v1.153.0`)
+### What resolution costs (measured on the VPS VictoriaMetrics — re-measure before quoting these numbers; the pin is `victoria_metrics_version`)
 
 | Quantity | Value |
 |---|---|
@@ -1645,7 +1646,7 @@ chart next to the DGX System Monitor, which samples **1 Hz**.
 
 **Age-tiering is not available in this stack.** `-downsampling.period` and `-retentionFilter` are both **absent
 from the VictoriaMetrics community binary** (absent from `--help` on the deployed build — the pin is
-`victoria_metrics_version: v1.153.0` in `group_vars/all/versions.yml`, so re-run `--help` before trusting
+`victoria_metrics_version` in `group_vars/all/versions.yml`, so re-run `--help` before trusting
 the absence; the docs state
 community supports a single retention and one storage tier), and OpenObserve's downsampling is an enterprise rule
 set as well. Resolution is therefore bought **at write time** — scrape only what needs it faster — not by
