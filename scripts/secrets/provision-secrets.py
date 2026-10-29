@@ -25,9 +25,10 @@ flagged as externally-coupled).
     python3 scripts/secrets/provision-secrets.py --self-test
 Runs every WRITE branch against a stubbed `op` CLI — no vault, no token, no network, nothing to
 converge. It is the proof that a write is judged by the re-read value, not by the `op` exit code:
-landed, spurious-error-on-a-landed-write, genuine failure, partial write, unprovable re-read, absent
-item, duplicate title, create-when-absent, and the fail-closed leg where a vault listing that fails
-must attempt ZERO writes.
+landed, spurious-error-on-a-landed-write, genuine failure, a zero-rc edit that landed nothing or
+landed only half a pair, partial write, unprovable re-read, absent item, duplicate title, an empty
+field set, create-when-absent, create-failure (one attempt, never retried), --rotate-all's mixed and
+clean verdicts, and the fail-closed leg where a vault listing that fails must attempt ZERO writes.
 
 === Rotate + reprovision with Ansible (the clean workflow) ===
 1Password is the single source of truth: Ansible resolves every secret at
@@ -497,11 +498,17 @@ def create(category: str, title: str, fields: list[str]) -> bool:
 def rotate(title: str, category: str, fields_builder, item_ids: list[str] | None = None) -> bool:
     """Regenerate + overwrite a single existing item's secret fields in place.
 
-    The verdict comes from the VALUE, never from the `op` exit code (see
-    item_field_values for the op-2.39 spurious-error class), and there is no create
-    fallback on this path: the item is HERE, so a create would only mint the
-    duplicate whose title-based reads then resolve arbitrarily — the defect the
-    sibling fix in kopia-fingerprint-sync.yml removed.
+    The verdict comes from the VALUE, never from the `op` exit code, and from a
+    re-read of the SAME id on BOTH legs: op CLI 2.39 answers a write that landed
+    with a spurious post-edit error (see item_field_values and docs/1password.md
+    §Troubleshooting) AND can answer 0 while applying only some of the assignments
+    (the append-a-field shape), so an rc of 0 is not evidence that a field changed.
+    A half-written `username`+`password` pair is a FAILURE, not a rotation — the
+    catalog's pairs are consumed as a unit.
+
+    There is no create fallback on this path: the item is HERE, so a create would
+    only mint the duplicate whose title-based reads then resolve arbitrarily — the
+    defect the sibling fix in kopia-fingerprint-sync.yml removed.
     """
     if title in NOT_AUTO_ROTATABLE:
         print(f"SKIP {title}: externally-coupled item (see NOT_AUTO_ROTATABLE); rotate manually.", file=sys.stderr)
@@ -513,23 +520,30 @@ def rotate(title: str, category: str, fields_builder, item_ids: list[str] | None
         return False
     item_id = ids[0]
     fields = fields_builder()
+    if not fields:
+        # An empty field set makes the landed test degenerate to `{} == {}`, which reports a rotation
+        # that wrote nothing. Reachable today only via `kopia-server_fingerprint`, which the guard
+        # above keeps shut — this is the leg that stays shut if that name ever leaves the list.
+        print(f"FAILED rotate {title}: the catalog row generates no fields, so there is nothing to "
+              f"write and nothing to verify — not attempted", file=sys.stderr)
+        return False
     want = field_map(fields)
     r = op("item", "edit", item_id, "--vault", VAULT, *fields)
-    if r.returncode == 0:
-        print(f"rotated {title}")
-        return True
-    err = redact(r.stderr.strip(), want)
+    said = "" if r.returncode == 0 else f" op said: {redact(r.stderr.strip(), want)}"
     now = item_field_values(item_id, list(want))
     if now is None:
-        print(f"FAILED rotate {title}: op reported an error AND the re-read failed, so the write is "
-              f"UNPROVEN — confirm the item's current value before retrying: {err}", file=sys.stderr)
+        print(f"FAILED rotate {title}: the re-read failed, so the write is UNPROVEN — confirm the "
+              f"item's current value before retrying{said}", file=sys.stderr)
         return False
     if now == want:
-        print(f"rotated {title} (op reported an error; the re-read proves the write landed)")
+        if r.returncode == 0:
+            print(f"rotated {title}")
+        else:
+            print(f"rotated {title} (op reported an error; the re-read proves the write landed)")
         return True
     stuck = sorted(label for label, value in want.items() if now.get(label) != value)
-    print(f"FAILED rotate {title}: op reported an error and the re-read shows field(s) "
-          f"{', '.join(stuck)} still hold the previous value — not retried, not re-created: {err}",
+    print(f"FAILED rotate {title}: the re-read shows field(s) "
+          f"{', '.join(stuck)} still hold the previous value — not retried, not re-created{said}",
           file=sys.stderr)
     return False
 
@@ -837,6 +851,53 @@ def cmd_self_test(_args) -> int:
               and created_titles(calls) == [], f"got {got}: {edit_targets(calls)}")
         check("--rotate-all leaves the coupled item's value alone", value_of(id_c, "password") == old_pw)
 
+        # 13 — rc 0 is not evidence either: the re-read judges the success leg too, so a zero-rc edit
+        # that applied nothing (or only part of a pair) can never print `rotated`.
+        got, out, err, calls = run(rotate_single(), items=seed_single,
+                                   env={"HL_STUB_EDIT_RC": "0", "HL_STUB_EDIT_LANDS": "0"})
+        check("edit rc 0 + value not landed -> FAILED, never rotated", got is False
+              and "FAILED rotate" in err and "rotated" not in out, f"got {got}: {out.strip()}")
+        check("edit rc 0 + not landed -> old value intact, zero creates",
+              value_of(id_a, "credential") == old_pw and created_titles(calls) == [], str(verbs(calls)))
+        got, out, err, calls = run(
+            lambda: rotate(t_pair, "Database",
+                           lambda: [f"username={user_new}", f"password={new_db_pw}"], [id_p]),
+            items=[entry(id_p, t_pair, {"username": "selftest-old-svc", "password": old_pw})],
+            env={"HL_STUB_EDIT_RC": "0", "HL_STUB_SKIP_FIELDS": "password"})
+        check("edit rc 0 + half a pair -> FAILED and names the stuck field", got is False
+              and "password still hold" in err and "rotated" not in out, f"got {got}: {err.strip()}")
+
+        # 14 — a builder that generates nothing must not satisfy the landed test with `{} == {}`.
+        got, out, err, calls = run(lambda: rotate(t_single, "API Credential", lambda: [], [id_a]),
+                                   items=seed_single)
+        check("no generated fields -> FAILED before any write", got is False
+              and edit_targets(calls) == [] and created_titles(calls) == [], f"got {got}: {verbs(calls)}")
+        check("no generated fields -> nothing printed as rotated, value untouched",
+              "rotated" not in out and value_of(id_a, "credential") == old_pw, out.strip())
+
+        # 15 — create's failure branch: reported, counted, and never retried, so it cannot mint a
+        # duplicate. This is the leg HL_STUB_CREATE_RC exists for.
+        got, out, err, calls = run(lambda: cmd_create(opts(yes=True)), items=[],
+                                   env={"HL_STUB_CREATE_RC": "1"}, catalog=test_catalog)
+        check("--create rc != 0 -> rc 1", got == 1, f"got {got}")
+        check("--create rc != 0 -> one attempt per title, zero items created (no retry, no duplicate)",
+              created_titles(calls) == [t_single, t_pair, t_coupled] and items_in_state() == [],
+              f"{created_titles(calls)} -> {items_in_state()}")
+
+        # 16 — --rotate-all with a mixed outcome: one item landed, one did not. The run must NOT
+        # report a completed window (arm 12 above is the all-success -> rc 0 case).
+        got, out, err, calls = run(lambda: cmd_rotate(opts(rotate=None, rotate_all=True, yes=True)),
+                                   items=[seed_single[0],
+                                          entry(id_p, t_pair, {"username": "selftest-old-svc", "password": old_pw}),
+                                          entry(id_c, t_coupled, {"password": old_pw})],
+                                   catalog=test_catalog, coupled=[t_coupled],
+                                   env={"HL_STUB_EDIT_RC": "0", "HL_STUB_SKIP_FIELDS": "password"})
+        check("--rotate-all with a not-landed item -> rc 1", got == 1,
+              f"got {got}: {out.strip()} {err.strip()}")
+        check("--rotate-all names the item that did not land; the landed one did rotate",
+              t_pair in err and value_of(id_p, "password") == old_pw
+              and value_of(id_a, "credential") == new_pw, f"got {got}: {err.strip()}")
+
     print(f"\nprovision-secrets.py self-test: {tally['n']} checks, "
           f"{len(tally['bad'])} failure(s) — zero vault contact, zero writes outside the fixture")
     for bad in tally["bad"]:
@@ -888,15 +949,28 @@ def cmd_rotate(args) -> int:
         if not args.yes:
             print("error: --yes required for --rotate-all", file=sys.stderr)
             return 1
-        n = 0
+        done, failed = 0, []
         for cat, name, fb in CATALOG:
             if name not in existing:
                 print(f"skip (absent): {name}")
                 continue
+            if name in NOT_AUTO_ROTATABLE:
+                # A skip BY DESIGN, not a failure — rotate() refuses it too, and a --rotate-all that
+                # exited 1 on every run (the guard list is long) would train the caller to ignore the
+                # verdict this command exists to be trusted for.
+                print(f"skip (coupled): {name}")
+                continue
             if rotate(name, cat, fb, existing[name]):
-                n += 1
-        print(f"\nRotated {n} item(s).")
-        return 0
+                done += 1
+            else:
+                failed.append(name)
+        print(f"\nRotated {done} item(s).")
+        if failed:
+            print(f"Not rotated ({len(failed)}): {sorted(failed)} — see the FAILED lines above",
+                  file=sys.stderr)
+        # A window where an item did not land is NOT a completed rotation: `--rotate-all --yes ||
+        # ABORT` and the ledger verdict both read this rc.
+        return 1 if failed else 0
     # single-item rotate
     name = args.rotate
     if name not in existing:
