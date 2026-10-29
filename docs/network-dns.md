@@ -503,6 +503,26 @@ where it costs a write and a handler fire on a live addressing file, or in a Jin
 document, where it costs nothing. A host whose functional lines already match but that reports `changed`
 every run is this, and the fix belongs in the template.
 
+### Options — OQ-16 (should MagicDNS forward the parent zone instead of answering the miss?)
+
+The seat-side arm exists and is installed (the per-link route claim above). What is open is the tailnet
+side: a name outside the netmap gets no answer from `100.100.100.100`. At the pins
+(`headscale_version` / `tailscale_host_version` in `group_vars/all/versions.yml`) headscale's `dns:` block
+exposes `magic_dns`, `base_domain`, `override_local_dns`, `nameservers.global`, `nameservers.split`,
+`search_domains` and ONE records key — **no key there forwards an in-zone miss to a named resolver**.
+`nameservers.split` delegates a WHOLE domain, which is a different act with different consequences, and the
+client's resolver has three states only: a host match, a local-domain answer (authoritative, so the miss
+becomes NXDOMAIN), or a route; with none of them it returns SERVFAIL
+(`net/dns/manager.go`, `net/dns/resolver/tsdns.go`). So the shapes below are the whole surface, and
+[network-rejected.md](network-rejected.md) already carries rows for two of them.
+
+| Option | For | Against | Cost | Cheap test |
+|---|---|---|---|---|
+| Split the domain to a named resolver: `dns.nameservers.split: { kogler.si: [ <resolver> ] }` | One key, and the whole zone resolves from anywhere the tailnet is up — including the names no seat arm covers | The delegation is all-or-nothing: the client sends EVERY `*.kogler.si` query there, so a name the netmap answers differently loses that answer (the `litellm` class above), a Home address reaches a travelling peer as a black hole (§The answer-plane model, ruling 1), and a split domain is not retried against the OS resolver — no fallback. Row in [network-rejected.md](network-rejected.md) | One `config.yaml` rewrite on a headscale-scoped VPS converge; the control plane bounces, `headplane` with it | In a worktree, render `--render-config` with `split:` added, apply it on ONE tailnet client, and compare `dig +short litellm.kogler.si` before/after: an answer that moves off the tailnet-edge address is the delegation regressing the zone |
+| Route the domain to the MagicDNS loop itself: `dns.nameservers.split: { kogler.si: [] }` (an empty resolver list means "the built-in loop") | The miss stops being SERVFAIL and becomes an authoritative answer, so client behaviour is predictable and the netmap set keeps answering exactly as today | The negative answer becomes NXDOMAIN — cacheable against the name for the zone's SOA minimum, the class the dual-armed seat claim above exists to avoid — and the positive set is still just the records file, so the names this question is about gain nothing | The same single converge as the row above, and no client change | `dig +noall +comments A nas.kogler.si @100.100.100.100` from a tailnet-attached device, before and after: SERVFAIL → NXDOMAIN is the mechanism, and NXDOMAIN-for-a-name-with-no-netmap-row is why it does not help |
+| Adopt the zone as the MagicDNS base domain: `dns.base_domain: kogler.si` | One domain, no routes, no dual-armed seat claim: the tailnet would be the single authority for the namespace | headscale refuses to start when its own `server_url` sits UNDER `base_domain` — `vpn.kogler.si` is under `kogler.si`, which is why the `.ts` subtree exists ([network-vpn.md](network-vpn.md) §Tailnet boundary) — and every miss would become authoritative, leaving a tailnet client to resolve the public surface from the netmap alone | Nothing to try it; everything to keep it, since it moves the namespace plan | `headscale configtest` on a rendered copy with `base_domain: kogler.si` — the `server_url cannot be part of base_domain` refusal is the answer, and no host is touched |
+| Leave `dns:` as it is; answer per name where a name needs an answer — a `tailnet:` field on the zone entry for a netmap answer, a seat plane for a seat | Nothing else moves. Per-name scope is what the answer-plane rulings are written for, the netmap stays the only tailnet answer plane, and a seat act reaches one box and no other client | It scales one name at a time, so "47 of 63 names" is answered 47 times; and a seat arm is per-seat, so it fixes no device that does not run it | A `zone_kogler_si` field flip per name, landing on the converge that re-renders `config.yaml`; one `--install` / `--push` per seat | For the name in question, the pair `dig +short <name> @100.100.100.100` and `dig +short <name> @"$(ip route \| sed -n 's/^default via \([^ *]*\).*/\1/p')"` — which of the two answers is wrong says whether the gap belongs to the netmap or to the seat |
+
 ---
 
 ## Per-Instance Split-Horizon
@@ -1106,9 +1126,10 @@ Facts that hold in either shape:
   Provenance is `extra_records.json.j2` and git. `check_zone_kogler_si_parity.py` renders and JSON-parses
   this file in BOTH shapes on every run, so a YAML body, a comment line, or a render that differs between
   the two whitespace engines reddens in `validate-all.sh` rather than in the control plane's first sample.
-* The superseded `/opt/headscale/extra_records.yaml` comes out via `retired_artifacts` on the registry
-  entry: a raw copy never deletes, and a records file that is mounted by nothing sits beside the live one
-  reading exactly like the answer plane.
+* The superseded `/opt/headscale/extra_records.yaml` and its stale template come out via
+  `retired_artifacts` on the registry entry — both are listed, because the raw copy of the template DIR
+  leaves a `.j2` behind exactly as it leaves the rendered file, and a records file that is mounted by
+  nothing sits beside the live one reading exactly like the answer plane.
 * `dns.extra_records_path` must name the **container** path of the `./extra_records.json` bind. The
   gate reads the bind out of the rendered compose and compares, so a path that points at nothing is
   RED in `validate-all.sh` rather than fatal at startup.
@@ -1118,19 +1139,20 @@ Facts that hold in either shape:
   **not** delivered by the key switch — it needs that guard to exempt this path, which is a decision
   about the guard, not a value in `group_vars`.
 
-**The swap, owner-present.** The mount ships with the next headscale-scoped converge — it is not on the host
-yet: `/opt/headscale/extra_records.json` does not exist and the running compose still binds the superseded
-`./extra_records.yaml` (`live-verified 2026-10-29`). The swap changes no ANSWER, but it is not a
-no-op — the compose gains a bind (container recreate) and a rendered extra appears for the first time
-(the restart guard fires), so that converge runs through the same guarded path with the sampled probe.
-**A records-file rename is one of those converges:** the bind source and the rendered extra both move,
-and `retired_artifacts` removes the superseded path, so the next headscale-scoped converge recreates
-the container whether or not the key is set. Treat it as guarded work, never as a no-op ride along
-with another VPS lane.
-The KEY flip is then its own owner-present converge: it rewrites `config.yaml`, so the restart guard
-fires and the control plane bounces once — `headplane` with it, same compose project. ⛔ It is never a
-`group_vars`-only act: setting `headscale_extra_records_path` in a run that does not also move the bind names
-a file the container is never given. ⛔ `--diff` is not run on
+**The swap, landed.** The key and the bind moved on one guarded, owner-present converge
+(`live-verified 2026-10-29`): `/opt/headscale/config.yaml` carries `extra_records_path` and no
+`extra_records`, the compose binds `./extra_records.json:…:ro`, `/opt/headscale/extra_records.json`
+exists and its parsed record set equals the derived render **both directions**, and the sampled
+probe is GREEN across 6 samples with `RestartCount` flat — the control plane bounced exactly once,
+at the recreate this swap costs. ⛔ What that run proves about a records-file rename stays true for
+the next one: it is **not** a no-op — the compose gains a bind (container recreate) and a rendered
+extra appears for the first time (the restart guard fires) — so it runs through the same guarded
+path with the sampled probe, never as a ride-along with another VPS lane. A run that only removes a
+retired artifact costs no bounce at all: the pass that deleted `extra_records.yaml` reported
+`Running` with an unchanged `StartedAt`.
+The KEY half is never a `group_vars`-only act: setting `headscale_extra_records_path` in a run that
+does not also move the bind names a file the container is never given — which is why the key and the
+bind are one run and not two. ⛔ `--diff` is not run on
 `docker_services`, and a one-shot inspect afterwards is not a verdict — see decision 5.
 
 1. **Preflight, nothing written anywhere.** Render both halves and diff them against the tree's own

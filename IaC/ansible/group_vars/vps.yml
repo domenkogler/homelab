@@ -121,7 +121,7 @@ docker_services:
   - { name: matrix,         template_dir: matrix,    public: true, enabled: true }
   - { name: chat,           template_dir: element-web, subdomain: chat, public: true, enabled: true }
   # === Edge accessories (VPS residency) ===
-  - { name: headscale,      template_dir: headscale, subdomain: vpn, public: true, enabled: true, retired_artifacts: [extra_records.yaml] }  # public coordination (rev. network-vpn.md); retired_artifacts: the records file this service no longer renders or mounts — the raw copy never deletes, so IaC must, or a dead records file sits beside the live one reading like the answer plane
+  - { name: headscale,      template_dir: headscale, subdomain: vpn, public: true, enabled: true, retired_artifacts: [extra_records.yaml, extra_records.yaml.j2] }  # public coordination (rev. network-vpn.md); retired_artifacts: the records file this service no longer renders, AND the template it rendered from — the raw copy of the template dir deletes neither, so a dead records file and its dead template sit beside the live pair reading like the answer plane
   # Metabase does not run here: the VPS is the RAM-constrained box and its revival target is
   # OLDSRV, so this list carries NO metabase entry — a registry entry is the switch that deploys,
   # and an absent one is what keeps a host from re-rendering a service it does not own. The two
