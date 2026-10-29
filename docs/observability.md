@@ -322,7 +322,14 @@ shows) → `.id` on the linked oldsrv daemon, stored in `group_vars/all/main.yml
 - **Provisioning does NOT overwrite `secureJsonData` of an existing datasource.** A rotated datasource
   password must be re-applied by delete+recreate **with the same uid** (or an API update) — otherwise
   queries keep 401-ing while the rendered files look perfect.
-
+- **`GF_SECURITY_ADMIN_PASSWORD` initializes the admin seat, it does not rewrite it.** Re-rendering the
+  compose and recreating the container changes the **environment** value only: the app goes on answering
+  with the password it was created with, while `docker exec grafana printenv GF_SECURITY_ADMIN_PASSWORD`
+  — the source the monitoring role authenticates with (`roles/monitoring/tasks/main.yml`) — already reports
+  the new one. So a `grafana_login` rotation is a vault write **plus the app path in the same act**,
+  `docker exec -i grafana grafana cli admin reset-admin-password --password-from-stdin` (grafana 13.x ships
+  `grafana cli`; the `grafana-cli` binary is gone), and until it runs every Grafana-API task in
+  `roles/monitoring` fails 401 while the rendered files look perfect.
 - **Pin the edge IP.** Docker's dynamic bridge assignment silently drifts the Traefik edge address off
   `GF_AUTH_PROXY_WHITELIST`, which reads as "SSO stopped working after an unrelated redeploy".
 - **`noDataState` is the loudest footgun in the stack.** A rule whose PromQL matches **no series** fires a
