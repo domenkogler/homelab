@@ -427,10 +427,13 @@ Certified state and its costs, stated plainly:
   (`supported_kv_cache_dtypes = ["auto", "bfloat16"]`), so an fp8 profile on either dies at EngineCore
   init with `NotImplementedError: QSA requires a BF16 main KV cache`
   ([`../spark/reports/hd469-graded/README.md`](../spark/reports/hd469-graded/README.md)), and v0.30.0
-  still carries the raise. The profile that names a build with the read path is **`fast8`** — the patch
-  stack rebuilt on a v0.32 base, gated by an empty image pin until that build exists
+  still carries the raise. The build that DOES carry the read path is the **v0.32 lineage** — the same
+  patch stack rebuilt on `spark_vllm_v32_base_image` — and the arms that name it are **`fast8`** (fp8
+  KV) with **`fast-v32-bf16`** as its bf16 control: the built image ID is pinned and `ultrafast-v32`
+  sits in `spark_llm_fp8_kv_capable_images`, so both are bootable-and-UNCERTIFIED and what is owed on
+  them is gates 0–7 then 8–9, not a build
   ([`image-probe-20260928.md`](../spark/reports/hd469-graded/image-probe-20260928.md)
-  · [`pin check`](../spark/reports/hd473-pin-check-20261025/README.md)); reaching it is the engine-pin lane.
+  · [`pin check`](../spark/reports/hd473-pin-check-20261025/README.md)).
   Profile-level arithmetic + the host-floor gate: [spark-llm-profiles.md](spark-llm-profiles.md).
 - **Costs paid:** idle `usable` **18.5 GiB** (margin to the 12 GiB reserve target is 6.5 GiB), and
   `NV_ERR_NO_MEMORY` occurrences rise slightly under load (boot-load burst unchanged in character). Under
@@ -679,7 +682,8 @@ research + verdicts: [`../spark/resources/RESEARCH-VERDICTS.md`](../spark/resour
 > **The benchmark lanes and the DEPLOYED config are the same dial.** The S-lanes above are
 > bench shapes; the configs this box can actually boot are the Ansible profiles (`spark_llm_profile` →
 > `spark_llm_profiles`): `reasoning` = the S1 shape, live as the rollback target; `graded` = S1 with fp8 KV
-> (⛔ blocked on the image — the pinned build cannot boot fp8 KV); **`fast` = the live winner** — the
+> (⛔ blocked on its own image — the `base` build cannot boot fp8 KV; the fp8 shape lives on the v32
+> arms, `fast8` / `fast-v32-bf16`); **`fast` = the live winner** — the
 > AR-hybrid arm (`ar-blk`), so never infer a checkpoint from the profile name; `fast-sglang` = the
 > S5-shaped SGLang lane (gate-blocked). Catalogue,
 > KV/quant arithmetic, the certifying gate and the client-contract split:

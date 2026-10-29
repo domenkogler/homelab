@@ -171,6 +171,41 @@ nothing here is a converge anyone can run unattended.
    gates have run and their raw sits under its own `spark/reports/` dir — the override is a per-run
    `-e`, never a value in `host_vars`.
 
+### The capacity axes — where a KV byte actually comes from
+
+Three axes move the pool and they are independent. An arm moves **one** of them and reads the
+engine's own `GPU KV cache size` line, because every count below is a projection until a boot says
+otherwise.
+
+| axis | what it takes / what it gives | where it is set |
+|---|---|---|
+| weights (fixed cost) | every target, drafter and table byte competes with the pool inside the same 121.62 GiB | `model_subdir` · `artifact_sets` · `fixed_cost_bytes` |
+| KV dtype | fp8 buys **1.70–1.89×**, and only on the bytes it covers — the main K/V. The QSA indexer side-caches and the GDN state stay bf16, which is why the fp8 constant is 18,251 B/token and not half of 31,027 | `kv_cache_dtype`, gated by `spark_llm_fp8_kv_capable_images` |
+| the drafter's weights | the bytes the MTP head holds while it proposes | nothing in the catalogue today |
+
+Two sub-axes exist upstream and are named by no profile here:
+
+* **The indexer cache has its own dtype.** vllm#54890 (FP8 indexer cache, merged 2026-09-07, in
+  v0.31.0/v0.32.0 — [`../spark/reports/hd473-pin-check-20261025/README.md`](../spark/reports/hd473-pin-check-20261025/README.md))
+  is a separate dial from `--kv-cache-dtype`; the official recipe passes both together as
+  `--kv-cache-dtype fp8 --attention-config.indexer_kv_dtype fp8`
+  ([recipe](https://recipes.vllm.ai/Qwen/Qwen3.8-Flash-Next)). Its price lands in the boot-log read,
+  never in a scaled 18,251 — and its risk is gate 9's, because quantising the indexer keys changes
+  *what the indexer selects*, not only what it stores.
+* **The drafter can be quantised.** primitive-ai publishes the axis as four-file overlays beside the
+  mixed checkpoint and the file sizes are the lever: `mtp_fp8/mtp-experts-fp8.safetensors` 2.52 GB and
+  `mtp_nvfp4/mtp-experts-nvfp4.safetensors` 1.42 GB against the BF16 draft's 5.03 GB — reported at
+  180,224 / 198,168 pool tokens where the BF16 draft leaves 134,192 (+34 % / +48 %), for −2 pts
+  acceptance and −1 % decode, on the vendor's 96 GB card at 32K context
+  ([card](https://huggingface.co/primitive-ai/Qwen3.8-Flash-Next-mixed-NVFP4-FP8)). SGLang names the
+  same dial `--speculative-draft-model-quantization`, which `fast-sglang` pins to `unquant`. The cost
+  is acceptance rather than accuracy — the target verifies every drafted token — so gate 8 is the leg
+  that reads it. Here the axis starts by reading what the live arm's draft head actually holds: the AR
+  target is a gptq-hybrid checkpoint and the `v16b*` arms run a built **dense** drafter
+  (`-mtpdense-g32`) in place of the checkpoint's experts.
+
+`draft_vocab` is not this axis — it slices the drafter's vocabulary, not its experts.
+
 ### What the gate refuses (`IaC/ansible/roles/spark-llm-profile`, runs before `spark-artifacts`)
 
 Read-only asserts, cheapest failure first, so a bad flip dies **before** a ~20-minute engine

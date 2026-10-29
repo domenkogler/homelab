@@ -248,8 +248,8 @@
 # ---- The host floor: fixed cost + pool, not the pool alone ----
 # On GB10 the engine's fixed cost and the KV pool are paid out of the SAME 121.62 GiB the OS
 # lives in (docs/hardware-spark.md §Unified-memory budget). A profile that changes the WEIGHTS
-# changes the fixed cost, and the pool ceiling cannot see that: `fast` (NVFP4, core 88.6 GB vs
-# AWQ's 83.4 GB) fits the 16 GiB pool ceiling at 16.5 GB of KV and still walks this box into
+# changes the fixed cost, and the pool ceiling cannot see that: `fast` (NVFP4, core 81.3 GB against
+# AWQ's 83.4 GB of weights) fits the 16 GiB pool ceiling at 16.5 GB of KV and still walks this box into
 # DGX OS's earlyoom threshold — which Docker reports as `OOMKilled: false` and which upstream
 # describes as needing a POWER CYCLE. Every vLLM profile therefore declares fixed_cost_bytes
 # (measured for the lanes that have booted, DERIVED + flagged for the ones that have not) and

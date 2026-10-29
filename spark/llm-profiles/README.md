@@ -86,7 +86,8 @@ ansible-playbook -i inventory.ini playbooks/spark.yml --limit spark --tags spark
 ```
 Sets are named in `spark_artifact_sets`; a profile lists the sets it needs in `artifact_sets`.
 `nvfp4-mixed` uses `kind: weights-trim`, which skips the checkpoint's own BF16 PLE table
-(`exclude: ["ple-bf16-*"]`, 102.4 GB of the 191.0 GB repo) **and** trims the `ngram` entries out of
+(`exclude: ["ple-bf16-*"]`, 102.4 GB of the checkpoint's 183.7 GB — the repo listing is ≈191 GB
+because it also carries the optional `mtp_fp8/` + `mtp_nvfp4/` draft overlays) **and** trims the `ngram` entries out of
 `model.safetensors.index.json` — without the trim vLLM asks for shards that were never fetched
 (the primitive-ai recipe: [R1-ple-quant-card-evidence.md](../resources/R1-ple-quant-card-evidence.md)).
 

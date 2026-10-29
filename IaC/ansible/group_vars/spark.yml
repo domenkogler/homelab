@@ -139,8 +139,9 @@ spark_dcgm_exporter_memory_limit: "256M"   # compose `limits.memory` — MUST be
 #   ansible-playbook -i inventory.ini playbooks/spark.yml --limit spark \
 #     --tags spark-artifacts \
 #     -e spark_artifacts_fetch='["b1-awq","ple-int4","nvfp4-mixed","ple-nvfp4"]'
-# Disk: 296 GB free after the B1 staging; nvfp4-mixed core
-# ≈88.6 GB + ples_nvfp4 28.8 GB ≈ 117 GB → fits, ~180 GB left.
+# Disk: 296 GB free after the B1 staging; nvfp4-mixed core 81.3 GB (the 183.7 GB checkpoint less
+# its own 102.4 GB BF16 table) + ples_nvfp4 28.8 GB ≈ 110 GB → fits. Staged on the box: 117 GB
+# (the delta is the download cache) with 185 GB free after — spark/reports/hd469-fast/README.md.
 spark_artifacts_fetch: [b1-awq, ple-int4]
 
 spark_artifact_sets:
@@ -167,8 +168,11 @@ spark_artifact_sets:
       # mount root — the nesting + flatten pair is what made the 30 GB land.
       local_dir: "{{ spark_xfs_mount }}/ples_int4"
   nvfp4-mixed:
-    # primitive-ai/Qwen3.8-Flash-Next-mixed-NVFP4-FP8 — 191.0 GB repo, of which
-    # 102.4 GB is its OWN BF16 PLE table (ple-bf16-*), which the overlay stubs.
+    # primitive-ai/Qwen3.8-Flash-Next-mixed-NVFP4-FP8 — checkpoint 183.7 GB (ct-experts 67.99 +
+    # fp8-tail 2.68 + carry-model-bf16 10.66 + its OWN BF16 PLE table 102.4 GB in 43 `ple-bf16-*`
+    # shards, which the overlay stubs) ⇒ core 81.3 GB. The full repo listing is ≈191 GB because it
+    # also carries the two optional MTP-draft overlay dirs (`mtp_fp8/` 4.16 GB, `mtp_nvfp4/` 3.05 GB).
+    # The card quotes the table as 95.4 GB — that is the same 102.4 GB stated in GiB.
     # Skip the table at download AND trim the index, or vLLM asks for shards that
     # are not on disk (the `kind: weights-trim` task in roles/spark-artifacts).
     - repo_id: "primitive-ai/Qwen3.8-Flash-Next-mixed-NVFP4-FP8"
@@ -593,22 +597,27 @@ spark_llm_profiles:
 
   # ── 3. FAST = NVFP4 weights, bf16 KV: the decode-speed + accuracy lane ─────
   # The "implementator" lane: S2/S3 (NVFP4 decode 40–46 tok/s expected on GB10,
-# RESEARCH-VERDICTS §2). Sizes verified against the HF API:
-  # primitive-ai mixed-NVFP4/FP8 = 191.0 GB repo, 102.4 GB of it is its own
-  # BF16 PLE table (skippable) → core ≈ 88.6 GB; ples_nvfp4 sidecar = 28.8 GB
-  # (accuracy cost ≈ nothing: 92.2 knowledge / 78.7 tool-call vs 92.2/79.2 BF16,
-  # primitive-ai card, spark/resources/R1-ple-quant-card-evidence.md).
-# WHY bf16 KV HERE: the fp8 half of this profile is
-# an image-pin problem, so `fast` measures ONE variable — the weights. Carrying
+# RESEARCH-VERDICTS §2). Sizes are the checkpoint's own file split (HF file list): 183.7 GB =
+  # experts 67.99 + fp8-tail 2.68 + carry-BF16 10.66 + its own BF16 PLE table 102.4 GB (skippable)
+  # → core 81.3 GB; ples_nvfp4 sidecar = 28.8 GB. The table's accuracy cost sits in the PLE-quant
+  # card's **pooled** tool-calling column — 92.2 knowledge / 78.7 for the NVFP4 table against
+  # 92.2/79.2 BF16, ±1.5 (spark/resources/R1-ple-quant-card-evidence.md). That column is NOT the
+  # checkpoint card's split reporting (call 84.8 / abstain 56.7): different axes, never comparable.
+# The dial name `fast` marks the AR-hybrid winner today (docs/spark-llm-profiles.md §7); this block
+# prices the NVFP4 weights this lane was authored for.
+# WHY bf16 KV HERE: on the vLLM side fp8 KV lives on the v32 lineage (`fast8` /
+# `fast-v32-bf16`, `image: ultrafast-v32`); on the SGLang side it needs sglang#36644, still open.
+# So this lane measures ONE variable — the weights (and the engine), never two. Carrying
 # fp8 here would make it fail for a reason that is not NVFP4's.
 # ⚠ An fp8 slot count built on the ×2 constant is WRONG TWICE: the real ratio is
 # 1.70–1.89, so a claim like "16.5 GB = 1.063M slots = 4.06 × window" fails its own
-# 4 × 262,144 no-preemption bound (≈ 905k = 3.45 ×), AND it ignores that these weights are
-# HEAVIER than AWQ's. NVFP4 core 88.6 GB vs the AWQ lane's whole measured fixed cost
-# 81 GiB (77.69 GiB weights+non-torch, +2.99 activation, +~7 stranded graphs) ⇒ fixed
-# cost +≈ 5.2 GB. On a 121.62 GiB unified pool that is paid for OUT OF THE KV POOL,
-# which is why this profile's pool went DOWN to 11 GB, not up to 16.5 GB (gate:
-# spark_llm_device_hold_ceiling_bytes). KV: 11,000,000,000 / 31,027 = ~354,000 slots
+# 4 × 262,144 no-preemption bound (≈ 905k = 3.45 ×), AND it prices the weights as if they were
+# free. The core is 81.3 GB against the AWQ lane's measured 77.69 GiB of weights+non-torch, so the
+# weight bytes land near the AWQ lane's, not several GB above it: `fixed_cost_bytes` on an NVFP4 arm
+# rests on that arm's own `Available KV cache memory` / `GPU KV cache size` boot-log pair, never on a
+# subtraction of repo sizes (gate: spark_llm_device_hold_ceiling_bytes). On a 121.62 GiB unified
+# pool every weight byte is paid OUT OF THE KV POOL,
+# which is why this profile's pool went DOWN to 11 GB, not up to 16.5 GB. KV: 11,000,000,000 / 31,027 = ~354,000 slots
 # = 1.35 × one full window — enough to boot, measure speed and run the accuracy battery;
 # 4 concurrent full windows need fp8 KV on top.
   # UNCERTIFIED: never benched on this box; NVFP4-vs-AWQ accuracy is unresolved
