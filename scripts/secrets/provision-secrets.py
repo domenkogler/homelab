@@ -26,9 +26,10 @@ flagged as externally-coupled).
 Runs every WRITE branch against a stubbed `op` CLI — no vault, no token, no network, nothing to
 converge. It is the proof that a write is judged by the re-read value, not by the `op` exit code:
 landed, spurious-error-on-a-landed-write, genuine failure, a zero-rc edit that landed nothing or
-landed only half a pair, partial write, unprovable re-read, absent item, duplicate title, an empty
-field set, create-when-absent, create-failure (one attempt, never retried), --rotate-all's mixed and
-clean verdicts, and the fail-closed leg where a vault listing that fails must attempt ZERO writes.
+landed only half a pair, partial write, unprovable re-read, absent item, duplicate title, an empty field
+set, create-when-absent, create-failure (one attempt, never retried), --rotate-all's mixed and clean
+verdicts, a call that never answers at all (the timeout leg: UNPROVEN, never a success, never retried),
+and the fail-closed leg where a vault listing that fails must attempt ZERO writes.
 
 === Rotate + reprovision with Ansible (the clean workflow) ===
 1Password is the single source of truth: Ansible resolves every secret at
@@ -364,10 +365,33 @@ def gen_token(n: int = 32) -> str:
 # reading, so the call can consume the loop or script that launched it.
 OP_ARGV = ["op"]
 
+# A hung `op` must not hang the caller. Every call this tool makes is ONE single-item, single-vault
+# request (`item list` once per write command, one `item get` per re-read, one `edit`/`create` per
+# item) — the repo's other `op` seam budgets 120 s for a whole-fleet list+fan-out
+# (scripts/lib/vault_read.py `_op_run`) and this script's own local bcrypt probe waits 30 s, so 60 s
+# per call is generous for the slowest one-item round trip and short enough that a wedged CLI cannot
+# hold a rotation lane past its window. Not an env seam, for the OP_ARGV reason above: a stray
+# `OP_TIMEOUT` in someone's shell would silently turn a slow vault into failing writes.
+OP_TIMEOUT = 60
+
+# The rc `op()` reports for its own killed call, `timeout(1)`'s conventional 124. It is a distinct
+# value because `rotate` must be able to tell "the call never answered" from "`op` answered an error".
+OP_TIMEOUT_RC = 124
+
 
 def op(*args: str) -> subprocess.CompletedProcess:
-    return subprocess.run([*OP_ARGV, *args], capture_output=True, text=True,
-                          encoding="utf-8", errors="replace", stdin=subprocess.DEVNULL)
+    try:
+        return subprocess.run([*OP_ARGV, *args], capture_output=True, text=True,
+                              encoding="utf-8", errors="replace", stdin=subprocess.DEVNULL,
+                              timeout=OP_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        # A timeout is a FAILED read, and it keeps the existing verdict shapes: `item_field_values`
+        # turns a non-zero rc into None and `rotate` calls that UNPROVEN, `existing_items` aborts the
+        # command with zero writes, `create` reports the item FAILED. Nothing here retries.
+        # The message names the VERB only: the argv of an `item edit` carries the generated values.
+        return subprocess.CompletedProcess([*OP_ARGV, *args], OP_TIMEOUT_RC, "",
+                                           f"op {' '.join(args[:2])} timed out after {OP_TIMEOUT}s "
+                                           "and was killed without an answer")
 
 
 def field_map(fields: list[str]) -> dict[str, str]:
@@ -486,13 +510,20 @@ def homelable_login_item() -> list[str]:
 def create(category: str, title: str, fields: list[str]) -> bool:
     # Reached ONLY for a title the listing proved absent (cmd_create), so a non-zero rc here is a real
     # failure with nothing to re-read: the next `--create` re-derives absence from the listing, so
-    # there is no create-on-failure branch that could mint the duplicate.
+    # there is no create-on-failure branch that could mint the duplicate. A timeout lands in the same
+    # branch — the item MAY exist by then, and the next run's listing is what resolves it, which is
+    # why nothing here ever retries the create.
     r = op("item", "create", "--category", category, "--title", title, "--vault", VAULT, *fields)
     if r.returncode != 0:
         print(f"FAILED {title}: {redact(r.stderr.strip(), field_map(fields))}", file=sys.stderr)
         return False
     print(f"created {title}")
     return True
+
+
+def timed_out(r: subprocess.CompletedProcess) -> bool:
+    """True when the answer is `op()`'s killed-call sentinel rather than something `op` said."""
+    return r.returncode == OP_TIMEOUT_RC
 
 
 def rotate(title: str, category: str, fields_builder, item_ids: list[str] | None = None) -> bool:
@@ -505,6 +536,10 @@ def rotate(title: str, category: str, fields_builder, item_ids: list[str] | None
     (the append-a-field shape), so an rc of 0 is not evidence that a field changed.
     A half-written `username`+`password` pair is a FAILURE, not a rotation — the
     catalog's pairs are consumed as a unit.
+
+    One exception to reading the value: a WRITE call that never answered. A killed `op item edit` may
+    still be in flight, so BOTH re-read outcomes are UNPROVEN — a value that already matches is not
+    proof the call completed, and a value that does not is not proof it failed.
 
     There is no create fallback on this path: the item is HERE, so a create would
     only mint the duplicate whose title-based reads then resolve arbitrarily — the
@@ -531,6 +566,18 @@ def rotate(title: str, category: str, fields_builder, item_ids: list[str] | None
     r = op("item", "edit", item_id, "--vault", VAULT, *fields)
     said = "" if r.returncode == 0 else f" op said: {redact(r.stderr.strip(), want)}"
     now = item_field_values(item_id, list(want))
+    if timed_out(r):
+        # A killed WRITE call is UNPROVEN whatever the re-read says: the request may still be in
+        # flight, so a re-read that already shows the new value is not proof the call completed and a
+        # re-read that shows the old one is not proof it failed. Hence no success print on this leg,
+        # no retry and no create — the operator confirms the item, then re-runs.
+        seen = ("the re-read already shows the new value" if now == want
+                else "the re-read still shows the previous value" if now is not None
+                else "the re-read failed too")
+        print(f"FAILED rotate {title}: {redact(r.stderr.strip(), want)}, so the write is UNPROVEN — "
+              f"{seen}; confirm the item's current value before retrying, nothing was retried",
+              file=sys.stderr)
+        return False
     if now is None:
         print(f"FAILED rotate {title}: the re-read failed, so the write is UNPROVEN — confirm the "
               f"item's current value before retrying{said}", file=sys.stderr)
@@ -560,7 +607,7 @@ def rotate(title: str, category: str, fields_builder, item_ids: list[str] | None
 # ---------------------------------------------------------------------------
 _STUB_ENV = ("HL_STUB_VAULT", "HL_STUB_LOG", "HL_STUB_EDIT_RC", "HL_STUB_EDIT_LANDS",
              "HL_STUB_SKIP_FIELDS", "HL_STUB_GET_RC", "HL_STUB_LIST_RC", "HL_STUB_CREATE_RC",
-             "HL_STUB_ECHO_ARGV", "OP_SERVICE_ACCOUNT_TOKEN")
+             "HL_STUB_ECHO_ARGV", "HL_STUB_HANG", "OP_SERVICE_ACCOUNT_TOKEN")
 
 _STUB_OP = r'''#!/usr/bin/env python3
 """Stub 1Password CLI for provision-secrets.py --self-test.
@@ -572,10 +619,15 @@ State is one JSON file: {"items":[{"id","title","fields":{label:value}}]}. Knobs
   HL_STUB_EDIT_LANDS   0 = a failing edit leaves the state untouched (default 1 = it was applied)
   HL_STUB_SKIP_FIELDS  comma-separated labels an edit does NOT apply (a partial write)
   HL_STUB_ECHO_ARGV    1 = echo argv on stderr, the error shape that can carry a value
+  HL_STUB_HANG         verbs that never answer ("edit", "get", "edit,get"): the call runs until the
+                       provisioner's own timeout kills it — the hung-CLI class no rc can summon. On
+                       the edit/create legs the state change is applied FIRST, i.e. the request went
+                       out and only the answer is missing, which is what a hung CLI actually means.
 """
 import json
 import os
 import sys
+import time
 
 SEP = "\x01"
 STATE = os.environ["HL_STUB_VAULT"]
@@ -608,6 +660,11 @@ def find(doc, ref):
     return None
 
 
+def hang(verb):
+    if verb in [s for s in os.environ.get("HL_STUB_HANG", "").split(",") if s]:
+        time.sleep(600)  # killed by OP_TIMEOUT in the arm; the length only has to be "forever"
+
+
 def assigns(args):
     for a in args:
         if a.startswith("--") or "=" not in a:
@@ -622,12 +679,14 @@ if LOG:
 if ARGV[:2] == ["item", "list"]:
     if code("HL_STUB_LIST_RC"):
         sys.exit(code("HL_STUB_LIST_RC"))
+    hang("list")
     print(json.dumps([{"id": i["id"], "title": i["title"]} for i in load()["items"]]))
     sys.exit(0)
 
 if ARGV[:2] == ["item", "get"]:
     if code("HL_STUB_GET_RC"):
         sys.exit(code("HL_STUB_GET_RC"))
+    hang("get")
     it = find(load(), ARGV[2])
     if it is None:
         sys.exit(1)
@@ -646,6 +705,7 @@ if ARGV[:2] == ["item", "edit"]:
             if label not in skip:
                 it["fields"][label] = value
         save(doc)
+    hang("edit")  # the write went out and the CLI never came back
     sys.exit(code("HL_STUB_EDIT_RC"))
 
 if ARGV[:2] == ["item", "create"]:
@@ -656,6 +716,7 @@ if ARGV[:2] == ["item", "create"]:
     doc["items"].append({"id": "stub-" + str(len(doc["items"])), "title": title,
                          "fields": dict(assigns(ARGV[ARGV.index("--vault") + 2:]))})
     save(doc)
+    hang("create")  # same shape as the edit leg: the request went out, the answer never came
     print("created " + title)
     sys.exit(0)
 
@@ -712,12 +773,13 @@ def cmd_self_test(_args) -> int:
         def created_titles(calls):
             return [c[c.index("--title") + 1] for c in calls if c[:2] == ["item", "create"]]
 
-        def run(fn, *, items, env=None, catalog=None, coupled=None):
+        def run(fn, *, items, env=None, catalog=None, coupled=None, op_timeout=None):
             """Seed a stub vault, point the tool at the stub, run fn(), return the verdict + the log."""
             state.write_text(json.dumps({"items": [dict(i) for i in items]}), encoding="utf-8")
             log.write_text("", encoding="utf-8")
             saved = {k: os.environ.get(k) for k in _STUB_ENV}
             saved_cat, saved_auto, saved_op = CATALOG, NOT_AUTO_ROTATABLE, OP_ARGV
+            saved_to = OP_TIMEOUT
             for key in _STUB_ENV:
                 os.environ.pop(key, None)
             os.environ["HL_STUB_VAULT"] = str(state)
@@ -725,6 +787,9 @@ def cmd_self_test(_args) -> int:
             os.environ["OP_SERVICE_ACCOUNT_TOKEN"] = "selftest-token-is-not-a-vault-credential"
             os.environ.update(env or {})
             globals()["OP_ARGV"] = [sys.executable, str(stub)]
+            # The hung-CLI arms cannot wait out the real 60 s bound, so the clock under test is the
+            # only thing scaled — same in-place swap the OP_ARGV seam already does, never an env var.
+            globals()["OP_TIMEOUT"] = OP_TIMEOUT if op_timeout is None else op_timeout
             if catalog is not None:
                 globals()["CATALOG"] = catalog
             if coupled is not None:
@@ -735,7 +800,7 @@ def cmd_self_test(_args) -> int:
                     got = fn()
             finally:
                 globals()["CATALOG"], globals()["NOT_AUTO_ROTATABLE"] = saved_cat, saved_auto
-                globals()["OP_ARGV"] = saved_op
+                globals()["OP_ARGV"], globals()["OP_TIMEOUT"] = saved_op, saved_to
                 for key, val in saved.items():
                     if val is None:
                         os.environ.pop(key, None)
@@ -897,6 +962,45 @@ def cmd_self_test(_args) -> int:
         check("--rotate-all names the item that did not land; the landed one did rotate",
               t_pair in err and value_of(id_p, "password") == old_pw
               and value_of(id_a, "credential") == new_pw, f"got {got}: {err.strip()}")
+
+        # 17 — the hung `op`. An unbounded call blocks a rotation lane forever, so every call carries
+        # a deadline; the arm shrinks the deadline, never the behaviour under test. A timeout is the
+        # one verdict that must NEVER become a `rotated` line even when the re-read already shows the
+        # new value: a killed call may still be in flight, so the answer is UNPROVEN and a human
+        # confirms the item. The state is written by the stub to model exactly that ambiguity.
+        got, out, err, calls = run(rotate_single(), items=seed_single,
+                                   env={"HL_STUB_HANG": "edit", "HL_STUB_EDIT_LANDS": "1"},
+                                   op_timeout=0.3)
+        check("edit never answers + the value landed -> UNPROVEN, never rotated", got is False
+              and "UNPROVEN" in err and "rotated" not in out, f"got {got}: {out.strip()}")
+        check("edit never answers -> the edit was attempted ONCE, nothing created",
+              edit_targets(calls) == [id_a] and created_titles(calls) == [], str(calls))
+        got, out, err, calls = run(rotate_single(), items=seed_single,
+                                   env={"HL_STUB_HANG": "edit", "HL_STUB_EDIT_LANDS": "0"},
+                                   op_timeout=0.3)
+        check("edit never answers + not landed -> FAILED, old value intact, no traceback", got is False
+              and "UNPROVEN" in err and "Traceback" not in out + err
+              and value_of(id_a, "credential") == old_pw, f"got {got}: {err.strip()}")
+        got, out, err, calls = run(rotate_single(), items=seed_single,
+                                   env={"HL_STUB_HANG": "edit,get", "HL_STUB_EDIT_LANDS": "1"},
+                                   op_timeout=0.3)
+        check("edit + re-read both never answer -> UNPROVEN with no traceback", got is False
+              and "UNPROVEN" in err and "the re-read failed too" in err
+              and "Traceback" not in out + err, f"got {got}: {err.strip()}")
+        got, out, err, calls = run(lambda: cmd_rotate(opts(rotate=t_single, rotate_all=False, yes=True)),
+                                   items=seed_single, env={"HL_STUB_HANG": "list"},
+                                   catalog=test_catalog, op_timeout=0.3)
+        check("listing never answers -> --rotate aborts, zero writes", got == 1
+              and edit_targets(calls) == [] and created_titles(calls) == [], f"got {got}: {verbs(calls)}")
+        got, out, err, calls = run(lambda: cmd_create(opts(yes=True)), items=seed_single,
+                                   env={"HL_STUB_HANG": "list"}, catalog=test_catalog, op_timeout=0.3)
+        check("listing never answers -> --create aborts, zero creates", got == 1
+              and created_titles(calls) == [], f"got {got}: {verbs(calls)}")
+        got, out, err, calls = run(lambda: cmd_create(opts(yes=True)), items=[],
+                                   env={"HL_STUB_HANG": "create"}, catalog=test_catalog, op_timeout=0.3)
+        check("create never answers -> rc 1, ONE attempt per title, never retried", got == 1
+              and created_titles(calls) == [t_single, t_pair, t_coupled]
+              and "timed out" in err, f"got {got}: {created_titles(calls)}")
 
     print(f"\nprovision-secrets.py self-test: {tally['n']} checks, "
           f"{len(tally['bad'])} failure(s) — zero vault contact, zero writes outside the fixture")
