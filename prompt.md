@@ -111,7 +111,9 @@ gate), the register read that generates the list, and the rotations that close a
 name means *a vault-only `--rotate` would leave the far end on the old value*, so those items are rotated by AI work
 — far end first, then the vault write, then the converge — and only the no-machine-channel and human-vault ones
 (`op_api`'s console re-issue) or the ones outside our scope (`pppoe_login`, the Soulseek network account) wait for a
-person. Containment is for that last set alone, and it lowers the copy count rather than closing anything.
+person. Containment is for that last set alone, and it lowers the copy count rather than closing anything — the
+no-path ruling is recorded in two places and held equal by a checker arm: the debt register's `path:` column and
+`NOT_ROTATABLE` in [`scripts/secrets/provision-secrets.py`](scripts/secrets/provision-secrets.py).
 
 Ranked by what unblocks the most. Each line is the item + **the domain brief that carries its order of work** — the brief,
 not this list, holds the steps, the file ownership and the converge host. Waves, pairing and the host/slot rule are

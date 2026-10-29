@@ -176,10 +176,14 @@ starts protecting the commits the other three are made of.
   1Password console, where `op_api`'s re-issue sits, or a write into the **human** vault), or a credential outside
   our scope (`pppoe_login`, the Soulseek network account). The two sets overlap and neither contains the other,
   so containment derives from the register's `path: none` half and never from the guard.
-- **The fact needs one home.** HD-1217's register carries the machine-readable `path:` half — `lane` /
-  `lane+converge` / `human` / `none` — containment derives `none` ∩ the register, and the gate reads the same
-  column. ⛔ Do not repurpose or rename the provisioner's set for this: its meaning belongs to the auto-provision
-  path, and renaming it moves a decision every rotate leg already depends on.
+- **Where the fact lives — ruled.** Two places, and the checker holds them equal. HD-1217's register carries the
+  per-debt `path:` column — `lane` / `lane+converge` / `human` / `none` — and
+  [`scripts/secrets/provision-secrets.py`](../scripts/secrets/provision-secrets.py) states a `NOT_ROTATABLE` set
+  that names the same ruling at the item level, beside — and deliberately distinct from — the
+  `NOT_AUTO_ROTATABLE` guard. Containment derives `path: none` ∩ the register and cross-checks it against
+  `NOT_ROTATABLE`; an arm reddens when the two disagree, because two copies of one ruling is the twin every gate
+  in this repo exists to catch. ⛔ Neither repurpose nor rename `NOT_AUTO_ROTATABLE`: its meaning belongs to the
+  auto-provision path, and renaming it moves a decision every rotate leg depends on.
   Cheap test: print the derived scope and count it — non-empty, holding every register line whose far end has no
   machine channel, and holding nothing `--rotate` would accept today.
 - **Replace by value, never by shape**; refuse git objects, IaC and rendered live config, and the invoking
@@ -274,7 +278,8 @@ follows them. Clearing this is **not** a trim: it is the state-only rule (CONVEN
 
 ### Phase 4 — containment (HD-1218)
 
-- [ ] Settle the scope-derivation question in §3d, in the one place the register owns, with the count printed.
+- [ ] Land the two halves of the ruling: `NOT_ROTATABLE` in `provision-secrets.py` and the register's `path:`
+      column (§3d), plus the arm that reddens when they disagree.
 - [ ] Write `scripts/secrets/contain-leaked-values.py` (not committed yet) and the `CONTAINED` verdict in
       `check_secret_leak.py`, both halves covered by `--self-test` arms that read no vault.
 - [ ] One `--dry-run` over the stores on this seat: ids and counts only, then the real run, then the scanner's
@@ -359,8 +364,8 @@ Plus, per tool, the cheap test that only passes because of the fix: the version-
 - **Prevention and remediation never share a verdict word**: `CONTAINED` is neither `STALE` nor `OK`.
 - **`NOT_AUTO_ROTATABLE` is the auto-rotation ordering guard, not a list of the unrotatable.** Membership means
   "a vault-only write leaves the far end behind", and the lane rotates those items through their far end. The
-  set containment derives from is the **no-path** one — human-only or outside our scope — and the provisioner's
-  name is not renamed to make that readable.
+  no-path ruling lives in TWO places and they are held equal by a checker arm: the register's `path:` column and
+  `NOT_ROTATABLE` in `scripts/secrets/provision-secrets.py`. The guard is neither, and is not renamed to say so.
 
 ## 10. Held out on purpose
 
