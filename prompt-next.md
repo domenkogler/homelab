@@ -92,27 +92,38 @@ list read. That artifact is what the owner walks into for §6.
 
 ---
 
-## 4. Act 3 — make the seat's resolver family repo-owned
+## 4. Act 3 — make the seat's resolver family repo-owned — AUTHORED, one root act left
 
-**HD-1176** tail: the per-link resolver claim (`resolvectl dns`/`domain`), the `resolved.conf.d` uplink drop-in,
-and the re-assert unit pair live on one WSL seat as unversioned state. A reimaged box comes back with the
-NXDOMAIN leak. The sibling already shows the shape: `scripts/harness/seat-llm-path-timer.sh` owns the pin's
-unit pair and names this family as its own — read it before writing anything.
+The owner exists: [`scripts/harness/seat-dns-route.sh`](scripts/harness/seat-dns-route.sh) plus the
+`plane: dns-route` record in [`scripts/lib/seat-planes.yml`](scripts/lib/seat-planes.yml) — the registry, not a
+hand-maintained list, is what lets `pi-seat-sync.sh --plane dns-route --check` say a seat is short. The three
+rules the family rests on (per-link because a drop-in cannot split the arms; the timer because per-link state
+does not survive a resolver restart; the read-back because `resolvectl` exits `0` when resolved refuses) are
+state in [docs/network-dns.md](docs/network-dns.md) §Host-side resolver, and the plane set with its seat matrix
+is [docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1. The sibling the shape came from is
+`scripts/harness/seat-llm-path-timer.sh`.
 
-* New owner in `scripts/harness/` + one `plane:` record in `scripts/lib/seat-planes.yml`; the registry, not a
-  hand-maintained list, is what makes `pi-seat-sync.sh --plane <name> --check` able to say a seat is short.
-* ⛔ These are **seat** artifacts: the push leg runs FROM the seat, because a seat plane converges from its own
+* **What is left is one line, on the seat:** `sudo bash scripts/harness/seat-dns-route.sh --install` run **from
+  the primary clone** — from a linked worktree it refuses, because the `ExecStart` it writes would name a lane
+  directory that `git worktree remove` deletes. It takes the family's own hand-placed pre-repo bytes over as
+  `DRIFT(legacy)` with a dated `.bak-` beside each and retires the `/usr/local/sbin` copy; `--check --strict`
+  after it is the proof, and the timer runs `--push` from then on.
+* ⛔ These stay **seat** artifacts: the push leg runs FROM the seat, because a seat plane converges from its own
   clone and the station cannot speak for a seat's PATH
   ([docs/harness-pi-seat-identity.md](docs/harness-pi-seat-identity.md) §5a), and a host on the session's own
-  model path is off-limits to a converge act ([docs/orchestration.md](docs/orchestration.md) §3 item 9).
+  model path is off-limits to a converge act ([docs/orchestration.md](docs/orchestration.md) §3 item 9) — read
+  `seat-llm-path.sh --check` first: `path=lan` means an act on this seat cannot cut the session.
 * ⛔ Not the answer plane: no zone row, no netmap record, no `hosts` line, and the zone-wide "ask the home
   resolver at home" switch stays rejected for everything but the one inference name
   ([docs/network-dns.md](docs/network-dns.md) §Host-side resolver).
-* Idempotence is the whole design: flush, write, re-read, and log the read-back — `resolvectl` exits `0` even
-  when `resolved` refuses, and `RemainAfterExit=yes` once made every timer fire a silent no-op.
+* Idempotence was the design and is an arm, not a claim: a second install is byte-identical, `RemainAfterExit`
+  arriving through a unit drop-in is `DRIFT(drop-in)`, and a `resolvectl` stub that exits `0` while its own
+  read-back disagrees never reports OK.
 
-**Acceptance:** the plane `--check` distinguishes a seat that has the family from one that does not; the
-installer is idempotent on a second run; the row's tail loses the "no repo owner" clause and nothing else.
+**Acceptance:** met in fixtures — 210 arms over 20 groups, including the seat's live-shaped bytes taken over as
+this family's while a one-byte variant stays `DRIFT(foreign)`; the live `--check --strict` on this seat reads
+`DRIFT(legacy)` on all four artifacts, i.e. an install that will succeed. The row's tail lost the "no repo
+owner" clause and nothing else.
 
 ---
 

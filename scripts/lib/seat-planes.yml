@@ -188,3 +188,31 @@ check: --check --strict
 push: --push
 seats: wsl
 installer: none
+
+---
+# The seat's RESOLVER-ROUTE plane (docs/network-dns.md §Host-side resolver): the `resolved.conf.d` uplink
+# drop-in, the `homelab-dns-route` unit pair, and the per-link claim that keeps a public `NXDOMAIN` for an
+# internal `*.kogler.si` name from being cached against the NAME for the zone's SOA minimum (1800 s). The
+# four artifacts were live state on one box with no repo owner, which is why a reimaged seat came back
+# leaking; this row is the owner they never had.
+#
+# `wsl` only, and that is MEASURED rather than inferred: the oldsrv cockpit seat runs `systemd-resolved`
+# INACTIVE with no `resolvectl` at all, and its `/etc/resolv.conf` is NetworkManager-generated and points
+# at the home resolvers. The per-link claim is an act ON `resolved`, and that seat has no `resolved` to act
+# on — a row for it there could only ever report MISSING, which is the mute-a-gate class this repo keeps
+# meeting, so the plane is declared where the mechanism exists.
+#
+# `installer: none`, for the same reason the `llm-path` row says it: this arm's act is root-owned unit files
+# plus a resolver act, and a from-zero bootstrap converging a HOME must not enable a systemd timer or
+# reconfigure a resolver. A bootstrap that failed on files it has no business writing would teach the wrong
+# lesson; the arm is landed on the seat by one root command, and the fan-out's push leg runs `--push`, which
+# is the same act the timer's ExecStart runs and the only thing that PROVES the claim (read-back, because
+# `resolvectl` exits 0 even when resolved refuses).
+plane: dns-route
+harness: all
+owner: seat-dns-route.sh
+runner: bash
+check: --check --strict
+push: --push
+seats: wsl
+installer: none

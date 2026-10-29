@@ -396,6 +396,23 @@ a 2-minute timer — `Type=oneshot` **without** `RemainAfterExit`, since an `act
 every later start (timer fires included) a no-op that reports success. `resolvectl` exits 0 when resolved
 refuses the call, so the re-assert logs its own read-back.
 
+**The route family has a repo owner: the `dns-route` seat plane.** The mechanism above was landed on the seat
+long before anything in the tree owned it — three unversioned files and one hand-placed script on one box,
+which is exactly why a reimaged seat came back leaking with nothing able to say so. That owner is
+[`../scripts/harness/seat-dns-route.sh`](../scripts/harness/seat-dns-route.sh): it renders the uplink drop-in
+and the `homelab-dns-route` unit pair, points the unit's `ExecStart` at the **repo** path instead of a copy
+under `/usr/local/sbin` (an unowned copy of an act is a second source no converge reaches and no drift check
+sees), derives link and uplink from `ip route` on every run because the gateway moves between boots, and
+states the three rules above as one mechanism each. `--check [--strict]` is the read and the seat leg the
+fan-out runs, `--install` is the root act that lands it and takes over the family's own pre-repo bytes, and
+`--push` is what the timer runs — the same half a person would. Provenance is proved rather than assumed in
+both directions: an unmarked file under the arm's name is someone else's and the install writes nothing,
+while the family's own hand-placed bytes are recognised and taken over, so "it predates the marker" is a
+verdict and not a permanent accusation. It never restarts `systemd-resolved` — bouncing it takes every
+link's state with it, which is the state this arm exists to hold. Declared for the WSL seat only (the
+cockpit seat runs no `systemd-resolved`, so there is no resolver there to claim a link on) and converged by
+no installer; the plane set and the seat matrix are [harness-pi-seats.md](harness-pi-seats.md) §1.
+
 ⚠ **The leaky arm stops being leaky on the Windows side, and that is the half that fixes both seats.** The
 uplink behind the gateway is the Windows resolver, so once the Tailscale adapter carries the MagicDNS loop
 (`netsh interface ipv4 show dnsservers name="Tailscale"` prints it **and** `Get-DnsClientServerAddress`
