@@ -664,6 +664,16 @@ Client → Technitium (DHCP-pushed chain, see below)
   the documented `POST /api/user/changePassword` (`pass` + `newPass` + `Authorization: Bearer`) recreates the
   admin to the 1P value, after which the seed is idempotent. A stale local admin is the classic cause of a
   silently unseeded instance (login fails → seed never runs → `NOERROR`/0-answer for internal names).
+- **The DNS admin credential is three credentials wearing one vault value.** Every instance keeps its own
+  local `admin` in its own `/etc/dns/auth.config`, every instance's `kogler.si` zone is **Primary**, and no
+  instance authenticates to another — there is no AXFR/IXFR and no shared secret anywhere in the tier, so
+  **nothing replicates a password change**. Rotating it is three `POST /api/user/changePassword` calls, one
+  per instance (`pass` = the value THAT instance currently accepts, so one mismatched instance cannot be
+  moved by the other two's success). The vault holds the same value under a second title, `admin @dns.kogler.si`,
+  which no task reads and nothing keeps in step — a rotation writes **both** items in one act.
+  ⛔ A vault-only write is the divergence the blocklist names: resolution keeps answering, so the tier looks
+  healthy while every future seed's login fails against it. Moving an instance's password does not restart
+  or reload its resolver — the blast radius is the seed, never the answer path.
 
 ### Static records
 
