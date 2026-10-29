@@ -335,6 +335,17 @@ from a runner, these rules are what make it safe *and correct*:
   judged and would let that run shorten the debt register. Name the seat with every leak-check verdict, and treat
   a store-less clone's `OK` as a partial result (the honest form of the same run is `--no-captures`, which prints
   `NOT SCANNED run-capture` and marks the line `PARTIAL`).
+- **Containment is not remediation.** Overwriting a leaked value's copies — in a capture, a host log, a committed
+  raw artifact — lowers how many places a credential can be read from and changes nothing about the credential
+  itself. It is permitted for the values this fleet **cannot** rotate, it is run by hand and never by a gate, and
+  the debt line stays open until the item rotates. The distinction the tooling must keep: a contained pair prints
+  **contained**, never `STALE` and never `OK` — a scanner that only asks "is the current value still here" reads a
+  redaction and a rotation identically, so it is a receipt, never a hit count, that tells them apart
+  ([`scripts/gate/secret_leak_ledger.txt`](../scripts/gate/secret_leak_ledger.txt)'s `STALE` means *rotated*, and a
+  contained pair is not rotated). Containment that leaves no receipt is indistinguishable from hiding, which is what
+  that header forbids. **A hash of a live value is not the rotation check** for the same reason a hash is not a
+  proof anywhere else here: a short credential's hash is an offline guess-check; the vault's per-item `version`
+  answers "rotated yet" and reads no value at all ([1password.md](1password.md) §Output hygiene).
 - **A minted preauth key is captured, never displayed.** headscale 0.29.4 has no `--output <file>` —
   `-o` is the FORMAT flag — so `preauthkeys create … -o json` writes the value to stdout, and the
   documented mint commands in this repo and in `deployment-manual.md` are therefore only safe inside a

@@ -32,6 +32,7 @@ tags: [deployment, rejected, decision-log]
 | `corpus_diff.py` as a registered gate                                          | rejected   | runs outside the tree; three preconditions gate promotion       |
 | `corpus_diff.py --gate` as a pool item                                         | superseded | the pinned window is a wave-boundary act; the cap and the accepts list agree only at the tip |
 | `corpus_diff.py --gate` outside the pool                                       | superseded | add/drop rule took the token anchor; the verdict is a function of two revisions |
+| Debt-register columns on `secret_leak_ledger.txt`                              | rejected   | `--update-ledger` rewrites the body; an added column dies at the next re-derive |
 | Doco-CD                                                                        | dropped    | second Docker-socket deploy path; Ansible is the single path    |
 | `doco-cd_password` webhook HMAC                                                | superseded | single Ansible-only deploy path                                 |
 | DSH as LiteLLM consumer (`dsh_api`)                                            | rejected   | harness removed; parked, not re-minted                          |
@@ -44,6 +45,7 @@ tags: [deployment, rejected, decision-log]
 | `gen_wg_key()` provisioner helper                                              | dropped    | unused; `wg genkey` is authoritative                            |
 | `git bundle` runner seeding                                                    | rejected   | plants a commit GitHub has never seen                           |
 | `git filter-repo` scrub of the leaked bearer                                   | dropped    | Rotated value inert, rewrite buys hygiene only                  |
+| Hashed live-secret values in a debt register                                   | rejected   | a short credential's hash is an offline guess-check; the item's version answers "rotated yet" with no value read |
 | gluetun `qm12` fork image                                                      | superseded | upstream `qmcgaw/gluetun` is current                            |
 | /health wait to prove a re-render                                              | rejected   | Engine answers 200 before recreation                            |
 | iDrive e2 S3 (`kopia-s3_api`)                                                  | superseded | Kopia targets the backup Box over SSH/SFTP                      |
@@ -60,6 +62,7 @@ tags: [deployment, rejected, decision-log]
 | Persisted Authentik api-intent token (`authentik-provision_api`)               | superseded | ephemeral per-run token via `ak shell`                          |
 | Phase-2 build — AMD Ryzen 9 9900X + Radeon AI PRO R9700 + Proxmox VE (~€4,449) | superseded | spark GB10 gives more local inference per euro                  |
 | Pi-99 `ProxyJump` hop                                                          | superseded | the Mgmt99 vNIC reaches `.99` direct                            |
+| Pre-commit vault-leak leg                                                      | rejected   | one vault read per commit against a shared 1000 req/24 h budget; the leg runs at a push |
 | `prometheus-internal_api` (internal service auth)                              | superseded | VictoriaMetrics/Logs plaintext basic auth replaces it           |
 | Proxmox (local hypervisor, Phase 1)                                            | rejected   | oldsrv stays bare-metal; passthrough conflicts with the dGPU    |
 | Proxmox role + VM lab                                                          | superseded | spark GB10 is a bare-metal node, no hypervisor                  |
@@ -75,6 +78,7 @@ tags: [deployment, rejected, decision-log]
 | The owner's GitHub identity keys resident on the control/dev node              | rejected   | read-only deploy token plus the signing key instead             |
 | The **`Private` vault** as the home of the `GitHub sign` / `GitHub auth` keys  | superseded | both keys moved into `Homelab-ansible` for headless pulls       |
 | TOFU for GitHub host keys                                                      | rejected   | pinned from `api.github.com/meta`, cross-checked on the wire    |
+| Transcript redaction as leak remediation                                       | superseded | containment lowers the copy count only; rotation stays the close and the debt line stays open |
 | `user.signingkey=key::<pub>` as the seat's signing-key form                    | rejected   | the `key::` form dies without `SSH_AUTH_SOCK`; a key file signs |
 | VictoriaMetrics/VictoriaLogs TSDB as regenerable, not backed up                | superseded | Kopia-backed now; 365d retention bounds growth                  |
 | `vps-op-write_api` item title                                                  | superseded | renamed `op-write_api`, old title deleted                       |
