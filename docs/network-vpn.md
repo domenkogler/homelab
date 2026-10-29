@@ -377,16 +377,24 @@ node-direct shape as oldsrv's, which is what makes HA survivable when either hom
 ⚠ **The edge survives either box; the ANSWER survives it only where the field says so.** Which home nodes
 answer a `.ts` name is that entry's `tailnet:` field in `zone_kogler_si`: `node` renders one address
 (`tailnet_oldsrv_ip`), `dual` renders that address **and** `tailnet_pi_ip` — the second row appearing only
-where that address is set. `ha` is `node`, so when oldsrv's node is not answering, the away path that still
-works is `pi.ts.kogler.si`. Two addresses are what make the ANSWER survive either box — and only where BOTH
+where that address is set. `ha` is `dual`, and when oldsrv's node is not answering the away path that
+still works is `pi.ts.kogler.si` — which is also what it is while oldsrv IS answering, because the
+client-side collapse measured below is what that field does not change. Two addresses are what would
+make the ANSWER survive either box — and only where BOTH
 boxes answer TCP/443 under that name, because a second address behind a listener that is not there is one more
 timeout, not survivability. **Both home edges answer under that name** (`live-verified 2026-10-29`:
 200 with `CN=*.ts.kogler.si` and `ssl_verify_result=0` on `tailnet_oldsrv_ip` and on
-`tailnet_pi_ip`), so `ha` is `dual` and `dig @100.100.100.100 A ha.ts.kogler.si` returns BOTH node
-addresses. The pairing is the rule, not this row: a second address behind a listener that does not
-serve the name is one more timeout, not survivability — which is why the field and the
-`traefik-ha` certificate block are one change and never a flag on its own. The SERVICE surviving
-either box is the VIP's second advertiser, a different
+`tailnet_pi_ip`), and `ha` is `dual`, so the records file and the netmap both carry the two rows for
+`ha.ts.kogler.si`.
+
+⚠ **The client answers ONE address per name regardless, so `dual` buys no answer survivability today**
+(`live-verified 2026-10-29`: `dig +short @100.100.100.100 A ha.ts.kogler.si` from two tailnet members —
+oldsrv and the WSL seat — returned `tailnet_oldsrv_ip` on 12 of 12 queries with resolver caches flushed
+between them, never `tailnet_pi_ip`; the netmap those clients hold does carry both rows, read from
+`tailscale debug netmap`). So the two rows are the RENDERED intent, not a multi-A answer: the away path
+that survives oldsrv's node dying is still the OTHER node's own name, `pi.ts.kogler.si`. The mechanism
+inside the client that collapses the pair is not established here — the claim this section makes is the
+measurement, not the code path. The SERVICE surviving either box is the VIP's second advertiser, a different
 claim ([smart-home-failover.md](smart-home-failover.md) §Away access (tailnet)).
 
 ⚠ **`tag:spark` grants nothing, and that is the point.** An ACL grants by TAG, so spark taking

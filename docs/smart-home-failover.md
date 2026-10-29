@@ -268,10 +268,13 @@ when the VIP is on oldsrv. Because the VIP already tracks the active HA node, th
   `tailnet_subdomains`, which would answer the PLAIN `ha.kogler.si` client-side for a phone standing at home.
   ✅ **Both halves are in place, so `ha` IS `dual`**: the Pi's `traefik-ha` loads the `.ts` pair in its
   `tls.certificates` and answers SNI `ha.ts.kogler.si` with `CN=*.ts.kogler.si` / HTTP 200 /
-  `ssl_verify_result=0`, beside oldsrv's, so the second address is a second answer and not a second
-  timeout (`live-verified 2026-10-29`). The pairing is the standing rule: a `tailnet:` field widened
-  ahead of the listener behind it turns half of all away clients into a TLS error
-  ([network-vpn.md](network-vpn.md) §Tailnet boundary).
+  `ssl_verify_result=0`, beside oldsrv's (`live-verified 2026-10-29`) — the listener prerequisite is met,
+  so the second row is a real answer waiting for a client that uses it. ⚠ It is not one yet: a tailnet
+  client answers a name from ONE extra_record (`dig` from two members returned oldsrv's address on 12 of
+  12 flushed queries), so publishing both does not yet make the ANSWER survive a node death, and the
+  away path that does survive remains the other node's own name `pi.ts.kogler.si`
+  ([network-vpn.md](network-vpn.md) §Tailnet boundary). The standing rule survives the measurement: a
+  `tailnet:` field widened ahead of the listener behind it turns half of all away clients into a TLS error.
   Reasons: [network-dns.md](network-dns.md) §The answer-plane model.
 - ⚠ A dual-A publish makes the **answer** survive either home box and does not make the **service** survive
   it. Both `ha`/`ha-ts` routers target the VIP, and the VIP has one advertiser until the standby is

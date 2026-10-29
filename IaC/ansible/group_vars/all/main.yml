@@ -362,8 +362,10 @@ tailnet_spark_ip: ""
 #              answer). `dual` = the same `.ts` name answered by BOTH home nodes: the first
 #              row takes the class default, the second is always `tailnet_pi_ip`, and that
 #              second row renders only when the address is set — a node the deploy never
-#              filled costs one answer, never the config. Publishing two addresses is what
-#              keeps the ANSWER alive across a home-box death; the service behind the name
+#              filled costs one answer, never the config. Publishing two addresses is what WOULD
+#              keep the ANSWER alive across a home-box death; a tailnet client answers a name
+#              from one extra_record today, so the second row is the intent and not yet a second
+#              answer (docs/network-vpn.md §Tailnet boundary), and the service behind the name
 #              surviving is a different claim (docs/smart-home-failover.md).
 #   tailnet_ip: literal tailnet IPv4. OMIT it to take the class default
 #              (`tailnet_sidecar_ip` for edge, `tailnet_oldsrv_ip` for node/dual).
@@ -397,10 +399,11 @@ tailnet_spark_ip: ""
 # protects the answers, not the author's convenience.
 zone_kogler_si:
   # --- control plane + the HA pair (the VIP answers; the edge follows HA either way) ---
-  # `dual` = the `.ts` answer goes to BOTH home nodes, so the away path survives either box
-  # dying (docs/smart-home-failover.md §Away access). Both nodes answer that SNI with the
-  # `*.ts` pair — the field is only survivability where that is true, so it is a paired change
-  # with the listener's cert block, never a lone flag.
+  # `dual` = the `.ts` answer renders BOTH home nodes' addresses (docs/smart-home-failover.md
+  # §Away access). Both nodes must answer that SNI with the `*.ts` pair for the row to mean
+  # anything, so the field is a paired change with the listener's cert block, never a lone flag.
+  # ⚠ A client answers a name from ONE extra_record today, so the second row does not yet move the
+  # answer off the first node — measured in docs/network-vpn.md §Tailnet boundary.
   - { name: ha.kogler.si,            internal: true, ip: "{{ ha_vip }}", tailnet: dual, ts_router: false }
   - { name: dns-pi.kogler.si,        internal: true, ip: "{{ ha_vip }}", tailnet: none, ts_router: false }
   # --- home-hosted media stack: oldsrv's internal edge at home, the VPS edge elsewhere ---
