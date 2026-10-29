@@ -96,18 +96,26 @@
     the profile as `mamba_state_slots` beside max_num_seqs. #}
 {% if profile.engine == 'sglang' and profile.get('cache_report', false) %}{%   set sglang_extra = sglang_extra + ['--enable-cache-report'] %}{% endif %}
 {#  Without cache-report the prefix tree is invisible on the wire: `usage.prompt_tokens_details.cached_tokens`
-    is filled only when the engine may report it, and the point of the radix pair is to COUNT cached
-    prefix tokens per leg instead of inferring reuse from TTFT. Both legs carry it — a reporting arm
-    beside a blind one is not an A/B. ⚠ the flag NAME comes from the SGLang docs, not from a boot on
-    this box (no SGLang image is pinned, so none has booted here): verify it with
+    is filled only when the engine may report it, and the point of the radix × dtype grid is to COUNT
+    cached prefix tokens per cell instead of inferring reuse from TTFT. EVERY cell carries it — a
+    reporting arm beside a blind one is not a grid. ⚠ the flag NAME comes from the SGLang docs, not
+    from a boot on this box (no SGLang image is pinned, so none has booted here): verify it with
     `… sglang.launch_server --help-all` in the same change that takes the digest. #}
 {% if profile.engine == 'sglang' and not profile.get('radix_cache', true) %}{%   set sglang_extra = sglang_extra + ['--disable-radix-cache'] %}{% endif %}
-{#  `radix_cache` is the ONE flag between `sg-radix` and `sg-radix-off`. It is rendered here rather
-    than typed into an args_extra list so the pair cannot drift: both legs alias the SAME arg list
-    (*sg_radix_args in group_vars/spark.yml), and an A/B whose legs differ by two things measures
-    nothing. Read with .get() because this template renders under StrictUndefined, where
-    `x | default(y)` raises on the ATTRIBUTE before the filter sees it. Absent = true = sglang's own
-    default, so no existing profile changes behaviour. #}
+{#  `radix_cache` is one of the grid's TWO dials (`sg-radix-*` = ON, `sg-no_radix-*` = OFF). It is
+    rendered here rather than typed into an args_extra list so the cells cannot drift: all four alias
+    the SAME arg list (*sg_radix_args in group_vars/spark.yml), and a grid whose legs differ by two
+    things measures nothing. Read with .get() because this template renders under StrictUndefined,
+    where `x | default(y)` raises on the ATTRIBUTE before the filter sees it. Absent = true =
+    sglang's own default, so no existing profile changes behaviour. #}
+{% if profile.engine == 'sglang' and profile.kv_cache_dtype == 'fp8' %}{%   set sglang_extra = sglang_extra + ['--kv-cache-dtype', 'fp8_e4m3'] %}{% endif %}
+{#  The grid's second dial, spelled per engine: the profiles declare the LOGICAL dtype (`fp8`, the
+    value the gate's bytes-per-token constant prices) and each engine gets its own token — vLLM
+    `--kv-cache-dtype fp8`, SGLang `fp8_e4m3`. `auto` renders NOTHING here, which is how the bf16
+    cells stay byte-identical to the shape `fast-sglang` already boots. Not emitted for the fp8
+    counterpart `--quantization-param-path`: no calibrated scale file exists in any artifact set, so
+    SGLang uses 1.0 and the fp8 cells are numerics claims (gates 8–9), which is stated on the
+    profiles rather than hidden by a flag. #}
 {% set command_extra = command_extra + profile.args_extra | default([]) %}
 services:
   vllm-engine:

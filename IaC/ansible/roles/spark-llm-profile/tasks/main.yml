@@ -303,6 +303,10 @@
 #     the client contract promises: pi 400s mid-session (docs/spark-llm-profiles.md §Client
 #     contract). The pool is sglang's own startup-log number; the FLAG must at least honour
 #     the window we advertise.
+#   * `kv_cache_dtype` outside the three spellings the render knows: the compose template maps
+#     `fp8` → `--kv-cache-dtype fp8_e4m3` and renders NOTHING for `auto`/`bf16`, so an unknown
+#     value would boot a bf16 pool under a profile that claims another dtype — a silently wrong
+#     cell in the radix × dtype grid, which is worse than a refusal.
 - name: Render the SGLang arg list as a string for the invariant checks
   ansible.builtin.set_fact:
     spark_llm_args_str: "{{ spark_llm.args_extra | default([]) | join(' ') }}"
@@ -316,6 +320,7 @@
       - (spark_llm_args_str | regex_findall('--mem-fraction-static[= ]+([^ ]+)') | first | default('1.0')) | float <= 0.80
       - (spark_llm_args_str | regex_findall('--max-total-tokens[= ]+([^ ]+)') | first | default(spark_llm.max_model_len)) | int >= (spark_llm.max_model_len | int)
       - ('--ple-offload-embedding' not in spark_llm_args_str) or ((spark_llm_args_str | regex_findall('--ple-offload-backend[= ]+([^ ]+)') | first | default('pinned')) == 'file')
+      - spark_llm.kv_cache_dtype in ['auto', 'bf16', 'fp8']
     fail_msg: >-
       Profile '{{ spark_llm_profile }}' passes SGLang flags this box cannot survive:
       mem-fraction={{ spark_llm_args_str | regex_findall('--mem-fraction-static[= ]+([^ ]+)') | first | default('(unset — sglang default)') }}
@@ -326,7 +331,10 @@
       smaller than the client contract),
       ple-offload-backend={{ spark_llm_args_str | regex_findall('--ple-offload-backend[= ]+([^ ]+)') | first | default('(unset = pinned host RAM)') }}
       (on GB10 a pinned table comes out of the SAME 121.62 GiB pool as the weights — only
-      the `file` backend, with a bind of the XFS NVMe store at that path, moves it off).
+      the `file` backend, with a bind of the XFS NVMe store at that path, moves it off),
+      kv_cache_dtype={{ spark_llm.kv_cache_dtype }}
+      (one of auto|bf16|fp8: the render spells `fp8` as `--kv-cache-dtype fp8_e4m3` and says
+      nothing for the other two, so any other value silently boots a bf16 pool).
       Flags: spark_llm_profiles.{{ spark_llm_profile }}.args_extra in group_vars/spark.yml.
   tags: [spark, spark-llm-profile, llm]
 

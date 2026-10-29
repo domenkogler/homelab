@@ -608,7 +608,7 @@ spark_llm_profiles:
 # WHY bf16 KV HERE: on the vLLM side fp8 KV lives on the v32 lineage (`fast8` /
 # `fast-v32-bf16`, `image: ultrafast-v32`). On SGLang the QSA fp8-KV path is FIXED on the release
 # line (#38851 + #38855, both in v0.5.20+) but sits in no verified GB10 cell, so fp8 there is a
-# measurement this lane has not made — not a missing build. The `sg-radix` block below carries
+# measurement this lane has not made — not a missing build. The radix × dtype grid below carries
 # what it costs and what it buys.
 # So this lane measures ONE variable — the weights (and the engine), never two. Carrying
 # fp8 here would make it fail for a reason that is not NVFP4's.
@@ -670,8 +670,9 @@ spark_llm_profiles:
       # modelopt_mixed).
       - --attention-backend
       - triton
-      # ANCHORED: `sg-radix` / `sg-radix-off` alias this exact list (*sg_radix_args) — the
-      # radix pair must differ from this arm by ONE rendered flag, never by a re-typed copy.
+      # ANCHORED: the four grid cells (`sg-radix-bf16`, `sg-radix-fp8`, `sg-no_radix-bf16`,
+      # `sg-no_radix-fp8`) alias this exact list (*sg_radix_args) — the
+      # grid cells must differ from this arm by ONE rendered flag, never by a re-typed copy.
       - --linear-attn-prefill-backend
       - triton
       - --linear-attn-decode-backend
@@ -685,8 +686,8 @@ spark_llm_profiles:
       # `file` the offload pins the table in host RAM = the same 121.62 GiB pool = the
       # failure this lane was blocked on. `--ple-offload-dir` must point at a bind of the
       # XFS NVMe store, and the sparse 47.7 GiB file must not land on EXT4 or in the
-      # container's own storage: the bind is rendered by `ple_offload_bind` (the radix pair
-      # below sets it; this arm was authored before the bind existed).
+      # container's own storage: the bind is rendered by `ple_offload_bind` (the grid cells
+      # below set it; this arm was authored before the bind existed).
       - --ple-offload-backend
       - file
       - --ple-offload-dir
@@ -779,16 +780,28 @@ spark_llm_profiles:
       table (#37068) is the vendor's own fix for (1 Spark, weights) and is already
       authored below.
 
-  # ── 3b. THE RADIX PAIR — SGLang's prefix tree, measured on THIS box ────────
-  # WHY A PAIR AND NOT AN ARM: `fast-sglang` asks "can SGLang serve 262,144 on one Spark?", and
+  # ── 3b. THE RADIX × KV-DTYPE GRID — SGLang's tree and the KV byte, measured on THIS box ──
+  # WHY A GRID AND NOT AN ARM: `fast-sglang` asks "can SGLang serve 262,144 on one Spark?", and
   # that is already ruled (Rejected table: the pool sglang measures for these weights holds
-  # ~93k/~174k tokens). The unanswered question is the one the harness cares about: does
-  # RadixAttention's shared-prefix tree earn anything when ONE parent preamble is reused by its
-  # children — cheaper TTFT, fewer prefilled tokens, fewer evictions — at a shape this box can
-  # boot? A tree that is ON by default proves nothing until it has been compared to itself OFF,
-  # so these two arms are ONE shape with ONE rendered flag between them (`radix_cache`), same
-  # weights, same image, same boot family. Neither certifies anything: an A/B is a measurement,
-  # not a winner, and "no difference" is an acceptable verdict (docs/services-ai-rejected.md).
+  # ~93k/~174k tokens). Two questions survive it, and they are not independent:
+  #   * does RadixAttention's shared-prefix tree earn anything when ONE parent preamble is reused
+  #     by its children — cheaper TTFT, fewer prefilled tokens, fewer evictions? A tree that is ON
+  #     by default proves nothing until it has been compared to itself OFF.
+  #   * does fp8 KV buy the pool here? The dtype fix is on the release line (the facts sit in the
+  #     block below) and the repo constant prices fp8 at 1.70–1.89× — on a ~93k pool that lands
+  #     ~160k, still UNDER the 262,144 the client contract promises. That is a result, not a
+  #     defeat, and it is only readable next to the bf16 cell measured the same way.
+  # They interact: prefix reuse changes how many DISTINCT tokens the pool must hold, so a dtype
+  # gain measured with the tree ON and a tree gain measured in bf16 cannot be summed. Four cells,
+  # TWO declared variables, same weights, same image, same boot family — every row and every column
+  # is a one-flag comparison, and the interaction term arrives free. Nothing here certifies: "no
+  # difference" is an acceptable verdict on either dial (docs/services-ai-rejected.md).
+  #
+  # NAMING — `sg-<tree>-<dtype>`: `radix` is the tree ON (sglang's default, renders nothing),
+  # `no_radix` renders `--disable-radix-cache`; `bf16` is `kv_cache_dtype: auto` (renders nothing),
+  # `fp8` renders `--kv-cache-dtype fp8_e4m3`. BOTH dials are declarative profile keys rendered by
+  # the compose template, because a flag hand-toggled in a hand-run `docker run` is not a control
+  # leg — it is a different engine, and neither of them is ours.
   #
   # WHAT EACH LEG READS — the boot log first, the timer second, because the pool number is a
   # result and not a precondition:
@@ -800,14 +813,18 @@ spark_llm_profiles:
   #      floor with no ceiling there. This lane can answer a question the certified lane cannot.
   #   3. TTFT per leg, taken off-engine from the WSL2 seat (Rule 0: never timed by a session
   #      whose own model is spark).
-  #
+  #   4. on the two fp8 cells only: the engine's version banner, because the flag is safe on a build
+  #      at ≥ v0.5.20 and on an older one the first QSA prefill dies on a dtype assertion. The fp8
+  #      cells are also numerics claims — `--quantization-param-path` is unset, so the KV scales are
+  #      1.0 — which makes gates 8–9 part of the measurement rather than a formality.
   # WHAT DIFFERS FROM `fast-sglang` — four things, so the pair stays readable:
   #   * `max_num_seqs` 4 → 8: a prefix tree with one running sequence has nothing to share. 8
   #     is the harness's real fan-out (one parent + children) with headroom, not a bigger number.
   #   * `ple_offload_bind` is set, so `--ple-offload-dir` names a path that is actually bound to
   #     the XFS store instead of an empty mount point inside the container's own storage.
-  #   * the tree's state is DECLARATIVE (`radix_cache`). A flag hand-toggled in a hand-run
-  #     `docker run` is not an A/B — it is two different engines, and neither of them is ours.
+  #   * BOTH dials are DECLARATIVE (`radix_cache`, `kv_cache_dtype`). A flag hand-toggled in a
+  #     hand-run `docker run` is not a control leg — it is two different engines, neither of them
+  #     ours, and a grid whose legs were typed by hand is not a grid.
   #   * `cache_report` is ON, so `usage.prompt_tokens_details.cached_tokens` arrives per response.
   #     It is on BOTH legs — a reporting arm beside a blind one is not comparable, and this is the
   #     only place the tree states how many tokens it served from cache rather than recomputed.
@@ -847,8 +864,8 @@ spark_llm_profiles:
   #     REWRITTEN on every startup — read-modify-write over an existing file is ~17 MB/s ≈ 55 min,
   #     a fresh sparse file fills at GB/s ≈ 10 min. Stop every server using the directory and
   #     delete its `ple_table_*.bin` before a boot you intend to time, or the timer measures XFS.
-  sg-radix:
-    label: "PROBE — SGLang with RadixAttention ON (arm A of the A/B; image pin still empty)"
+  # The ONE shape all four cells share, anchored so a grid cannot decay into four configs.
+  _sg_x: &sg_x
     engine: sglang
     container: sglang-qwen-spark
     model_subdir: Qwen3.8-Flash-Next-NVFP4-RadixArk
@@ -857,19 +874,20 @@ spark_llm_profiles:
     ple_overlay: false
     ple_offload: true
     ple_offload_bind: ple_offload         # → <spark_xfs_mount>/ple_offload:/ple_offload (RW, XFS)
-    radix_cache: true                     # renders nothing: the tree is sglang's own default
-    cache_report: true                    # → --enable-cache-report: cached_tokens per response
-    served_name: spark/qwen3.8-flash-next-sg   # NOT the fleet id: an uncertified engine is never
-                                               # reachable through `spark/*` routing
-                                               # (docs/harness-pi-engines.md §6)
+    radix_cache: true                     # the dial: `true` renders NOTHING (the tree is sglang's
+                                          # own default), `false` renders --disable-radix-cache
+    cache_report: true                    # → --enable-cache-report on EVERY cell: a reporting arm
+                                          # beside a blind one is not a grid, it is an anecdote
+    served_name: spark/qwen3.8-flash-next-sg   # ONE id for the engine, not one per cell: an
+                                              # uncertified engine is never reachable through
+                                              # `spark/*` routing (docs/harness-pi-engines.md §6),
+                                              # and exactly one profile is live per converge
     max_model_len: 262144                 # the contract stays whole; the POOL is what we measure
     max_num_seqs: 8                       # --max-running-requests (fan-out note above)
-    mamba_state_slots: 5                  # → --max-mamba-cache-size 40: 8 requests × 5 extra_buffer slots.
-                                          # 24 would have silently capped this arm at 4 running requests.
+    mamba_state_slots: 5                  # → --max-mamba-cache-size 40: 8 requests × 5 extra_buffer
+                                          # slots. A hand-typed 24 would have silently capped every
+                                          # cell at 4 running requests.
     max_num_batched_tokens: 4096          # --chunked-prefill-size
-    kv_cache_dtype: auto                  # bf16: fp8 KV is IN the SGLang release line (v0.5.20+,
-                                          # #38851/#38855) but no verified GB10 cell runs it — it is
-                                          # a leg to measure, not a flag to flip blind
     kv_cache_memory: "0"                  # unused by SGLang (the pool is --mem-fraction-static's)
     max_cudagraph_capture_size: 0
     enforce_eager: false
@@ -897,70 +915,66 @@ spark_llm_profiles:
     ple_staged_marker: META.json
     cudagraph_piecewise: false
     prompt_tokens_details: false
-    never_evict_prompt: ""            # the SGLang flag family has no --never-evict
+    never_evict_prompt: ""                # the SGLang flag family has no --never-evict
     never_evict_max_fraction: *nevf
     ple_mmap: false
     draft_vocab: false
     artifact_sets: [nvfp4-radixark]
     certified: false
+    # The two DIALS are deliberately NOT here: `radix_cache` and `kv_cache_dtype` are what the
+    # grid varies, so each cell declares both and the diff of any row or column is one flag.
+
+  # ── cell: tree ON, KV bytes bf16 — the reference cell every other one is compared to ──
+  sg-radix-bf16:
+    <<: *sg_x
+    label: "PROBE — SGLang NVFP4, radix tree ON, bf16 KV (reference cell; image pin still empty)"
+    radix_cache: true
+    kv_cache_dtype: auto                  # → nothing rendered: `auto` is model dtype = bf16
     uncertified_reason: >-
       Same first blocker as `fast-sglang`, and it is not a flag: `spark_sglang_image` holds no
       arm64 digest, so the profile gate refuses the profile long before anything boots
       (CONVENTIONS §7: verify the manifest, take the digest, pin it, record the verification in
-      the same change). Second: an A/B run on an unmeasured pool can return "both legs failed
-      the same way", which is a verdict about the pool and not about RadixAttention — read the
-      boot-log pool line before timing a single leg.
+      the same change). Second: a grid run on an unmeasured pool can return "all four cells failed
+      the same way", which is a verdict about the pool and not about the tree or the dtype — read
+      the boot-log pool line before timing a single leg.
 
-  sg-radix-off:
-    label: "PROBE — the same SGLang shape with the radix tree DISABLED (control leg)"
-    engine: sglang
-    container: sglang-qwen-spark
-    model_subdir: Qwen3.8-Flash-Next-NVFP4-RadixArk
-    ple_host_subdir: ""
-    ple_container_dir: ""
-    ple_overlay: false
-    ple_offload: true
-    ple_offload_bind: ple_offload
-    radix_cache: false                    # renders --disable-radix-cache — the ONLY delta
-    cache_report: true                    # the control must REPORT what it is not caching, too
-    served_name: spark/qwen3.8-flash-next-sg
-    max_model_len: 262144
-    max_num_seqs: 8
-    mamba_state_slots: 5                  # identical to `sg-radix`: the control must not differ here
-    max_num_batched_tokens: 4096
-    kv_cache_dtype: auto
-    kv_cache_memory: "0"
-    max_cudagraph_capture_size: 0
-    enforce_eager: false
-    distributed_executor_backend: mp
-    spec_method: nextn
-    spec_tokens: 3
-    memory_limit: 105G
-    health_start_period: 4800s
-    env_extra:
-      - SGLANG_QWEN4_PLE_FILE_RSS_BUDGET_GB=8
-    args_extra: *sg_radix_args
-    reasoning_surface: always-on-effort-unmeasured
-    client_context_window: 262144
-    client_max_tokens: 16384
-    image: sglang
-    models_root: xfs
-    tool_call_parser: qwen3_coder
-    generation_config_override: '{"temperature":1,"top_p":0.95,"top_k":20}'
-    ple_host_base: mount
-    ple_host_root: xfs
-    ple_staged_marker: META.json
-    cudagraph_piecewise: false
-    prompt_tokens_details: false
-    never_evict_prompt: ""
-    never_evict_max_fraction: *nevf
-    ple_mmap: false
-    draft_vocab: false
-    artifact_sets: [nvfp4-radixark]
-    certified: false
+  # ── cell: tree ON, KV bytes fp8 — the dtype dial, alone ──
+  sg-radix-fp8:
+    <<: *sg_x
+    label: "PROBE — SGLang NVFP4, radix tree ON, fp8_e4m3 KV (dtype dial; image pin still empty)"
+    radix_cache: true
+    kv_cache_dtype: fp8                   # → --kv-cache-dtype fp8_e4m3: the ONE delta vs
+                                          # `sg-radix-bf16`
     uncertified_reason: >-
-      The control leg of `sg-radix`: every coordinate identical except the rendered
+      Blocked by the same empty `spark_sglang_image`, and the fp8 leg carries a second condition
+      the bf16 cells do not: the flag is only safe on a build at ≥ v0.5.20, where #38851/#38855
+      dequantize the FP8 cached prefixes — on an older build the first prefill on the QSA path
+      dies on the dtype assertion (#36545). Read the engine's version banner in the boot log
+      before this cell is timed. And because `--quantization-param-path` is unset, the KV scales
+      are 1.0: this cell is a NUMERICS claim, so gates 8–9 are mandatory here, not optional.
+
+  # ── cell: tree OFF, KV bytes bf16 — the tree dial, alone ──
+  sg-no_radix-bf16:
+    <<: *sg_x
+    label: "PROBE — SGLang NVFP4, radix tree DISABLED, bf16 KV (control leg; image pin still empty)"
+    radix_cache: false                    # renders --disable-radix-cache — the ONLY delta
+    kv_cache_dtype: auto
+    uncertified_reason: >-
+      The control cell of `sg-radix-bf16`: every coordinate identical except the rendered
       `--disable-radix-cache`. Blocked by the same empty SGLang image pin.
+
+  # ── cell: tree OFF, KV bytes fp8 — the interaction term ──
+  sg-no_radix-fp8:
+    <<: *sg_x
+    label: "PROBE — SGLang NVFP4, radix tree DISABLED, fp8_e4m3 KV (interaction cell)"
+    radix_cache: false
+    kv_cache_dtype: fp8                   # → --kv-cache-dtype fp8_e4m3
+    uncertified_reason: >-
+      The cell that makes the grid a grid: without it, a dtype gain measured with the tree ON and
+      a tree gain measured with bf16 cannot be added together, because prefix reuse changes how
+      many distinct tokens the pool has to hold at all. Same empty image pin, and the same two
+      conditions as `sg-radix-fp8`: a ≥ v0.5.20 build (#36545 otherwise) and gates 8–9, since the
+      KV scales are 1.0 without `--quantization-param-path`.
 
   # ══════════════════════════════════════════════════════════════════════════════
   # THE ULTRA-FAST MATRIX (screening funnel, upstream v16b lineage)

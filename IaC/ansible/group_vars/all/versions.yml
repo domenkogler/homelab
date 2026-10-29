@@ -458,7 +458,7 @@ homelable_version: "3.6.0"
 # is the pin. `graded`'s `--kv-cache-dtype fp8` cannot boot on THIS lineage (bf16-only QSA KV) → docs/spark-llm-profiles.md
 spark_vllm_image: "vllm/vllm-openai:qwen38-flash-next@sha256:fc120ece0a388cc0aa1caad4a9f1cd92113484ab7ec2fd0efadd62585be05bf8"
 
-# SGLang (`fast-sglang` / the `sg-radix` pair) — INTENTIONALLY EMPTY, and that is the gate.
+# SGLang (`fast-sglang` / the `sg-*-bf16` + `sg-*-fp8` grid) — INTENTIONALLY EMPTY, and that is the gate.
 # CONVENTIONS §7 forbids a bare `latest`/mutable alias, and no SGLang image has been verified for
 # the GB10 arm64 manifest from this box yet. roles/spark-llm-profile refuses any profile whose
 # image resolves empty, so flipping spark_llm_profile to a sglang arm fails loud instead of pulling
