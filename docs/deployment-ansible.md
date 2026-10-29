@@ -701,6 +701,15 @@ The runner is whatever machine executes `scripts/ansible/ansible-run.sh`; both s
 resolve their own paths, so a second runner is a bootstrap, not a fork. Seeding one on
 oldsrv is five steps, and only the first needs a human.
 
+**Two trees on the laptop, one pull rule.** The WSL seat carries the same split as oldsrv under
+different names: `D:\source\domenkogler\homelab` (seen from WSL as `/mnt/d/source/domenkogler/homelab`) is
+the authored primary the agent sessions and `validate-all.sh` run in, and `~/source/homelab` on the
+Debian ext4 filesystem is a second clone. ⚠ **The IaC a converge applies is the tree
+`ansible-run.sh` was invoked from** — its self-update fast-forwards exactly that tree and no other, and
+`--no-pull` freezes it as it stands — so one box holds two `main`s and no recap says which one it planned.
+Read `git -C <tree> log --oneline -1` before a converge whose IaC matters, and name the tree in the
+report.
+
 **Two clones on oldsrv, one pull rule.** The box runs **two**
 repositories with two different jobs, and they must not be confused for each other:
 
