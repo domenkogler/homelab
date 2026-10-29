@@ -115,6 +115,25 @@ person. Containment is for that last set alone, and it lowers the copy count rat
 no-path ruling is recorded in two places and held equal by a checker arm: the debt register's `path:` column and
 `NOT_ROTATABLE` in [`scripts/secrets/provision-secrets.py`](scripts/secrets/provision-secrets.py).
 
+**Refresh brief (not a wave):** [prompt-refresh.md](prompt-refresh.md) — the author-only pass that corrects the
+`prompt-*.md` cells the pin window falsified, and it carries the **execution state** of that fan-out (lanes,
+worktrees to take over, the sibling branch that blocks the dns brief). No converge, no host, no secret.
+
+**The dependency ladder — the order these pointers actually run in.** The list below ranks by what unblocks the
+most; a rank is not an order. Only step 3 needs an external model, and it is the owner's call stated in-session
+(README §3), never an agent's fallback:
+
+| # | step | from | why it sits there |
+|---|---|---|---|
+| 0 | the seat pre-flight + that seat's delegation plane (HD-1180) — [prompt-laptop-wsl.md](prompt-laptop-wsl.md) §0 | the WSL Debian station | every converge in the window is driven **off-box** from there; an unverified delegation plane makes the whole run foreground-sequential |
+| 1 | the in-repo leak tools (HD-1217 → HD-1219 → HD-1216 → HD-1218, the order is a dependency) and the whole-corpus gates — [prompt-secrets.md](prompt-secrets.md) §3, [prompt-external.md](prompt-external.md) | any seat, no converge host | they stop the *next* run-capture debt before the next window creates one — the last window created several |
+| 2 | the rotations a ledger re-derive cannot go past — the residue of [prompt-update.md](prompt-update.md) Phase 3, driven from the briefs that own each item | one converge per host | Phase 7 is ONE commit and it drops only the lines whose **far end** moved |
+| 3 | **[prompt-update.md](prompt-update.md) Phase 6 — spark, last and solo** (OTA → pin converge → the third tailnet node → the engine-key rotation → HD-1206's flips) | an externally-served session on the station, owner present | the only Rule-0-gated step in the fleet; its legs are the card's order + HD-1206's row order, and its boot windows are ~20 min each |
+| 4 | Phase 7 (re-derive the leak ledger) → Phase 8 (the docs pass, then `prompt-update.md` dies) | the station | that one commit is what turns `check_secret_leak.py` green again |
+
+⛔ Never inside that window: the router/switch items (ruling N3, global slot), the `llm.kogler.si` answer flip,
+the five `pin-major-*.md` majors, and any spark hunk of the observability lane **inside a bench window**.
+
 Ranked by what unblocks the most. Each line is the item + **the domain brief that carries its order of work** — the brief,
 not this list, holds the steps, the file ownership and the converge host. Waves, pairing and the host/slot rule are
 [docs/orchestration.md](docs/orchestration.md) §4 (O1–O11); the row→brief index is [todo-table.md](todo-table.md) §B0.
