@@ -139,6 +139,11 @@
 # rendering survives every converge beside the one that IS bind-mounted — an artifact that reads like
 # live config and is not. Removal belongs here rather than on the host, and `state: absent` on an
 # already-gone path is `ok`, so it costs one skipped loop and never makes a later converge `changed`.
+# ⚠ `loop_var` is load-bearing, not decoration: this task names `retired_artifact` in both the path
+# and the label, so without the binding the loop resolves only when the list is EMPTY — the first
+# registry entry that actually declares a retired file dies with `'retired_artifact' is undefined`
+# after the config and compose are already deployed, which leaves the retired file in place and the
+# run RED. A loop that is inert until its first real use must bind its variable in the same breath.
 - name: "Remove retired deploy artifacts for {{ svc.name }}"
   # per-service tag: lets --tags select this service's tasks (tag semantics at the top of this file)
   tags: "{{ svc.name }}"
@@ -147,6 +152,7 @@
     state: absent
   loop: "{{ svc.retired_artifacts | default([], true) }}"
   loop_control:
+    loop_var: retired_artifact
     label: "{{ retired_artifact }}"
   when: svc.retired_artifacts is defined
 
