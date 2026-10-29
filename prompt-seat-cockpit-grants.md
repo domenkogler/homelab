@@ -51,7 +51,8 @@ edits the same directory.
   `resolv.conf` symptom, and the host-resolver fix did not change that). **Being off the tailnet is the blocker; being away
   is not.**
 * `--check` on `cockpit` is allowed and honest from the controller — the read-backs carry `check_mode: false`; a plain
-  `--tags cockpit` run is what the **self-converge guard** refuses there (the lockout set, same doc). Say which of the two you hit.
+  `--tags cockpit` run is what the **self-converge guard** refuses there (the role writes `/etc/pam.d/cockpit`, which puts it
+  in the lockout set — [docs/deployment-ansible.md](docs/deployment-ansible.md) §Self-converge guardrail). Say which of the two you hit.
 * **Never interpret a missing measurement as a negative result**, and never present two identical failures as evidence
   (CONVENTIONS §6). This lane is full of owner hands: an unmeasured phone leg is **not** a denial.
 * HA guest accounts are a **declared scope limit** of the grant plumbing, never a finding of "clean".
