@@ -203,6 +203,28 @@ profile still exists and fails loudly when it does not.
   `jellyfin-seerng_api` (app state inside each Seerr's `settings.json`; no IaC consumer) —
   [deployment-secrets.md](deployment-secrets.md).
 
+## Credential rotation: which end issues each media key
+
+A rotation holds only if the **issuing** end moves first and every holder is then re-taught. On this stack the
+issuers are the apps, not the vault — and one surface has no machine path at all:
+
+| Credential | Issuer (moves first) | Propagation to the consumers | Machine path |
+|---|---|---|---|
+| `lidarr_api` | Lidarr `config.xml` `<ApiKey>`, applied by a container restart | converge re-renders `lidarr-ydl` (`LIDARR_API_KEY`) + soularr `[Lidarr] api_key`; SeerrNG `settings.json` `lidarr[].apiKey` is app state, restarted by hand | yes |
+| `bazarr_api` | Bazarr `config/config.yaml` `auth.apikey` | **none** — no IaC file reads the item, so no converge propagates it | yes |
+| `qbittorrent_api` | the vault, then `roles/docker_services/tasks/qbittorrent-seed.yml` writes `WebUI\Password_PBKDF2` | converge `qbittorrent_seed` + `arr_client_seed`; the seed re-runs each arr's client `test`, so four `HTTP 200` lines are the consumer proof | yes |
+| `soulseek-internal_api`, `soulseek_api` | the vault; the slskd render **is** the far end | converge recreates `slskd` (bounded restart, no persistent state to lose) + soularr `[Slskd] api_key` | yes |
+| `privado-vpn_api` | the provider, by the owner | re-read the non-secret WG fields into `home_servers.yml` (`privado_vpn_endpoint_ip/_port/_public_key/_address`), then converge the two gluetun renders | yes — and the item's notes carry an `[Interface] PrivateKey` line, so read it **field-wise**, never by dumping or printing the body |
+| `jellyfin-seer_api`, `jellyfin-seerng_api` | **the Jellyfin admin UI** | each Seerr's own `settings.json` `jellyfin.apiKey` + restart, then the vault copy | **none**: this Jellyfin answers `GET /api/ApiKeys` and `GET /ApiKeys` with **404** and `GET /Users` with **401** unsigned. A vault-only write mints a value the server never issued and breaks request approval |
+| `admin @radarr.kogler.si` | the Radarr instance | the built-in user's password **is** `radarr_api`; changing it needs `AuthMethod=None` or a stopped Radarr. `/api/v3/user` → **404**: this build has no user store to PUT | no clean path |
+| `admin @media.kogler.si` | the Jellyfin user store | `POST /Users/<id>/Password` → **403** on the shapes probed (`NewPassword`, and `NewPassword`+`Password`); `GET /Users` is 200 once a bearer is issued by `POST /Users/AuthenticateByName` **with** the `X-Emby-Authorization` device header (without it: 400) | UI path |
+
+Two facts that decide the order: the Soulseek **network** login (`soulseek_login`) is a different credential and
+must not be touched by a rotation here — a 30-day-unused account is recycled, so liveness is proved from the
+app's own log (`Logged in` / `Disconnected`) or its connection state, never by grepping a rendered compose
+file. And the two `admin @…` items carry the **same** password value, so a rotation of one leaves the other
+stale unless both move in the same act.
+
 ## Subtitles — Bazarr app-state wiring
 
 > **Status: 🟢 live** — Radarr + Sonarr + Jellyfin connected, provider and languages
