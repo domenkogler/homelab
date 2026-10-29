@@ -628,7 +628,7 @@ def extra_comments(path: Path) -> list[str]:
     """Comment lines a human added to EXPLAIN a debt, kept across a re-derivation.
 
     They are not derived data, so dropping them would delete an argument someone made (the ledger names
-    its HD rows in comments, and HD-1171's note is the reason its line exists). Everything that is not
+    its HD rows in comments, and HD-1170's note is the reason its git-history lines exist). Everything that is not
     the canonical header is preserved, in file order."""
     if not path.is_file():
         return []

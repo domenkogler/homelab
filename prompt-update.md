@@ -49,7 +49,8 @@
   the mechanics and per-item far ends are §5a/§5b. `grafana_login` is the case where the render is NOT the far end —
   `grafana cli admin reset-admin-password` moves the app, `GF_SECURITY_ADMIN_PASSWORD` only seeds it.
   **Rotated with the residue elsewhere:** `ha_api` propagates to nothing and owes one click in HA (prune the
-  long-lived-token list); `op_api` owes the three owner residues of HD-1171; `kopia-server_fingerprint`'s current
+  long-lived-token list); `op_api` is fully propagated — four installs re-seated, no Actions-store holder, no stale
+  root-side install (docs/1password.md §Where a token is installed); `kopia-server_fingerprint`'s current
   value is a TLS cert fingerprint, so its ledger line stays (ruling S7).
   **Not rotatable, recorded:** `pppoe_login` (ISP-provisioned), `slskd_login` / `soulseek_login` (no reset e-mail).
   **Parked, with the reason in the row:** `immich-ml-internal_api` and `n8n-webhook_api` (nothing enforces the
@@ -220,7 +221,7 @@ channel exists in the tree yet — that step is a question, not a plan.
 | `spark-llm_api` (and `litellm-engine_api`) | the accepted-key list lives in the **vLLM argv**: rotate, converge spark (engine restart, inference down — **window**), then prove the second accepted key live by hand | converge `litellm` **and** `lan-litellm`, then the seats' rendered `models.json` — the harness authenticates with the engine key, so a missed seat quietly loses its spark lane. Phase 6's slot, never in a spark-served session (HD-384, HD-1170). `scripts/secrets/rotate-spark-llm-key.sh` predates the second key and is not the whole act |
 
 `op_api` stays the first act of the whole window and is already done: a superseded token stays live through an
-**owner-set** grace window, so every converge here is safe and the four re-seats batch in Phase 7 (HD-1171). Prove each
+**owner-set** grace window, so every converge here is safe and the four re-seats batch in Phase 7. Prove each
 re-seat the way 5a step 5 says — `bootstrap-runner.sh` is create-only and a running shell's exported value beats the
 file, so a fresh file and a `403` are compatible observations.
 
@@ -400,9 +401,9 @@ never `--diff` (§7).
 - [x] Re-seat every `op_api` consumer: all four Debian installs — oldsrv control node, oldsrv seat `domen`, this laptop, and
   the `vps` control account `ansible-admin` — are re-seated with the **pipe form**, proved by Integration ID + `sha256[:12]`
   on the file route AND in a fresh interactive shell (a running shell's exported value beats the file, and
-  `bootstrap-runner.sh` is create-only). ⏭ the three residues are HD-1171's and all three are owner-side: the scope of
-  the integration the new ID belongs to, the Forgejo Actions secret store, and `oldsrv:/root/.config/op/homelab-sa-token`
-  (a deleted service account).
+  `bootstrap-runner.sh` is create-only). ⏭ nothing owner-side is left on `op_api`: the integration's scope, the Actions
+  secret/runner stores, and `oldsrv`'s root account are settled facts in
+  [docs/1password.md](docs/1password.md) §Credential source / §Where a token is installed.
 - [ ] `python3 scripts/gate/check_secret_leak.py --update-ledger --class run-capture`; delete the STALE lines by hand; commit the shrunk ledger — the commit that turns the gate green.
 - [ ] The leak read is green on every seat **except the named Wi-Fi items** (§11) — the window's accepted end-state (HD-1181).
 - [ ] `todo.md` — the rotation rows close or shrink here.

@@ -325,9 +325,9 @@ not this list, holds the steps, the file ownership and the converge host. Waves,
     an existing router window rather than needing one of its own · **HD-1175** a human at `oldsrv`'s console —
     **recovered, not closed**: the row owes the root-only read of the previous boot's journal and `pstore`, which no
     rule reaches from a user session, and there is no out-of-band power path at all (the posture **HD-454** rules; its
-    WoL re-test has never been run) · **1170 · 1171** the two secret-close windows still owed: rotate `spark-llm_api`; and on
-    **HD-1171** the console read of what scope the current `op_api` integration carries, plus the Forgejo Actions secret
-    store — both owner-only channels, and neither closes with a repo change ·
+    WoL re-test has never been run) · **1170** the one secret-close window still owed: rotate `spark-llm_api`, an
+    owner-only channel that closes with no repo change (`op_api` needs nothing further — its scope, its CI holders
+    and the root-side install are stated in [docs/1password.md](docs/1password.md) §Where a token is installed) ·
     **HD-1181** the vault values this seat's pi transcripts hold: the rotation is the owner's and it **differs per
     item**, so act from the row's per-item list, not from memory. ⚠ **`check_secret_leak.py` — and with it
     `validate-all.sh` — is RED on this seat BY DESIGN until that rotation lands**: no ledger line was added and the
@@ -358,7 +358,7 @@ not this list, holds the steps, the file ownership and the converge host. Waves,
     §Validation gate, and every count a gate prints is re-derived by running it here, never quoted.
     - ✅ **Ruled — do not re-decide.** HD-1160 · 1106 · 1103 · 1140 · 357 · 443 · 1110 · 448/460 +
       the gate/router/edge calls: [todo-table.md](todo-table.md) §A1 and each row's `RULED` note.
-    - ⏳ The owner still runs the **secret rotations** (`HD-1170` · `HD-1171` · `HD-1181`, the last of them
+    - ⏳ The owner still runs the **secret rotations** (`HD-1170` · `HD-1181`, the last of them
       this seat's own pi transcript store, which keeps `check_secret_leak.py` red on the pi-dev seat and nowhere else
       until it is rotated).
     - ✅ **The heading gate is registered and priced — growth refused, no clearing campaign owed** (owning index:

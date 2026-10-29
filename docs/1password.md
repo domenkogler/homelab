@@ -30,7 +30,7 @@ one vault):
 
 | Item | Scope | Who uses it |
 |---|---|---|
-| `op_api` | **read** `Homelab-ansible` | the control node (`op` CLI + Ansible's `community.general.onepassword` lookup) and every Debian **seat**. No CI holder — **there is no Forgejo runner holding it** ([../deployment-tasks.md](../deployment-tasks.md) §Vault inventory), and the only workflow in the tree (`spark/.github/workflows/ansible-ci.yml`) carries no OP secret. The item is the **single mint point** for all four Debian installs: the oldsrv control node, the oldsrv seat, the laptop, and the `vps` control account |
+| `op_api` | **read** `Homelab-ansible`, read-only at the integration (console-confirmed) | the control node (`op` CLI + Ansible's `community.general.onepassword` lookup) and every Debian **seat**. No CI holder — **no Actions store in the fleet holds this token**: the homelab repo is GitHub-hosted with **zero runners registered at it**, the `vps` Forgejo instance carries no homelab repo, and the only workflow in the tree (`spark/.github/workflows/ansible-ci.yml`) declares no OP secret ([../deployment-tasks.md](../deployment-tasks.md) §Vault inventory). The item is the **single mint point** for all four Debian installs: the oldsrv control node, the oldsrv seat, the laptop, and the `vps` control account |
 | `op-write_api` | **read + write** | anything that must CREATE/ROTATE items: `scripts/secrets/provision-secrets.py`, and the host-side glue deployed to `/etc/op/provision-token`; it reaches those hosts only through an `op-provision-token` converge ([deployment-secrets.md](deployment-secrets.md) §`op-write_api`) |
 
 The two scopes cannot be told apart by `op vault list` — both service accounts list the one vault;
@@ -43,8 +43,8 @@ see §Proving which service account an install holds.
 | **`oldsrv` SEAT — `domen`, the cockpit/authoring account** | `op_api` | `~/.config/op/homelab-sa-token` (0600, owner `domen`), sourced from `~/.bashrc` — this is what makes the seat able to author ([deployment-ansible.md](deployment-ansible.md) §Runner placement) |
 | **control node (rescue)** — this WSL Debian laptop; not the only place `ansible-playbook` is run interactively, and it stays installed as the door you open when the on-site runner is the thing that is broken ([deployment-ansible.md](deployment-ansible.md) §Runner placement) | `op_api` | `~/.config/op/homelab-sa-token` (0600) |
 | **`vps` — the VPS control account** (`ansible-admin`) | `op_api` | `~/.config/op/homelab-sa-token` (0600), sourced from `~/.bashrc` — the same shape and the same pipe-form re-seat as the on-site control node, so `op` on that box reads the vault headless. An `op_api` rotation reaches this host by **two** paths: this file, and the `/etc/op/provision-token` render below (different item, so one rotation does not cover the other). It is the install a seat-side sweep cannot see — `~` and `/home/*` are the paths of the host the sweep runs on, so enumerating it means running the sweep there (§Proving which service account an install holds) |
-| **`oldsrv` — the `root` account** | a **dead** `op_api` generation | `/root/.config/op/homelab-sa-token` (0600 root), sourced from `/root/.bashrc`, and nothing re-seats it: its service account is **deleted**, so `op` there answers `(403) Forbidden (Service Account Deleted)`. It is on the list because the sweep finds it and no leg does — a root shell on that box cannot read the vault while every seat reads it fine |
-| Forgejo CI runner | — | **no holder**: no `.forgejo/` workflow, no runner, so nothing renews this token in CI |
+| **`oldsrv` — the `root` account** | **none** | `/root/.config/op/` holds only `config` and the daemon socket — no token file, no `/root/.bashrc` line. A root shell there reaches the vault only with an explicit token in the child env (`OP_SERVICE_ACCOUNT_TOKEN=$(sudo cat /etc/op/provision-token) op …`). A hand-planted home-token copy is the failure mode worth naming: **nothing re-seats `root`**, so it goes stale at the first rotation and answers `(403) Forbidden (Service Account Deleted)` while every real seat reads the vault fine |
+| CI (GitHub Actions / Forgejo Actions) | — | **no holder**: the homelab repo is GitHub-hosted with no runner registered at the repo, the `vps` Forgejo instance hosts no homelab repo (and no `.forgejo/` workflow exists in the tree), so nothing renews this token in CI |
 | **vps** — the Authentik secret-egress glue + `kopia-fingerprint-sync.yml` | `op-write_api` | `/etc/op/provision-token`, 0600 root, deployed by the docker_services pre-pass |
 | home hosts | `op-write_api` | same path, but ONLY where a `bootstrap_keys` service converges (`deploy-service.yml`) |
 | **spark** | none | it has no token at all — that is exactly why every spark playbook runs through the `pi` jump host ([deployment-ansible.md](deployment-ansible.md)) |
@@ -184,7 +184,7 @@ passes — so scope a seat only from `op_api/credential`, and prove it by Integr
 
 | Item / install | value | service account |
 |---|---|---|
-| `op_api` — **current** | `d633b4f9190e` | Integration `QO3TQ6IMYJF5LFB5EUERCEGJEY` (the read item's own integration — see the scope note below) |
+| `op_api` — **current** | `d633b4f9190e` | Integration `QO3TQ6IMYJF5LFB5EUERCEGJEY` — **read scope** (the read item's own integration, read off the console's scope page) |
 | `op_api` — superseded, live until ~2026-10-30 | `6a1342f44e65` | Integration `DUW6UPKY5JGG3MM6WF3HBHQWGQ` (read) |
 | `op-write_api` — **current** | `c387f297133f` | Integration `RBULV4SW7JDKLDXRG25LC44VVI` (read+write) |
 
@@ -219,8 +219,8 @@ for f in ~/.config/op/homelab-sa-token /home/*/.config/op/homelab-sa-token /root
 ```
 
 ⚠ **The `/root` path is part of the sweep, not an extra.** Run as an ordinary user it silently matches
-nothing and the root install goes unlisted — that is how a dead-token root install survived every audit
-on `oldsrv` (§Where a token is installed). Run the sweep with `sudo` on a host that has one.
+nothing, so the one install no leg ever re-seats — a root-side copy — goes unlisted (§Where a token is
+installed). Run the sweep with `sudo` on every host.
 
 ⚠ **A sweep sees one host.** `~` and `/home/*` are the paths of the machine the loop runs on, so the
 control node's sweep never lists `vps`'s install. Enumerating consumers means running the loop on
