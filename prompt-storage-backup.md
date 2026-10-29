@@ -4,8 +4,9 @@
 > missing and how to do it — this file carries the contract, the order of work and the traps, nothing else:
 > [todo.md](todo.md) **HD-06 · HD-207 · HD-1105 · HD-1106 · HD-191 · HD-238 · HD-1129 · HD-1183 ·
 > HD-1174** — the last one, in one clause: scrub the `kopia repository connect server` line in the **kopia-agent** leg,
-> then rotate with the agent **re-connected**, because its `repository.config` caches the credential
-> (row ids as of `c13e30f6` — re-derive with `grep -c "^| HD-<id> " todo.md` before quoting one).
+> then rotate with the agent **re-connected**, because its `repository.config` caches the credential. `kopia-server_fingerprint`
+> is a TLS **cert** fingerprint, not a credential, so its leak-ledger line stays while the cert is the value — a named debt,
+> never a reason to re-open that rotation (row ids as of `c13e30f6` — re-derive with `grep -c "^| HD-<id> " todo.md` before quoting one).
 > **Linked from:** [todo-table.md](todo-table.md) §B0 · [todo.md](todo.md)
 
 **Lane contract:** [docs/orchestration.md](docs/orchestration.md) §4 (O1–O11) — read it once; it overrides README §4 and
@@ -20,7 +21,7 @@ measuring there invalidates both runs. Destroying anything in a pool is never a 
 show `zfs list`, then act.
 
 **Read first:** [docs/storage.md](docs/storage.md) → §Samba (SMB) shares on the NAS · [docs/backup.md](docs/backup.md) →
-§The slot-numbering rule → §VPS-side coverage gap → §Runbook → §Restore drill → §Recovery Paths ·
+§The slot-numbering rule → §VPS-side coverage gap → §VPS-side backup client → §Runbook → §Restore drill → §Recovery Paths ·
 [docs/hardware-nas.md](docs/hardware-nas.md) · [docs/hardware-ups.md](docs/hardware-ups.md) ·
 [docs/storage-rejected.md](docs/storage-rejected.md) before re-proposing anything.
 
@@ -28,9 +29,9 @@ show `zfs list`, then act.
 
 | # | Row | Do | Gate / trap |
 |---|-----|----|-------------|
-| 1 | **HD-1105** | Decide per unit on nas whether it is wanted: configure or **disable** — `zfs-share.service` (`zfs share -a` exits 1), `winbind.service` (enabled, exits 1 while `smb` is enabled), and the `sync-authentik-users.service` stub whose `ExecStart` is empty (127) | `ok=159 failed=0` proves nothing here: a systemd-level failure is invisible to Ansible idempotency. Acceptance is `systemctl list-units --failed` empty, or a written justification per surviving failure. ⛔ Do not disable `winbind` to silence the red — with `smb` enabled it is the SMB-share story, not noise |
-| 2 | **HD-1106** | Inventory the dangling VPS volumes **with provenance** — creating compose project, first mtime, whether a bind mount replaced them — then prune only what is proven empty | ⛔ Do not delete unattributed state to reclaim space: the two 47 MB volumes are the whole risk and 644 MB is not a reason. A snapshot list is not a provenance read. Anonymous volumes created by a session's own experiment are that session's residue — attribute them in the table, never "pruned as empty" |
-| 3 | **HD-191** | The Kopia legs: (a) a **restore drill** from an oldsrv snapshot with the volume-name pin verified at restore; (b) the missing VPS backup **client** — an agent container + include list (`/opt`, the dump volume, the `/srv/docker/*` state dirs), not two paths added to an include list; (c) oldsrv has no `db-backup` job, so `/srv/dumps` snapshots an empty dir and `lan-litellm-db` has no dump anywhere | A `kopia snapshot list` is not a restore. ⚠ The VPS runs `kopia-server` — the endpoint the other agents push through — and has **no client of its own** (no binary, no client config, no `kopia-agent` container), so today no `/srv/docker/*` path and no `db-backup` dump reaches any off-site snapshot |
+| 1 | **HD-1105** | **All three units are ruled and fixed** — `zfs-share.service`, `winbind.service` and the empty-`ExecStart` `sync-authentik-users.service` stub are settled in [docs/storage.md](docs/storage.md) (§NFS Exports for `zfs-share`, §Samba for `winbind`; the stub is gone with only its stale failed-marker left) and `systemctl list-units --failed` lists 0 on nas. What the row still holds is one **PARKED** owner call (O4): the durable cure for a returning `zfs-share` red is `sharesmb=off` on the `bulk/migrate/**` migration remnants — a property change on a 2.33 TB tree nobody has ruled | Do not re-decide the three units: read `systemctl list-units --failed` first, and it answers 0. ⚠ If the `zfs-share` red ever returns, it arrived through `PartOf=nfs-server.service smb.service` (a Samba/NFS restart re-runs `zfs share -a`) — which is why the cure is the dataset property, not the unit. ⛔ Do not disable `winbind` to silence a red — with `smb` enabled it is the SMB-share story, not noise |
+| 2 | **HD-1106** | **The named-volume half is done, so the owed act is the prune itself.** `onlyoffice-docs`' `/var/www/onlyoffice/Data` (the **WOPI/JWT keypair**) and `/var/log/onlyoffice` are named volumes now, and that fix was applied **before** the VPS `docker` converge — which is why the minted keypair survived the recreate. Now: one `docker volume rm <name>` per row the table marks `prune` / `prune-when-proven`, in a VPS window, re-reading `docker volume ls -q --filter dangling=true \| wc -l` after each | ⛔ A blanket `docker volume prune -f` stays refused — it takes the `keep` rows with the rest, and the standing rule that destroying live host state runs in a **window** is not lifted by the ruling (the owner approved the SET, not an overnight execution). The per-volume verdicts are [docs/services-vps.md](docs/services-vps.md) §The dangling-volume table; the six onlyoffice rows are exactly what the named-volume fix justifies. ⚠ That table's "what serves that path today" column reads false for those six now that the named volumes serve them — correct it in the same change |
+| 3 | **HD-191** | The Kopia legs: (a) a **restore drill** from an oldsrv snapshot with the volume-name pin verified at restore; (b) the missing VPS backup **client** — the shape is **ruled** (a `kopia-agent` container on the VPS in oldsrv's own agent shape, [docs/backup.md](docs/backup.md) §VPS-side backup client), so the first act is to **price it**: `du -sh` over the three include roots (`/opt`, the `db-backup` dump volume, the `/srv/docker/*` state dirs) plus one snapshot of one small state dir from a throwaway client, and write those numbers into that section **before** authoring an include list; (c) oldsrv has no `db-backup` job, so `/srv/dumps` snapshots an empty dir and `lan-litellm-db` has no dump anywhere | A `kopia snapshot list` is not a restore. ⚠ The VPS runs `kopia-server` — the endpoint the other agents push through — and has **no client of its own** (no binary, no client config, no `kopia-agent` container), so today no `/srv/docker/*` path and no `db-backup` dump reaches any off-site snapshot. `db-backup` stays the Postgres restore path — a file-level snapshot of a live database directory is not a dump — and a new client inherits **nothing**, so oldsrv's exclusions are re-declared, not inherited. ⛔ **the converge rides the pin window's VPS leg, LAST**: on that host an act that restarts the tailnet sidecar or Traefik costs the control channel, so it is never taken mid-lane |
 | 4 | **HD-06** | ⏳ Owner-scheduled: the short battery pull re-test → poweroff + WoL wake end-to-end. Park it with the exact action and finish everything else (O4) | ⛔ Never a destructive pull in an unattended run. The drill exists because the notify/shutdown layer failed in three independent places (an ACL that stripped group-execute despite mode 0750, shell-not-Jinja SMTP vars that rendered literal `${…}`, no sudoers entry for `/sbin/shutdown`) — so prove each leg, not the happy path |
 | 5 | **HD-207** | Redistribute the migration landing zone slowly per the storage SSOT (`playbooks/storage.yml`), then destroy it — personal documents to the OpenCloud/live-Box tier, interim `/tank/data/users/<name>/` park, media to `bulk/media/*` | ⛔ Never a recursive bulk move across datasets; copy + verify + delete, and show `zfs list` before destroying. The landing zone must be gone **before** the tree is declared equal to the storage-role SSOT; a rename that is really a personal-vs-media **decision** is an owner leg, not a convenience move |
 | 6 | **HD-238** | ⏳ Owner-scheduled only: run the DR drill and tick it with a dated result; fill the per-service fail-over-vs-accept-loss table | Name the dependency honestly: while the HD-191 VPS-client leg is unlanded the runbook **cannot** promise the VPS's own state, so the drill result must say which restores it actually exercised. Address plane before data plane — a changed public IPv4 moves the DNS primary, the Cloudflare origin, the advertised routes and the conditional forwarder in one commit |
@@ -39,8 +40,9 @@ show `zfs list`, then act.
 
 ## ⛔ Traps that cost a round
 
-* **Green converge ≠ healthy box.** Three nas units fail on a converge that reports `failed=0`; a timer that is *enabled* and a
-  unit whose `ExecStart` points at a nonexistent path look identical in Ansible output. Always read the systemd state directly.
+* **Green converge ≠ healthy box.** A converge that reports `failed=0` can still leave systemd units in `failed` — a
+  timer that is *enabled* and a unit whose `ExecStart` points at a nonexistent path look identical in Ansible output.
+  Always read the systemd state directly.
 * **Backups are proven by restore, never by listing.** A snapshot set, a dump file, or an "Up" agent is a state that coexists
   with an unrecoverable box. Every backup claim in this lane needs a restore command and its output.
 * **A scheduled thing that fails every night is invisible** if nothing scrapes the result — `sanoid.conf` reading correct
@@ -53,6 +55,12 @@ show `zfs list`, then act.
 * Kopia's slot/identity conventions are load-bearing: an agent authenticates as its **own** `<host>-agent@<host>` identity, not
   the server admin user, and dump slot numbers are contiguous — a number reserved in prose but absent from the compose dumps
   nothing ([docs/backup.md](docs/backup.md) §The slot-numbering rule).
+* **A kopia-server cert regen can come back loopback-only.** The boot command reads
+  `subjectAltName=IP:${KOPIA_SERVER_ADDR_HOST:-127.0.0.1}` at container RUNTIME while the value lands in the project `.env`,
+  which that compose never lists under `env_file:` — the fallback fires and the pair comes back with a **loopback-only SAN**
+  while the agent dials `wg_s2s_vps.ip` (the trap is stated in [docs/backup.md](docs/backup.md) §Layer 2: Kopia). The template
+  **assert** that would catch it is not in the tree and needs a converge to prove: owed on a **kopia converge leg**, never as a
+  quiet author-only fix.
 * Converge storage/nut legs **detached and guarded**, per host, never with `--diff`; the UPS change touches three hosts and
   each is a separate slot.
 
@@ -75,10 +83,11 @@ not run. Concretely: policy snapshots under `@autosnap_…_hourly` on the config
 never a `@hourly.` grep — from a unit whose rendered `ExecStart` is quoted, plus the syncoid leg either replicating or
 parked with its stuck send named · nas's `systemctl list-units --failed` empty or each survivor justified in writing · the
 SMB passdb read back after the forced converge plus one authenticated mount, with the vault rotate named as the half that was
-already done · a per-volume provenance table with a verdict each and `docker volume ls --filter dangling=true` reduced to the
-justified ones · the Kopia restore drill executed with the restored paths listed, the VPS client landed or the exact blocker
-written, and the oldsrv dump gap closed or parked · the battery drill `PARKED` with its exact owner action and no destructive
-pull run unattended · the landing-zone redistribution either done with the dataset list or parked at the owner decision it
-waits on, the destroy deferred to the same change as the proof · the DR drill `PARKED` with the owner-scheduling action and
-the loss table either filled or named as missing · rows trimmed to their tails or deleted, no history in the row ·
+already done · `docker volume ls --filter dangling=true` reduced to the table's justified rows, each removal named and
+re-read after the act, with the WOPI keypair digest proven identical across the recreate · the Kopia restore drill executed with
+the restored paths listed, the VPS client landed **with its include list priced by the sizes written back to the doc** or the
+exact blocker written, and the oldsrv dump gap closed or parked · the battery drill `PARKED` with its exact owner action and no
+destructive pull run unattended · the landing-zone redistribution either done with the dataset list or parked at the owner
+decision it waits on, the destroy deferred to the same change as the proof · the DR drill `PARKED` with the owner-scheduling
+action and the loss table either filled or named as missing · rows trimmed to their tails or deleted, no history in the row ·
 `bash scripts/validate-all.sh` green **in this worktree** → **stop**.
