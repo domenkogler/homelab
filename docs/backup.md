@@ -346,16 +346,34 @@ NAS over NFS at all**, which is why its `db-backup` dumps (Postgres for Authenti
 LiteLLM) and the n8n sqlite have no off-box path but `vps-state-push` (§VPS state push).
 
 
-## Options — OQ-15 (VPS-side backup client)
+## VPS-side backup client
 
-The choice every VPS row in this file waits on. The VPS runs `kopia-server` — the **repository endpoint**
-other hosts' agents push through — and **no client of its own**, so until one of these two shapes exists
-the VPS is the one host in the homelab whose own data has no second copy (§VPS-side coverage gap).
+**OQ-15 — the VPS-side backup client — is answered.** The shape is **a `kopia-agent` container on the VPS**,
+in oldsrv's agent shape: include list `/opt`, the
+`db-backup` dump volume and the `/srv/docker/*` service-state dirs, pushing through the `kopia-server`
+endpoint already on the box (the repository's own SFTP credential sits in
+`/opt/kopia-server/docker-compose.yml`, so no new class of secret lands on an internet-facing host). It is
+the client the "Kopia-backed" rows above already assume, and it is the only shape that reaches what no dump
+carries — Matrix/tuwunel room state *and* the signing identity inside the same RocksDB store, Headscale,
+CrowdSec, OpenCloud, Grafana, the Forgejo git repos.
 
-| Option | For | Against | Cost | Cheap test |
-|---|---|---|---|---|
-| `kopia-agent` on the VPS — include list `/opt` + the `db-backup` dump volume + the `/srv/docker/*` state dirs | one client covers what this file calls policy in one act: the state dirs no dump carries — Matrix/tuwunel (room state *and* the signing identity, inside the same RocksDB store), Headscale, CrowdSec, OpenCloud, Grafana, the Forgejo git repos — and lands them in the **encrypted** repo the oldsrv agent already pushes to, which is the transport the "Kopia-backed" rows above already promise | another include list in a subsystem the gap section above already describes as two sources of truth reconciled by hand, so the exclusions this design carries (the Zipline dropzone, the regenerable paths) have to be re-declared on the new client too; and a file-level snapshot of a live database directory is not a dump — `db-backup` stays the restore path for the Postgres tier, the agent carries what a dump cannot | one container in the registry with an include list, in oldsrv's shape (its agent covers `/opt`, `/srv/dumps`, `/srv/docker/immich/upload`, one volume and the music master over NFS); no new class of secret lands on the box — the repository endpoint's own SFTP credential already lives in `/opt/kopia-server/docker-compose.yml` | **not yet run:** `du -sh` over the three include roots plus one snapshot of one small state dir from a throwaway client, so the nightly window and the repo growth are numbers before an include list is written |
-| Push-only coverage — no client on the VPS, an equivalent push of the dump volume to the storage box | nothing new to build and nothing new to trust on an internet-facing host: the transport, the mount guard (a dead mount exits **90** rather than making a same-disk copy that reports success) and the restore are proved end-to-end — `zstd -t` inside the unit and a Forgejo dump restored to **130 tables against production's 130** | it is the shape that already runs, so it settles nothing: the dumps already ride `vps-state-push` nightly, every `/srv/docker/*` state dir stays single-copy on VPS NVMe, the target is a CIFS share **unencrypted at rest** rather than the encrypted repo the Kopia rows promise, and the NAS leg (`→ tank/data/db-dumps`) cannot exist over NFS at all — nas exports `/tank/data` to oldsrv's `/32` and nothing else | no component at all; the only work left in this shape is whatever the existing rsync pass does not carry (`/opt/*` compose + `.env` and the n8n sqlite do, `/srv/docker/*` does not) | **not yet run against the whole volume:** diff one night's far-side `dumps/` listing with the file count inside the dump volume — the unit's own acceptance checks the **newest** dump only, and a slot that produces nothing still shows db-backup "Up" (§The slot-numbering rule) |
+Two bounds on it, both load-bearing:
+
+- **A file-level snapshot of a live database directory is not a dump.** `db-backup` stays the restore path
+  for the Postgres tier; the agent carries what a dump cannot.
+- **The exclusions belong to the include list.** A new client inherits nothing, so the Zipline dropzone and
+  the regenerable paths are re-declared here or the agent snapshots an anonymous dropzone.
+
+Push-only coverage — no client on the VPS, an equivalent push of the dump volume to the Storage Box — is not
+the shape: it is what already runs, so it settles nothing (every `/srv/docker/*` dir stays single-copy on
+VPS NVMe and the Box target is unencrypted at rest), and its NAS leg cannot exist because nas exports
+`/tank/data` to oldsrv's `/32` and nothing else. The rejected alternative is rowed in
+[storage-rejected.md](storage-rejected.md).
+
+The include list is written after the sizes are numbers, not estimates: `du -sh` over the three include
+roots, plus one snapshot of one small state dir from a throwaway client, which is what prices the nightly
+window and the repo growth. Until the client exists, every "Kopia-backed" line in this file that names a
+**VPS path** is policy, not state (§VPS-side coverage gap).
 
 ## Backup Flow
 
@@ -487,10 +505,6 @@ the VPS is the one host in the homelab whose own data has no second copy (§VPS-
 ## Open Questions
 
 - **Kopia Web GUI vs CLI:** Web GUI is sufficient for now; CLI needs assessed at first restore drill
-- **VPS-side backup client (blocks every VPS row above):** the VPS runs the repository endpoint and no
-  client of its own — no `kopia` binary, no client config, no agent container in the registry — so it is
-  the one host in the homelab whose own data has no second copy. The two shapes it could be are rows in
-  §Options — OQ-15, which is where that choice lives; this bullet is the fact, not the option set.
 - **Bulk media off-site:** live + backup Hybrid Storage Boxes; bulk media library stays local-only on NAS (ZFS), only configs/DBs + Immich originals go off-site. Off-site copy via Kopia over SSH/SFTP (port 23); **no S3 / Object Storage** (Hetzner Storage Box is not S3 — handled via CIFS mount + Kopia over SSH).
 
 ## Postgres major upgrades — what the 16 → 18 legs need

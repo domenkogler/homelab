@@ -50,6 +50,7 @@ tags: [storage, rejected, decision-log]
 | Skipping missing containers so a push exits 0                       | rejected   | a green unit that ships nothing is fake green             |
 | The upstream parent image's `/var/lib/postgresql/18` bind           | superseded | `cap_drop: ALL` cannot mkdir it; the path is stale        |
 | Untagged tasks inside `samba.yml` under a scoped converge           | superseded | include line and every task carry the tag                 |
+| VPS push-only backup coverage, no client on the box                | rejected   | state dirs stay single-copy; the Box is unencrypted       |
 | VPS → NAS NFS push for VPS state                                   | rejected   | the NAS exports to the oldsrv /32 only                    |
 | ZFS on the VPS                                                      | rejected   | one ext4 disk; the bulk tier is CIFS                      |
 | Zipline upload payloads in Kopia                                    | rejected   | anonymous drops self-destruct at ≤ 6h TTL                |

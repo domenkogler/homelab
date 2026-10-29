@@ -868,7 +868,10 @@ research plane (OWUI/Docling/Qdrant/Mem0). It runs on **oldsrv**, managed from t
       flat on code: the `EmbeddingGemma 2` text tower posts **78.68 on MTEB code v1 against its own 68.76**,
       in 270M parameters at ~0.3 GB of weights. So the leg is funded **as a measurement, not as an install**:
       [services-ai-bench.md](services-ai-bench.md) §3d carries the candidates, the two gates, the probe commands
-      and the order they are taken in; §Options — OQ-14 is where the choice itself is keyed.
+      and the order they are taken in; §Options — OQ-14 is where the choice itself is keyed. **When it is called:**
+      at the memory plane's implementation, not as a standalone act — [services-ai-bench.md](services-ai-bench.md) §3d
+      is that build's first act, and no lane
+      runs it while no memory server is being built.
     * ⚠ **The re-open does not extend to the RAG leg.** That call is closed: the same candidate's multilingual
       movement is **+0.21 across a generation**, one third-party 203-query test put it *behind* `bge-m3` on
       non-English and cross-lingual queries at ~3× the CPU cost per doc, its native 768 dims would buy a full

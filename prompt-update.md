@@ -368,6 +368,12 @@ never `--diff` (§7).
 - [x] **nas**: the monitoring leg with `--skip-tags alloy` + the storage legs; the `alloy` re-render followed in its own lane, so `nas` reports (§11).
 - [x] **oldsrv**: `docker` → `monitoring` → `tailscale-node` — **from this seat only**, the guard refuses the `tailscale-node` leg from oldsrv. Read back: docker family at the pins, `alloy 1.21.2-1`, `tailscale 1.104.2`, the same 8 holds, `match 8 / differ 0`, `RestartCount` sum 0. Fold-ins per §11.
 - [ ] **spark**: docker family **after** the OTA in Phase 6 (§7: the toolchain, then the flip). ⏭ not this run — the `monitoring`/`alloy` legs are the S8 exception and they landed, which is why spark publishes the new pin map over old packages (§1).
+- [ ] ⏭ **owed on the next VPS pass — HD-1223, the VPS-side `kopia-agent`** (ridden, not carried: the row owns itself):
+  first the sizes — `du -sh` over `/opt`, the `db-backup` dump volume and `/srv/docker/*`, plus one snapshot of
+  one small state dir from a throwaway client, written back to [docs/backup.md](docs/backup.md) before any include
+  list is authored — then the registry row + compose and its `docker_services` converge in this host's leg, LAST
+  for the sidecar/Traefik reason above. ⛔ `db-backup` stays the Postgres restore path; the exclusions oldsrv's
+  agent carries are re-declared, not inherited.
 - [x] Per host after it converges: the roster is up, `RestartCount` flat, and the role's own `apt-mark showhold` assert passed.
 - [x] `todo.md` — the fold-in rows this phase proved, once.
 
@@ -394,6 +400,12 @@ never `--diff` (§7).
 - [ ] Flip `fast-v32-bf16` (`-e spark_llm_profile=fast-v32-bf16 -e spark_llm_allow_uncertified=true`, detached; ~20 min cold boot) and read the engine's `GPU KV cache size` line — expecting **644,599 slots / 2.46×**. Another number means the pool arithmetic moved under the port.
 - [ ] Gates 0–7, then flip `fast8`, then the dtype gates 8–9. Rollback at any point: `-e spark_llm_profile=fast` plus a detached converge (`spark-rollback:fast` = `4900c13edab9…`, archived twice on the NAS).
 - [ ] ⛔ Never rebuild the lineage in this window, never retag `qwen38-flash-dgx:iter6c|iter6d`, never prune the build cache — report the free-bytes number instead. The post-build CPU gates assert day-0 bytes: on v32 their red is not a verdict and their green would not be one either (HD-1210) — read the artifact markers.
+- [ ] **HD-494's rest-floor measurement** (ridden, not carried): `bash scripts/bench/spark/usable-sampler.sh` takes
+  1 s `usable` across one heavy prefill **in this boot window**, on an externally-served session (it refuses a
+  spark-served seat on its own first line — `--self-test` proves that offline), and prints the delta against the
+  ledger's rest prediction. The owner's ruling is that **the delta picks the floor** (CRIT vs WARN) — so the
+  number is taken before anything is written to IaC, and the detached pin converge above is what boots the
+  profiles against the floor that follows from it.
 - [ ] `todo.md` — HD-1206's window tail and HD-384, once.
 
 ### Phase 7 — re-seat and re-check
@@ -479,10 +491,10 @@ present; nothing else in it changes.
 | host | rows this window's converge carries | notes |
 |---|---|---|
 | **pi** | HD-443, HD-1103 · HD-1167 · HD-1109 | the pin legs ran; ⏭ **none of the fold-ins landed** — `access_admit_extra` still lists `admin` in `host_vars/pi.kogler.si.yml`, the ruled `rotate 1` + `maxsize` logrotate file is not in the tree, `pi-eth0.nmconnection` is unedited, so the Pi visit is still owed (fstab `mode=`, the boot that makes it true, the one-time re-render, the UNTAGGED leg applying `ai_diag`'s derived smartd mask). ⛔ the `nm-resolver` applies and HD-418's reconcile are done |
-| **vps** | HD-1166, HD-1173, HD-1106, HD-487 | HD-1166's page is closed on the box (one `--tags monitoring`, no UI mute); HD-1106's named-volume fix applied **before** any `docker volume rm`, so the WOPI keypair survived the recreate; the headscale records-file re-render is live with the parsed delta empty both ways. ⏭ HD-487 parked by ruling — `--check` shows one `20-eno1.netdev` removal, and a networkd apply does not ride the act that costs the control channel; the `op-write_api` host render is issued **from this laptop** (`self-converge-guard.yml`); HD-1173 needs the VPS converge that drops the routers + MagicDNS records |
+| **vps** | HD-1166, HD-1173, HD-1106, HD-487, HD-1223 | HD-1166's page is closed on the box (one `--tags monitoring`, no UI mute); HD-1106's named-volume fix applied **before** any `docker volume rm`, so the WOPI keypair survived the recreate; the headscale records-file re-render is live with the parsed delta empty both ways. ⏭ HD-487 parked by ruling — `--check` shows one `20-eno1.netdev` removal, and a networkd apply does not ride the act that costs the control channel; the `op-write_api` host render is issued **from this laptop** (`self-converge-guard.yml`); HD-1173 needs the VPS converge that drops the routers + MagicDNS records |
 | **nas** | the rotated SMB pair (its row is closed) | `storage_samba_password_force` landed the pair and the passdb was re-read **over SMB** — authenticated tree connects, cross-share denied, anonymous refused; a vault edit alone changes nothing on the box. The replica retag and the wedge reap are in [docs/storage.md](docs/storage.md) §A |
 | **oldsrv** | HD-1122, HD-1088, HD-1175 | HD-1122: ⚠ **no flip was owed** — `ai_tier_metrics_publish` is already `true` and both llama.cpp legs are scraped, so the owed half is an authored `llamacpp:*` panel. HD-1088 needs the Box key registered in the Hetzner console first (port 23, key-auth-only). HD-1175's root-only journal/`pstore` read ran: one boot ended in a `crash`, `/sys/fs/pstore` empty, only `efi_pstore` (no ERST/ramoops/`memmap=`), no mcelog/EDAC ⇒ no cause is recoverable and the box is structurally un-instrumented for the next one |
-| **spark** | HD-1206, HD-384, HD-473, HD-1210 | the dispatch check → `fast-v32-bf16` → gates 0–7 → `fast8` → gates 8–9, one boot shared with the rotation. ⏭ only the `monitoring`/`alloy` legs landed (ruling S8); everything else here waits for Phase 6 |
+| **spark** | HD-1206, HD-384, HD-473, HD-1210, HD-494 | the dispatch check → `fast-v32-bf16` → gates 0–7 → `fast8` → gates 8–9, one boot shared with the rotation. ⏭ only the `monitoring`/`alloy` legs landed (ruling S8); everything else here waits for Phase 6 |
 | **router** | HD-1160, HD-1142, HD-1140, HD-1136 | the global slot, and none of them is a converge. ⏭ **nothing ran** (ruling N3): no router or switch act, no WG / PPPoE / device-SNMP write |
 
 **Held out, on purpose:** the Wi-Fi PSKs (`wifi-kogler*` — live PSKs, every device rejoins by hand, the Shellys
