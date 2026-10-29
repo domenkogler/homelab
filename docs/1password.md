@@ -42,6 +42,7 @@ see §Proving which service account an install holds.
 | **`oldsrv` — the on-site control node** (`ansible-admin`) | `op_api` | `~/.config/op/homelab-sa-token` (0600), written by `bootstrap-runner.sh --token-stdin` from `op read` — the value never crosses a prompt or a shell history |
 | **`oldsrv` SEAT — `domen`, the cockpit/authoring account** | `op_api` | `~/.config/op/homelab-sa-token` (0600, owner `domen`), sourced from `~/.bashrc` — this is what makes the seat able to author ([deployment-ansible.md](deployment-ansible.md) §Runner placement) |
 | **control node (rescue)** — this WSL Debian laptop; not the only place `ansible-playbook` is run interactively, and it stays installed as the door you open when the on-site runner is the thing that is broken ([deployment-ansible.md](deployment-ansible.md) §Runner placement) | `op_api` | `~/.config/op/homelab-sa-token` (0600) |
+| **`oldsrv` — the `root` account** | a **dead** `op_api` generation | `/root/.config/op/homelab-sa-token` (0600 root), sourced from `/root/.bashrc`, and nothing re-seats it: its service account is **deleted**, so `op` there answers `(403) Forbidden (Service Account Deleted)`. It is on the list because the sweep finds it and no leg does — a root shell on that box cannot read the vault while every seat reads it fine |
 | Forgejo CI runner | — | **no holder**: no `.forgejo/` workflow, no runner, so nothing renews this token in CI |
 | **vps** — the Authentik secret-egress glue + `kopia-fingerprint-sync.yml` | `op-write_api` | `/etc/op/provision-token`, 0600 root, deployed by the docker_services pre-pass |
 | home hosts | `op-write_api` | same path, but ONLY where a `bootstrap_keys` service converges (`deploy-service.yml`) |
@@ -182,14 +183,27 @@ passes — so scope a seat only from `op_api/credential`, and prove it by Integr
 
 | Item / install | value | service account |
 |---|---|---|
-| `op_api` — **current** | `d633b4f9190e` | Integration `DUW6UPKY5JGG3MM6WF3HBHQWGQ` (read) |
+| `op_api` — **current** | `d633b4f9190e` | Integration `QO3TQ6IMYJF5LFB5EUERCEGJEY` (the read item's own integration — see the scope note below) |
+| `op_api` — superseded, live until ~2026-10-30 | `6a1342f44e65` | Integration `DUW6UPKY5JGG3MM6WF3HBHQWGQ` (read) |
 | `op-write_api` — **current** | `af0e1cffc9e4` | Integration `WN7FJT54IVHDDC4XR3YJ73R2CY` (read+write) |
+
+Each minted generation of these items answers with **its own Integration ID** — `op_api`'s superseded
+generation answers `DUW6UPKY5JGG3MM6WF3HBHQWGQ` and its current one `QO3TQ6IMYJF5LFB5EUERCEGJEY`, and
+the write item's two measured generations answered `PR4Z2FGWW5BRXNL6OR3FNYL3R4` then
+`WN7FJT54IVHDDC4XR3YJ73R2CY`. So an ID that matches no row here is a generation this table has not
+recorded, and the value hash (the sweep below) settles which item it belongs to — the current `op_api`
+value hashes apart from `op-write_api`'s AND answers an ID apart from its integration, which is what
+separates a re-seated seat from a mis-seeded one.
+
+**A seat cannot measure the scope of an Integration ID it has never seen.** `op item create --dry-run`
+never reaches the API (it answers rc 0 for both items), and `op item delete`/`edit` on a name that does
+not resolve dies at **name resolution**, not at the write permission — so neither is a scope verdict.
+The verdict is a write that reaches the API and fails, or the console's own scope page.
 
 The grace window on a superseded `op_api` value is **owner-set at the rotation**, not a product
 default: the superseded generation expires **~2026-10-30**, and every holder must re-seat inside that
 window (§Rotating the control-node token). A re-seat proven after that date is a re-seat of a dead
-token. The write item's current value belongs to a **different integration** than the value it was
-replaced with, so the two facts are not interchangeable: the **value hash** is what identifies a holder (the
+token. The two facts are not interchangeable: the **value hash** is what identifies a holder (the
 sweep below), the **Integration ID** is what proves scope. An install whose `op whoami` answers a
 write-scoped ID other than the row above is running a superseded credential.
 
@@ -198,10 +212,14 @@ not by *doc row* — a host can appear in one item's row while carrying the othe
 Sweep form (hashes only, never values):
 
 ```bash
-for f in ~/.config/op/homelab-sa-token /home/*/.config/op/homelab-sa-token; do \
+for f in ~/.config/op/homelab-sa-token /home/*/.config/op/homelab-sa-token /root/.config/op/homelab-sa-token; do \
   [ -f "$f" ] || continue; ( set -a; . "$f"; set +a \
     ; printf '%s  %s\n' "$f" "$(printf %s "$OP_SERVICE_ACCOUNT_TOKEN" | sha256sum | cut -c1-12)" ); done
 ```
+
+⚠ **The `/root` path is part of the sweep, not an extra.** Run as an ordinary user it silently matches
+nothing and the root install goes unlisted — that is how a dead-token root install survived every audit
+on `oldsrv` (§Where a token is installed). Run the sweep with `sudo` on a host that has one.
 
 ⚠ **Sweep the whole value — a prefix is not evidence.** In an `ops_`-family token the leading bytes are
 an envelope, not entropy: the first 80 characters are byte-identical between `op_api` and
