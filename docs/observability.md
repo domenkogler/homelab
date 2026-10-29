@@ -180,10 +180,13 @@ it would silently pull down every other package whose pin lags its box. The fix 
 `versions.yml`: raise the pin to the highest release **already running** somewhere in the fleet, then
 converge (which costs one Alloy restart per host).
 
-✅ **Live-verified 2026-10-27, every collector the group declares**: `alloy_build_info` reports
-`version` == the pin on all five `monitoring` hosts (`oldsrv`, `vps`, `pi`, `spark`, `nas`), with
-`up{job="alloy"}` = **1** on each — the read that proves the set at once is
-`scripts/gate/check_host_reporting.py --check`, because the read that does NOT prove it is the package:
+✅ **Live-verified 2026-10-29, four of the five collectors report**: `alloy_build_info` answers with
+`version` == the pin on `oldsrv`, `vps`, `pi` and `nas`, each with `up{job="alloy"}` = **1**.
+`spark.kogler.si` publishes NOTHING — no series carries its `instance` at all — so the group's read is
+4/5. That host was NOT diagnosed: no act ran against it, so which shape it is (`BLIND` or a refused
+write) is an open gap, and the reads to take there are `check_host_reporting.py`'s verdict and its own
+collector log. The read that proves the set at once is
+`scripts/gate/check_host_reporting.py`, because the read that does NOT prove it is the package:
 `dpkg` will happily confirm the pinned deb while the process ships no series. That gap between
 "installed", "running" and "scraping" is §Silent-failure hygiene's class, and `nas` sat in it for eight
 days with the deb in place and the collector stopped.
@@ -604,6 +607,22 @@ value, which a dark host never produces. Three instruments close it, and each pr
 | the probe + restart leg in `roles/monitoring` | the SERVING claim at converge time: `curl -sf -m 10 127.0.0.1:12345/metrics`, and one `systemd state: restarted` on the host whose own listener refused | act between converges; `state: started` alone asks systemd whether a process exists, so a converge on a wedged host reported `ok` and changed nothing |
 | `scripts/gate/check_host_reporting.py --check` | the **expected set**: every host in the inventory's `[monitoring]` group must carry `up{job="alloy",instance=<host>}` **and** the heartbeat. Four verdicts — `BLIND`, `SCRAPE LEG DEAD`, `COLLECTOR STALE`, `UNDECLARED` | say which of the four shapes a page means, and answer between converges only when run — the rule-shaped form below pages, but it cannot name the shape |
 | the metric rules | every shape where a value exists and goes stale | see a host that never produced a value |
+
+**The second dark-host shape is a HEALTHY collector whose writes the backend refuses, and only a counter
+reads it.** The store symptom is identical — no `up{job="alloy"}`, no `node_*`, no heartbeat for that
+`instance` — and the cause is the opposite: the unit is `active (running)`, `/metrics` answers in
+milliseconds, every `prometheus_forwarded_samples_total` leg grows, and the samples die in the write
+path. The separating read is one counter pair: `prometheus_remote_storage_samples_failed_total` moves BY
+EXACTLY the delta of `prometheus_remote_storage_samples_total` on a host the backend rejects, and stays
+flat on a healthy one. The collector's own log then names the class — `server returned HTTP status 401
+Unauthorized` means the `basic_auth` pair rendered into `/etc/alloy/config.alloy` is not the one the
+backend serves, i.e. a render that lags a rotation of `victoria-metrics_api` (§Datasource provisioning:
+rotation of that pair is a per-host re-render, so a host left on the superseded value is dark, not
+degraded). Prove it with a digest of the rendered value against the item's, `sha256[:12]` + length only —
+never the line.
+The repair is the credential's re-render leg; a restart re-serves the same rejected file and the failure
+counter simply keeps climbing. `check_host_reporting.py` files this shape as `SCRAPE LEG DEAD`, which is
+why its verdict names the counter instead of the unit.
 
 **The paging half is one generated `absent_over_time` rule per `[monitoring]` host, and that form was chosen
 against the anti-join on purpose.** `roles/monitoring/vars/main.yml` builds `grafana_alert_rules_blind_host`
