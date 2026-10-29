@@ -55,11 +55,12 @@ NO_TRAEFIK_LABELS = {"traefik-ha", "qbittorrent", "traefik-tailnet", "traefik-in
 ALLOWED_LATEST = {
     # profilarr + profilarr-parser REMOVED 2026-10-08: they were here because upstream published
     # no versioned tags (probe 2026-08-21: only develop/buildcache/sha256). Re-probed 2026-10-08 —
-    # both images now publish `X.Y.Z` (2.2.0), so both are pinned in versions.yml and the compose
-    # renders vars instead of `:latest`. Leaving them allowed would have kept a fluid tag alive by
-    # permission of a stale note, which is exactly what this list is supposed to prevent.
-    # HD-362 music pillar: pinned via versions.yml since 2026-09-14 (aurral 2.10.0 / slskd 0.26.0 /
-    # tubearchivist v0.5.12 — re-verified 2026-10-08); their compose lines carry vars, so they no
+    # both images now publish `X.Y.Z` tags (`profilarr_version`, `profilarr_parser_version`), so both are
+    # pinned in versions.yml and the compose renders vars instead of `:latest`. Leaving them allowed would
+    # have kept a fluid tag alive by permission of a stale note, which is exactly what this list is
+    # supposed to prevent.
+    # HD-362 music pillar: pinned via versions.yml since 2026-09-14 (aurral / slskd / tubearchivist — the
+    # values are the vars' own, registry re-verified 2026-10-08); their compose lines carry vars, so they no
     # longer resolve to `latest` either way. `lidarr-ydl` (Angrido) still has ONLY `latest`/`beta`
     # upstream (re-probed 2026-10-08) → fluid by upstream design, MUST-pin note in versions.yml +
     # compose, and its bgutil-ytdlp sidecar is the literal `:latest` this list still exists for.
@@ -67,7 +68,7 @@ ALLOWED_LATEST = {
     "aurral", "slskd", "tube-archivist", "lidarr-ydl",
     # spark-dashboard (HD-364 rework): Traefik file-provider edge on spark proxying
     # the DGX dashboard loopback + admin JupyterLab — image traefik:{{ traefik_version }}
-    # is pinned in versions.yml (v3.7.13 as of 2026-10-08); NOT fluid.
+    # is pinned in versions.yml (`traefik_version`, registry-verified 2026-10-08); NOT fluid.
     # (The retired alpine/socat bridge — dgx-dashboard — had NO semver tags upstream,
     # only `latest`+date, so it lived here digest-pinned; that service is GONE with the
     # socat→Traefik swap, no fluid tag remains.)
