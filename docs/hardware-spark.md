@@ -843,13 +843,15 @@ must implement when it lands:
   - **A socat bridge is not the pattern here:** one socat argv = exactly ONE address pair, so a four-argv
     compose command list crash-loops on every reboot. The pattern here is the Traefik file-provider
     sidecar.
-- **Retired stack stays retired via a tombstone:** the retired `/opt/dgx-dashboard/docker-compose.yml`
-  + its **enabled** `docker-compose@dgx-dashboard.service` boot unit would resurrect the socat container
+- **The retired socat bridge stays retired via a mask:** the retired `/opt/dgx-dashboard/docker-compose.yml`
+  + its `docker-compose@dgx-dashboard.service` boot unit would resurrect the socat container
   on every boot, crash-looping forever (it can no longer bind `spark_home_ip:11000`; Traefik owns it).
-  `group_vars/spark.yml` carries a `dgx-dashboard` **tombstone** entry with `enabled: false`, so the
-  role's "Tear down DISABLED services" + "Disable boot auto-start" tasks keep it gone on every converge and
-  after a reboot (nothing renders from a disabled entry — the vault pre-pass and the deploy loops both skip
-  it). ⏳ Delete the tombstone once the teardown has run green on spark twice.
+  The guard is the `spark` role masking that unit (`systemctl mask --now`); the stack is not declared in
+  `group_vars/spark.yml` at all. A mask is the guard and not a disable (or an `enabled: false` registry
+  row) because it survives the vendor package upgrade that regenerates that compose file — an upgrade
+  re-enables a disabled unit and starts it again, but it cannot start a masked one.
+  ⛔ Never delete `/opt/dgx-dashboard` while the unit is merely disabled: the path IS the unit's
+  `WorkingDirectory`, so a re-enabled unit fails at `CHDIR` on every boot, forever.
 - **JupyterLab on the LAN:** the dashboard ships an **integrated JupyterLab** whose per-user ports
   are in `/opt/nvidia/dgx-dashboard-service/jupyterlab_ports.yaml` (nobody 11001 / **admin 11002** /
   ansible-admin 11003). NVIDIA's own remote path is a second SSH tunnel per assigned port; the same
