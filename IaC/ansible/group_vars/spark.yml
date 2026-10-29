@@ -384,6 +384,18 @@ spark_llm_never_evict_capable_images: [ultrafast]
 # purpose: it cannot serve this checkpoint at all (the `VLLM_FP8_HYBRID` dispatch is patch-stack only).
 spark_llm_fp8_kv_capable_images: [ultrafast-v32]
 
+# The SGLang side of the same question, keyed by DIGEST rather than by name, because on this engine
+# fp8 KV is a SOURCE fact and not a dtype guard: QSA crashed on FP8 cached prefixes (#36545) until
+# #38851 (dequant on gather) and #38855 (dequant of FP8 cached prefixes in the sparse prefill
+# kernels) landed on `main`. The digest below is listed because both commits are ANCESTORS of the
+# build commit its tag names (`1ab008f5b`, read from the repository at that ref) and
+# `srt/layers/attention/qsa/kernel.py` at that ref carries the "one kernel for every cache dtype
+# (bf16 or FP8)" path. That is source evidence, not a runtime verdict — the runtime half is gates
+# 8–9 on the fp8 cells — and a re-pin that drops this digest has to redo this reading first, because
+# `roles/spark-llm-profile` refuses an fp8 sglang profile whose pin is not listed here.
+spark_llm_sglang_fp8_proven_images:
+  - "lmsysorg/sglang:nightly-cu134-20261029-1ab008f@sha256:3ec37ac899c195c4fb7936196ded349fcd73bd45ee4917edd58bb3f08fa30253"
+
 # ---- Checkpoint identity + the PLE pairing table ----------
 # WHY these two maps exist. A profile names TWO artifacts — a checkpoint (`model_subdir`) and a
 # PLE sidecar/table (`ple_host_subdir`) — and until now NOTHING tied them: the gate proved each
@@ -627,7 +639,7 @@ spark_llm_profiles:
   # (91/100 vs 98/100 in one capture, 99/100 in another — engine+template+effort
   # confound it: spark/resources/R2-nvfp4.md §B).
   fast-sglang:
-    label: "EXPERIMENTAL — SGLang + RadixArk NVFP4 (pool cannot hold our window, image pin empty)"
+    label: "EXPERIMENTAL — SGLang + RadixArk NVFP4 (pool cannot hold our window, never booted here)"
     engine: sglang
     container: sglang-qwen-spark
     model_subdir: Qwen3.8-Flash-Next-NVFP4-RadixArk
@@ -768,13 +780,14 @@ spark_llm_profiles:
     artifact_sets: [nvfp4-radixark]
     certified: false
     uncertified_reason: >-
-      Three independent blockers, in cost order: (1) spark_sglang_image carries no
-      digest — CONVENTIONS §7 forbids the floating dev tags that are the only builds
-      carrying support ≥ v0.5.20 plus the #38121 export loader; (2) the single-Spark KV
+      Three independent blockers, in cost order: (1) the pinned build has never been booted on this
+      box: `spark_sglang_image` names a main-line nightly digest — arm64, the model files present in
+      the build commit, and no #38121 loader, so it loads the RadixArk export and not the NVDA one —
+      and nothing has been served from it here; (2) the single-Spark KV
       pool sglang measures for this checkpoint (~93k RadixArk / ~174k NVIDIA export, MTP
       on) cannot hold the 262,144 window the client contract promises, and closing that
       gap needs sglang fp8 KV — fixed on the release line (#38851/#38855, shipped in v0.5.20+),
-      never verified on GB10, and this arm's image would have to be re-pinned to carry it; (3) PLE + SGLang on GB10 has never
+      never verified on GB10, which is what the `sg-*-fp8` cells are for; (3) PLE + SGLang on GB10 has never
       been booted here (BENCHMARK-PLAN: "PLE is vLLM-only today"), and a failed boot
       competes with the certified engine for the same 121.62 GiB pool. The file-backed
       table (#37068) is the vendor's own fix for (1 Spark, weights) and is already
@@ -927,41 +940,43 @@ spark_llm_profiles:
   # ── cell: tree ON, KV bytes bf16 — the reference cell every other one is compared to ──
   sg-radix-bf16:
     <<: *sg_x
-    label: "PROBE — SGLang NVFP4, radix tree ON, bf16 KV (reference cell; image pin still empty)"
+    label: "PROBE — SGLang NVFP4, radix tree ON, bf16 KV (reference cell; uncertified)"
     radix_cache: true
     kv_cache_dtype: auto                  # → nothing rendered: `auto` is model dtype = bf16
     uncertified_reason: >-
-      Same first blocker as `fast-sglang`, and it is not a flag: `spark_sglang_image` holds no
-      arm64 digest, so the profile gate refuses the profile long before anything boots
-      (CONVENTIONS §7: verify the manifest, take the digest, pin it, record the verification in
-      the same change). Second: a grid run on an unmeasured pool can return "all four cells failed
-      the same way", which is a verdict about the pool and not about the tree or the dtype — read
-      the boot-log pool line before timing a single leg.
+      One blocker, not three: the pinned build has never been served on this box. The digest is
+      registry- and box-verified (arm64 — docs/hardware-spark.md §Bench + engine selection), but
+      "pinned" is not "booted": `certified: false` + spark_llm_allow_uncertified is what refuses the
+      profile (CONVENTIONS §7's first-pin half is done; the certification half is the bench).
+      Second, and it is a reading order rather than a flag: a grid run on an unmeasured pool can
+      return "all four cells failed the same way", which is a verdict about the pool and not about
+      the tree or the dtype — read the boot-log pool line before timing a single leg.
 
   # ── cell: tree ON, KV bytes fp8 — the dtype dial, alone ──
   sg-radix-fp8:
     <<: *sg_x
-    label: "PROBE — SGLang NVFP4, radix tree ON, fp8_e4m3 KV (dtype dial; image pin still empty)"
+    label: "PROBE — SGLang NVFP4, radix tree ON, fp8_e4m3 KV (dtype dial; uncertified)"
     radix_cache: true
     kv_cache_dtype: fp8                   # → --kv-cache-dtype fp8_e4m3: the ONE delta vs
                                           # `sg-radix-bf16`
     uncertified_reason: >-
-      Blocked by the same empty `spark_sglang_image`, and the fp8 leg carries a second condition
-      the bf16 cells do not: the flag is only safe on a build at ≥ v0.5.20, where #38851/#38855
-      dequantize the FP8 cached prefixes — on an older build the first prefill on the QSA path
-      dies on the dtype assertion (#36545). Read the engine's version banner in the boot log
-      before this cell is timed. And because `--quantization-param-path` is unset, the KV scales
-      are 1.0: this cell is a NUMERICS claim, so gates 8–9 are mandatory here, not optional.
+      Refused by `certified: false` like every other cell — the pin is a verified digest, not a boot.
+      The fp8 leg carries a second condition the bf16 cells do not: the flag is only safe on a build
+      whose source carries the QSA dequant fixes (#38851/#38855), which the pinned digest does — the
+      build commit has both as ancestors, and that is why it was chosen over the model-specific dev
+      tags — and which the boot log's version line confirms at runtime. And because
+      `--quantization-param-path` is unset, the KV scales are 1.0: this cell is a NUMERICS claim, so
+      gates 8–9 are mandatory here, not optional.
 
   # ── cell: tree OFF, KV bytes bf16 — the tree dial, alone ──
   sg-no_radix-bf16:
     <<: *sg_x
-    label: "PROBE — SGLang NVFP4, radix tree DISABLED, bf16 KV (control leg; image pin still empty)"
+    label: "PROBE — SGLang NVFP4, radix tree DISABLED, bf16 KV (control leg; uncertified)"
     radix_cache: false                    # renders --disable-radix-cache — the ONLY delta
     kv_cache_dtype: auto
     uncertified_reason: >-
       The control cell of `sg-radix-bf16`: every coordinate identical except the rendered
-      `--disable-radix-cache`. Blocked by the same empty SGLang image pin.
+      `--disable-radix-cache`. Refused by the same `certified: false` — a verified pin, never booted.
 
   # ── cell: tree OFF, KV bytes fp8 — the interaction term ──
   sg-no_radix-fp8:
@@ -972,9 +987,10 @@ spark_llm_profiles:
     uncertified_reason: >-
       The cell that makes the grid a grid: without it, a dtype gain measured with the tree ON and
       a tree gain measured with bf16 cannot be added together, because prefix reuse changes how
-      many distinct tokens the pool has to hold at all. Same empty image pin, and the same two
-      conditions as `sg-radix-fp8`: a ≥ v0.5.20 build (#36545 otherwise) and gates 8–9, since the
-      KV scales are 1.0 without `--quantization-param-path`.
+      many distinct tokens the pool has to hold at all. Same `certified: false` refusal as the other
+      three cells, and the same two conditions as `sg-radix-fp8`: a build carrying #38851/#38855 (the
+      pinned digest does) and gates 8–9, since the KV scales are 1.0 without
+      `--quantization-param-path`.
 
   # ══════════════════════════════════════════════════════════════════════════════
   # THE ULTRA-FAST MATRIX (screening funnel, upstream v16b lineage)

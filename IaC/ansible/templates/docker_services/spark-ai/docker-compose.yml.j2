@@ -32,8 +32,10 @@
 #   Digest pin: vllm/vllm-openai:qwen38-flash-next @
 #   sha256:fc120ece0a388cc0aa1caad4a9f1cd92113484ab7ec2fd0efadd62585be05bf8
 #   (multi-arch arm64+amd64; the arm64-cu130 manifest is the DGX Spark candidate).
-#   SGLang has NO verified arm64 digest yet → spark_sglang_image is empty on purpose
-#   and roles/spark-llm-profile refuses the profile before this file is ever rendered.
+#   SGLang is pinned by digest too (an arm64 main-line nightly, manifest verified on the box —
+#   `spark_sglang_image` in group_vars/all/versions.yml names it and records the reading). The
+#   sglang profiles are refused by `certified: false` + spark_llm_allow_uncertified instead: the
+#   pin is verified, the BOOT is not.
 {% set profile = spark_llm_profiles[spark_llm_profile] %}
 {#  The template indexes spark_llm_profiles DIRECTLY (native dict in both the real
     Ansible render and the offline validator mock) — a Jinja-valued alias such as

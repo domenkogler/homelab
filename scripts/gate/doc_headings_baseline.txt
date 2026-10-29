@@ -24,7 +24,6 @@
 # given pointer is not worth fixing yet belongs in the doc that owns the section.
 1	IaC/ansible/group_vars/all/main.yml	docs/services-traefik.md	§Service
 1	IaC/ansible/group_vars/all/versions.yml	docs/deployment-renovate.md	§7
-1	IaC/ansible/group_vars/all/versions.yml	docs/hardware-spark.md	§7
 1	IaC/ansible/group_vars/all/versions.yml	docs/spark-llm-profiles.md	§Draft-vocab
 1	IaC/ansible/group_vars/home_servers.yml	(unresolved target)	§7
 1	IaC/ansible/group_vars/home_servers.yml	docs/smart-home-voice.md	§the

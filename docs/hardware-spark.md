@@ -661,6 +661,13 @@ them are host rules, not engine trivia:
   asserted (`roles/spark-llm-profile` refuses > 0.80).
   Note that the flash-next cells themselves run 0.85 with ~8–12 GiB free and report host memory never
   below 10 GiB: on a box that serves a live agent all day, 0.80 is the operating point we keep.
+* **The engine image's driver band is a host fact, checked before the pull.** The pinned SGLang
+  nightly's config declares `NVIDIA_REQUIRE_CUDA=cuda>=13.4 … driver>=580,driver<581` (among other
+  bands), and this box runs **580.178.04** (§Identity) — so the container starts. DGX OS moves that
+  driver under apt, and a driver that leaves the band makes every engine container fail at start
+  with a CUDA error that reads like a driver bug. Read it from the image config
+  (`docker buildx imagetools inspect <pin> --format '{{json .Image}}'`, read-only, no pull) whenever
+  an engine image is (re-)pinned.
 * **Docker GPU access on GB10 is CDI-only** — `--device nvidia.com/gpu=all`; **no `nvidia` runtime is
   registered**. Any future engine container in this stack must use CDI (our `spark-ai` compose pattern
   needs checking against that before an sglang spike, not after a boot failure).
@@ -693,7 +700,13 @@ research + verdicts: [`../spark/resources/RESEARCH-VERDICTS.md`](../spark/resour
 - **vLLM (live today):** the 98/100 AWQ+PLE accuracy recipe is vLLM-only (PLE n-gram overlay); NVFP4 on
   GB10 has an upstream Marlin fallback gap (#50925).
 - **SGLang (candidate):** the native-GB10 NVFP4 route (262k ctx); long-context concurrency fits its
-  pool semantics.
+  pool semantics. The lane is no longer blocked on a pin: `spark_sglang_image` carries the arm64
+  digest of the main-line nightly whose build commit ships BOTH the model files and the QSA fp8-KV
+  fixes (`versions.yml` records the manifest read taken on this box and the source evidence), and it
+  ships the RadixArk path only — the ModelOpt MIXED_PRECISION loader #38121 is absent, so the NVDA
+  export is a different image. ⚠ Pinned ≠ booted: nothing has been served from this digest here, so
+  every sglang profile stays `certified: false` and the pool number that decides the grid is still
+  read from the boot log.
 - **util ceiling, for the percentage form:** on the 121.62 GiB coherent pool
   `gpu_memory_utilization: 0.82` is the MAX servable setting — 0.84/0.86 leave the host too little
   reserve and take the engine out through a global OOM that wedges the box. With the explicit KV

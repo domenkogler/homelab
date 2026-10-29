@@ -307,6 +307,11 @@
 #     `fp8` → `--kv-cache-dtype fp8_e4m3` and renders NOTHING for `auto`/`bf16`, so an unknown
 #     value would boot a bf16 pool under a profile that claims another dtype — a silently wrong
 #     cell in the radix × dtype grid, which is worse than a refusal.
+#   * fp8 KV on a build whose source does not carry the QSA dequant fixes. On SGLang this is a
+#     source fact, not a dtype guard: before #38851/#38855 the first FP8 cached prefix on the QSA
+#     path died on a dtype assertion (#36545), so the flag would render fine, pass every arithmetic
+#     invariant, and die at the first prefill. The pin must therefore appear in
+#     `spark_llm_sglang_fp8_proven_images` (keyed by digest, evidence in group_vars/spark.yml).
 - name: Render the SGLang arg list as a string for the invariant checks
   ansible.builtin.set_fact:
     spark_llm_args_str: "{{ spark_llm.args_extra | default([]) | join(' ') }}"
@@ -321,6 +326,7 @@
       - (spark_llm_args_str | regex_findall('--max-total-tokens[= ]+([^ ]+)') | first | default(spark_llm.max_model_len)) | int >= (spark_llm.max_model_len | int)
       - ('--ple-offload-embedding' not in spark_llm_args_str) or ((spark_llm_args_str | regex_findall('--ple-offload-backend[= ]+([^ ]+)') | first | default('pinned')) == 'file')
       - spark_llm.kv_cache_dtype in ['auto', 'bf16', 'fp8']
+      - (spark_llm.kv_cache_dtype != 'fp8') or (spark_llm_image_resolved in spark_llm_sglang_fp8_proven_images)
     fail_msg: >-
       Profile '{{ spark_llm_profile }}' passes SGLang flags this box cannot survive:
       mem-fraction={{ spark_llm_args_str | regex_findall('--mem-fraction-static[= ]+([^ ]+)') | first | default('(unset — sglang default)') }}
@@ -334,7 +340,11 @@
       the `file` backend, with a bind of the XFS NVMe store at that path, moves it off),
       kv_cache_dtype={{ spark_llm.kv_cache_dtype }}
       (one of auto|bf16|fp8: the render spells `fp8` as `--kv-cache-dtype fp8_e4m3` and says
-      nothing for the other two, so any other value silently boots a bf16 pool).
+      nothing for the other two, so any other value silently boots a bf16 pool),
+      image={{ spark_llm_image_resolved | default('(unresolved)') }}
+      (an fp8 profile must name a digest in spark_llm_sglang_fp8_proven_images: on SGLang the fp8 KV
+      path is fixed in source by #38851/#38855, and on a build without them the first FP8 cached
+      prefix dies on the #36545 dtype assertion).
       Flags: spark_llm_profiles.{{ spark_llm_profile }}.args_extra in group_vars/spark.yml.
   tags: [spark, spark-llm-profile, llm]
 
