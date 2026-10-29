@@ -650,7 +650,7 @@ spark_llm_profiles:
       # Vendor default, declared explicitly so the RSS cap is visible in the render: the
       # file-backed table's page-cache resident set. Raising it trades host RAM for hit rate.
       - SGLANG_QWEN4_PLE_FILE_RSS_BUDGET_GB=8
-    args_extra:
+    args_extra: &sg_radix_args
       - --quantization
       - modelopt_fp4
       - --fp4-gemm-backend
@@ -665,6 +665,8 @@ spark_llm_profiles:
       # modelopt_mixed).
       - --attention-backend
       - triton
+      # ANCHORED: `sg-radix` / `sg-radix-off` alias this exact list (*sg_radix_args) — the
+      # radix pair must differ from this arm by ONE rendered flag, never by a re-typed copy.
       - --linear-attn-prefill-backend
       - triton
       - --linear-attn-decode-backend
@@ -677,9 +679,9 @@ spark_llm_profiles:
       # THE flag that makes one Spark able to hold this checkpoint at all (#37068). Without
       # `file` the offload pins the table in host RAM = the same 121.62 GiB pool = the
       # failure this lane was blocked on. `--ple-offload-dir` must point at a bind of the
-      # XFS NVMe store (spark_xfs_mount/ple_offload → /ple_offload): that bind is NOT wired
-      # in the spark-ai template yet, and the sparse 47.7 GiB file must not land on EXT4 or
-      # in the container's own storage. Wire it in the same change that pins the image.
+      # XFS NVMe store, and the sparse 47.7 GiB file must not land on EXT4 or in the
+      # container's own storage: the bind is rendered by `ple_offload_bind` (the radix pair
+      # below sets it; this arm was authored before the bind existed).
       - --ple-offload-backend
       - file
       - --ple-offload-dir
@@ -766,6 +768,154 @@ spark_llm_profiles:
       competes with the certified engine for the same 121.62 GiB pool. The file-backed
       table (#37068) is the vendor's own fix for (1 Spark, weights) and is already
       authored below.
+
+  # ── 3b. THE RADIX PAIR — SGLang's prefix tree, measured on THIS box ────────
+  # WHY A PAIR AND NOT AN ARM: `fast-sglang` asks "can SGLang serve 262,144 on one Spark?", and
+  # that is already ruled (Rejected table: the pool sglang measures for these weights holds
+  # ~93k/~174k tokens). The unanswered question is the one the harness cares about: does
+  # RadixAttention's shared-prefix tree earn anything when ONE parent preamble is reused by its
+  # children — cheaper TTFT, fewer prefilled tokens, fewer evictions — at a shape this box can
+  # boot? A tree that is ON by default proves nothing until it has been compared to itself OFF,
+  # so these two arms are ONE shape with ONE rendered flag between them (`radix_cache`), same
+  # weights, same image, same boot family. Neither certifies anything: an A/B is a measurement,
+  # not a winner, and "no difference" is an acceptable verdict (docs/services-ai-rejected.md).
+  #
+  # WHAT EACH LEG READS — the boot log first, the timer second, because the pool number is a
+  # result and not a precondition:
+  #   1. the engine's own pool line and `max_total_num_tokens`: the FIRST SGLang pool number
+  #      measured on this box (the ~93k/~174k pair is the vendor's, on other cards and builds).
+  #   2. the prefix-cache counters on `/metrics` across the fan-out legs — the metric the vLLM
+  #      lane does NOT expose (`prompt_cached_tokens` carries no series on the AR build — the
+  #      prefix-cache panels of docs/observability.md), which is why the vLLM 30 % cache-hit target reads as a
+  #      floor with no ceiling there. This lane can answer a question the certified lane cannot.
+  #   3. TTFT per leg, taken off-engine from the WSL2 seat (Rule 0: never timed by a session
+  #      whose own model is spark).
+  #
+  # WHAT DIFFERS FROM `fast-sglang` — exactly three things, so the pair stays readable:
+  #   * `max_num_seqs` 4 → 8: a prefix tree with one running sequence has nothing to share. 8
+  #     is the harness's real fan-out (one parent + children) with headroom, not a bigger number.
+  #   * `ple_offload_bind` is set, so `--ple-offload-dir` names a path that is actually bound to
+  #     the XFS store instead of an empty mount point inside the container's own storage.
+  #   * the tree's state is DECLARATIVE (`radix_cache`). A flag hand-toggled in a hand-run
+  #     `docker run` is not an A/B — it is two different engines, and neither of them is ours.
+  # Everything else is `*sg_radix_args`, aliased off `fast-sglang` rather than copied.
+  #
+  # ⛔ NOT to be copied from any community recipe into this pair:
+  #   * `--enable-hierarchical-cache` / `--hicache-*`: a host-RAM KV tier on GB10 moves bytes
+  #     from one place in the SAME 121.62 GiB pool to another place in it. It spends host floor
+  #     (the thing that puts spark into swap) and buys nothing — the opposite of the sidecar PLE
+  #     table, which moves its bytes to NVMe.
+  #   * `--mem-fraction-static` above 0.80 — the gate refuses it and DGX OS's earlyoom explains
+  #     why (exit -15, no traceback).
+  #   * a `--max-total-tokens` below 262,144 to make the boot fit: that is the 400-mid-session
+  #     failure (docs/spark-llm-profiles.md §Client contract), and it would be a lie in models.json.
+  sg-radix:
+    label: "PROBE — SGLang with RadixAttention ON (arm A of the A/B; image pin still empty)"
+    engine: sglang
+    container: sglang-qwen-spark
+    model_subdir: Qwen3.8-Flash-Next-NVFP4-RadixArk
+    ple_host_subdir: ""                   # table comes from the checkpoint; SGLang pins it
+    ple_container_dir: ""
+    ple_overlay: false
+    ple_offload: true
+    ple_offload_bind: ple_offload         # → <spark_xfs_mount>/ple_offload:/ple_offload (RW, XFS)
+    radix_cache: true                     # renders nothing: the tree is sglang's own default
+    served_name: spark/qwen3.8-flash-next-sg   # NOT the fleet id: an uncertified engine is never
+                                               # reachable through `spark/*` routing
+                                               # (docs/harness-pi-engines.md §6)
+    max_model_len: 262144                 # the contract stays whole; the POOL is what we measure
+    max_num_seqs: 8                       # --max-running-requests (fan-out note above)
+    max_num_batched_tokens: 4096          # --chunked-prefill-size
+    kv_cache_dtype: auto                  # bf16: fp8 KV on the QSA path is sglang #36644, open
+    kv_cache_memory: "0"                  # unused by SGLang (the pool is --mem-fraction-static's)
+    max_cudagraph_capture_size: 0
+    enforce_eager: false
+    distributed_executor_backend: mp
+    spec_method: nextn
+    spec_tokens: 3
+    memory_limit: 105G
+    health_start_period: 4800s            # first boot WRITES the sparse table file (≈55 min)
+    env_extra:
+      # The file-backed table's page-cache resident set, declared so the cap is visible in the
+      # render. Raising it trades host RAM (the floor) for table hit rate — not a free dial here.
+      - SGLANG_QWEN4_PLE_FILE_RSS_BUDGET_GB=8
+    args_extra: *sg_radix_args
+    reasoning_surface: always-on-effort-unmeasured   # sglang always reasons on this model;
+                                                     # `spark-llm-probe.py reasoning` legs are
+                                                     # expected to FAIL here by design
+    client_context_window: 262144
+    client_max_tokens: 16384
+    image: sglang
+    models_root: xfs
+    tool_call_parser: qwen3_coder
+    generation_config_override: '{"temperature":1,"top_p":0.95,"top_k":20}'
+    ple_host_base: mount
+    ple_host_root: xfs
+    ple_staged_marker: META.json
+    cudagraph_piecewise: false
+    prompt_tokens_details: false
+    never_evict_prompt: ""            # the SGLang flag family has no --never-evict
+    never_evict_max_fraction: *nevf
+    ple_mmap: false
+    draft_vocab: false
+    artifact_sets: [nvfp4-radixark]
+    certified: false
+    uncertified_reason: >-
+      Same first blocker as `fast-sglang`, and it is not a flag: `spark_sglang_image` holds no
+      arm64 digest, so the profile gate refuses the profile long before anything boots
+      (CONVENTIONS §7: verify the manifest, take the digest, pin it, record the verification in
+      the same change). Second: an A/B run on an unmeasured pool can return "both legs failed
+      the same way", which is a verdict about the pool and not about RadixAttention — read the
+      boot-log pool line before timing a single leg.
+
+  sg-radix-off:
+    label: "PROBE — the same SGLang shape with the radix tree DISABLED (control leg)"
+    engine: sglang
+    container: sglang-qwen-spark
+    model_subdir: Qwen3.8-Flash-Next-NVFP4-RadixArk
+    ple_host_subdir: ""
+    ple_container_dir: ""
+    ple_overlay: false
+    ple_offload: true
+    ple_offload_bind: ple_offload
+    radix_cache: false                    # renders --disable-radix-cache — the ONLY delta
+    served_name: spark/qwen3.8-flash-next-sg
+    max_model_len: 262144
+    max_num_seqs: 8
+    max_num_batched_tokens: 4096
+    kv_cache_dtype: auto
+    kv_cache_memory: "0"
+    max_cudagraph_capture_size: 0
+    enforce_eager: false
+    distributed_executor_backend: mp
+    spec_method: nextn
+    spec_tokens: 3
+    memory_limit: 105G
+    health_start_period: 4800s
+    env_extra:
+      - SGLANG_QWEN4_PLE_FILE_RSS_BUDGET_GB=8
+    args_extra: *sg_radix_args
+    reasoning_surface: always-on-effort-unmeasured
+    client_context_window: 262144
+    client_max_tokens: 16384
+    image: sglang
+    models_root: xfs
+    tool_call_parser: qwen3_coder
+    generation_config_override: '{"temperature":1,"top_p":0.95,"top_k":20}'
+    ple_host_base: mount
+    ple_host_root: xfs
+    ple_staged_marker: META.json
+    cudagraph_piecewise: false
+    prompt_tokens_details: false
+    never_evict_prompt: ""
+    never_evict_max_fraction: *nevf
+    ple_mmap: false
+    draft_vocab: false
+    artifact_sets: [nvfp4-radixark]
+    certified: false
+    uncertified_reason: >-
+      The control leg of `sg-radix`: every coordinate identical except the rendered
+      `--disable-radix-cache`. Blocked by the same empty SGLang image pin.
 
   # ══════════════════════════════════════════════════════════════════════════════
   # THE ULTRA-FAST MATRIX (screening funnel, upstream v16b lineage)

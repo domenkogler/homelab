@@ -147,7 +147,7 @@ not this list, holds the steps, the file ownership and the converge host. Waves,
    **day-0-shaped CPU self-tests** — their red is not a verdict on the patch set and their green would not be one
    either, so read the artifact markers, not the CPU gates; re-anchoring them onto v32 bytes is its own row, minted
    at this merge. Never retag `qwen38-flash-dgx:iter6c|iter6d`; never prune the build cache.
-   → [prompt-spark-llm.md](prompt-spark-llm.md) (one spark slot; HD-473 + the two capacity-axis rows ride it)
+   → [prompt-spark-llm.md](prompt-spark-llm.md) (one spark slot; HD-473 + the capacity-axis and radix rows ride it)
 2. ⏳ **The transport / answer plane** — **HD-436** owes ONLY the live half: the two converges in the parked table
    below, both still PARKED, **plus the `llm.kogler.si` answer flip** the row now carries (both halves on the zone entry — `tailnet: node`/`dual` **and** an explicit `tailnet_ip:` — it moves the answer for every client, and it is an owner-present act). **HD-477** — make the resolver actually float with the VIP; the row carries the three
    gates. **HD-487** — config-manager truth is DECLARED per host in `host_vars/<host>.yml`, held by

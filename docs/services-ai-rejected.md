@@ -54,6 +54,7 @@ tags: [services, ai, rejected, decision-log, rag, memory]
 | `fallback/login` as the LiteLLM login path | rejected | `/ui/login` resolves on the pinned build |
 | `fast` NVFP4 profile (mixed NVFP4/FP8 weights) | superseded | JIT-compiles QSA/GDN kernels; the name now marks the winner |
 | `fast-sglang` (SGLang + RadixArk NVFP4) | rejected | No arm64 digest, pool too small, PLE bind unwired |
+| `--enable-hierarchical-cache` (host-RAM KV tier) on GB10 | rejected | host RAM **is** the same 121.62 GiB pool — it spends host floor to move bytes sideways, unlike the NVMe sidecar table |
 | forward-auth on LiteLLM `/ui/*` route-wide | rejected | Breaks the same-host API bearer consumers |
 | GGUF AI legs capped at `1g` memory | superseded | CPU-fallback path peaks 1.59 GiB; the cap is 4g |
 | `graded` (fp8 main KV cache, same AWQ weights) | rejected | Pinned build has no fp8 KV; needs the engine-pin lane |
