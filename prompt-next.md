@@ -24,13 +24,14 @@ Nothing below is trusted from a handoff. Run these four and let the tree answer:
 python3 scripts/gate/check_zone_kogler_si_parity.py --self-test   # the case list is its own output
 python3 scripts/ansible/zone_kogler_si_render.py --render-records | python3 -c 'import json,sys;print(len(json.load(sys.stdin)))'
 grep -n "headscale_extra_records_path:" IaC/ansible/group_vars/vps.yml
-grep -rn "nothing renders differently for it today" IaC/ansible/group_vars/all/main.yml
+grep -rn "tailnet_pi_ip" IaC/ansible/templates/docker_services/headscale/ | head
 ```
 
 What they establish, in order: the records file is a **JSON array** and the gate parses it the consumer's way
 in both key shapes; the render emits one row per name per namespace; the inline `dns.extra_records` block is
-the shape in force, so **live is unchanged**; and **`dual` is a vocabulary word no renderer implements yet** —
-which is the whole of Act 1.
+the shape in force, so **live is unchanged**; and **`dual` renders a second `.ts` row at `tailnet_pi_ip` in
+both record shapes** — the render half of Act 1 is landed, so what Act 1 still owes is the FIELD, and the field
+is §6's diff.
 
 ---
 
@@ -62,33 +63,29 @@ record shapes rendering byte-comparable row sets. A claim with no command output
 
 ---
 
-## 3. Act 2 — the read-only pre-flight (VPS, writes nothing)
+## 3. Act 2 — the read-only pre-flight (VPS, writes nothing) — LANDED
 
-The dry-diff is the ONLY thing an unattended window runs on this plane, and it is exactly what this act is.
-Procedure is in [docs/network-dns.md](docs/network-dns.md) §The MagicDNS records FILE — the preflight step
-renders both halves into `/tmp` from the tree, with the in-memory dummy vault, and never leaves the laptop.
+The dry-diff is the ONLY thing an unattended window runs on this plane. Its reads were run and their results
+are **state in the owning docs**, not in this brief: one record key and the inline shape in force,
+the live set equal to the derived render **both directions**, `tailnet_oldsrv_ip` / `tailnet_pi_ip` equal to
+the addresses `headscale nodes list` assigns, and `ha-ts` answering TCP/443 under `ha.ts.kogler.si` on **both**
+home boxes behind the VIP — see [docs/network-dns.md](docs/network-dns.md) §The MagicDNS records FILE and
+[docs/network-vpn.md](docs/network-vpn.md) §Tailnet boundary. The `dual` flag is therefore a fix, not a lie,
+and §7 still bounds what it buys.
 
-Read-only on the host, then:
+Two reads change §6's diff, and both are in the row and the doc:
 
-* one record key in `/opt/headscale/config.yaml`, and it is `extra_records:` (the inline block);
-* the live record set against the derived render, **both directions**, compared parsed — the file is JSON;
-* `headscale nodes list` for the Pi's node: Act 1's second address is only as live as that node, and
-  `tailnet_pi_ip` is a value the deploy fills from this command, not a remembered pair (derived-values ban,
-  CONVENTIONS §2 — read the command output, never a number from a doc or a handoff).
+* **The flip is not `group_vars`-only.** Live still binds `./extra_records.yaml` and has no
+  `/opt/headscale/extra_records.json`, so the run that sets `headscale_extra_records_path` must be the run that
+  re-renders this service's compose — bind move plus the `retired_artifacts` removal, same run.
+* **`/api/http/routers` answers 404 on both home edges** (neither `traefik-internal` nor `traefik-ha` passes an
+  `api:` flag), so the router read there is the rendered `dynamic/routes.yml` + `ss -ltnp` + one `curl --resolve`
+  SNI probe — stated in [docs/services-traefik.md](docs/services-traefik.md).
 
-A Pi node whose address differs from `tailnet_pi_ip` is a finding for the **SSOT**, fixed before the window,
-never by editing a template. A missing Pi node is not this wave's failure: the render must already degrade to
-one address, and the window's diff stays valid.
-
-**The read that decides whether the flip is a fix or a lie.** A second address for `ha.ts.kogler.si` is only
-survivability if BOTH home boxes answer TCP/443 under that name. In IaC they do: an `ha-ts` router exists
-twice — on **oldsrv**'s `traefik-internal` tailnet listener and on the **Pi**'s `traefik-ha` tailnet listener
-(the Pi's entrypoint binds `tailnet_pi_ip:443`, and the router renders only when that address is set) — and
-each targets `ha-backend`, which is the **VIP**, not a local HA. So the answer half of **HD-435** is real, and
-the SERVICE half stays §7's. Prove it live rather than from the templates, because the YAML is not the truth
-where an edge is involved: ask each box's own `/api/http/routers` for `ha-ts` and for its `websecure-ts`
-entrypoint. Both serve → proceed. One serves → the second address is one more timeout, not survivability, and
-the `dual` flag comes out of §6's diff until the listener exists on the box that is missing it.
+The window RE-runs the diff before it converges: the point of the artifact is that it is fresh, and
+[docs/network-dns.md](docs/network-dns.md) §The MagicDNS records FILE carries the commands. A Pi node whose
+address differs from `tailnet_pi_ip` is a finding for the **SSOT**, fixed before the window, never by editing a
+template; a missing Pi node is not this wave's failure, because the render degrades to one address (gate-proven).
 
 **Acceptance:** the diff, empty in both directions, written into the session report as the artifact + the node
 list read. That artifact is what the owner walks into for §6.

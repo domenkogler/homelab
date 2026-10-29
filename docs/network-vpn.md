@@ -372,7 +372,9 @@ answer a `.ts` name is that entry's `tailnet:` field in `zone_kogler_si`: `node`
 where that address is set. `ha` is `node`, so when oldsrv's node is not answering, the away path that still
 works is `pi.ts.kogler.si`. Two addresses are what make the ANSWER survive either box — and only where BOTH
 boxes answer TCP/443 under that name, because a second address behind a listener that is not there is one more
-timeout, not survivability. The SERVICE surviving either box is the VIP's second advertiser, a different
+timeout, not survivability. Both home edges do answer under that name: `ha-ts` is served on each box's own
+node address, both targeting the VIP (`live-verified 2026-10-29`), so the field flip buys survivability and
+not a second timeout. The SERVICE surviving either box is the VIP's second advertiser, a different
 claim ([smart-home-failover.md](smart-home-failover.md) §Away access (tailnet)).
 
 ⚠ **`tag:spark` grants nothing, and that is the point.** An ACL grants by TAG, so spark taking

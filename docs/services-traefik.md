@@ -591,3 +591,9 @@ Jellyfin JSON through the two hops, and `seerr`/`seerrng` return their own `307`
 resolves to nothing are legal Traefik configuration.** The converge reads `changed=1, failed=0` either way.
 The two probes that actually see this: `GET /api/http/routers` on an edge with the API enabled, and a real
 `curl -i` against the cleartext entrypoint — never "the file says so".
+
+⚠ **The API is enabled on two of the four edges.** `traefik` and `traefik-tailnet` pass `--api.dashboard=true`;
+`traefik-internal` and `traefik-ha` pass no `api:` flag at all, so `/api/http/routers` answers **404** on the
+home boxes (`live-verified 2026-10-29`, both). On those two the router read is the rendered
+`dynamic/routes.yml` + `ss -ltnp` for the bound address + one SNI request through `curl --resolve` — a 404 from
+the API endpoint is not a verdict about the routers, it says the API is not there.

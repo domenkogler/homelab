@@ -1101,7 +1101,9 @@ Facts that hold in either shape:
   **not** delivered by the key switch — it needs that guard to exempt this path, which is a decision
   about the guard, not a value in `group_vars`.
 
-**The swap, owner-present.** The mount ships with any converge: it changes no ANSWER, but it is not a
+**The swap, owner-present.** The mount ships with the next headscale-scoped converge — it is not on the host
+yet: `/opt/headscale/extra_records.json` does not exist and the running compose still binds the superseded
+`./extra_records.yaml` (`live-verified 2026-10-29`). The swap changes no ANSWER, but it is not a
 no-op — the compose gains a bind (container recreate) and a rendered extra appears for the first time
 (the restart guard fires), so that converge runs through the same guarded path with the sampled probe.
 **A records-file rename is one of those converges:** the bind source and the rendered extra both move,
@@ -1109,7 +1111,9 @@ and `retired_artifacts` removes the superseded path, so the next headscale-scope
 the container whether or not the key is set. Treat it as guarded work, never as a no-op ride along
 with another VPS lane.
 The KEY flip is then its own owner-present converge: it rewrites `config.yaml`, so the restart guard
-fires and the control plane bounces once — `headplane` with it, same compose project. ⛔ `--diff` is not run on
+fires and the control plane bounces once — `headplane` with it, same compose project. ⛔ It is never a
+`group_vars`-only act: setting `headscale_extra_records_path` in a run that does not also move the bind names
+a file the container is never given. ⛔ `--diff` is not run on
 `docker_services`, and a one-shot inspect afterwards is not a verdict — see decision 5.
 
 1. **Preflight, nothing written anywhere.** Render both halves and diff them against the tree's own

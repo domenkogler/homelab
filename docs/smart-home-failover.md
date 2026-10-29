@@ -269,7 +269,8 @@ when the VIP is on oldsrv. Because the VIP already tracks the active HA node, th
   Reasons: [network-dns.md](network-dns.md) §The answer-plane model.
 - ⚠ A dual-A publish makes the **answer** survive either home box and does not make the **service** survive
   it. Both `ha`/`ha-ts` routers target the VIP, and the VIP has one advertiser until the standby is
-  cold-created (§Nodes & Deployment), so the drill that proves failover is owed independently of the record.
+  cold-created (§Nodes & Deployment) — `live-verified 2026-10-29`: the VIP answers on the Pi and oldsrv runs
+  no `keepalived` — so the drill that proves failover is owed independently of the record.
 - Plain `ha.kogler.si` deliberately does **not** resolve from away: publishing the internal home zone's answer
   publicly is the exposure the design refuses. **The coupling:** `ha.ts` is a `.ts` name, so its *resolution*
   lives in the netmap (headscale, VPS) while its *answer* is the VIP — it carries both dependencies. Same
