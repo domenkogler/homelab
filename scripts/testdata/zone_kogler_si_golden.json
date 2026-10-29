@@ -180,7 +180,7 @@
   "counts": {
     "cloudflare": 22,
     "headscale:plain": 8,
-    "headscale:ts_only": 28,
+    "headscale:ts_only": 29,
     "technitium:primary": 35,
     "technitium:secondary": 51,
     "technitium:secondary-pi": 51
@@ -253,6 +253,11 @@
         "name": "ha.ts.kogler.si",
         "type": "A",
         "value": "100.64.0.3"
+      },
+      {
+        "name": "ha.ts.kogler.si",
+        "type": "A",
+        "value": "100.64.0.6"
       },
       {
         "name": "litellm.ts.kogler.si",

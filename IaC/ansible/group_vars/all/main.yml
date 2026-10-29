@@ -397,7 +397,11 @@ tailnet_spark_ip: ""
 # protects the answers, not the author's convenience.
 zone_kogler_si:
   # --- control plane + the HA pair (the VIP answers; the edge follows HA either way) ---
-  - { name: ha.kogler.si,            internal: true, ip: "{{ ha_vip }}", tailnet: node, ts_router: false }
+  # `dual` = the `.ts` answer goes to BOTH home nodes, so the away path survives either box
+  # dying (docs/smart-home-failover.md §Away access). Both nodes answer that SNI with the
+  # `*.ts` pair — the field is only survivability where that is true, so it is a paired change
+  # with the listener's cert block, never a lone flag.
+  - { name: ha.kogler.si,            internal: true, ip: "{{ ha_vip }}", tailnet: dual, ts_router: false }
   - { name: dns-pi.kogler.si,        internal: true, ip: "{{ ha_vip }}", tailnet: none, ts_router: false }
   # --- home-hosted media stack: oldsrv's internal edge at home, the VPS edge elsewhere ---
   # media is PUBLISHED: the VPS edge routes it to the

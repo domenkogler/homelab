@@ -648,7 +648,8 @@ Client → Technitium (DHCP-pushed chain, see below)
 - `ha.kogler.si` resolves to the **VIP** on every instance (see [`smart-home-failover.md`](smart-home-failover.md))
   so DNS is never the thing that breaks HA lookup.
 - **Away-from-home HA is a separate name, on purpose.** `ha.ts.kogler.si` answers only
-  on the tailnet and points at oldsrv's own node; the plain `ha.kogler.si` keeps resolving to the VIP from
+  on the tailnet, and since `ha` is `dual` in `zone_kogler_si` it answers with **both** home nodes'
+  addresses; the plain `ha.kogler.si` keeps resolving to the VIP from
   every instance. The reason is the resolver-ambiguity class plus a failure-domain argument:
   MagicDNS answers extra_records **client-side on Android/iOS**, so a single name published to both planes
   would also send a tailnet-enabled phone **at home** to oldsrv instead of the VIP — putting a new
@@ -1204,7 +1205,7 @@ bind are one run and not two. ⛔ `--diff` is not run on
    # (c) a dig, from a device ON the tailnet: MagicDNS answers these client-side, so a home
    #     Technitium instance proves nothing about this plane (it publishes no `*.ts` zone at all)
    dig +short @100.100.100.100 A stats.kogler.si    # unchanged: the tailnet edge address
-   dig +short @100.100.100.100 A ha.ts.kogler.si    # unchanged: oldsrv's node address
+   dig +short @100.100.100.100 A ha.ts.kogler.si    # BOTH home nodes' addresses — `ha` is `dual`
    ```
    An empty delta in both directions plus an unchanged `dig` is the whole verdict; `RestartCount` on
    that container is cumulative since creation, so read it as a trend across the sample window, never

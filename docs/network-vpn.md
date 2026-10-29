@@ -353,14 +353,16 @@ role, granted **`tcp/443` on its node address** and nothing else. The reason it 
 other two joined: the tailnet answer for spark's AI names rides the **VPS** edge node, so while that node
 is down the names are missing from every tailnet client even though the engine behind them answers on the
 Home VLAN — spark's own node keeps the endpoint reachable with the VPS on the control plane only.
-⚠ The Pi's tailnet listener **answers TCP/443 but not that NAME with a trusted cert**: an
-SNI of `ha.ts.kogler.si` or `pi.ts.kogler.si` on `tailnet_pi_ip` gets `CN=TRAEFIK DEFAULT CERT`
-(self-signed), because `traefik-ha`'s `tls.certificates` loaded only the internal wildcard — the
-pair the pull timer already delivers (`ts.kogler.si.pem`, `live-verified 2026-10-29`, valid to
-2027-01-26) was never named there. The session itself is direct, not relayed (`active; direct
-193.77.156.222:41641`). Both certs are declared now; until the Pi's `traefik-ha` converges, a
-`-k`-free client gets a TLS failure on this path, and a `200` here is only ever a `200` with the
-verification switched off.
+✅ Both home nodes answer `ha.ts.kogler.si` over the tailnet **with a trusted cert** —
+`CN=*.ts.kogler.si`, HTTP 200, `ssl_verify_result=0` on `tailnet_oldsrv_ip` AND on `tailnet_pi_ip`
+(`live-verified 2026-10-29`). The Pi's edge got there late: `traefik-ha`'s `tls.certificates`
+declared only the internal wildcard, so its `websecure-ts` listener served `CN=TRAEFIK DEFAULT CERT`
+for this SNI while the pull timer delivered the good pair (`ts.kogler.si.pem`, valid to 2027-01-26)
+to `/opt/traefik-ha/certs/` the whole time — a TLS failure that reads as "up" to any probe using
+`-k`, and the same trap `traefik-internal/dynamic/routes.yml.j2` records for oldsrv. Both pairs are
+declared and converged; the session to the Pi is direct, not relayed (`active; direct
+193.77.156.222:41641`). ⚠ A `200` measured with `-k` on this plane is NOT a certificate verdict —
+read `subject=` or `ssl_verify_result`, or you are measuring the proxy and not the answer.
 
 ⚠ **`tag:home-edge` is deliberate, and the tag IS the reach surface.** An ACL grants by TAG, so joining the
 Pi as `tag:dev` would widen every existing `tag:dev` rule to a second box (the DNS-tertiary host) and hand it
@@ -378,12 +380,13 @@ answer a `.ts` name is that entry's `tailnet:` field in `zone_kogler_si`: `node`
 where that address is set. `ha` is `node`, so when oldsrv's node is not answering, the away path that still
 works is `pi.ts.kogler.si`. Two addresses are what make the ANSWER survive either box — and only where BOTH
 boxes answer TCP/443 under that name, because a second address behind a listener that is not there is one more
-timeout, not survivability. **Under that name, only one home edge answers today** (`live-verified 2026-10-29`):
-oldsrv's internal edge serves the `*.ts` pair and returns 200 for SNI `ha.ts.kogler.si` on
-`tailnet_oldsrv_ip`, while the Pi's `traefik-ha` answers the same SNI on `tailnet_pi_ip` with Traefik's
-default self-signed cert (the default-cert note earlier in this section) — a TLS failure, not a fallback. So `tailnet: dual` on `ha` is
-**blocked on that Pi converge**: setting the field first would send half of all away clients into a cert error
-and is a regression, not survivability. The SERVICE surviving either box is the VIP's second advertiser, a different
+timeout, not survivability. **Both home edges answer under that name** (`live-verified 2026-10-29`:
+200 with `CN=*.ts.kogler.si` and `ssl_verify_result=0` on `tailnet_oldsrv_ip` and on
+`tailnet_pi_ip`), so `ha` is `dual` and `dig @100.100.100.100 A ha.ts.kogler.si` returns BOTH node
+addresses. The pairing is the rule, not this row: a second address behind a listener that does not
+serve the name is one more timeout, not survivability — which is why the field and the
+`traefik-ha` certificate block are one change and never a flag on its own. The SERVICE surviving
+either box is the VIP's second advertiser, a different
 claim ([smart-home-failover.md](smart-home-failover.md) §Away access (tailnet)).
 
 ⚠ **`tag:spark` grants nothing, and that is the point.** An ACL grants by TAG, so spark taking
