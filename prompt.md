@@ -148,8 +148,11 @@ not this list, holds the steps, the file ownership and the converge host. Waves,
    either, so read the artifact markers, not the CPU gates; re-anchoring them onto v32 bytes is its own row, minted
    at this merge. Never retag `qwen38-flash-dgx:iter6c|iter6d`; never prune the build cache.
    → [prompt-spark-llm.md](prompt-spark-llm.md) (one spark slot; HD-473 + the capacity-axis and radix rows ride it)
-2. ⏳ **The transport / answer plane** — **HD-436** owes ONLY the live half: the two converges in the parked table
-   below, both still PARKED, **plus the `llm.kogler.si` answer flip** the row now carries (both halves on the zone entry — `tailnet: node`/`dual` **and** an explicit `tailnet_ip:` — it moves the answer for every client, and it is an owner-present act). **HD-477** — make the resolver actually float with the VIP; the row carries the three
+2. ⏳ **The transport / answer plane** — the derived-list switch is landed, so what remains here is **HD-435**'s
+   `tailnet: dual` publish, BLOCKED on the Pi's `.ts` cert ([network-vpn.md](docs/network-vpn.md) §Tailnet boundary),
+   **plus the `llm.kogler.si` answer flip** (both halves on the zone entry — `tailnet: node`/`dual` **and** an explicit
+   `tailnet_ip:` — it moves the answer for every client, and it is an owner-present act landing on the converge that
+   re-renders headscale's `config.yaml`). **HD-477** — make the resolver actually float with the VIP; the row carries the three
    gates. **HD-487** — config-manager truth is DECLARED per host in `host_vars/<host>.yml`, held by
    [`scripts/gate/check_net_manager.py`](scripts/gate/check_net_manager.py) and read with
    `scripts/ansible/probe-net-manager.sh`; the ONE thing owed is the **VPS** delete of the dead
@@ -410,8 +413,6 @@ action so no lane re-derives it. An entry marked RULED is AI work, not an owner 
 
 | HD | the one blocked action | slot / host | 📋 brief |
 |----|------------------------|-------------|----------|
-| **HD-436** (b) | `IaC/ansible/playbooks/dns.yml` run where the Cloudflare token is IP-filtered; expected to report no record change | home control plane | [prompt-dns-transport.md](prompt-dns-transport.md) |
-| **HD-436** step 2 | the `extra_records_path` swap that **HD-435**'s `tailnet: dual` publish rides — it rewrites `config.yaml` AND recreates the container for the `extra_records.json` bind, so it reports changed: sampled liveness probe, and ⛔ `configtest` is not a verdict because it never opens the records file | **VPS** | [prompt-dns-transport.md](prompt-dns-transport.md) |
 | **HD-487** | the narrow `--tags netd` delete of `/etc/systemd/network/20-eno1.netdev` — only the role's removal leg reaches it | **VPS** | [prompt-dns-transport.md](prompt-dns-transport.md) |
 | **HD-1152** | the first REAL `playbooks/dns-seed.yml` apply per instance, and only after its two defects are repaired — `--check` can never name candidates | vps · oldsrv · pi | [prompt-dns-transport.md](prompt-dns-transport.md) |
 | **HD-1160** | render + `routeros-apply-delta.sh` for the converge template's twin of the retagged `#`-comment (a `#`-line IS rendered output — [network-dns.md](docs/network-dns.md) §Host-side resolver); ⛔ never `--diff`, never from a docs lane, and **no converge is behind it** | router window, global slot | [prompt-dns-transport.md](prompt-dns-transport.md) |

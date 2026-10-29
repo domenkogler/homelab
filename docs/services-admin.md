@@ -256,7 +256,7 @@ a family machine**, and a **direct-IP tailnet session to oldsrv with the relay d
 **🟡 deployed on oldsrv (2026-10-18), name not yet resolving** — the container is Up, the home edge
 serves the router, and `metabase.kogler.si` answers when addressed directly; the split-horizon record
 for it is not seeded yet, so a client that resolves normally gets `NXDOMAIN` — **⏳ seed converge
-owner-present** (`bash scripts/ansible/ansible-run.sh playbooks/dns-seed.yml`, HD-436). Not on the VPS:
+owner-present** (`bash scripts/ansible/ansible-run.sh playbooks/dns-seed.yml`). Not on the VPS:
 VPS RAM is the binding constraint and the registry carries no metabase entry there, so nothing on that
 box can re-render it. No public record, no Cloudflare leg, no VPS edge route.
 

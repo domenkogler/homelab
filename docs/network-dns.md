@@ -1085,6 +1085,8 @@ and drops names from the VPS primary; and `check_dns_seed_drift.py`, which under
 `loop:` lists and can report "OK: 43 records" while reading ZERO rows from a derived loop. A contract gate and
 the thing it guards can be blind in the same way, at the same time. Flipping one `tailnet:` or `public:`
 flag in the list turns the matching surface RED, which is the canary that the consumers really read it.
+The derived public set agrees with the live Cloudflare zone with no delta, read from the token's own vantage —
+the home control plane, whose egress IP that token filters on (`live-verified 2026-10-29`).
 
 ⛔ So: do not write that a consumer reads this list until its `loop:` or template actually does. No
 gate catches that sentence; the next NXDOMAIN does.
