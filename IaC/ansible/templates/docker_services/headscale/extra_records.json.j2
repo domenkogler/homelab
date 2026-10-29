@@ -14,7 +14,10 @@
    `node`/`dual` entries the `.ts` twin ONLY; that split is a per-name decision recorded in the zone
    list, not here. A `dual` entry adds a SECOND `.ts` row for the same name at `tailnet_pi_ip`, after
    the `tailnet_oldsrv_ip` row and only where that address is set — the same rows in the same order
-   `config.yaml.j2` writes them, which is the equality above. The address is assigned SEQUENTIALLY by
+   `config.yaml.j2` writes them, which is the equality above. ⛔ THIS file's row order is authoring, not
+   an answer: headscale loads the file it names into a set and gives every map build the set's own order,
+   so which of a `dual` name's two rows a client is handed is decided in the control plane and not here
+   (docs/network-vpn.md §Tailnet boundary). The address is assigned SEQUENTIALLY by
    headscale at node join, so it is not known
    at authoring time: it comes from the class defaults (`tailnet_sidecar_ip`, `tailnet_oldsrv_ip`,
    `tailnet_pi_ip`) that the deploy step fills from `headscale nodes list` after each node joins. An entry whose

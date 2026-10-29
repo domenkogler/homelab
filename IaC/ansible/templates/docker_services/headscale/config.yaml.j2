@@ -111,10 +111,12 @@ dns:
   # group_vars/vps.yml and keyed by their FQDN `name`. The tailnet address is an entry's
   # `tailnet_ip:`, never its `ip:` — `ip:` is the LAN (Technitium) answer. `edge` entries answer BOTH
   # namespaces, `node`/`dual` entries the `.ts` twin ONLY; that split is a per-name decision recorded
-  # in the zone list, not here. Each record is {name, type, value}. A `dual` entry answers its `.ts`
-  # twin at BOTH home nodes — `tailnet_oldsrv_ip` first, then `tailnet_pi_ip` — and the second row
-  # appears only where that address is set, so a node that has not joined costs one answer and never
-  # the config. Two rows for one name are the point: the answer must not depend on one box.
+  # in the zone list, not here. Each record is {name, type, value}. A `dual` entry publishes its
+  # `.ts` twin as TWO rows — `tailnet_oldsrv_ip` then `tailnet_pi_ip` — the second appearing only where that
+  # address is set, so a node that has not joined costs one answer and never the config. ⛔ Two rows are not
+  # two answers: a tailnet client answers ONE A record per name, and through THIS key the rows reach it in
+  # the control plane's set order rather than this file's — the row order here is authoring, not an answer
+  # (docs/network-vpn.md §Tailnet boundary).
   #
   # ⛔ ONE record key, never two. `dns.extra_records` (the block below) and
   # `dns.extra_records_path` (the records file `extra_records.json`, a JSON array rendered next to

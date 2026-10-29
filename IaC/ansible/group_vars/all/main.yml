@@ -359,14 +359,16 @@ tailnet_spark_ip: ""
 #              `.ts` twin; `node` and `dual` publish the `.ts` twin ONLY, because a
 #              tailnet address answering a plain name client-side is the
 #              resolver-ambiguity trap (a phone standing at home stops seeing the LAN
-#              answer). `dual` = the same `.ts` name answered by BOTH home nodes: the first
-#              row takes the class default, the second is always `tailnet_pi_ip`, and that
-#              second row renders only when the address is set — a node the deploy never
-#              filled costs one answer, never the config. Publishing two addresses is what WOULD
-#              keep the ANSWER alive across a home-box death; a tailnet client answers a name
-#              from one extra_record today, so the second row is the intent and not yet a second
-#              answer (docs/network-vpn.md §Tailnet boundary), and the service behind the name
-#              surviving is a different claim (docs/smart-home-failover.md).
+#              answer). `dual` = the same `.ts` name published as TWO rows — `tailnet_oldsrv_ip`
+#              (the class default) then `tailnet_pi_ip` — the second rendered only where that address
+#              is set, so a node the deploy never filled costs one answer, never the config. ⛔ Two
+#              rows are NOT two answers: a tailnet client answers one A record per name, the FIRST of
+#              its rows in the order headscale delivered them, and through the records-file key that
+#              order comes out of a Go set rather than out of this list
+#              (docs/network-vpn.md §Tailnet boundary). Publishing two addresses is therefore what
+#              WOULD keep the ANSWER alive across a home-box death and is not what does it: the away
+#              path that survives a node death is the other node's own name, and the service behind
+#              the name surviving is a different claim (docs/smart-home-failover.md).
 #   tailnet_ip: literal tailnet IPv4. OMIT it to take the class default
 #              (`tailnet_sidecar_ip` for edge, `tailnet_oldsrv_ip` for node/dual).
 #              A literal is deliberate: group_vars gets no second Jinja pass, so

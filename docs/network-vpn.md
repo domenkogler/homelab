@@ -379,7 +379,7 @@ answer a `.ts` name is that entry's `tailnet:` field in `zone_kogler_si`: `node`
 (`tailnet_oldsrv_ip`), `dual` renders that address **and** `tailnet_pi_ip` — the second row appearing only
 where that address is set. `ha` is `dual`, and when oldsrv's node is not answering the away path that
 still works is `pi.ts.kogler.si` — which is also what it is while oldsrv IS answering, because the
-client-side collapse measured below is what that field does not change. Two addresses are what would
+client-side collapse established below is what that field does not change. Two addresses are what would
 make the ANSWER survive either box — and only where BOTH
 boxes answer TCP/443 under that name, because a second address behind a listener that is not there is one more
 timeout, not survivability. **Both home edges answer under that name** (`live-verified 2026-10-29`:
@@ -387,15 +387,38 @@ timeout, not survivability. **Both home edges answer under that name** (`live-ve
 `tailnet_pi_ip`), and `ha` is `dual`, so the records file and the netmap both carry the two rows for
 `ha.ts.kogler.si`.
 
-⚠ **The client answers ONE address per name regardless, so `dual` buys no answer survivability today**
+⚠ **The client answers ONE address per name, so `dual` buys no answer survivability** — and the mechanism
+is the code, not a measurement's shadow. A tailnet client **carries both rows**
+(`ipn/ipnlocal/node_backend.go`: `dcfg.Hosts[fqdn] = append(dcfg.Hosts[fqdn], ip)`, one entry per record,
+in netmap order) and **answers one of them**: `net/dns/resolver/tsdns.go` `resolveLocal`, `case
+dns.TypeA:`, returns the **first IPv4 in that slice** and `respond()` writes it as a single answer RR — the
+multi-answer field (`resp.IPs`) is filled only by the exit-node path. The same code is at the pins in
+`tailscale_host_version`/`headscale_version` and at upstream `main`, and upstream declines the feature
+(`juanfont/headscale#2499`, `not_planned`; `tailscale/tailscale#6185`, open), so **no bump and no client
+setting turns the pair into a multi-A answer**. ⛔ A `CNAME` twin does not route around it either: the same
+client switch accepts only `""`, `"A"`, `"AAAA"` and `continue`s every other type, so a CNAME extra_record
+is invisible to the resolver, not an indirection.
 (`live-verified 2026-10-29`: `dig +short @100.100.100.100 A ha.ts.kogler.si` from two tailnet members —
 oldsrv and the WSL seat — returned `tailnet_oldsrv_ip` on 12 of 12 queries with resolver caches flushed
-between them, never `tailnet_pi_ip`; the netmap those clients hold does carry both rows, read from
-`tailscale debug netmap`). So the two rows are the RENDERED intent, not a multi-A answer: the away path
-that survives oldsrv's node dying is still the OTHER node's own name, `pi.ts.kogler.si`. The mechanism
-inside the client that collapses the pair is not established here — the claim this section makes is the
-measurement, not the code path. The SERVICE surviving either box is the VIP's second advertiser, a different
-claim ([smart-home-failover.md](smart-home-failover.md) §Away access (tailnet)).
+between them, never `tailnet_pi_ip`; the netmaps those clients hold do carry both rows, read from
+`tailscale debug netmap`.) The away path that survives oldsrv's node dying is therefore still the OTHER
+node's own name, `pi.ts.kogler.si`. The SERVICE surviving either box is the VIP's second advertiser, a
+different claim ([smart-home-failover.md](smart-home-failover.md) §Away access (tailnet)).
+
+⚠ **Which of the two rows a client answers is not this file's row order.** Under the record key in force
+(`dns.extra_records_path` — the inline block in `config.yaml.j2` renders nothing), headscale loads the JSON
+into a **set** (`hscontrol/dns/extrarecords.go`: `set.SetOf(records)`) and gives every map build `Slice()`
+of that set, which for a struct element type is Go map-iteration order: no ordering guarantee, re-drawn
+once per headscale start and once per rewrite of the records file. Both rows still arrive — the set is
+keyed by name+type+value — and the order is **frozen for the lifetime of the process**, which is exactly
+why one client's answer is stable across cache flushes and why two clients agree. Read here: the rendered
+file lists `tailnet_oldsrv_ip` first and the netmaps of two live members carry that order, so the answer is
+`tailnet_oldsrv_ip` (`live-verified 2026-10-29`); **the flip itself is unprovoked** — it takes a headscale
+restart or a records-file rewrite, both live acts. The inline `dns.extra_records` shape is the opposite:
+`viper.UnmarshalKey` leaves it a slice, so the authored order survives into the netmap. ⛔
+`check_zone_kogler_si_parity.py` proves the two renders emit the same rows and is structurally blind to
+what headscale does with them afterwards — a `dual` name is the one place where the record key, not the
+zone list, decides which address a client is handed.
 
 ⚠ **`tag:spark` grants nothing, and that is the point.** An ACL grants by TAG, so spark taking
 `tag:dev` or `tag:home-edge` would have widened the dev seat's or the Pi's inbound surface to a third box —
@@ -497,10 +520,10 @@ exist in this headscale build (no `routes` subcommand) — read the netmap view.
   (`tailscale status --json`) and no home subnet is advertised.
 - **The tailnet's job is to hand out *reachable answers*.** For HA the target is **one URL**:
   `ha.kogler.si` published as an extra_record beside the `.ts` alias, so one address serves home (LAN zone →
-  VIP) and away (the node path), and the HA Companion app holds one entry. Pending: publishing **both** home
-  node addresses (Pi + oldsrv) as two A records, so the answer survives either box — both home proxies target
-  the VIP. ⚠ **Unmeasured:** multi-A fall-over on a real client (expect a timeout on the dead first answer, not
-  an instant switch) and MagicDNS returning both records.
+  VIP) and away (the node path), and the HA Companion app holds one entry. `ha` publishes **both** home node
+  addresses (`tailnet: dual`, both proxies targeting the VIP), and a client still answers ONE of them: the
+  pair is carried and not used, so the away survivor of a node death is the other node's own name
+  (§Tailnet boundary) — there is no multi-A fall-over to measure, because there is no second answer.
 - **An "away" claim needs the routing table.** A host with a live wired home path is not off-LAN: probes to
   Home-VLAN and IoT-VLAN addresses from it test the router's inter-VLAN firewall, not the tailnet. Probes to
   tailnet addresses are always valid, because those destinations ride the Tailscale interface. The acceptance

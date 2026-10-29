@@ -538,7 +538,7 @@ clients stay on the home LAN while WAN/tailnet clients keep the VPS edge. Record
 |---|---|---|
 | Home-hosted (`media`, `seerr`, `seerrng`, `sonarr`, `radarr`, `lidarr`, `prowlarr`, `bazarr`, `profilarr`, `sab`, `torrent`) | VPS public IP (`dns_primary_ip`) | **oldsrv LAN IP** (`oldsrv_home_ip`) — home edge, no WAN round-trip |
 | `ha` / `dns-pi` | VIP (`ha_vip`) | VIP (`ha_vip`) — same on all (DNS never breaks HA lookup) |
-| `ha.ts` (**tailnet-only**) | — (never seeded in Technitium) | — (never seeded) · resolves ONLY via **headscale `dns.extra_records`** to `tailnet_oldsrv_ip`, rendered by `tailnet_ts_only_subdomains` (group_vars/vps.yml) in the **`*.ts.kogler.si` namespace only** |
+| `ha.ts` (**tailnet-only**) | — (never seeded in Technitium) | — (never seeded) · resolves ONLY via **headscale `dns.extra_records`** — through the records FILE, `dns.extra_records_path` — as the **two** rows a `dual` entry renders for one `.ts` name (`tailnet_oldsrv_ip` and `tailnet_pi_ip`), rendered by `tailnet_ts_only_subdomains` (group_vars/vps.yml) in the **`*.ts.kogler.si` namespace only**; a client answers ONE of them ([network-vpn.md](network-vpn.md) §Tailnet boundary) |
 | `cockpit-nas.ts` (**tailnet-only**) | — (never seeded in Technitium) | — (never seeded) · resolves ONLY via **headscale `dns.extra_records`** to `tailnet_oldsrv_ip` (the class default), rendered by `tailnet_ts_only_subdomains` (group_vars/vps.yml) → oldsrv's own `websecure-ts` listener → `cockpit-nas-ts` in the cockpit role's `cockpit.yml` → `nas:9090`. Exists because the PLAIN `cockpit-nas.kogler.si` is LAN-only (a Home-VLAN answer is a black hole off-LAN), so off-LAN the nas console has no plain name of its own. Dies with oldsrv; see [services-traefik.md](services-traefik.md) §Cockpit Routes |
 | `spark.ts` (**tailnet-only**) | — (never seeded in Technitium, and never a Cloudflare record) | — (never seeded) · resolves ONLY via **headscale `dns.extra_records`** to `tailnet_sidecar_ip`, rendered by `tailnet_ts_only_subdomains` (group_vars/vps.yml) in the **`*.ts.kogler.si` namespace only** → the tailnet edge Host-routes it over WG S2S to spark's own edge :443. The PLAIN `spark.kogler.si` is deliberately absent from MagicDNS: it is the host name, and answering a host name from the netmap is the resolver-ambiguity trap |
 | VPS-hosted (`foto`, `file`, `git`, `ai`, `office`, `pdf`, `chat`, `matrix`, `drop`, `bin`, `sso`, `dns`, `vpn`, … + root/home/vps) | VPS public IP | VPS public IP (their backends live on the VPS; the home edge reaches them via wg-s2s :4443 double-hop) |
@@ -986,8 +986,11 @@ black hole with extra steps.
    any flip:** the sampled probe — `configtest` is not it. The IaC shape lives behind one variable
    (`headscale_extra_records_path`; `""` renders the inline block).
 6. **The Pi joins the tailnet and HA's names get two A records** (Pi + oldsrv). Both boxes
-   proxy to the VIP, so the answer follows HA in either direction. Flagged as **designed, not yet
-   measured**: multi-A fall-over on a real client must be proven with a plug-pull before it is relied on.
+   proxy to the VIP, so *the service* follows HA in either direction; *the answer* does not. A tailnet client
+   carries both rows and answers ONE A record — the first of them in the order headscale delivered, and under
+   the records-file key that order is the control plane's and not the render's
+   ([network-vpn.md](network-vpn.md) §Tailnet boundary). Multi-A fall-over is therefore not a plug-pull away
+   from being relied on: there is no second answer to fall over to, and the drill measures the failure mode.
 7. **HA's one URL is the plain `ha.kogler.si`** — see [network-vpn.md](network-vpn.md) §Tailnet boundary.
    The `.ts` twin stays as a free alias.
 8. **An inference name keeps the `edge` class: `llm.kogler.si` is not moved to `node`/`dual`.** The classes are
@@ -1123,6 +1126,10 @@ Facts that hold in either shape:
   while the Pi's address is unset, so a home node that never joined costs an answer and not the config.
   `require_same_records` is what keeps the shapes agreeing on that order, and `--self-test` proves a shape
   that drops the second row is RED there rather than a netmap with one address.
+  ⛔ What that gate holds is **document** order, and a document order is not what a client answers from:
+  through the FILE key headscale re-reads these rows out of a Go set, so the delivered order is the
+  control plane's, not this render's — and the inline key, which does preserve order, is not the key in
+  force ([network-vpn.md](network-vpn.md) §Tailnet boundary).
 * Mode and owner are the deploy default, `0644 root:root` — world-readable, the pair `./config.yaml`
   is mounted with, so no uid the image may run as is denied by this file.
 * **The body is JSON and carries no comment line, including no `ansible_managed` header** — JSON has no
