@@ -66,8 +66,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(next(p for p in Path(__file__).resolve().parents
                             if p.name == "scripts") / "lib"))
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "gate"))
-from repo_root import root as _hl_root  # noqa: E402
+from repo_root import root as _hl_root, script_path as _hl_script_path  # noqa: E402
+# The gate directory is FOUND by name, not assumed from a depth (HD-1118 Stage 1): `parents[1]` here
+# resolves to `scripts/` the moment this file changes folder, and the two imports below would then
+# fail at import time — a tool that cannot start is at least honest, but the same shape in a helper it
+# imports would leave a containment sweep that contains nothing.
+sys.path.insert(0, str(_hl_script_path("check_secret_leak.py", __file__).parent))
 import check_secret_debt as debt  # noqa: E402  (register reader, seat arm, guard cross-check — not re-spelled)
 import check_secret_leak as leak  # noqa: E402  (store walk and needles — imported, not re-spelled)
 
