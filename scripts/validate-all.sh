@@ -1407,6 +1407,21 @@ blk_secret_leak() {
   esac
 }
 
+# The debt register's checker. Same rc-2 semantics as the leak eye, for the same reason: it decides
+# `rotated yet?` from the vault's per-item VERSION numbers, so a seat that cannot read the vault knows
+# nothing either way and prints SKIP. Its rc 1 is a different kind of red from the leak gate's: not "a
+# value is exposed" but "the book says a debt closed and nothing rotated" — the redaction that reads as
+# a rotation — or the two statements of the no-rotation-path ruling disagreeing with each other.
+blk_secret_debt() {
+  local rc_debt=0
+  "${PY_CMD[@]}" scripts/gate/check_secret_debt.py "$@" || rc_debt=$?
+  case "$rc_debt" in
+    0) return 0 ;;
+    2) echo "SKIP: the vault or the register is not readable here — reason above; a debt check that read"; echo "      no versions judges nothing, and a SKIP is not a pass"; return 0 ;;
+    *) return "$rc_debt" ;;
+  esac
+}
+
 # rc 2 = no pi binary here = SKIP, printed and never counted green (CONVENTIONS: a SKIP
 # is not a pass). BEHIND and AHEAD are both drift — a seat ahead of its pin is the shape
 # every file plane misses.
@@ -1508,6 +1523,8 @@ item_blk_x "ansible is absent or dies WinError 87 on the Windows seat, so this S
 # The corpus walkers. Longest leg first, per the pool note in the header.
 item_x "reads the vault to know what a leak is: ONE batched read whose request count the run prints itself (the Server SDK answers the vault's ~143 items in 1 list + 3 get_all chunks; the labelled `op item get` FALLBACK costs 1 list + 1 read per item until the seat step in docs/1password.md runs), then a content search over the seat's run captures (~560 MB) and the working tree, then the git-history leg (11 942 blobs reachable from refs, ~525 MB — ~9 s cold, and ~0.2 s once the cache in the object store is warm, which the run prints either way). About 23 s on this seat, which is the whole pre-commit budget and more; it also only means something where a vault token exists" "check_secret_leak.py (current vault values vs the run-capture class, the working tree, and every blob a ref still reaches)" blk_secret_leak
 item_q "check_secret_leak.py --self-test (the shapes that leaked must each redden, the finding text must disclose nothing, the vault boundary must SKIP, the ledger must mute only what it names, a published-then-deleted value must still redden through the history leg, a partial sweep must say PARTIAL, a partial VAULT READ must say so and may not shorten the ledger, and --update-ledger must not delete a line it cannot prove — and every mutant of the scanner must be caught, the count is printed by the run)" "${PY_CMD[@]}" scripts/gate/check_secret_leak.py --self-test
+item_x "reads the vault a second time for the debt register's VERSION column (the names-only list is tried first and, on an SDK whose list rows carry no versions, the batched read answers for 4 — the run prints which route answered and what it cost). Then a per-line verdict over the register, the twin arm against provision-secrets.py's NOT_ROTATABLE, and the seat-locality rule; ~2 s on this seat, and it only means something where a vault token exists" "check_secret_debt.py (who acts on each leak debt, on which seat, and whether the value behind it has rotated)" blk_secret_debt
+item_q "check_secret_debt.py --self-test (the four verdicts must each be reachable, the version-bump arm must move ONE line and no other, a foreign seat's line may never close, a store-less run may not close its own, the two no-rotation-path sets must disagree loudly in both directions, a bad register line reddens rather than shortening the book, and nothing but an 8-char id prefix is ever printed)" "${PY_CMD[@]}" scripts/gate/check_secret_debt.py --self-test
 item_x "walks the whole tracked tip, 99 MB with archive members included and no cache of any kind, so every profile pays the full walk; the arm is parked OUT of the pre-commit loop because that walk is the whole budget of one" "check_secrets.py (secret shapes in the tracked tip, archive members included)" "${PY_CMD[@]}" scripts/gate/check_secrets.py
 item_x "re-execs itself per archive/casefold arm: a shape-grammar self-test, not a tree check — rerun it when the scanner changes, not per commit" "check_secrets.py --self-test (the speed prefilter must not have narrowed a shape)" "${PY_CMD[@]}" scripts/gate/check_secrets.py --self-test
 item_q "check_yaml_dup_keys.py (HD-1098: a duplicate YAML key is a silent no-op)" "${PY_CMD[@]}" scripts/gate/check_yaml_dup_keys.py

@@ -332,6 +332,27 @@ NOT_AUTO_ROTATABLE = {
     "tailscale_pi_dev_api",
 }
 
+# Items with NO ROTATION PATH AT ALL. A different fact from `NOT_AUTO_ROTATABLE` above, and
+# deliberately a separate set: the guard above is the auto-rotation ORDERING rule — it asserts only
+# that a vault-only `--rotate` write would leave the FAR END running the old value — and most of its
+# members ARE rotatable by a lane through that far end (a host command, an app's config file, a
+# device API, the converge itself). This set is the residue with no channel at any end: the act is a
+# human's (a provider or the 1Password console, or a write into the HUMAN vault), or the credential
+# is outside our scope, so no act here closes anything.
+#
+# This is the item-level statement of one ruling whose other half is the `path: none` column of
+# `scripts/gate/secret_debt_register.txt`; `scripts/gate/check_secret_debt.py` holds the two equal in
+# both directions, because two copies of one decision is the twin every gate in this repo exists to
+# catch. Membership therefore changes in ONE commit on both sides, or the containment scope
+# (`scripts/secrets/contain-leaked-values.py`, HD-1218) derives a scope that the guard contradicts.
+# ⛔ Do not fold this into `NOT_AUTO_ROTATABLE`, and do not rename that guard to say so: its meaning
+# belongs to the auto-provision path and every rotate leg reads it.
+NOT_ROTATABLE = {
+    "pppoe_login",           # the ISP (Telekom) provisions the credential; no device or role here changes it (docs/network-rejected.md)
+    "slskd_login",           # the Soulseek NETWORK account login — the only change path is Soulseek's own account reset and its confirmation e-mail never arrives here, so the value stands and the exposure stays a ledger debt (docs/services-rejected.md, docs/deployment-secrets.md §Master Secret List)
+    "soulseek_login",        # the same Soulseek network credential under its superseded item name (merged into `slskd_login`); the item still exists, so its copies still need containment even though the close is a retirement, not a rotation
+}
+
 
 def gen_pw(n: int = 32) -> str:
     # NO '$' in the pool (HD-270): docker compose interpolates a literal `$` in a rendered compose
@@ -1079,7 +1100,13 @@ def cmd_list(_args) -> int:
     for cat, name, _fb in CATALOG:
         flag = "" if name not in NOT_AUTO_ROTATABLE else "   [manual rotate]"
         print(f"  {cat:<16} {name}{flag}")
-    print(f"\nNot auto-rotatable: {sorted(NOT_AUTO_ROTATABLE)}")
+    print(f"\nNot auto-rotatable (the ordering guard — the far end needs its own act): "
+          f"{sorted(NOT_AUTO_ROTATABLE)}")
+    # A different question than the guard above, so a different line: which items have NO rotation path
+    # at any end. This is the set containment derives from, and the register's `path: none` half is the
+    # same ruling in per-debt form — check_secret_debt.py reddens when the two disagree.
+    print(f"No rotation path at all (see gate/secret_debt_register.txt's `path:` column): "
+          f"{sorted(NOT_ROTATABLE)}")
     return 0
 
 
