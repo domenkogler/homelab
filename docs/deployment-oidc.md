@@ -122,13 +122,45 @@ is deliberately left true and `autoLaunch` false so the native page stays reacha
 ⚠ **The first SSO login must be a decision, not a click:** Immich links
 an OIDC identity to an existing user **by email**, and `Auto Register` creates a **new empty library** for any
 email it does not recognise — so an SSO login with the wrong email looks exactly like "my photos are gone" when
-what happened is a second account. `immich_role`/`immich_quota` are **creation-only**, never re-synced, so the
-role has to be right on the first login. Verify with the family seat, not the `admin` password login (that
+what happened is a second account. Verify with the family seat, not the `admin` password login (that
 proves the admin seat, not the family one).
-✅ **The SSO seat `domen@kogler.si` IS the family library**; `admin@kogler.si` stays a break-glass seat
-holding only 2 upload-test assets, so there is nothing to migrate and `Auto Register` costs nothing here.
-Open mechanical work on this service: delete those 2 assets and re-confirm `admin`'s password login still
-works.
+
+**What the claims actually do here — read live, not from the setting names.** The config points at
+`immich_role` and `immich_quota`, but the Authentik provider `immich` carries only the
+`openid`/`email`/`profile` mappings and the server has **no** property mapping named for Immich at all, so
+**neither claim is ever in the profile**. Upstream's own wording matches what that produces: claims are applied
+at registration and "claims that are absent from the profile are left unchanged" (and from v3.3.0 claims that
+ARE present re-sync on every login — a version boundary, since the deployed server is 3.2.x). So role and quota
+are not IdP-managed in this deployment at all: they are whatever registration defaulted to — the SSO seat
+`domen@kogler.si` reads `isAdmin=false` (role `user`) with `quotaSizeInBytes` NULL (**unlimited**), and the
+break-glass seat `admin@kogler.si` reads `isAdmin=true`, also unlimited, with a password hash present and the
+SSO seat having none (which is the intended shape: break-glass can enter by password, the family seat cannot).
+Per-user quotas would need a property mapping that MINTS `immich_quota` on the provider — a scope decision, not
+a re-save.
+
+✅ **The SSO seat `domen@kogler.si` IS the family library**; `admin@kogler.si` stays a break-glass seat whose
+assets are upload tests, so there is nothing to migrate and `Auto Register` costs nothing here. Both seats'
+assets are test uploads by the owner's ruling — the live count is 4 on the native seat (2 JPEG + 2 MP4, one
+2026-07-27 capture pair ×2) and 2 on the SSO seat, so the "2 assets" figure some notes still carry is stale.
+Deleting them is an irreversible act on a photo store whose own row miscounts it, so it stays an owner act.
+`admin`'s password login needs no separate ritual: `immich-seed.yml`'s first leg IS that login
+(`POST /api/auth/login`), so a green seed leg — and one ran on the 2026-10-30 `docker_services_scope=immich-app`
+converge with the container left running — is the proof, and it fails loudly if the password stops working.
+
+**The family library shape, answered from upstream rather than guessed.** "One account per member, each adding
+their own captures to one shared album" is the documented album model: a shared album's members are editors
+(read-write) or viewers (read-only), and "the shared users can view **and add their own** photos and videos to
+the shared album" ([docs.immich.app/features/sharing](https://docs.immich.app/features/sharing/)). The live
+schema agrees — `album_user_role_enum` = `owner|editor|viewer` — and the instance has **0 albums** today, so the
+target model is unbuilt, not blocked.
+
+**Cross-account face recognition exists and is OFF here.** Cluster groups shipped in **v3.2.0** ("have people
+recognized across trusted users") and shared people management in **v3.3.0** (share a person with another user in
+your cluster group; cross-user merging), with people-sharing fixes in v3.3.1 — so the practical floor is v3.3.1,
+not the deployed 3.2.x. Forming or joining a cluster group **requires re-running facial recognition for every
+user in it**, which loses names and birth dates. Live: the two seats sit in **two different** cluster groups,
+which is the per-user default — cross-account recognition is off, and turning it on is an owner act with a
+re-recognition cost attached, not a config tweak.
 
 **What the seed writes (`immich_oidc` from 1Password for the creds, role defaults for the rest):**
 `scope openid email profile`; claims `preferred_username` → storage label, `immich_role` → role
@@ -162,29 +194,39 @@ can be converged.
 
 ### Open WebUI native-OIDC note — the callback path
 
-`ai.kogler.si` starts the flow and dies on the return leg: authorize succeeds, Authentik issues a code,
-the browser lands on `https://ai.kogler.si/oauth2/callback?code=…&state=…` and gets a 404 page. Against
-the deployed build (**0.11.0**):
+`ai.kogler.si` runs Authentik SSO on the callback path this build actually serves,
+**`/oauth/oidc/callback`**, and it is a **two-sided invariant**: `OPENID_REDIRECT_URI` in
+`templates/docker_services/open-webui/docker-compose.yml.j2` and `provider_openwebui.redirect_uris` in
+`authentik/blueprints/ks-oidc.yml` are the SAME string and move together, in one change. Moving one side
+only reads as an IdP outage. Against the shipped build:
 
 - The callback is served at **`/oauth/oidc/callback`** — `main.py:2652` registers
-  `@app.get('/oauth/{provider}/login/callback')` and `:2653` the legacy `/oauth/{provider}/callback`.
-- **`/oauth2/callback` does not exist in this build** (there is no `routers/oauth2.py`), so the path falls
+  `@app.get('/oauth/{provider}/login/callback')` and `:2653` the legacy `/oauth/{provider}/callback`,
+  with the provider slug `oidc`. The same route set is registered by 0.11.x and 0.12.x, so the path is
+  not a pin-specific detail.
+- **`/oauth2/callback` does not exist in this build** (there is no `routers/oauth2.py`), so that path falls
   through to the SPA shell — every unmatched URL returns `index.html`, and the client router has no such
-  route either. That is why the failure looks like a web-server 404 but is really the app's own page.
-- Everything upstream is correct, which is why the flow *starts*: `OPENID_PROVIDER_URL` + client id/secret
-  satisfy the provider-registration gate at `config.py:2678`, so `OAUTH_PROVIDERS['oidc']` exists and
-  discovery is fetched. `OPENID_REDIRECT_URI` is then handed to the provider verbatim (`config.py:2694`).
-- The stale string sits on **both** sides of the wire: `OPENID_REDIRECT_URI` in
-  `templates/docker_services/open-webui/docker-compose.yml.j2` and `provider_openwebui.redirect_uris` in
-  `authentik/blueprints/ks-oidc.yml`. Change both, recreate OWUI, re-apply
-  `playbooks/authentik-blueprints.yml`, then verify `grant_types` + `property_mappings` survived the
-  upsert (they are pinned there; check, don't assume).
+  route either. A 200 + HTML on a callback path therefore means *no route ran*; a 3xx off the same request
+  means the app's own handler ran. That contrast is the read-only way to tell "route exists" from "route
+  is missing" without a browser.
+- Everything upstream is what makes the flow *start*: `OPENID_PROVIDER_URL` + client id/secret satisfy the
+  provider-registration gate at `config.py:2678`, so `OAUTH_PROVIDERS['oidc']` exists and discovery is
+  fetched. `OPENID_REDIRECT_URI` is then handed to the provider verbatim (`config.py:2694`).
 - OWUI's `config` table holds **no** `oauth.*` rows, so env is authoritative here. That is the opposite of
   Immich (§Immich: env is inert, the DB is the only surface) — the same defect class with opposite
   remedies, which is why the standing rule is: **read the shipped build to find which surface it actually
   consults, before choosing env or a seed.**
-- Acceptance is **a login that lands logged in**, not a 200 on the callback: a token-exchange failure and a
-  success look identical from the redirect alone.
+- **Proving the return leg without an admin token or a browser**, in this order:
+  1. `GET https://ai.kogler.si/oauth/oidc/login` → the 302's `location` carries the `redirect_uri` the
+     app will actually send, so it reads the live compose env rather than the repo file.
+  2. Ask the authorize endpoint to accept that URI (and a bogus one as the control): 302 to
+     `/if/flow/default-authentication-flow/` = accepted, 400 = rejected.
+  3. `GET https://ai.kogler.si/oauth/oidc/callback?code=probe&state=probe` → a **307 to `/auth?error=…`**
+     means the handler ran and attempted the token exchange; a **200 + `index.html`** means no route served
+     it. A bogus code is the point: the app's own failure redirect proves the exchange was reached, which a
+     200 on a callback page never proves.
+  A human still has to do the login itself for the ✅ in the ledger below — an error redirect proves the
+  plumbing, not the session.
 
 ---
 
@@ -200,6 +242,7 @@ verified by its redirect; native-OIDC services are verified by the session exist
 | `chat` (Element + Tuwunel) | homeserver SSO | `/_matrix/client/v3/login` advertises `m.login.sso` with the `authentik` IdP + owner login | ✅ |
 | `file` (OpenCloud) | native OIDC (web) | owner login **and** a `.docx` open through the ONLYOFFICE WOPI chain in that session ([services-office.md](services-office.md)) | ✅ |
 | `file` (OpenCloud) **native Android app** | native OIDC, client_id from WebFinger | owner login as `domen` **and** the file list on device; acceptance measured server-side = a `RefreshToken` row for the provider whose scope still contains `offline_access` (an app that logs in but gets no refresh token LOOKS alive for an hour) | ✅ |
+| `file` (OpenCloud) **native iOS / Desktop clients** | native OIDC, same shared client id from WebFinger | the per-platform callbacks are on the shared provider and each is accepted at the authorize endpoint (iOS `oc://ios.opencloud.eu` → 302; Desktop `http://127.0.0.1:<port>` → 302 via a REGEX entry, 400 without one). Shapes + sources: [services-authentik.md](services-authentik.md) §Blueprint authoring notes | ⏳ server side ready — **the device onboarding is an owner act** |
 | `foto` (Immich) | native OIDC | the button, then an owner login as `domen` (see §Immich for how the settings get there); **plus the mobile app** — picture **and** video uploaded from the phone, which is also what makes Immich the family photo SSOT rather than OpenCloud photo backup ([services-office.md](services-office.md)) | ✅ |
 | `git` (Forgejo) | native OIDC | `user/login` advertises `Sign in with authentik`; the source is registered by `deploy-service.yml`, `ENABLE_AUTO_REGISTRATION=true`, `/user/register` 404 by design | ✅ |
 | `claw` (OpenClaw) | native OIDC | — | ⏳ desktop/mobile OAuth + CSP |
