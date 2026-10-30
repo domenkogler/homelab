@@ -56,7 +56,12 @@ entries:
       invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
       client_type: confidential
       redirect_uris:
-        - {url: "https://ai.kogler.si/oauth2/callback", matching_mode: strict}
+        # Two-sided invariant: this is the SAME string as `OPENID_REDIRECT_URI` in
+        # templates/docker_services/open-webui/docker-compose.yml.j2. The callback this build serves is
+        # `/oauth/oidc/callback` (`@app.get('/oauth/{provider}/callback')` in open_webui/main.py,
+        # provider = 'oidc'); moving one side only reads as an IdP outage.
+        # Mechanism: docs/deployment-oidc.md §Open WebUI native-OIDC note.
+        - {url: "https://ai.kogler.si/oauth/oidc/callback", matching_mode: strict}
       signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
       sub_mode: hashed_user_id
       # Pin grant_types explicitly: a blueprint upsert writes an absent attr as an empty

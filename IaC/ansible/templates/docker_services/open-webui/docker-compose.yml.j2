@@ -44,7 +44,12 @@ services:
       OAUTH_CLIENT_ID: "{{ vault['openwebui_api'].username | replace('$','$$') }}"
       OAUTH_CLIENT_SECRET: "{{ vault['openwebui_api'].credential | replace('$','$$') }}"
       OPENID_PROVIDER_URL: "https://sso.kogler.si/application/o/openwebui/.well-known/openid-configuration"
-      OPENID_REDIRECT_URI: "https://ai.kogler.si/oauth2/callback"   # must match ks-oidc.yml redirect_uris
+      # The callback path this build actually serves: `@app.get('/oauth/{provider}/callback')` in
+      # open_webui/main.py (provider = 'oidc'). The pre-0.11 `/oauth2/callback` path has no route in the
+      # shipped build, so the SPA shell answered it with a 404-looking page — see
+      # docs/deployment-oidc.md §Open WebUI native-OIDC note. Redirect URIs are a TWO-SIDED invariant:
+      # this line and ks-oidc.yml `provider_openwebui.redirect_uris` move together, in one change.
+      OPENID_REDIRECT_URI: "https://ai.kogler.si/oauth/oidc/callback"   # must match ks-oidc.yml redirect_uris
       OAUTH_PROVIDER_NAME: "Authentik"       # SSO button label on the login page
       OAUTH_SCOPES: "openid email profile"   # upstream default; explicit for clarity
       # Family self-service per the identity model (services-ai.md §6): an Authentik
