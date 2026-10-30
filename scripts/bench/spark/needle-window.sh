@@ -73,6 +73,10 @@
 #       [--base-url URL] [--host spark] [--bench-dir DIR] [--out DIR] [--no-window]
 #       [--dry-run] [--self-test]
 #
+#   --host is the ssh NAME of the box (default spark). Away from the house name the hop:
+#   `--host spark-vps`. A plain node name is the Home leg with no jump, so off-site it times
+#   out and reads like a dead box (docs/network-vpn.md §The laptop alias contract rule 1).
+#
 #   --profile     restrict the run to one (or a few) catalogue names. A name outside the
 #                 catalogue is a usage error, and a named profile the box is NOT serving exits 4
 #                 — that is the point of naming it.

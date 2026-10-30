@@ -22,7 +22,9 @@
 #   powershell.exe -Command 'Start-Process powercfg -ArgumentList "/change","standby-timeout-ac","0" -WindowStyle Hidden'
 # and leave the lid open — a sleeping supervisor is just a chain nobody relaunches.
 #
-# Env: STABILITY_HOST (spark) · STABILITY_MAX_RELAUNCH (6) · STABILITY_POLL (60 s)
+# Env: STABILITY_HOST (the ssh name; spark at home, spark-vps away — a plain node name is the Home
+#      leg and times out off-site, docs/network-vpn.md §The laptop alias contract rule 1) ·
+#      STABILITY_MAX_RELAUNCH (6) · STABILITY_POLL (60 s)
 #      STABILITY_RESERVE_GIB (12) · STABILITY_MAX_KILLS (2) · STABILITY_COOLDOWN (300 s)
 #      STABILITY_RECOVER_WAIT (600 s) · STABILITY_HEALTH_WAIT (600 s)
 #      STABILITY_DRYRUN=1 (no load) · STABILITY_FAKE_KILL=1 (dry-run + exercise the

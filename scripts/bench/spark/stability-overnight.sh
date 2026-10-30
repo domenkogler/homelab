@@ -16,6 +16,8 @@
 # Launch it via the supervisor, or directly:
 #   ssh spark 'setsid nohup bash /opt/stability/stability-overnight.sh >/dev/null 2>&1 </dev/null &'
 #   ssh spark 'bash /opt/stability/stability-overnight.sh --status'
+# Away from the house every `ssh spark` above is `ssh spark-vps`: a plain node name is the Home
+# leg with no jump and times out off-site (docs/network-vpn.md §The laptop alias contract rule 1).
 #
 # Exit: 0 PASSED · 1 FAILED · 2 preflight refused · 3 all runs already finished
 # ============================================================================

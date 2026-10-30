@@ -42,8 +42,11 @@
 #   bash scripts/harness/pi-seat-sync.sh --self-test         # stubbed transports, no network
 #
 # Seats (env PI_SEATS overrides): win11 (this shell, Windows side) · wsl (wsl.exe -d
-# $PI_WSL_DISTRO, or this shell when running inside WSL) · oldsrv (the ssh $PI_OLDSRV_TARGET door
-# over the vps jump, OR this shell when this host IS the oldsrv seat — see IS_OLDSRV). Env sandbox
+# $PI_WSL_DISTRO, or this shell when running inside WSL) · oldsrv (the ssh $PI_OLDSRV_TARGET door,
+# OR this shell when this host IS the oldsrv seat — see IS_OLDSRV). $PI_OLDSRV_TARGET defaults to
+# `oldsrv-domen`, which is the Home leg with NO jump; away from the house it is
+# `PI_OLDSRV_TARGET=oldsrv-domen-vps`, because a plain name is the on-site leg and times out
+# off-site (docs/network-vpn.md §The laptop alias contract rule 1). Env sandbox
 # hooks: PI_SEATS, PI_WSL_DISTRO, PI_WSL_REPO, PI_OLDSRV_TARGET, PI_OLDSRV_REPO, PI_SSH_OPTS,
 # PI_SEAT_STUB (the self-test's transport).
 #

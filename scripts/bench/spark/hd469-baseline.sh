@@ -38,6 +38,10 @@
 #       [--container NAME] [--base-url URL] [--interval 5] [--window 1800]
 #       [--out DIR] [--self-test]
 #
+#   --host is the ssh NAME of the box (default spark). Away from the house name the hop:
+#   `--host spark-vps`. A plain node name is the Home leg with no jump, so off-site it times
+#   out and reads like a dead box (docs/network-vpn.md §The laptop alias contract rule 1).
+#
 # Fixture hooks — what keeps --self-test off the box and off the vault (and why it is the one
 # arm Rule 0 does not have to refuse):
 #   HD469_SSH_CMD    command that receives each far-side command on stdin

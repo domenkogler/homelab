@@ -48,6 +48,10 @@
 #   scripts/bench/spark/text-only-preflight.sh [--host spark] [--container NAME]
 #       [--model-dir PATH] [--config-file PATH] [--base-url URL] [--dry-run] [--self-test]
 #
+#   --host is the ssh NAME of the box (default spark). Away from the house name the hop:
+#   `--host spark-vps`. A plain node name is the Home leg with no jump, so off-site it times
+#   out and reads like a dead box (docs/network-vpn.md §The laptop alias contract rule 1).
+#
 #   --config-file  read this config.json instead of the box's (a staged copy, a fixture, an
 #                  off-line read). The multimodal half then comes from a FILE, and nothing in
 #                  the run touches a host.

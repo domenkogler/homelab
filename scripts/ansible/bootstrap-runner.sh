@@ -14,6 +14,8 @@
 #                       ssh oldsrv 'cd ~/source/homelab && \
 #                                   bash scripts/ansible/bootstrap-runner.sh --no-upgrade \
 #                                                        --no-sudoers --token-stdin'
+#                   Away from the house the ssh name is `oldsrv-vps`: a plain node name is the Home
+#                   leg and times out off-site (docs/network-vpn.md §The laptop alias contract rule 1).
 #                   Note the shape: THIS SCRIPT MUST ALREADY BE ON THE TARGET. stdin carries
 #                   the token, so it cannot also carry the script — `bash -s < script` and a
 #                   piped token are mutually exclusive, and the repo has to arrive first.
@@ -37,7 +39,10 @@ while [ $# -gt 0 ]; do
         --token-stdin) TOKEN_STDIN=1 ;;
         --no-sudoers)  NO_SUDOERS=1 ;;
         --help|-h)
-            sed -n '2,26p' "$0"
+            # The header IS the help text, so the range is anchored to the comment block: a numbered
+            # range silently truncates the list every time a mode is documented (CONVENTIONS §6's
+            # "a check that cannot fail" class, in its output shape).
+            sed -n '/^# bootstrap-runner.sh/,/^[^#]/p' "$0" | sed '$d'
             exit 0 ;;
         *)
             echo "FAIL: unknown argument '$1' — refusing to guess what was meant. See --help." >&2

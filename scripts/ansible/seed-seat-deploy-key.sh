@@ -17,6 +17,8 @@
 # Run ON the seat host as root (it needs to write into another account's home):
 #     ssh oldsrv 'sudo bash -s' -- --check < scripts/ansible/seed-seat-deploy-key.sh
 #     ssh oldsrv 'sudo bash -s'           < scripts/ansible/seed-seat-deploy-key.sh
+# Away from the house the ssh name is `oldsrv-vps`: a plain node name is the Home leg, so off-site it
+# times out and reads like a dead host (docs/network-vpn.md §The laptop alias contract rule 1).
 # Needs only the read-scope SA token file (/etc/op/provision-token, HD-442), so it works on
 # a headless runner. Modes: `--check` = report without writing anything; `--force` = rewrite
 # a key/config this script already wrote. Idempotent: an existing matching key is a no-op.

@@ -731,7 +731,11 @@ Three rules decide every block:
 3. **Flipping these seat names changes no converge.** The jump Ansible uses is the inventory's
    (§Where the jump lives), so `home_servers.yml --check` behaves identically before and after a seat-config
    change; the scripts that shell out to `ssh <name>` are the only consumers, and away from the house they
-   need the `-vps` spelling (`PI_OLDSRV_TARGET=oldsrv-vps`, `OLDSRV_SSH=oldsrv-vps`).
+   need the `-vps` spelling, named per script at its own seam: `--host spark-vps` (the bench family),
+   `STABILITY_HOST=spark-vps`, `VM_SSH_HOST=oldsrv-vps`, `PI_OLDSRV_TARGET=oldsrv-domen-vps`,
+   `OLDSRV_SSH=oldsrv-vps`, and `ssh oldsrv-vps …` for the run-on-the-seat legs. **A plain name that times
+   out away is this rule, not a dead host** — the `-vps` spelling answering while the plain one times out is
+   what proves the seat is away.
 
 | Block | Leg (see [network-addresses-generated.md](network-addresses-generated.md)) | `ProxyJump` | Notes |
 |---|---|---|---|

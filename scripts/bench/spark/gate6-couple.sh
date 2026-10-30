@@ -43,6 +43,10 @@
 #       [--container NAME] [--arm-label LABEL] [--out DIR] [--window SECONDS]
 #       [--dry-run] [--battery-only] [--self-test]
 #
+#   --host is the ssh NAME of the box (default spark). Away from the house name the hop:
+#   `--host spark-vps`. A plain node name is the Home leg with no jump, so off-site it times
+#   out and reads like a dead box (docs/network-vpn.md §The laptop alias contract rule 1).
+#
 #   --max-tokens    the ONE budget both legs get. Default 16384 = 16 x 2^10, the owner's ruling.
 #                   1024 stays addressable — it is the historical basis — but only by naming it.
 #   --url           the chat endpoint base handed to the battery as VLLM_URL. Defaults to

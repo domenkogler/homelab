@@ -66,7 +66,10 @@
 #   scripts/bench/spark/metrics-window.sh --self-test          # fixtures, never a host
 #
 # Flags
-#   --host spark             the box whose engine is read (default spark)
+#   --host spark             the box whose engine is read, by ssh NAME (default spark). Away
+#                            from the house name the hop: --host spark-vps. A plain node name is
+#                            the Home leg with no jump, so off-site it times out and reads like a
+#                            dead box (docs/network-vpn.md §The laptop alias contract rule 1).
 #   --interval 60            seconds between samples
 #   --duration 9h            sampling length: N, Ns, Nm, Nh, Nd. Default 9h = one working
 #                            day, the same window shape gate 7 takes off the watchdog.

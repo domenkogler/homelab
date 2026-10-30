@@ -40,8 +40,10 @@
 #
 # Transport — the Victoria endpoint is IaC `victoria_backend_host` (:8428), reachable
 # over wg-s2s. A laptop has no route to it, so two forms, and NEITHER is guessed:
-#   VM_SSH_HOST=<host>   (default: oldsrv)  run the curl there over ssh — the hop that
-#                                           actually answers from this seat
+#   VM_SSH_HOST=<host>   (default: oldsrv, the Home leg) run the curl there over ssh — the hop
+#                        that actually answers from this seat. Away from the house it is
+#                        VM_SSH_HOST=oldsrv-vps: a plain node name is the Home leg and times out
+#                        off-site (docs/network-vpn.md §The laptop alias contract rule 1)
 #   VM_URL=http://host:8428                direct form, for a seat that does have the route
 # creds: 1Password `Homelab-ansible/victoria-metrics_api` via `op`, else VM_USERNAME +
 # VM_PASSWORD. Written to a 0600 curl config and unlinked; never argv, never printed
