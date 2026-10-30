@@ -367,6 +367,8 @@ merge, the views and the brief's death belong to the parent.
 | **A process that outlived its lane** | a detached `ssh -n -N -L 5030:<oldsrv's Home address>:5030 oldsrv` was found **LISTENing on the driving seat 5 h 27 m after the lane that opened it finished**, forwarding a loopback port into a production host's service socket (the address is the SSOT's, [network-addresses-generated.md](network-addresses-generated.md) — written here as a name because an IP literal outside the SSOT is a gate failure, and this sentence outlives any one address) | an unowned path into a live host, held by nobody, closed by nobody, and discovered by accident |
 | **A half-written file left untracked** | an instrument (a script nothing had `git add`ed) sat in the worktree, so the gate could not see it and no later session could find it | an instrument that does not exist is worse than no instrument: it reports nothing and hides nothing |
 
+`.scratch/` at the repo root is the per-task scratch workspace, and `.gitignore` ignores it by design: an instrument generated there is never tree content and carries no git history — which is also what stops a scratch file from making `git status` DIRTY, the state in which `scripts/gate/guard-session.sh` hard-fails a `validate-all.sh` run taken from the primary checkout — and being ignored changes nothing about the re-derivability rule, so a scratch file that exists nowhere else is not an artifact but a gap.
+
 **The lane's own exit check — three commands, run by the lane, before it reports:**
 
 ```bash

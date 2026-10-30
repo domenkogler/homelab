@@ -4,6 +4,9 @@ __pycache__/
 # pi-subagents run artifacts
 .pi-subagents/
 
+# per-task scratch workspace (one-run instruments; a generated file here is never tree content)
+.scratch/
+
 # Rendered RouterOS bootstrap scripts (secrets + static IPs injected at render time)
 IaC/router/rendered/
 .tmp_*
