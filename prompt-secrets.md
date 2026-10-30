@@ -2,7 +2,8 @@
 
 > **Role:** the runbook for the secrets-hygiene residue: the tools that keep a vault value out of a
 > capture (HD-1216 · HD-1218 · HD-1219, plus the debt book their verdicts read —
-> [docs/deployment-secrets.md](docs/deployment-secrets.md) §9), the row hygiene that keeps that register readable,
+> [docs/deployment-secrets.md](docs/deployment-secrets.md) §Creation & Rotation Workflow, item 9), the row hygiene
+> that keeps that register readable,
 > and the owner-side acts that are the ONLY thing that closes a `run-capture` debt (HD-1170 · HD-1181).
 > It is a lane brief, not a second backlog: every act below is a box on a row that already exists.
 > **Rows it carries:** **1181** · **1170** · **1216** · **1218** · **1219** — re-derive
