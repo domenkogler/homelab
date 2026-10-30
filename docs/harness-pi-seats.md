@@ -138,6 +138,10 @@ whose INSTALLED package resolves the host-peer question from the manifest. So th
 `pi list` version line plus one background launch — and a seat that passes certifies only itself, while every other seat
 keeps the failure shape above regardless of what the pin says. Live-verified on the oldsrv seat 2026-10-21: pi 1.3.0 with
 `pi-subagents@0.80.0` installed, one background launch produced a child session file, ran, and returned its result.
+Live-verified on the WSL Debian seat 2026-10-30: pi 1.4.0 with `pi-subagents@0.80.0` installed, one background launch
+produced a child session file and ran; the same seat's host-peer alias read answers with NO missing specifier, because
+that release's manifest names the optional peer in neither `dependencies` nor `optionalDependencies` — the manifest-test
+shape above, which is why the runner starts there at all.
 
 **A leg must ask the same question on both seat planes, down to the bytes.** A Python `subprocess` capture with `text=True`
 and no explicit `encoding=` decodes with the LOCALE default — UTF-8 on the Debian plane, cp1252 on the Win11 Git-Bash one —
