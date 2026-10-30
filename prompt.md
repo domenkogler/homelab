@@ -104,7 +104,8 @@ not by the box: the Rule-0 legs a spark-served session may not run, and the whol
 0–8 driven from the WSL seat, the secret rotations scheduled into it, no rows carried, and it dies with the window.
 
 **Leak-debt brief:** [prompt-secrets.md](prompt-secrets.md) — the secrets-hygiene residue the pin window left: the four
-leak tools (a tool-result masker, a debt register that answers *did it rotate*, a containment instrument, a pre-push
+leak tools (a tool-result masker — enabled on every seat, its row now carries only the acceptance read — a debt
+register that answers *did it rotate*, a containment instrument, a pre-push
 gate), the register read that generates the list, and the rotations that close a capture leak — most of which are
 **lane** work through the item's far end, not owner work. ⚠ Read `NOT_AUTO_ROTATABLE` in
 [`scripts/secrets/provision-secrets.py`](scripts/secrets/provision-secrets.py) as the auto-rotation guard it is: the
