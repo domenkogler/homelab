@@ -75,11 +75,11 @@ oldsrv seat and inside this box's reach. Row ownership does not move (O3 is abou
 
 | Row | The leg this seat runs | Why only here |
 |---|---|---|
-| **HD-487** | the `--tags network` legs — oldsrv **alone and off-box** with a console reachable, the spark networkd disarm + resolver pair (landed), the pi dead-unit removals; `scripts/ansible/probe-net-manager.sh <host>` for the per-host verdict | the guard refuses the oldsrv leg from oldsrv; and the spark leg is a network converge on the engine host, which a spark-served session should not drive blind |
-| **HD-1100** | oldsrv's `wireguard` leg — alone, **last**, then re-verify every tunnel path | `wireguard` is a guard-listed role on the seat's own box |
+| **HD-487** | **one act left: the VPS `--tags netd` delete of the dead `/etc/systemd/network/20-eno1.netdev`**, owner-present, `--check` scoping already done; `scripts/ansible/probe-net-manager.sh <host>` is the read-only verdict | the guard refuses the act from the box itself, and the remaining delete sits in the netd namespace on the VPS — the oldsrv, spark and Pi legs and the spark resolver pair are landed and every host reads settled |
+| **HD-1100** | the four held Postgres legs on the owner's word, one cluster per window; and the **VPS** `wireguard` leg — `playbooks/vps.yml --limit vps.kogler.si --tags wireguard`, detached, **last**, never alongside another converge, then re-verify every tunnel path | ⛔ the oldsrv `--tags wireguard` leg this cell used to name selects **zero** role tasks — `home_servers.yml` carries no `wireguard` role (HD-1100's own row says so); the VPS leg restarts the tunnel every off-box converge rides, which is why it is last and alone |
 | **HD-1142** | the NAT reconcile apply (`playbooks/router.yml --check`, then the real run) + the before/after read **from the device** | the router slot is global and the doc wants an on-site station with WinBox on the Home leg — this laptop is that box |
-| **HD-1136** | its host-side half that is not blocked by the router window (the `monitoring` converge on oldsrv, the per-seat model-contract re-render, the runner `~/.bashrc` block) | the re-render is a seat leg; the converge is off-box |
-| **HD-1152** | the DNS seed's record-prune apply across the three Technitium instances, detached | owner-present apply; never `--diff` on `docker_services` |
+| **HD-1136** | the host-side half that is not blocked by the router window: the per-seat model-contract re-render (`scripts/harness/render-pi-config.py --vendor continue`), the one hand-edit of the runner's `~/.bashrc` block, and the three `>>> … <<<` managed-block markers the scripts match on | the re-render is a seat leg; the marker edit owes a migration step for the copies already seated, so it is a repo act with a host tail |
+| **HD-1152** | fix BOTH defects in the prune leg first (the `url_query` read the API only answers as a form body, and the Jinja list comprehension in the candidate build), then the DNS seed's record-prune apply across the three Technitium instances, detached | owner-present apply; a real run today dies at the read task with the seed's own legs green, so the RECAP red is the defect, not the prune; never `--diff` on `docker_services` |
 | **HD-1128** | the Pi exit-node advertisement + the headscale route, converge Pi + VPS, then prove egress from a tailnet client | `tailscale-node` is guard-listed on the Pi's own box |
 | HD-495 | this box's git identity/config leg (§0) | only this box can write its own seat config |
 | **HD-1110** · **HD-1085** | this box's own seat planes read `OK` on `--check` (not `--push` — there is nothing here to push), so what is left in this lane is HD-1085's tmux **effectiveness** leg, now closeable because the binary is on the box (§0); the other rows' Win11 legs stay Win11-local per §1.4 | a seat plane converges from its own clone, and from inside WSL the driver cannot certify the Win11 seat |
@@ -90,10 +90,12 @@ if `$PI_PROVIDER=spark`. Rehearse-everything rule in §4.
 
 ## 3. Bucket A — what a spark-served session on this seat must not start
 
-The spark engine lane is not this brief's work and is barred for the whole run by Rule 0, children included: the
-`reasoning` under-cap baseline, every gate that produces `tok/s`/TTFT/ITL, the `spark-ai` re-renders and the engine-boot
-converges carried by [prompt-spark-llm.md](prompt-spark-llm.md) (HD-469 · HD-473 · HD-475 · HD-489 · HD-494 · HD-376 ·
-HD-400 · HD-359 · HD-367 · HD-380 — re-derive the ids there). What *is* allowed from a spark-served session on this box is
+The spark engine lane is not this brief's work and is barred for the whole run by the spark-served dispatch filter,
+children included: the `reasoning` under-cap baseline, every gate that produces `tok/s`/TTFT/ITL, the `spark-ai`
+re-renders and the engine-boot converges carried by [prompt-spark-llm.md](prompt-spark-llm.md) — today
+HD-469 · HD-473 · HD-475 · HD-489 · HD-494 · HD-376 · HD-400 · HD-359 · HD-367 · HD-380 plus the v32 lineage rows
+HD-1206 · HD-1214 · HD-1215 · HD-1220 · HD-1221 · HD-1222, whose flips are engine recreates (re-derive the ids there;
+this list is a pointer, never the authority). What *is* allowed from a spark-served session on this box is
 the provably engine-safe door in §C2 — with the engine's id + `StartedAt` + `RestartCount` read before and after and
 `llm.kogler.si` proven 200 afterwards. If the session is externally served, that lane is dispatched from
 [prompt-spark-llm.md](prompt-spark-llm.md) and this brief contributes only its legs from §2.
