@@ -1,10 +1,11 @@
 # prompt-secrets.md — the leak-debt lane: the four tools that stop the next leak, and the debts a rotation is the only close for
 
-> **Role:** the runbook for the secrets-hygiene residue: the four tools that keep a vault value out of a
-> capture (HD-1216 · HD-1217 · HD-1218 · HD-1219), the row hygiene that keeps the debt register readable,
+> **Role:** the runbook for the secrets-hygiene residue: the tools that keep a vault value out of a
+> capture (HD-1216 · HD-1218 · HD-1219, plus the debt book their verdicts read —
+> [docs/deployment-secrets.md](docs/deployment-secrets.md) §9), the row hygiene that keeps that register readable,
 > and the owner-side acts that are the ONLY thing that closes a `run-capture` debt (HD-1170 · HD-1181).
 > It is a lane brief, not a second backlog: every act below is a box on a row that already exists.
-> **Rows it carries:** **1181** · **1170** · **1216** · **1217** · **1218** · **1219** — re-derive
+> **Rows it carries:** **1181** · **1170** · **1216** · **1218** · **1219** — re-derive
 > this list from [`todo.md`](todo.md) at the commit this file is edited (CONVENTIONS §4: an id is not stable
 > prose). **Cited, not carried:** the kopia connect-line scrub (`prompt-storage-backup.md`'s cell), the rendered
 > seat token (`prompt-seat-cockpit-grants.md`), the app-side rotations (`prompt-media-arrs.md` and
@@ -98,11 +99,11 @@ python3 scripts/lib/vault_read.py --list                      # titles + ids + V
 
 ## 3. The four tools — the order is a dependency, not a preference
 
-**HD-1217 → HD-1219 → HD-1216 → HD-1218.** The book comes first because containment derives its scope from it
-and the masker's acceptance is read out of it; the push gate is independent and cheap, so it lands second and
-starts protecting the commits the other three are made of.
+**The book, then the push gate, then the masker, then containment.** The book comes first because containment
+derives its scope from it and the masker's acceptance is read out of it; the push gate is independent and cheap,
+so it lands second and starts protecting the commits the other three are made of.
 
-### 3a. HD-1217 — the debt book that says who acts, on which seat, and whether it rotated
+### 3a. The debt book — who acts, on which seat, and whether it rotated
 
 - **Files:** `scripts/gate/secret_debt_register.txt` (data) and `scripts/gate/check_secret_debt.py`
   (verdicts) — both committed, both gated. A **companion** book, deliberately: columns on the ledger
@@ -189,7 +190,7 @@ starts protecting the commits the other three are made of.
   1Password console, where `op_api`'s re-issue sits, or a write into the **human** vault), or a credential outside
   our scope (`pppoe_login`, the Soulseek network account). The two sets overlap and neither contains the other,
   so containment derives from the register's `path: none` half and never from the guard.
-- **Where the fact lives — ruled.** Two places, and the checker holds them equal. HD-1217's register carries the
+- **Where the fact lives — ruled.** Two places, and the checker holds them equal. The debt register carries the
   per-debt `path:` column — `lane` / `lane+converge` / `human` / `none` — and
   [`scripts/secrets/provision-secrets.py`](../scripts/secrets/provision-secrets.py) states a `NOT_ROTATABLE` set
   that names the same ruling at the item level, beside — and deliberately distinct from — the
@@ -265,7 +266,7 @@ follows them. Clearing this is **not** a trim: it is the state-only rule (CONVEN
 - [ ] `bash scripts/validate-all.sh` from the worktree, green; name every SKIP by reason.
 - [ ] `todo.md` — one line in each row this brief rides; no new ids.
 
-### Phase 1 — the book (HD-1217)
+### Phase 1 — the book
 
 - [ ] Re-derive the ledger first: `--update-ledger --class run-capture`, delete the `STALE` lines by hand.
       ⛔ not while a live un-rotated finding still hits — Phase 5 states the mute-button rule.
@@ -273,7 +274,6 @@ follows them. Clearing this is **not** a trim: it is the state-only rule (CONVEN
       fixture-only `--self-test` and the version-bump test in §3a.
 - [x] A registry row in [`scripts/README.md`](scripts/README.md) for each new file — `check_script_layout.py`
       reddens a script the registry does not carry, and the row states what the tool refuses.
-- [ ] `todo.md` — HD-1217's tail.
 
 ### Phase 2 — the push gate (HD-1219)
 
