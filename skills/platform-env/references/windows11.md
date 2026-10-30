@@ -16,7 +16,7 @@ it (`references/detect.md`) because grammar differs:
 ## Paths
 
 - **Separator:** both `\` and `/` work in most Windows APIs, but **use forward
-  slashes** (`plan/2026-08-06-reorg/T1.md`) for cross-shell safety. Quote any path
+  slashes** for cross-shell safety. Quote any path
   that might contain spaces (e.g. `C:\Users\Domen Kogler\...`).
 - **git-bash mangles leading-`/` paths** (treats `/foo` as a root path) and can
   rewrite `D:\...`. Prefer **relative forward-slash paths from the repo root**,

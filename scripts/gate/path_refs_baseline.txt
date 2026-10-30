@@ -8,11 +8,7 @@
 # repository, a probe note citing a script that never existed, a seat guide citing a deleted plan folder,
 # a bench CSV that lives on the bench box and was never committed, a file inside someone else's
 # repository, an optional vault file a second project's playbook reads if the operator created it.
-1	audit.md	docs/hardware-topology.md
-1	audit.md	docs/network-topology.md
-1	audit.md	skills/pi-subagents/SKILL.md
 1	reports/probe-agentmemory-20260921.md	scripts/backup-snapshot-trigger.sh
-1	skills/platform-env/references/windows11.md	plan/2026-08-06-reorg/T1.md
 1	spark/ansible/site.yml	group_vars/vault.yml
 1	spark/ansible/spark-bootstrap-playbook.yml	group_vars/vault.yml
 1	spark/reports/hd469-graded/image-probe-20260928.md	files/patch_qsa_fp8_kv.py

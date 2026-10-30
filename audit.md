@@ -75,7 +75,7 @@ drift, never cosmetic noise.
 3. **SSOT discipline**: no IP literals outside `network-addresses-generated.md`/IaC (gate checks); no secret values; no `*-generated.md` hand-edits (git-blame them); no stale "TODO: define service" placeholder language.
 4. **Docs-vs-IaC parity**: for the hot owning docs (`deployment-*`, `network-*`, `services-*`, `observability`, `backup`, `security`, `smart-home*`, `hardware-*`, `storage`): each value/fact the doc quotes (service names, subdomains, image versions, ports, hostnames, addresses) must match the SSOT it cites (`group_vars/*.yml`, `host_vars/*.yml`). Sample-don't-exhaust: pick the 8 hottest docs; for each, spot-check ≥6 concrete facts.
 5. **Manual/ (family guides)**: `docs/manual/` — status fields (`status: wip`?), file count vs `manual/README.md` index, language consistent with its own spec, no technical secrets.
-6. **Generated-doc accuracy**: verify `network-addresses-generated.md` IPs match `rack-connections.json` + `host_vars/*.yml` `ansible_host` for all 6 hosts. Also spot-check `docs/hardware-topology.md` and `docs/network-topology.md` against `rack-connections.json`.
+6. **Generated-doc accuracy**: verify `network-addresses-generated.md` IPs match `rack-connections.json` + `host_vars/*.yml` `ansible_host` for all 6 hosts. Also spot-check the domain hubs `docs/hardware.md` and `docs/network.md` against `rack-connections.json`.
 
 ### Track B — IaC (Ansible) consistency & health
 1. **Inventory ↔ group_vars ↔ host_vars ↔ playbooks**: every host in `inventory.ini` has a host_vars file with an `ansible_host`; every playbook's host pattern matches the inventory groups; no dead/duplicate vars; `group_vars/all/` vs per-group precedence sane.
@@ -147,7 +147,7 @@ Sampled against the live VPS (only where a report claim depends on it):
 ## 3b. Orchestration model (pi-subagents) — run the audit as parallel lanes
 
 This is a **read-only, parallelizable** audit. Run it with the parent as orchestrator and the
-tracks as isolated lanes (see `skills/pi-subagents/SKILL.md` + `references/multi-lane-orchestration.md`):
+tracks as isolated lanes (see [docs/orchestration.md](docs/orchestration.md) §4 — independent lane sessions, one merge station):
 
 ### Lane board (one writer per lane, `worktree:true` spawn isolation, stable keys)
 
