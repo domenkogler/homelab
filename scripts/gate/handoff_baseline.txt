@@ -20,5 +20,5 @@
 #     python3 scripts/gate/check_handoff_size.py --reseal
 baseline_bytes 51716
 baseline_lines 490
-sealed_at 3305e836af65f20a21e05aa9a0e0c994272d35db
+sealed_at d3b20069ee135601e12643a89062a7bfa3a4f62c
 exempt	history	prompt.md	1	- ⏸ **Retire the RB4011 deltas — RULED 2026-10-13: yes, and scheduled, not executed.** The retire procedure and its
