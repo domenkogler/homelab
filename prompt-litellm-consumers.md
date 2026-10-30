@@ -26,12 +26,14 @@ that recreates the same containers, and `docs/services-ai*.md` is single-writer.
 
 | # | Row | Do | Gate / trap |
 |---|-----|----|-------------|
-| 1 | **HD-384** | Finish the ordered pair: after spark has rebooted with `litellm-engine_api` in its accepted-key list, point `lan-litellm` + `litellm` `OPENAI_API_KEY` at it and converge both; then the OWUI grant, which cannot ship by editing records (create-only glue until `/key/update`) | ⚠ **Order is the whole risk** — the engine only accepts the new credential from its next boot; flipping the gateways first 401s every upstream call. Prove `GET https://llm.kogler.si/v1/models` answers **200** with the new bearer before touching either gateway. ⚠ `/model/list` is unusable with the master key; **`GET /model/info` on the LAN instance answers FOUR rows** (`spark/qwen3.8-flash-next`, `local-rerank`, `local-stt`, `bge-m3-vk`) and the VPS one, so `ollama/bge-m3` is a *fallback rung*, not a row. ⚠ The mint glue lives **inside** the `lan-litellm` deploy pass (name the service tag) and is **create-only**: a live key keeps its old allow-list until `/key/update` exists or the key is deliberately re-minted |
+| 1 | **HD-384** | Finish the ordered pair: after spark has rebooted with `litellm-engine_api` in its accepted-key list, point `lan-litellm` + `litellm` `OPENAI_API_KEY` at it and converge both; then the OWUI grant, which cannot ship by editing records (create-only glue until `/key/update`) | ⚠ **Order is the whole risk** — the engine only accepts the new credential from its next boot; flipping the gateways first 401s every upstream call. Prove `GET https://llm.kogler.si/v1/models` answers **200** with the new bearer before touching either gateway. ⚠ `/model/list` is unusable with the master key; **`GET /model/info` on the LAN instance answers FOUR rows** (`spark/qwen3.8-flash-next`, `local-rerank`, `local-stt`, `bge-m3-vk`) and the VPS one, so `ollama/bge-m3` is a *fallback rung*, not a row. ⚠ The mint glue lives **inside** the `lan-litellm` deploy pass (name the service tag) and is **create-only**: a live key keeps its old allow-list until `/key/update` exists or the key is deliberately re-minted. ⚠ SGLang takes **one** key (`api_key: Optional[str]`), so a fast-sglang profile cannot host this two-credential shape |
 | 2 | **HD-249** | Nothing to execute today: the audit is **done** (one workflow, one active webhook, caller is Grafana on the docker network, `auto.kogler.si` tailnet-only) and n8n has **no AI node**, so there is no key to mint yet | When an AI node appears: mint on the **LAN** instance with **no `max_budget`** and **local rows only** (`spark/qwen3.8-flash-next`) per the owner's ruling — an unused scoped key is a liability, not a head start |
+| 3 | **HD-1178** | **PARKED (O4) — ruled not a standalone act.** The bench is the FIRST act of the memory-plane build (**HD-336**); while no memory server is being built nothing here is scheduled. The candidates, the two gates and the probe commands already live in [docs/services-ai-bench.md](docs/services-ai-bench.md) §3d — this row is the queue entry, not the research | ⛔ No compose change, no pin flip and no Qdrant change rides on this row; a 1024-native winner costs no re-ingest, a 768-dim one buys a full re-ingest + backtest before it buys anything. When it does run its first act is a pin bump that is **not embed-only** — the same `server-vulkan` image serves the reranker leg, so `--pooling rank` is re-proven on the new build, and a candidate measured without its own instruction prefixes was not measured |
 
 ## ⛔ Traps that cost a round
 
-* **The pin is `versions.yml:231` — say nothing about LiteLLM's behaviour that you have not re-read there.** The rows and the
+* **The pin is `litellm_version` in [IaC/ansible/group_vars/all/versions.yml](IaC/ansible/group_vars/all/versions.yml) — say
+  nothing about LiteLLM's behaviour that you have not re-read there.** The rows and the
   old prose quote an older tag; §9c's constraints are written as "measured on the pinned image", so re-verify the two that
   your work touches before repeating them: DB-stored `litellm_params` do **not** expand `os.environ/…` (keys come from the
   container env, and a DB row carries none), and `jina_ai/`'s `get_complete_url` **replaces** the path, so a local reranker's
@@ -41,8 +43,11 @@ that recreates the same containers, and `docs/services-ai*.md` is single-writer.
   Scoped consumers get **one model row** — the `spark/qwen3.8-flash-next` **row**, never a `spark/*` wildcard; `rpm` is
   contention protection on the single KV pool, not a bill; `max_budget` was dropped for owned devices. The `rpm` figure lives
   in the SSOT, never edited in the LiteLLM DB.
-* **Do not re-enable `dsh` / `pi-dev`.** Their templates render a deliberately-empty 1P item, so flipping them takes the whole
-  oldsrv `docker_services` converge down, and their tailnet names answering 502 is by design.
+* **Do not resurrect `dsh` / `pi-dev`.** The harness IaC is gone — no template dir, no service entry, the scoped-key catalog
+  line is a comment — so there is nothing left to flip; the retired `dsh_api`/`pi-dev_api` items must not be re-seeded, and
+  re-adding a row is a new decision, not a repair. `dsh` answers nothing in any namespace, and `pi-dev` survives only as
+  `pi-dev.ts.kogler.si`, a second name on the live oldsrv cockpit backend
+  ([docs/network-vpn.md](docs/network-vpn.md) §Pattern B).
 * **Measured, do not re-derive:** the gateway name reaches the containers via `extra_hosts` (no host resolver answers it) ·
   **base_url is `https`** (the engine's `:80` is redirect-only and the SDK will not follow a 307 on POST) · model rows live in
   the **DB**, never in git · `lan-litellm` has no `curl`, so drive its API from the host against the backend address.
