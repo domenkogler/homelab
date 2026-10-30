@@ -905,7 +905,11 @@ to `~/.gitconfig-nightly` and includes it — appended last and scoped to github
 interactive, subagent, or scheduled, can raise a dialog (`--1password` is the opt-back, `--check`
 prints which route the seat will take). It carries `IdentityAgent=none` + `BatchMode=yes` (fail into
 the log in 15 s) and file-path signing, because a leg that runs while nobody is watching must fail
-rather than wait. The traps:
+rather than wait. The mode also **raises the seat's transport key** (`~/.ssh/github_auth`) from the
+`GitHub auth` vault item when the seat has never had one — `--raise-key` is that half on its own — so
+a rebuilt seat needs no hand copy: the value goes to a temp file, must parse as a passphrase-free
+private key under Git's own `ssh-keygen`, and an existing key is never rewritten or truncated. The
+traps:
 
 * **`gpg.ssh.program` must be ABSENT, not empty.** Git cannot un-set a key from a later include, so
   the script removes it from `.gitconfig-windows` instead of overriding it; `-c gpg.ssh.program=`
@@ -929,6 +933,13 @@ rather than wait. The traps:
   pipe and can prompt. Inside any github clone it cannot. `git-bootstrap-win11.sh --check` reports
   this as **`route: PARTIAL`** rather than claiming the seat default, so the fallback is visible
   instead of assumed (`--check` is always honest about the directory it is run from).
+* **The verdict answers one question — can a git call ever WAIT?** — not "does every key file exist?".
+  Commit signing is retired, so a seat with no `github_signing` file is correct and reads
+  **`route: UNATTENDED`** with the absence printed as a fact. `INCOMPLETE` is reserved for the state
+  that actually hangs: `commit.gpgsign` resolving **true** while `user.signingkey` does not resolve to
+  a key file (git then waits on an agent for a key nothing can validate, in the shells nobody
+  watches). `--git-identity` asserts the same function before it reports success, and `--self-test`
+  feeds that function the fixture cells — including the keyless-but-unsigned one.
 * **Commits are not signed.** `commit.gpgsign=false` on every seat — `gpgsign=false` in `[commit]` and
   `[tag]` of `~/.gitconfig-github` and `~/.gitconfig-nightly` on the Windows seat, and in the two places that
   would otherwise restore it on a rebuild: `scripts/git/git-bootstrap.sh --ssh-auth` and the repo template
@@ -964,7 +975,15 @@ rather than wait. The traps:
   precedence, `includeIf` included, is the thing reported. `--git-identity --check` and `--reload` write nothing, and the mode
   never generates or pulls a signing key (that stays `--ssh-auth`, and the sign half is retired) and never installs an `ssh-add`
   recovery block. The Win11 seat's equivalent is `git-bootstrap-win11.sh --git-identity`. So a rebuilt seat is repaired by one
-  command rather than remembered by hand — which was the point of the role-ownership leg. Where a seat still holds `true` the
+  command rather than remembered by hand — which was the point of the role-ownership leg. The seat's
+  **key** payload is scripted on both families too: `git-bootstrap.sh --ssh-auth` pulls it on a Debian
+  seat and `git-bootstrap-win11.sh --git-identity` (or `--raise-key`) raises it on the Windows seat,
+  each resolving the vault credential through [`../scripts/lib/vault-env.sh`](../scripts/lib/vault-env.sh)
+  before it asks `op` anything — which matters because that token is a `0600` FILE on a Debian seat and
+  `op` reads only the environment, so a path that asks first fails its own preflight and tells the
+  operator to sign in interactively. What no route asserts is the payload's PRESENCE: no converge reads
+  a seat's `~/.ssh`, so the honest statement is "one command per seat recovers it", not "it is
+  guaranteed". Where a seat still holds `true` the
   historical repair is still a hand edit: take the backup in the same command (`cp -p <file> ~/.gitconfig.pre-signing-$(date +%Y%m%d-%H%M%S)`, then
   `git config --file <file> commit.gpgsign false`) and read the verdict knowing that the backup legitimately
   still holds `true` — a glob-wide `grep -n gpgsign ~/.gitconfig*` returning "no `true`" is therefore NOT the
@@ -989,7 +1008,7 @@ is on without changing anything.
 | requirement | modal-free seat default (`--git-identity`) | 1Password route (`--1password`) |
 |---|---|---|
 | transport | **Git for Windows' own ssh** — `C:/PROGRA~1/Git/usr/bin/ssh.exe` (OpenSSH 10.5p1 / OpenSSL) | **Windows OpenSSH** — `C:/Windows/System32/OpenSSH/ssh.exe` (9.5p2 / LibreSSL), because that client is what resolves `\\.\pipe\openssh-ssh-agent` |
-| key material | the two **files** `~/.ssh/github_auth` + `~/.ssh/github_signing` (passphrase-free PKCS#8, vault item `GitHub auth`; commits are unsigned, and a seat may still hold the `github_signing` FILE — harmless, and `allowed_signers` needs its public half to verify the signed history) | the same keys as **1Password SSH-key items**, the desktop app running with the SSH agent toggled on, and `op-ssh-sign.exe` in `WindowsApps` |
+| key material | the **file** `~/.ssh/github_auth` (passphrase-free PKCS#8, vault item `GitHub auth`) — raised by the seat itself when absent, never overwritten when present. Commits are unsigned; a seat that predates the retirement may still hold the `github_signing` FILE, which is harmless, and `allowed_signers` needs its public half to verify the signed history | the same keys as **1Password SSH-key items**, the desktop app running with the SSH agent toggled on, and `op-ssh-sign.exe` in `WindowsApps` |
 | `user.signingkey` | the **file path** — in `~/.gitconfig-nightly` *and* in every clone's local config | the **public-key string** (`.gitconfig-github`, via `includeIf`) |
 | `gpg.ssh.program` | **absent** (an empty value makes git spawn `""`) | `op-ssh-sign.exe` |
 | needs a human present | never | yes — once per new process, and see the hard-failure shape below |

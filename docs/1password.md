@@ -48,7 +48,7 @@ see §Proving which service account an install holds.
 | **vps** — the Authentik secret-egress glue + `kopia-fingerprint-sync.yml` | `op-write_api` | `/etc/op/provision-token`, 0600 root, deployed by the docker_services pre-pass |
 | home hosts | `op-write_api` | same path, but ONLY where a `bootstrap_keys` service converges (`deploy-service.yml`) |
 | **spark** | none | it has no token at all — that is exactly why every spark playbook runs through the `pi` jump host ([deployment-ansible.md](deployment-ansible.md)) |
-| **Win11 desktop** | **none installed, by design** | No token file sits on that disk and the seat installs none of its own. It IS a vault *reader*: the vault legs resolve the credential through [`../scripts/lib/vault-env.sh`](../scripts/lib/vault-env.sh), which reads the Debian engine's install across the WSL door (`route=door:Debian`) — the same `op_api` bytes, never a copy, so a rotation reaches this seat with no second re-seat. Git auth stays on the desktop app over `\\.\pipe\openssh-ssh-agent` (`scripts/git/git-bootstrap-win11.sh` reads neither `OP_SIGN` nor `OP_AUTH`). The CLI is installed there (`op.exe`, winget `AgileBits.1Password.CLI`); with no resolved credential it must NOT be called — that is the desktop-app route, one consent dialog per read (see [`deployment-secrets.md`](deployment-secrets.md) §What actually raises a 1Password prompt) |
+| **Win11 desktop** | **none installed, by design** | No token file sits on that disk and the seat installs none of its own. It IS a vault *reader*: the vault legs resolve the credential through [`../scripts/lib/vault-env.sh`](../scripts/lib/vault-env.sh), which reads the Debian engine's install across the WSL door (`route=door:Debian`) — the same `op_api` bytes, never a copy, so a rotation reaches this seat with no second re-seat. Git auth stays on the desktop app over `\\.\pipe\openssh-ssh-agent` (`scripts/git/git-bootstrap-win11.sh` reads the auth item (`OP_AUTH_ITEM`) through the lib ONLY when it raises the transport key; the desktop-app route reads neither `OP_SIGN` nor `OP_AUTH`). The CLI is installed there (`op.exe`, winget `AgileBits.1Password.CLI`); with no resolved credential it must NOT be called — that is the desktop-app route, one consent dialog per read (see [`deployment-secrets.md`](deployment-secrets.md) §What actually raises a 1Password prompt) |
 
 ### Reading the vault from the Win11 seat, where no token is installed
 
@@ -353,8 +353,14 @@ key, which is also the only key still registered on the GitHub account.
 consequences worth naming:
 
 - **A read-scope service account can pull it.** `git-bootstrap.sh --ssh-auth` runs end to end
-  on a headless Debian seat with only `~/.config/op/homelab-sa-token` in the environment — no
-  interactive `op signin`, no desktop app, no 2FA. The `OP_VAULT` override covers any machine whose
+  on a headless Debian seat with only `~/.config/op/homelab-sa-token` installed — no
+  interactive `op signin`, no desktop app, no 2FA. The path resolves that file through
+  [`../scripts/lib/vault-env.sh`](../scripts/lib/vault-env.sh) **before** it asks `op` anything, which is
+  the part that matters: the token is a `0600` FILE and `op` reads only the environment, so a seat that
+  holds the file and exports nothing fails the vault preflight with "you are not currently signed in"
+  and gets advice no non-interactive shell can answer. The Win11 seat raises the same item with
+  `git-bootstrap-win11.sh --git-identity` / `--raise-key`, borrowing the engine's install across the
+  door. The `OP_VAULT` override covers any machine whose
   items still live in the other vault (`OP_VAULT=Private bash scripts/git/git-bootstrap.sh --ssh-auth`).
 - **Signing does not need the agent at all when the key is passphrase-free** (measured, git 2.47.3):
   `user.signingkey=/home/domen/.ssh/github_signing` signs with

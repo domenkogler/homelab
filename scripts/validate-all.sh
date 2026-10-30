@@ -1662,6 +1662,11 @@ item_q "lib/vault_read.py --self-test (the ONE reader: both route arms, the get_
 item_q "guard-session.sh --self-test (sandboxed guard fixture, HD-253)" hl_wsl_route bash scripts/gate/guard-session.sh --self-test
 item_q "guarded-converge.sh --self-test (post-converge liveness verdict, HD-436)" bash scripts/ansible/guarded-converge.sh --self-test
 item_x "drives every 1Password refusal state through a fake op binary in a sandbox: a CLI-contract self-test, not a tree check — rerun it when the bootstrap script changes" "git-bootstrap.sh --self-test (each 1Password refusal state says the right thing)" hl_wsl_route bash scripts/git/git-bootstrap.sh --self-test
+# The Windows sibling's contract, proved with a fixture op + a throwaway HOME, so it runs on a Debian
+# seat too and a seat that is not present never makes it a SKIP: the raise is fill-in-only, never
+# clobbers, always derives the pub, and the route verdict keys on "can a git call WAIT?" rather than on
+# the signing key that signing's retirement removed.
+item_q "git-bootstrap-win11.sh --self-test (the seat payload is raised safely, and the route verdict cannot confuse a retired key with a broken route)" bash scripts/git/git-bootstrap-win11.sh --self-test
 item_x "runs the real check-vault-items.sh over a synthetic tree per case: the *_item registry-key parse is only honest if the CLI runs, which is exactly the waiting a fast loop is not buying" "testdata/check-vault-items/run.sh (scanner self-test, HD-244/245)" hl_wsl_route bash scripts/testdata/check-vault-items/run.sh
 item_q "validate_blueprints.py" "${PY_CMD[@]}" scripts/gate/validate_blueprints.py
 item_q "check_doc_ips.py" "${PY_CMD[@]}" scripts/gate/check_doc_ips.py

@@ -24,7 +24,11 @@
 #   • requires a session that can READ the vault holding the keys — since HD-495 that is
 #     `Homelab-ansible`, so the Phase-0 read-scope Service Account token is enough and no
 #     interactive `op signin` is needed (it used to be the blocker: the keys sat in `Private`,
-#     which an SA cannot read, which is what made seat signing owner-gated),
+#     which an SA cannot read, which is what made seat signing owner-gated). The credential is
+#     resolved through `scripts/lib/vault-env.sh` BEFORE `op` is asked anything, because on a Debian
+#     seat that token is a 0600 FILE and `op` reads only the environment — a seat that held the file
+#     and exported nothing used to fail this path's own preflight, which is how the seat payload
+#     stayed a hand copy while the recovery route read green in the docs,
 #   • pulls the two GitHub SSH keys (sign + auth) from 1Password into ~/.ssh,
 #   • adds them to the ssh-agent,
 #   • flips origin from HTTPS to SSH (git@github.com), and
@@ -48,7 +52,14 @@ if [ "${1:-}" = "--self-test" ]; then
   git init -q "$TMP/src/homelab"
   run() { PATH="$1:$PATH" HOME="$TMP/home" SRC="$TMP/src" \
               XDG_RUNTIME_DIR="/run/user/$(id -u)" OP_VAULT="${3:-}" \
+              HL_VAULT_STUB_FAIL=1 \
               bash "$SELF" --ssh-auth 2>&1 || true; }
+  # HL_VAULT_STUB_FAIL=1 is not decoration: this script now resolves the credential before it asks
+  # `op` anything, and on the Win11 seat that resolution has a third source — the Debian engine's
+  # token file, read across the WSL door. A fixture run must not cross that door (it would print a
+  # real route verdict and pay a wsl.exe spawn per case); the fixtures answer `op` themselves, so the
+  # only thing these cases need is "no credential resolved", which is what the stub-fail arm gives.
+  # The seat-token case below RE-ARMS the resolver with a file, which is the point of that arm.
   mk() { mkdir -p "$TMP/$1"; printf '#!/bin/sh\ncase "$1 $2" in\n%s\nesac\n' "$2" > "$TMP/$1/op"; chmod +x "$TMP/$1/op"; }
   ACCT='"account list") echo "SHORTHAND    URL"; echo "my           https://my.1password.eu"; exit 0;;'
   # signed out — op refuses, but the account IS on disk (real op lists accounts either way).
@@ -163,8 +174,48 @@ EOS
     echo "SELFTEST FAIL [deleted-sign-item]: the failed read still created ~/.ssh/github_signing (it must leave an absent key absent, and never truncate an existing one)"
     fails=$((fails+1))
   fi
+  # THE SEAT-TOKEN CASE (HD-495's remaining leg). The seat's read-scope token is a 0600 FILE, never
+  # an environment variable, and `op` reads only the environment. Measured on the oldsrv seat: the
+  # file present, `op vault list` answering `[ERROR] … You are not currently signed in.`, and this
+  # path dying at its own preflight with advice to run an interactive `op signin` no
+  # non-interactive shell can answer — which is exactly why the transport key stayed a hand copy on
+  # every Debian seat while the docs said one command raises it. Fixture: a vault that is visible
+  # ONLY to a shell holding a credential, plus the file form of that credential under the sandbox
+  # HOME. Deleting the hl_vault_ask call reddens this arm in both directions (no vault, no key).
+  # The token's PATH belongs to the lib — its own ratchet arm reddens if a second file under scripts/
+  # names it — so the fixture uses the lib's `HL_VAULT_FILE` seam and a path of its own rather than
+  # spelling the fleet's install location here.
+  TOKF="$TMP/home/op-sa-token"
+  mkdir -p "$TMP/satoken" "$TMP/home"
+  cat > "$TMP/satoken/op" <<'EOS'
+#!/bin/sh
+case "$1" in
+  vault)   if [ -n "${OP_SERVICE_ACCOUNT_TOKEN:-}" ]; then echo 'Homelab-ansible'; exit 0; fi
+           echo '[ERROR] You are not currently signed in.' >&2; exit 1;;
+  account) echo 'SHORTHAND    URL'; echo 'my           https://my.1password.eu'; exit 0;;
+  read)    if [ -n "${OP_SERVICE_ACCOUNT_TOKEN:-}" ]; then echo 'OP-SAW-CREDENTIAL'; exit 0; fi
+           exit 1;;
+esac
+exit 1
+EOS
+  chmod +x "$TMP/satoken/op"
+  printf 'export OP_SERVICE_ACCOUNT_TOKEN=%s\n' "sat-$(printf 'x%.0s' $(seq 1 60))" > "$TOKF"
+  chmod 600 "$TOKF"
+  out=$(PATH="$TMP/satoken:$PATH" HOME="$TMP/home" SRC="$TMP/src" \
+        XDG_RUNTIME_DIR="/run/user/$(id -u)" OP_VAULT="Homelab-ansible" \
+        HL_VAULT_FILE="$TOKF" HL_VAULT_STUB_FAIL=0 bash "$SELF" --ssh-auth 2>&1 || true)
+  if ! grep -q 'OP-SAW-CREDENTIAL' "$TMP/home/.ssh/github_auth" 2>/dev/null; then
+    echo "SELFTEST FAIL [seat-token-file]: the seat's 0600 token file never reached op — the scripted key recovery still needs a hand-run export (got: $(printf '%s' "$out" | tail -2))"
+    fails=$((fails+1))
+  fi
+  if printf '%s' "$out" | grep -qi "not currently signed in\|has no session"; then
+    echo "SELFTEST FAIL [seat-token-file]: a seat that HOLDS the token file was told to sign in — the resolver did not run"
+    fails=$((fails+1))
+  fi
+  rm -f "$TOKF" "$TMP/home/.ssh/github_auth"
+
   if [ "$fails" = 0 ]; then
-    echo "SELFTEST OK: git-bootstrap refuses each state with the right message (6 cases, sandboxed)"
+    echo "SELFTEST OK: git-bootstrap refuses each state with the right message (7 cases, sandboxed)"
     exit 0
   fi
   exit 1
@@ -201,6 +252,39 @@ if [ "$MODE" = "--git-identity" ]; then
   [ "${2:-}" = "--check" ] && GIT_IDENTITY_CHECK=1
   MODE=""
 fi
+
+# ---- the ONE vault-credential resolution this script uses --------------------------------------
+# WHY IT IS RESOLVED BEFORE `op` IS ASKED ANYTHING: on a Debian seat the read-scope token is a `0600`
+# FILE (the lib owns its path), never an environment variable, and `op` reads only the
+# environment. A seat that holds the file and nothing exported therefore answered
+# `[ERROR] You are not currently signed in.` to this script's own vault preflight, and the scripted
+# route that raises the seat's transport key stopped there and told the operator to run an
+# interactive `op signin` — which no non-interactive shell can answer. That is the mechanism that
+# kept the seat payload a hand copy while the recovery route read green in the docs. The resolution
+# ORDER (env, then this seat's file, then the WSL door on the Windows seat) and the CR/quote parse
+# belong to `lib/vault-env.sh`, not to this file — one answer, one place.
+# This script may run BEFORE a clone exists, so the lib is found by a BOUNDED upward walk that is
+# NON-FATAL: no lib above here means the credential question went UNASKED, and `hl_vault_ask` says
+# so instead of guessing at a path.
+HL_LIB_DIR=""
+_hl_d="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+while [ -n "$_hl_d" ] && [ "$_hl_d" != / ] && [ ! -f "$_hl_d/lib/vault-env.sh" ]; do
+  _hl_n="${_hl_d%/*}"; [ "$_hl_n" = "$_hl_d" ] && _hl_n="/"; _hl_d="$_hl_n"
+done
+[ -n "${_hl_d:-}" ] && [ -f "$_hl_d/lib/vault-env.sh" ] && HL_LIB_DIR="$_hl_d"
+HL_VAULT_RESOLVED=0
+
+# hl_vault_ask — source the lib once and export the credential. rc 0 with HL_VAULT_RESOLVED=1 when
+# something answered; rc 1 and NOTHING exported otherwise (the lib's safety half), which is a state
+# the caller still has to describe honestly rather than mistake for a credential.
+hl_vault_ask() {
+  [ -n "$HL_LIB_DIR" ] || return 1
+  [ "$HL_VAULT_RESOLVED" = 1 ] && return 0
+  # shellcheck disable=SC1091
+  . "$HL_LIB_DIR/lib/vault-env.sh"
+  if hl_vault_env; then HL_VAULT_RESOLVED=1; return 0; fi
+  return 1
+}
 
 # ---- the seat-global git state this script owns (HD-495) ------------------------------------
 # The three lines below are the whole of what a seat needs OUTSIDE any clone. `commit.gpgsign`
@@ -359,6 +443,20 @@ if [ "$SSH_AUTH" = 1 ]; then
   # then as "no session token", and both sent the operator off to re-sign-in forever.
   # NB: greps $OP_VAULT, not a literal 'Private' — the vault name is overridable, so a correct
   # `OP_VAULT=<other> --ssh-auth` used to be refused by a hardcoded test.
+  # 0. Resolve the credential BEFORE asking `op` anything (see hl_vault_ask above) — AFTER the
+  #    runtime-dir guard, which owns the "nothing has touched op yet" boundary. Deliberately NOT
+  #    fatal: when nothing resolves, the three refusal messages below still describe the human
+  #    session states, and a seat that holds no token file at all is a Phase-0 gap, not a session
+  #    bug. What must never happen is a path that calls `op` with nothing exported and then reads
+  #    the desktop app's silence as a failure of the operator's sign-in.
+  if hl_vault_ask; then
+    echo "==> vault credential resolved ($(hl_vault_verdict)) — asking the vault directly, no interactive sign-in"
+  else
+    printf '==> no vault credential resolved'
+    [ -n "${HL_VAULT_WHY:-}" ] && printf ' — %s' "$HL_VAULT_WHY"
+    printf '; asking op with whatever this shell already holds\n'
+  fi
+
   VAULT_SEEN="$(op vault list 2>&1)" || true
   if ! printf '%s' "$VAULT_SEEN" | grep -qi "\b${OP_VAULT}\b"; then
     echo "==> Need a session that can read the '$OP_VAULT' vault (override with OP_VAULT=<name>)."
@@ -371,6 +469,9 @@ if [ "$SSH_AUTH" = 1 ]; then
       echo "      Sign in IN THIS SHELL (an interactive password/2FA prompt cannot be answered from"
       echo "      a non-interactive context):"
       echo '        eval "$(op signin --account '"${ACC:-my}"')"'
+      echo "      or install THIS SEAT's read-scope token so no sign-in is needed at all:"
+      echo "        bash scripts/ansible/bootstrap-runner.sh --no-upgrade --no-sudoers --token-stdin"
+      echo "        (it lands in this seat's 0600 token file — the path lib/vault-env.sh reads)"
       echo "      then re-run: bash scripts/git/git-bootstrap.sh --ssh-auth" >&2
       exit 1
     fi
@@ -521,19 +622,13 @@ if [ "$MODE" = "update" ] || [ "$MODE" = "pull" ]; then
 fi
 
 # --- Phase-0 sanity helper (venv + op SA token) — informational, not a gate --
-# `hl_vault_env` asks whether a credential ANSWERS, not whether one file exists: the Win11 seat holds no
-# token of its own by design and resolves the same read across the WSL door, so the file probe below used
-# to print "Phase-0 not detected" about a seat that was fine. This script may run before a clone exists,
-# so the lib is found by an upward walk that is BOUNDED and NON-FATAL — with no lib, the old probe says
-# what it can and names itself as the degraded route.
-_hl_d="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-while [ -n "$_hl_d" ] && [ "$_hl_d" != / ] && [ ! -f "$_hl_d/lib/vault-env.sh" ]; do
-  _hl_n="${_hl_d%/*}"; [ "$_hl_n" = "$_hl_d" ] && _hl_n="/"; _hl_d="$_hl_n"
-done
-if [ -n "${_hl_d:-}" ] && [ -f "$_hl_d/lib/vault-env.sh" ]; then
-  # shellcheck disable=SC1091
-  . "$_hl_d/lib/vault-env.sh"
-  if hl_vault_env; then
+# `hl_vault_ask` (resolved once at the top of this file) asks whether a credential ANSWERS, not
+# whether one file exists: the Win11 seat holds no token of its own by design and resolves the same
+# read across the WSL door, so the file probe below used to print "Phase-0 not detected" about a seat
+# that was fine. With no lib above a pre-clone script the credential question went UNASKED, and the
+# branch below says that rather than guessing at a path.
+if [ -n "$HL_LIB_DIR" ]; then
+  if hl_vault_ask; then
     echo "==> op SA credential reachable ($(hl_vault_verdict))$([ -d "$HOME/ansible-venv" ] && echo ", venv present")."
   else
     echo "==> no vault credential reachable here — $(hl_vault_verdict); run scripts/ansible/bootstrap-runner.sh"

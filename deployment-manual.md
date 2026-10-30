@@ -287,26 +287,29 @@ configure the allowed-signers file first.
 bash scripts/git/git-bootstrap-win11.sh --ssh-auth      # idempotent
 ```
 
-✔-evidence: `git ls-remote git@github.com:<owner>/homelab.git HEAD` succeeds over SSH, and a test
-`git commit -S` is signed without a passphrase prompt.
+✔-evidence: `git ls-remote git@github.com:<owner>/homelab.git HEAD` succeeds over SSH. Commits are
+unsigned by policy, so `git log -1 --format='%G?'` printing `N` is the EXPECTED value, not a failure —
+and never run `git commit -s` (that adds a `Signed-off-by` trailer and signs nothing).
 
 **The seat default is the modal-free identity** (owner decision — the route above blocks
-whenever nobody is at the keyboard, which is every bench leg, subagent and scheduled task). It signs and
-authenticates from a key **file** (commit signing is retired, HD-1116), so on a seat that has never had
-the key, pull it from the vault once — with a human present, since `op read` is a prompt:
-
-```bash
-umask 077; op read "op://Homelab-ansible/GitHub auth/private key" > ~/.ssh/github_auth
-```
+whenever nobody is at the keyboard, which is every bench leg, subagent and scheduled task). It
+authenticates from a key **file**, and it RAISES that file itself: `--git-identity` pulls
+`GitHub auth` from the vault when the seat has no `~/.ssh/github_auth` (temp file, parse-verified, an
+existing key is never rewritten), so there is no hand `op read` step and no human needed for it — the
+credential is resolved by `scripts/lib/vault-env.sh`, which on this seat reads the Debian engine's
+install across the WSL door. `--raise-key` runs just that half.
 
 ```powershell
 bash scripts/git/git-bootstrap-win11.sh --git-identity   # idempotent; backs up every file it edits
 ```
 
-✔-evidence: `git config --get gpg.ssh.program` prints nothing, `git config --get user.signingkey` prints a
-key **file path**, and `git commit` returns in ~0 s with `git log -1 --format='%G?'` printing `G` and no
-dialog. `--check` prints which route the seat will take; `--1password` opts back into the dialog route
-(and rewrites the local `user.signingkey` pin to the public-key string the agent needs).
+✔-evidence: `git config --get gpg.ssh.program` prints nothing, `git config --get commit.gpgsign`
+resolves `false`, `git commit` returns in ~0 s with `git log -1 --format='%G?'` printing `N` and no
+dialog, and `--check` prints **`route: UNATTENDED`** (`PARTIAL` outside a github clone is honest — the
+payload fires by `hasconfig:`; `INCOMPLETE` means `commit.gpgsign` resolves **true** with no key file,
+which is the hang shape). `--1password` opts back into the dialog route (and rewrites the local
+`user.signingkey` pin to the public-key string the agent needs). `--self-test` proves the raise and
+the verdict offline, through a fixture vault and a throwaway HOME.
 
 ✔-transport-evidence — the reason the payload names Git's own ssh rather than the System32 one, on the same
 key file: `C:/Windows/System32/OpenSSH/ssh.exe -i ~/.ssh/github_auth -o IdentityAgent=none -T git@github.com`
