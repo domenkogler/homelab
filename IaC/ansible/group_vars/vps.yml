@@ -272,15 +272,10 @@ homepage_probe_hosts:
   - vpn
   - media
 
-# HA-exporter scrape job (Alloy `ha_exporter` block, topology B): OFF until the HA cutover.
-# Nothing populates the bearer-token file yet (no vault item, no monitoring render)
-# and ha_vip serves no HA - a live job would just fail. Flip true at the cutover with the HA
-# long-lived-token item seeded, the Alloy compose mount added, and the token path matching that
-# mount: Alloy has NO mount for the path this block reads, so enabling the gate alone yields a
-# scrape that cannot see its own token (see the same-change rule in roles/monitoring/tasks).
-# The gate is named for what it gates (Alloy's ha_exporter job), not for its backend; HA's
-# endpoint is /api/prometheus.
-alloy_ha_exporter: false
+# No `alloy_ha_exporter` here: the gate declares nothing on this host, because the `ha_exporter` scrape
+# block lives in the OLDSRV-only half of roles/monitoring/templates/alloy.river.j2 — the declaration that
+# decides it is the one oldsrv reads (host_vars/oldsrv.kogler.si.yml). Keeping a copy here is how the
+# gate came to read as "set in group_vars/vps.yml, rendered nowhere".
 
 # Tailnet-only dashboards: the tailnet Traefik edge (traefik-tailnet)
 # is served on the headscale sidecar node `vps-obs` (tag:sidecar). headscale

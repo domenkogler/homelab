@@ -144,3 +144,17 @@ monitoring_hygiene_gpus:
 # No host-level alloy pin here. host_vars outrank group_vars, so even a null override would win
 # and render `apt: name=alloy=` in roles/monitoring. The pin lives in group_vars/all/versions.yml;
 # a host may deviate from it only with a real version value, never with an empty one.
+
+# The HA-exporter gate, declared on the host that renders it. `alloy_ha_exporter` gates BOTH halves of
+# the same change — the `ha_exporter` scrape block (the oldsrv-only half of
+# roles/monitoring/templates/alloy.river.j2) and the bearer-token file (`roles/monitoring/tasks/main.yml`,
+# `/etc/prometheus/ha_token`, 0600 under a 0700 dir this role creates) — so it belongs here, not in
+# group_vars/vps.yml, where the block could never see it.
+# ⏳ Still OFF, and the gate is not what is holding it: measured from this box against
+# `{{ ha_vip }}:8123`, HA answers (HTTP 200, and `/api/config` returns its component list with the vault
+# `ha_api` bearer) but `/api/prometheus` answers **404** and no Prometheus/metrics component is loaded.
+# Flipping this today renders a permanently-404 target — the class the retired `ha.kogler.si` probe
+# target was. Order: enable the exporter ON the HA instance (the smart-home row that owns the
+# instance) → flip here → converge `--tags monitoring` → prove `up{job="ha_exporter"}` → only then
+# the liveness rule (the HA-liveness row in todo.md).
+alloy_ha_exporter: false

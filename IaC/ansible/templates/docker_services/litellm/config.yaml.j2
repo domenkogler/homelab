@@ -19,7 +19,7 @@
 #   DB state (Admin UI / POST /model/new), never git-rendered (decision 13).
 litellm_settings:
   drop_params: true
-  # HD-1121: `prometheus` is the callback that MOUNTS the metrics endpoint. In this pin
+  # `"prometheus"` is the callback that MOUNTS the metrics endpoint. In this pin
   # (`litellm_version`, group_vars/all/versions.yml) `PrometheusLogger._mount_metrics_endpoint()`
   # is called from the callback loader only, so without this line `GET /metrics` answers 404 even
   # WITH a valid admin bearer — the measured finding in
@@ -28,7 +28,7 @@ litellm_settings:
   # makes it reachable is loopback-only, and an unauthenticated `/metrics` would also be readable
   # through the tailnet-only `litellm.kogler.si` route, which proxies every path here.
   # The scrape job is deliberately NOT in the tree yet — it waits on a scoped metrics key
-  # (todo.md HD-1121), never on `litellm_api`, which stays the admin/bootstrap credential.
+  # (the LiteLLM-scrape row in todo.md), never on `litellm_api`, which stays the admin/bootstrap credential.
   callbacks:
     - prometheus
 

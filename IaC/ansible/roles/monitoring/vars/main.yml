@@ -330,11 +330,16 @@ grafana_alert_rules_authored:
     # entry is internal-only, the VPS resolves with the public pair, blackbox answers
     # `probe_ip_protocol 0` / `probe_http_status_code 0`). A permanently-red CRITICAL class is how a
     # class gets muted, so the target is out of the probe list too. HA liveness gets a real signal from
-    # the gated `ha_exporter` job (`alloy_ha_exporter: false`, waiting on the HA long-lived token whose
-    # absence several other rows already cite); until that job is on, HA is watched by nothing, and the
-    # row in `todo.md` that owns the token owns this too.
-    # ⚠ Note WHERE the gate lives: `alloy_ha_exporter` is declared in group_vars/vps.yml while this
-    # job renders in the OLDSRV-only half of alloy.river.j2 — set it where oldsrv reads it.
+    # the gated `ha_exporter` job; the HA token is NOT the blocker any more (the vault `ha_api` bearer
+    # authenticates against `/api/config` today), and neither is the VIP (HA answers on `ha_vip:8123`).
+    # What blocks it is that HA serves no `/api/prometheus` at all until the exporter is enabled on the
+    # instance (the smart-home row that owns the HA instance) and until then the HA-liveness row owns the gap.
+    # ⚠ Removing these lines does not remove the rule: file provisioning does not delete rules a file
+    # stopped carrying, so the live instance can keep evaluating a retired uid. Prove it with the ruler
+    # read (docs/observability.md §Silent-failure hygiene), not with a grep of this file.
+    # ⚠ Note WHERE the gate lives: the scrape block renders in the OLDSRV-only half of alloy.river.j2,
+    # so `alloy_ha_exporter` is declared in host_vars/oldsrv.kogler.si.yml. A declaration on the VPS
+    # gates nothing this block can see.
     - uid: ssl-cert-expiring
       title: TLS certificate expiring soon
       for: 5m

@@ -385,21 +385,38 @@ prometheus.scrape "llama_cpp" {
 }
 {% endif %}
 
-// ---- LiteLLM gateways: NO job here, and the reason is a measured read ----
-// Both gateways answer the API port 4000 with `401` on /metrics unauthenticated and `404` WITH a valid
-// admin bearer (measured on `lan-litellm` here and on `litellm` on the VPS, same pin
-// `docker.litellm.ai/berriai/litellm:v1.104.0`). The surface is therefore NOT mounted in the running
-// process: in this build `/metrics` is mounted by `PrometheusLogger._mount_metrics_endpoint()`, which
-// the config loader calls only when `"prometheus"` is one of the configured callbacks — and neither
-// rendered config declares any callback. A scrape job here would scrape nothing, so the enable step comes
-// first and belongs to the gateway config; the whole finding + the exact shape is in
-// docs/observability.md §LLM token accounting. Do not re-derive it and do not add a guessed job.
+// ---- LiteLLM gateways: no job in the tree yet, and the reason is a measured read ----
+// Both gateways answer `401` on :4000/metrics unauthenticated and answered `404` WITH a valid admin
+// bearer (measured on `lan-litellm` here and on `litellm` on the VPS, same pin
+// `docker.litellm.ai/berriai/litellm:v1.104.0`): the pin mounts the endpoint from the callback loader
+// only, so it needed the `"prometheus"` callback in the gateway config. That callback is now rendered on
+// the VPS instance and the surface is reachable at the host's loopback — re-measured after that apply:
+// `127.0.0.1:4000/metrics` answers 401 unauthenticated and 200 with a bearer (21 series, e.g.
+// `litellm_proxy_total_requests_metric_total`). `lan-litellm` is unchanged: enabling it needs an oldsrv
+// `docker_services` recreate, so it still answers the way it did above.
+// What still keeps a job OUT of this file is the credential, not the surface: the endpoint keeps its
+// auth middleware (an unauthenticated `/metrics` would publish the spend ledger to the whole LAN here
+// and to every tailnet peer through the VPS edge route), and the only LiteLLM credential in the vault is
+// the admin/bootstrap key, which `templates/docker_services/litellm/docker-compose.yml.j2` says nothing
+// consumes. A scrape job with a bearer it is not allowed to hold is a permanently-red target, so the job
+// lands with a SCOPED metrics key — the whole dependency is in the LiteLLM-scrape row of todo.md and
+// docs/observability.md §Why the LiteLLM surface is dark. Do not add a guessed job here.
 
-// ---- HA exporter (edge HA /api/prometheus). GATED until Phase 4 ----
-// (alloy_ha_exporter): no HA behind ha_vip + no token
-// file pre-cutover. Flip the var with the HA token + compose mount — the mount is
-// NOT optional: `docker inspect alloy` shows no mount for this path, so a
-// flipped gate without it renders a job that cannot read its own bearer token.
+// ---- HA exporter (HA behind ha_vip, /api/prometheus). GATED, and the gate is not the last blocker ----
+// `alloy_ha_exporter` gates the token file AND this job together (roles/monitoring/tasks/main.yml), and
+// it must be set where OLDSRV reads it — this block is in the oldsrv-only half of the file, while the
+// declaration historically sat in group_vars/vps.yml, where no reader in this block could see it.
+// Measured before any flip, from oldsrv against `{{ ha_vip }}:8123`: HA IS there (HTTP 200, and
+// `/api/config` answers the component list with the vault `ha_api` bearer), but `/api/prometheus`
+// answers **404** and none of HA's 161 loaded components is a Prometheus/metrics integration — the
+// exporter integration is not installed. Flipping this gate today would render a target that answers
+// 404 forever, which is the same permanently-dead class the retired `ha.kogler.si` probe target was.
+// The order is therefore: enable the exporter ON the HA instance → flip the var →
+// converge → prove `up{job="ha_exporter"}` → then and only then the HA-liveness rule.
+// Alloy here is the host-APT package, not a container, so the credential's half of the flip is the
+// token FILE at /etc/prometheus/ha_token (mode 0600, dir 0700 root — the file task below, same gate);
+// there is no compose mount to add and `docker inspect alloy` has no such path because there is no
+// alloy container on this box.
 {% if alloy_ha_exporter | default(false) %}
 prometheus.scrape "ha_exporter" {
     targets = [{
