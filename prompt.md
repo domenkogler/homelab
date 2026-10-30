@@ -115,10 +115,6 @@ person. Containment is for that last set alone, and it lowers the copy count rat
 no-path ruling is recorded in two places and held equal by a checker arm: the debt register's `path:` column and
 `NOT_ROTATABLE` in [`scripts/secrets/provision-secrets.py`](scripts/secrets/provision-secrets.py).
 
-**Refresh brief (not a wave):** [prompt-refresh.md](prompt-refresh.md) — the author-only pass that corrects the
-`prompt-*.md` cells the pin window falsified, and it carries the **execution state** of that fan-out (lanes,
-worktrees to take over, the sibling branch that blocks the dns brief). No converge, no host, no secret.
-
 **The dependency ladder — the order these pointers actually run in.** The list below ranks by what unblocks the
 most; a rank is not an order. Only step 3 needs an external model, and it is the owner's call stated in-session
 (README §3), never an agent's fallback:
