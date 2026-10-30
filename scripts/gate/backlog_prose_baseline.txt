@@ -164,7 +164,7 @@ ROW	HD-1214	1220
 ROW	HD-1215	1136
 ROW	HD-1216	1179
 ROW	HD-1218	4348
-ROW	HD-1219	1699
+ROW	HD-1219	1996
 ROW	HD-1220	1806
 ROW	HD-1221	903
 ROW	HD-1222	1080
@@ -269,7 +269,7 @@ BRIEF	prompt-media-arrs.md	89
 BRIEF	prompt-observability-alerting.md	105
 BRIEF	prompt-scripts.md	150
 BRIEF	prompt-seat-cockpit-grants.md	92
-BRIEF	prompt-secrets.md	405
+BRIEF	prompt-secrets.md	406
 BRIEF	prompt-smart-home.md	84
 BRIEF	prompt-spark-llm.md	110
 BRIEF	prompt-storage-backup.md	93
