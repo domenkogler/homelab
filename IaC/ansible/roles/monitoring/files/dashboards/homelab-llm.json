@@ -250,7 +250,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "count of inference-engine scrape targets across vLLM + SGLang + the llama.cpp legs on the RX 7600. Replaces the K8s-only vllm:healthy_pods_total the production-stack export shipped. 1 today (spark vLLM): the oldsrv llama.cpp legs join when `ai_tier_metrics_publish` flips (group_vars/home_servers.yml), and they join as TWO targets — embed and reranker are separate containers with one name space each, so the honest ceiling for this panel is 3, not 2. 0 = the metrics pipeline itself is down.",
+      "description": "count of inference-engine scrape targets across vLLM + SGLang + the llama.cpp legs on the RX 7600. Replaces the K8s-only vllm:healthy_pods_total the production-stack export shipped. **3 today**: spark vLLM + the two oldsrv llama.cpp legs. `ai_tier_metrics_publish` (group_vars/home_servers.yml) is true, so both GGUF containers scrape, and they join as TWO targets — embed and reranker are separate containers with one name space each, so each carries its own `up`. The honest ceiling of this panel while those are the only extra legs is therefore 3, never 2. 0 = the metrics pipeline itself is down.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -5101,7 +5101,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "**This tier is llama.cpp over Vulkan, not vLLM.** Nothing in this row joins the `vllm:*` / `sglang:*` panels above: llama.cpp's `llamacpp:*` metric names carry a different shape and a different unit of accounting, so a `by (job, instance)` join across them would add up two quantities that only look alike. What IS here is the card. `amdgpu` exposes its counters in sysfs and the host ships no `rocm-smi`/`amd_smi`, so the hygiene collector reads the sysfs files and publishes them directly (`job=\"homelab-hygiene\"`, loopback :9098 — a `textfile` collector is unusable on this Alloy build). Unlike the GB10, this card DOES expose VRAM, so the pair is a real used/total and not a unified-memory stand-in. The ENGINE side is live on this host (`ai_tier_metrics_publish=true`): `llama-server --metrics` is on both GGUF engines and their `llamacpp:*` names land in the store under `job=\"llama-cpp\"` with a `leg=\"embed\"`/`leg=\"reranker\"` discriminator. No token or latency panel for them is authored on THIS board, because those names join nothing here — read them in Metrics.",
+      "description": "**This tier is llama.cpp over Vulkan, not vLLM.** Nothing in this row joins the `vllm:*` / `sglang:*` panels above: llama.cpp's `llamacpp:*` metric names carry a different shape and a different unit of accounting, so a `by (job, instance)` join across them would add up two quantities that only look alike. What IS here is the card. `amdgpu` exposes its counters in sysfs and the host ships no `rocm-smi`/`amd_smi`, so the hygiene collector reads the sysfs files and publishes them directly (`job=\"homelab-hygiene\"`, loopback :9098 — a `textfile` collector is unusable on this Alloy build). Unlike the GB10, this card DOES expose VRAM, so the pair is a real used/total and not a unified-memory stand-in. The ENGINE side is live on this host (`ai_tier_metrics_publish=true`): `llama-server --metrics` is on both GGUF engines and their `llamacpp:*` names land in the store under `job=\"llama-cpp\"` with a `leg=\"embed\"`/`leg=\"reranker\"` discriminator. They are panelled on the line below (`llama.cpp tier — prefill / decode token rate`), never joined into the `vllm:*`/`sglang:*` panels above.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -5200,7 +5200,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "The `amdgpu` sysfs busy percentage, published by the host's hygiene collector. Flat 0 with VRAM held allocated is the normal idle shape of this tier: Whisper STT and the embed/rerank models keep their weights resident and only move the GPU when a request arrives, so `busy` is a burst signal, not a utilisation figure. The same tier's TOKENS are not here at all — they are live in the store as `llamacpp:prompt_tokens_total` / `llamacpp:tokens_predicted_total` (`job=\"llama-cpp\", leg=`), and llama.cpp's names would not join the `vllm:*`/`sglang:*` token panels in any case.",
+      "description": "The `amdgpu` sysfs busy percentage, published by the host's hygiene collector. Flat 0 with VRAM held allocated is the normal idle shape of this tier: Whisper STT and the embed/rerank models keep their weights resident and only move the GPU when a request arrives, so `busy` is a burst signal, not a utilisation figure. The engine half of the same tier — what the two GGUF engines actually did — is the `llama.cpp tier` panel on the line below (`llamacpp:prompt_tokens_total` / `llamacpp:tokens_predicted_total`, `job=\"llama-cpp\"`, `leg=`); llama.cpp's names would not join the `vllm:*`/`sglang:*` token panels in any case.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -5363,17 +5363,116 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "",
+      "description": "**The engine half of this tier.** `llama-server --metrics` is on for both GGUF containers behind `ai_tier_metrics_publish`, and they scrape as `job=\"llama-cpp\"` with a `leg=\"embed\"`/`leg=\"reranker\"` discriminator: llama.cpp names carry no per-engine label, so without that label the two engines would merge into ONE series per name. Queries group `by (job, instance, leg)`, so a third GGUF target adds a series here rather than needing a panel. The query names its host instead of filtering on `$instance` for the same reason the card panels and the spark node row do: the picker enumerates ENGINE instances (`vllm:`/`sglang:` series), and this host runs neither. ⚠ NAME: the family is `llamacpp:` (colon), read off the live `/metrics` — `{__name__=~\"llama_.*\"}` answers ZERO series, so a query or an alert rule written with the `llama_` prefix matches nothing, in silence. ⚠ A FLAT TRACE IS THE IDLE SHAPE, NOT A DARK PANEL: this tier answers embeddings and reranks, so its counters only move when a RAG query arrives. The idle signature is this panel flat at 0 while `homelab_gpu_vram_used_bytes` holds the weights resident and `homelab_gpu_busy_percent` reads 0 — and `up{job=\"llama-cpp\"}` is then the read that separates idle from dark (2 legs, both 1). Names this panel deliberately does not carry, readable in Metrics under the same job: `llamacpp:requests_processing` / `llamacpp:requests_deferred` (queue depth, a gauge and not a rate, so it shares no axis with these two), `llamacpp:n_tokens_max` (KV slots in use), `llamacpp:prompt_tokens_cached_total`, the busy-seconds pair `llamacpp:prompt_seconds_total` / `llamacpp:tokens_predicted_seconds_total` and the `llamacpp:spec_decode_*` trio. **Not on this panel, and not missing:** the whisper.cpp leg and the `ollama` rung appear in no scrape target on this host, so they are rungs of this tier, not rows.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientVisibility": false,
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": {
+                "A": "none"
+              },
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
       "gridPos": {
-        "h": 3,
+        "h": 8,
         "w": 24,
         "x": 0,
         "y": 185
       },
       "id": 65,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (job, instance, leg) (rate(llamacpp:prompt_tokens_total{instance=\"oldsrv.kogler.si\"}[$__rate_interval]))",
+          "legendFormat": "prompt tok/s · {{ leg }}",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (job, instance, leg) (rate(llamacpp:tokens_predicted_total{instance=\"oldsrv.kogler.si\"}[$__rate_interval]))",
+          "legendFormat": "decode tok/s · {{ leg }}",
+          "refId": "B"
+        }
+      ],
+      "title": "llama.cpp tier (oldsrv) — prefill / decode token rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 3,
+        "w": 24,
+        "x": 0,
+        "y": 193
+      },
+      "id": 66,
       "mode": "markdown",
       "options": {
-        "content": "**The RX 7600 counters above are the card half; the engine half of that tier is live in the store and unpanelled, and this row is where the rest of the forward look lives.** The tier is llama.cpp over Vulkan serving Whisper STT + bge-m3 embed + bge-reranker, and its `llamacpp:*` names do not join the `vllm:*`/`sglang:*` panels anywhere on this board — different names, different accounting, and a joined selector would filter one family out in silence. ⚠ NAME: the family is `llamacpp:` (colon), read off the live `/metrics` — `{__name__=~\"llama_.*\"}` answers ZERO series here, so any query or alert rule written with the `llama_` prefix silently matches nothing. **The rows above are engine-agnostic on purpose.** Every joined query groups `by (job, instance)` and filters on `$instance`/`$model_name`, so adding a target adds a series, not a dashboard. Note the pickers enumerate ENGINE instances, which is why this row's queries name the host instead — the same choice the spark node row makes. **Landed:** `ai_tier_metrics_publish=true` and the apply recreated the two serving containers; both legs scrape `up=1`. What is still missing is a panel for the `llamacpp:*` names on this board — an authored panel, not a gate. **SGLang:** needs `prometheus.scrape \"sglang\"` only for most of this board — its `sglang:*` sibling is already written into every joined query, so the SGLang half fills from the same file. TWO places are deliberately vLLM-only until that scrape exists, because SGLang's names need a `stage=`/`cache_source=` label vLLM does not carry and a joined selector cannot filter one family with it: the decode/prefill legs of 'Inference Stage Breakdown' and the SGLang line of 'Prefix cache hit rate' (its own target, unverified). Both are named in scripts/ansible/build-llm-dashboard.py, which refuses the joined form. **The three dashboards stay provisioned** until the owner retires them.",
+        "content": "**The RX 7600 counters above are the card half; the engine half of that tier is live in the store and panelled on the line above, and this row is where the rest of the forward look lives.** The tier is llama.cpp over Vulkan serving Whisper STT + bge-m3 embed + bge-reranker, and its `llamacpp:*` names do not join the `vllm:*`/`sglang:*` panels anywhere on this board — different names, different accounting, and a joined selector would filter one family out in silence. ⚠ NAME: the family is `llamacpp:` (colon), read off the live `/metrics` — `{__name__=~\"llama_.*\"}` answers ZERO series here, so any query or alert rule written with the `llama_` prefix silently matches nothing. **The rows above are engine-agnostic on purpose.** Every joined query groups `by (job, instance)` and filters on `$instance`/`$model_name`, so adding a target adds a series, not a dashboard. Note the pickers enumerate ENGINE instances, which is why this row's queries name the host instead — the same choice the spark node row makes. **Landed:** `ai_tier_metrics_publish=true`, the apply recreated the two serving containers, both legs scrape `up=1`, and the engine family now has its own panel above (`llama.cpp tier — prefill / decode token rate`). What that tier still owes is traffic, not instrumentation: on an idle embedding tier every `llamacpp:*` counter reads 0, which is what `up{job=\"llama-cpp\"}` and the VRAM panel above are for. **SGLang:** needs `prometheus.scrape \"sglang\"` only for most of this board — its `sglang:*` sibling is already written into every joined query, so the SGLang half fills from the same file. TWO places are deliberately vLLM-only until that scrape exists, because SGLang's names need a `stage=`/`cache_source=` label vLLM does not carry and a joined selector cannot filter one family with it: the decode/prefill legs of 'Inference Stage Breakdown' and the SGLang line of 'Prefix cache hit rate' (its own target, unverified). Both are named in scripts/ansible/build-llm-dashboard.py, which refuses the joined form. **The three dashboards stay provisioned** until the owner retires them.",
         "mode": "markdown"
       },
       "targets": [],

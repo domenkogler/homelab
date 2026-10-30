@@ -1357,7 +1357,7 @@ applied **only** where both engines expose the same metric name; where they do n
 the latter carries a `mode` dimension) the two upstream panels are kept side by side
 rather than summed into a number that means neither. The board states this in-panel.
 
-**The RX 7600 row is host telemetry, not a fourth engine.** The card's counters
+**The RX 7600 row is the tier's own telemetry, not a fourth vLLM engine.** The card's counters
 (`homelab_gpu_present`, `_vram_used_bytes`, `_vram_total_bytes`, `_busy_percent`, labelled `gpu=`) are
 published by that host's hygiene collector over loopback, because the box ships no `rocm-smi`/`amd_smi`
 and this Alloy build cannot use a `textfile` collector — see §Rules for these three rows, rule 6. Three
@@ -1367,9 +1367,14 @@ every rule that asks whether a number is old (§Silent-failure hygiene). What th
 that the tier is vLLM: it is **llama.cpp over Vulkan**, and since 2026-10-19
 (`ai_tier_metrics_publish=true`, HD-1122) its `llamacpp:*` counters ARE in the store — `job="llama-cpp"`,
 `leg="embed"`/`leg="reranker"`, both legs `up=1` — joined to nothing on this board, because llama.cpp's
-names are not vLLM's names. Reading those counters is a Metrics query, not a panel.
-The queries name the host instead of filtering on `$instance` for the same reason the spark node row
-does — the pickers enumerate ENGINE instances, and this box runs no engine.
+names are not vLLM's names. They have their own panel (`llama.cpp tier (oldsrv) — prefill / decode
+token rate`, authored in `scripts/ansible/build-llm-dashboard.py` like everything else on this board,
+HD-1122): the two token counters, `by (job, instance, leg)`, so a third GGUF target adds a series rather
+than a panel. On an idle embedding tier every one of those counters reads 0, which is why the panel
+names `up{job="llama-cpp"}` and the VRAM pair as the reads that separate idle from dark; the gauge names
+(`llamacpp:requests_processing`, `_deferred`, `n_tokens_max`) stay in Metrics, because a gauge shares no
+axis with a rate. The queries name the host instead of filtering on `$instance` for the same reason the
+spark node row does — the pickers enumerate ENGINE instances, and this box runs no engine.
 
 **Readiness = three signals, not one.** `up{job="vllm"}` (scrape leg), `up{job="sglang"}`
 (the SGLang lane) and a blackbox `http_2xx` on the engine's own `/health`. They fail
@@ -1522,7 +1527,7 @@ is dark for a reason that is now measured rather than assumed.**
 |---|---|---|---|
 | **Engine counters** `vllm:*` | spark's own `/metrics` on the API port, scraped by `vllm` + `vllm_hot` (`IaC/ansible/roles/monitoring/templates/alloy.river.j2:557`, `:586`) | ✅ live | **tokens** — prompt / generation / cached / by-source, for **every caller**, because the counter is on the engine and does not care who sent the request. Labels: `model_name` + `instance` + `job` — no client, key or user dimension exists. |
 | **LiteLLM gateways** (`litellm` on the VPS, `lan-litellm` on oldsrv) | the proxy's own process — and in this pin, from a **separate metrics process/port** | ❌ nothing, and now for a measured reason | per-key / per-user spend and `rpm` — the attribution the fleet could get for *free*. Those numbers live only in each gateway's Postgres + Admin UI. See **Why the LiteLLM surface is dark** below: the endpoint is not mounted in the running process, so there is deliberately **no `job="litellm"`** anywhere. |
-| **oldsrv serving tier** (`embed`, `reranker`, `whisper` on the RX 7600) | llama.cpp / whisper.cpp containers + the host's `amdgpu` sysfs | ✅ **both halves live** | The card reports `homelab_gpu_vram_used_bytes` / `_vram_total_bytes` / `_busy_percent` (`gpu="rx7600"`), published by the host hygiene collector. The request/token counters came live on 2026-10-19 when `ai_tier_metrics_publish` went `true` (HD-1122): `llama-server --metrics` runs on both GGUF legs and the `llamacpp:*` family (`prompt_tokens_total`, `prompt_tokens_cached_total`, `tokens_predicted_total`, `*_seconds_total`) lands under `job="llama-cpp"` with a `leg="embed"`/`leg="reranker"` label. They join no `vllm:*`/`sglang:*` panel — different names, so read them by job. whisper.cpp (STT) still has no metrics surface. |
+| **oldsrv serving tier** (`embed`, `reranker`, `whisper` on the RX 7600) | llama.cpp / whisper.cpp containers + the host's `amdgpu` sysfs | ✅ **both halves live** | The card reports `homelab_gpu_vram_used_bytes` / `_vram_total_bytes` / `_busy_percent` (`gpu="rx7600"`), published by the host hygiene collector. The request/token counters came live on 2026-10-19 when `ai_tier_metrics_publish` went `true` (HD-1122): `llama-server --metrics` runs on both GGUF legs and the `llamacpp:*` family (`prompt_tokens_total`, `prompt_tokens_cached_total`, `tokens_predicted_total`, `*_seconds_total`) lands under `job="llama-cpp"` with a `leg="embed"`/`leg="reranker"` label. They join no `vllm:*`/`sglang:*` panel — different names — but they have their own panel on `homelab-llm` (§LLM Dashboard), authored, not hand-placed. whisper.cpp (STT) still has no metrics surface. |
 
 The honest sentence this section exists to force: **totals are known, attribution is not.**
 `sum(increase(vllm:generation_tokens_total[1d]))` is a measurement; "this machine / this harness used N

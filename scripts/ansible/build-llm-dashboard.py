@@ -22,7 +22,8 @@ WHAT MERGING ACTUALLY MEANS HERE (it is not concatenation):
     (sum() across engines is not a metric). EXPR_REWRITES below carries each join.
     The RX 7600 is deliberately NOT in that join: its counters are host-side `homelab_gpu_*`
     series published by the hygiene collector on oldsrv, and its engine is llama.cpp, whose
-    `llamacpp:*` names do not join the `vllm:*`/`sglang:*` panels. They get their own row.
+    `llamacpp:*` names do not join the `vllm:*`/`sglang:*` panels. They get their own row —
+    the card half (`new:rx7600_*`) and one authored engine panel (`new:llamacpp_tier`).
   * DRY: a panel whose query already spans both engines (25502's gnet family) is carried
     VERBATIM — no rewrite, no re-translation of the Chinese legend format it carries.
 
@@ -132,6 +133,7 @@ LAYOUT: list[tuple[str, str, list[tuple[str, int]]]] = [
     ]),
     ("row_forward", "RX 7600 (oldsrv) — the pinned-services tier + what still waits", [
         ("new:rx7600_vram", 12), ("new:rx7600_busy", 6), ("new:rx7600_present", 6),
+        ("new:llamacpp_tier", 24),
         ("new:forward_note", 24),
     ]),
 ]
@@ -395,10 +397,11 @@ NEW_PANELS = {
         "description": (
             "count of inference-engine scrape targets across vLLM + SGLang + the llama.cpp "
             "legs on the RX 7600. Replaces the K8s-only vllm:healthy_pods_total the "
-            "production-stack export shipped. 1 today (spark vLLM): the oldsrv llama.cpp "
-            "legs join when `ai_tier_metrics_publish` flips (group_vars/home_servers.yml), "
-            "and they join as TWO targets — embed and reranker are separate containers with "
-            "one name space each, so the honest ceiling for this panel is 3, not 2. "
+            "production-stack export shipped. **3 today**: spark vLLM + the two "
+            "oldsrv llama.cpp legs. `ai_tier_metrics_publish` (group_vars/home_servers.yml) is true, "
+            "so both GGUF containers scrape, and they join as TWO targets — embed and reranker are "
+            "separate containers with one name space each, so each carries its own `up`. The honest "
+            "ceiling of this panel while those are the only extra legs is therefore 3, never 2. "
             "0 = the metrics pipeline itself is down."
         ),
         "unit": "short",
@@ -896,8 +899,9 @@ NEW_PANELS = {
             "The ENGINE side is live on this host "
             "(`ai_tier_metrics_publish=true`): `llama-server --metrics` is on both GGUF "
             "engines and their `llamacpp:*` names land in the store under `job=\"llama-cpp\"` with a "
-            "`leg=\"embed\"`/`leg=\"reranker\"` discriminator. No token or latency panel for them is "
-            "authored on THIS board, because those names join nothing here — read them in Metrics."
+            "`leg=\"embed\"`/`leg=\"reranker\"` discriminator. They are panelled on the line below "
+            "(`llama.cpp tier — prefill / decode token rate`), never joined into the "
+            "`vllm:*`/`sglang:*` panels above."
         ),
         "unit": "bytes", "min": 0,
         "targets": [
@@ -914,11 +918,11 @@ NEW_PANELS = {
             "The `amdgpu` sysfs busy percentage, published by the host's hygiene collector. "
             "Flat 0 with VRAM held allocated is the normal idle shape of this tier: Whisper STT "
             "and the embed/rerank models keep their weights resident and only move the GPU when "
-            "a request arrives, so `busy` is a burst signal, not a utilisation figure. The same "
-            "tier's TOKENS are not here at all — they are live in the store as "
-            "`llamacpp:prompt_tokens_total` / `llamacpp:tokens_predicted_total` "
-            "(`job=\"llama-cpp\", leg=`), and llama.cpp's names would not join the "
-            "`vllm:*`/`sglang:*` token panels in any case."
+            "a request arrives, so `busy` is a burst signal, not a utilisation figure. The engine "
+            "half of the same tier — what the two GGUF engines actually did — is the "
+            "`llama.cpp tier` panel on the line below (`llamacpp:prompt_tokens_total` / "
+            "`llamacpp:tokens_predicted_total`, `job=\"llama-cpp\"`, `leg=`); llama.cpp's names "
+            "would not join the `vllm:*`/`sglang:*` token panels in any case."
         ),
         "unit": "percent", "min": 0, "max": 100,
         "targets": [
@@ -945,12 +949,58 @@ NEW_PANELS = {
              "legend": "{{ gpu }}", "instant": True},
         ],
     },
+    # ---- llama.cpp engine half of the SAME tier (HD-1122) -------------------
+    # The three panels above answer "is the card busy"; this one answers "what did the two
+    # GGUF engines do". Names proven against the live store, not off llama.cpp's docs: 15
+    # `llamacpp:*` names x 2 legs = 30 series, `{__name__=~"llama_.*"}` answers ZERO. See
+    # LIVE_LLAMACPP_METRICS for the allowlist this panel is held to.
+    "llamacpp_tier": {
+        "type": "timeseries",
+        "title": "llama.cpp tier (oldsrv) — prefill / decode token rate",
+        "description": (
+            "**The engine half of this tier.** `llama-server --metrics` is on for both GGUF "
+            "containers behind `ai_tier_metrics_publish`, and they scrape as `job=\"llama-cpp\"` "
+            "with a `leg=\"embed\"`/`leg=\"reranker\"` discriminator: llama.cpp names carry no "
+            "per-engine label, so without that label the two engines would merge into ONE series "
+            "per name. Queries group `by (job, instance, leg)`, so a third GGUF target adds a "
+            "series here rather than needing a panel. The query names its host instead of "
+            "filtering on `$instance` for the same reason the card panels and the spark node row "
+            "do: the picker enumerates ENGINE instances (`vllm:`/`sglang:` series), and this host "
+            "runs neither. "
+            "⚠ NAME: the family is `llamacpp:` (colon), read off the live `/metrics` — "
+            "`{__name__=~\"llama_.*\"}` answers ZERO series, so a query or an alert rule written "
+            "with the `llama_` prefix matches nothing, in silence. "
+            "⚠ A FLAT TRACE IS THE IDLE SHAPE, NOT A DARK PANEL: this tier answers embeddings and "
+            "reranks, so its counters only move when a RAG query arrives. The idle signature is "
+            "this panel flat at 0 while `homelab_gpu_vram_used_bytes` holds the weights resident "
+            "and `homelab_gpu_busy_percent` reads 0 — and `up{job=\"llama-cpp\"}` is then the "
+            "read that separates idle from dark (2 legs, both 1). "
+            "Names this panel deliberately does not carry, readable in Metrics under the same job: "
+            "`llamacpp:requests_processing` / `llamacpp:requests_deferred` (queue depth, a gauge "
+            "and not a rate, so it shares no axis with these two), `llamacpp:n_tokens_max` (KV "
+            "slots in use), `llamacpp:prompt_tokens_cached_total`, the busy-seconds pair "
+            "`llamacpp:prompt_seconds_total` / `llamacpp:tokens_predicted_seconds_total` and the "
+            "`llamacpp:spec_decode_*` trio. "
+            "**Not on this panel, and not missing:** the whisper.cpp leg and the `ollama` rung "
+            "appear in no scrape target on this host, so they are rungs of this tier, not rows."
+        ),
+        "unit": "short", "min": 0,
+        "targets": [
+            {"expr": 'sum by (job, instance, leg) '
+                     '(rate(llamacpp:prompt_tokens_total{instance="oldsrv.kogler.si"}[$__rate_interval]))',
+             "legend": "prompt tok/s · {{ leg }}"},
+            {"expr": 'sum by (job, instance, leg) '
+                     '(rate(llamacpp:tokens_predicted_total{instance="oldsrv.kogler.si"}[$__rate_interval]))',
+             "legend": "decode tok/s · {{ leg }}"},
+        ],
+    },
     "forward_note": {
         "type": "text",
         "title": "What still waits on this tier, and on SGLang",
         "content": (
-            "**The RX 7600 counters above are the card half; the engine half of that tier is live in "
-            "the store and unpanelled, and this row is where the rest of the forward look lives.** "
+            "**The RX 7600 counters above are the card half; the engine half of that tier is live "
+            "in the store and panelled on the line above, and this row is where the rest of the "
+            "forward look lives.** "
             "The tier is llama.cpp over Vulkan serving Whisper STT + bge-m3 embed + bge-reranker, "
             "and its `llamacpp:*` names do not join the `vllm:*`/`sglang:*` panels anywhere on this "
             "board — different names, different accounting, and a joined selector would filter one "
@@ -961,9 +1011,11 @@ NEW_PANELS = {
             "`by (job, instance)` and filters on `$instance`/`$model_name`, so adding a target adds "
             "a series, not a dashboard. Note the pickers enumerate ENGINE instances, which is why "
             "this row's queries name the host instead — the same choice the spark node row makes. "
-            "**Landed:** `ai_tier_metrics_publish=true` and the apply recreated the two "
-            "serving containers; both legs scrape `up=1`. What is still missing is a panel "
-            "for the `llamacpp:*` names on this board — an authored panel, not a gate. "
+            "**Landed:** `ai_tier_metrics_publish=true`, the apply recreated the two "
+            "serving containers, both legs scrape `up=1`, and the engine family now has its own "
+            "panel above (`llama.cpp tier — prefill / decode token rate`). What that tier still "
+            "owes is traffic, not instrumentation: on an idle embedding tier every `llamacpp:*` "
+            "counter reads 0, which is what `up{job=\"llama-cpp\"}` and the VRAM panel above are for. "
             "**SGLang:** needs `prometheus.scrape \"sglang\"` only for most of this board — its "
             "`sglang:*` sibling is already written into every joined query, so the SGLang half fills "
             "from the same file. TWO places are deliberately vLLM-only until that scrape exists, "
@@ -1576,9 +1628,23 @@ LIVE_GPU_METRICS = ("homelab_gpu_present", "homelab_gpu_vram_used_bytes",
 # Host-side counters for the RX 7600 tier, NOT engine metrics: the host ships no
 # `rocm-smi`/`amd_smi`, so `amdgpu` sysfs reaches the backend through the hygiene collector's
 # direct-publish leg. All four names re-read from the backend as `gpu="rx7600"` series on
-# instance="oldsrv.kogler.si"; the engine side of that tier (`llamacpp:*`, live under
-# `ai_tier_metrics_publish=true`) is NOT here because those names would
-# not join the vllm/sglang panels either.
+# instance="oldsrv.kogler.si".
+
+# The llama.cpp ENGINE half of that same tier (`job="llama-cpp"`, `leg=embed|reranker`).
+# Re-derived from the live store: 15 names x 2 legs = 30 series
+# (`count({__name__=~"llamacpp:.*"})`), and `{__name__=~"llama_.*"}` answers ZERO — the family
+# is colon-spelled, so a query or rule written `llama_` matches nothing and reports no error.
+# The whisper.cpp leg and the `ollama` rung are NOT here: neither appears in any scrape target
+# on that host, so they are rungs of the tier, not series.
+LIVE_LLAMACPP_METRICS = (
+    "llamacpp:n_busy_slots_per_decode", "llamacpp:n_decode_total", "llamacpp:n_tokens_max",
+    "llamacpp:predicted_tokens_seconds", "llamacpp:prompt_seconds_total",
+    "llamacpp:prompt_tokens_cached_total", "llamacpp:prompt_tokens_seconds",
+    "llamacpp:prompt_tokens_total", "llamacpp:requests_deferred", "llamacpp:requests_processing",
+    "llamacpp:spec_decode_num_accepted_tokens_total", "llamacpp:spec_decode_num_draft_tokens_total",
+    "llamacpp:spec_decode_num_drafts_total", "llamacpp:tokens_predicted_seconds_total",
+    "llamacpp:tokens_predicted_total",
+)
 
 
 def _has_live_series(expr: str) -> bool:
@@ -1597,6 +1663,9 @@ def _has_live_series(expr: str) -> bool:
         return True
     # Host-side GPU counters: live for the hygiene collector's job on the box that owns the card.
     if any(m in expr for m in LIVE_GPU_METRICS):
+        return True
+    # llama.cpp engine names: live for `job="llama-cpp"` on the box that owns the card.
+    if any(m in expr for m in LIVE_LLAMACPP_METRICS):
         return True
     for name in re.findall(r"vllm:[A-Za-z0-9_:]+", expr):
         base = name.rstrip("_")
