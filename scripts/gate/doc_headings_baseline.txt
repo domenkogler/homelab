@@ -310,7 +310,6 @@
 1	todo.md	docs/spark-llm-profiles.md	§The
 1	todo.md	prompt-laptop-wsl.md	§B0's
 1	todo.md	prompt.md	§4
-1	todo.md	scripts/README.md	§Scoped
 1	todo.md	scripts/README.md	§Validation
 1	todo.md	scripts/gate/check_vault_docs.py	§Master
 1	todo.md	spark/llm-profiles/README.md	§C

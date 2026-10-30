@@ -104,8 +104,25 @@ How `--tags` actually behaves in THIS repo — verified against `site.yml`,
   `roles/common/tasks/system.yml` keep `always` and nothing else.
   These four are measured, not recalled: `scripts/testdata/check_tag_coverage/run.sh` asks
   `ansible-playbook` itself in eight localhost legs, and `scripts/gate/check_tag_coverage.py`
-  re-checks the whole tree statically (its registration in `validate-all.sh` is still the owner's
-  checkpoint — see [`../scripts/README.md`](../scripts/README.md)). Inside `docker_services`:
+  re-checks the whole tree statically; both run as ordinary items in every profile (the eight live
+  legs are the full-profile leg — see [`../scripts/README.md`](../scripts/README.md)). Which side of
+  the cascade a role lives on is a per-role fact, and the two roles that cover both cases disagree:
+  - **`cockpit` — the entry tag is load-bearing.** `roles/cockpit/tasks/main.yml:63` includes
+    `maint-user.yml` UNTAGGED, so rule 3 says no filter would ever expand it; what reaches it is the
+    `tags: [cockpit]` on the `roles:` entry in `playbooks/home_servers.yml:24` and
+    `playbooks/storage.yml:26` cascading in by rule 1. Drop either entry tag, or rewrite either entry
+    into the bare `- cockpit` form, and `--tags cockpit` runs the `tags: always` user assert
+    (`roles/cockpit/tasks/main.yml:15`) and NOTHING else — a green run that provisioned no login.
+  - **`home_assistant` — there is no entry tag to drop.** Both playbooks pull it bare
+    (`playbooks/raspberry_pi.yml:21`, `playbooks/home_servers.yml:21`), so no `roles:`-entry cascade
+    exists at all, and reach lives entirely in the include lines: `main.yml:83` carries
+    `[home_assistant, ha_render, ha_failover, ha_recorder, pi_sd_trim, lovelace, knx, hd17, hd19,
+    hd185, hd204, hd418]` for `pi.yml`, and `main.yml:96` carries
+    `[home_assistant, ha_failover, lovelace, knx, hd17]` for `standby.yml`. The failure mode is
+    therefore not a playbook edit but an INCLUDE edit: a new topic tag added to a task inside
+    `pi.yml`/`standby.yml` without also being added to that include's list is selectable by no filter
+    (rule 2) — which is what `check_tag_coverage.py` judges statically, and what the comments at
+    those two include lines are for. Inside `docker_services`:
   - role-level tag `[docker_services]` (`playbooks/vps.yml:50`) + `docker_services` on every include
     line reach all **direct** `main.yml` tasks (asserts, networks `[docker_services, networks]`,
     teardown, homepage block `[homepage, docker_services]`) AND load every include line under
@@ -479,6 +496,19 @@ check mode, so the registration is a *skipped* dict and an unguarded `--check` o
 The whole seed block is gated with `not ansible_check_mode` on its `when` (it only
 drives the live DNS API — login, zone create, settings set, record add — so there is nothing to simulate;
 ⛔ no `default()` / `failed_when: false`).
+
+**Same class, a `shell`-read fact feeding an `assert`:**
+`roles/storage/tasks/samba.yml:45` resolves the account behind the Samba force-owner names with
+`ansible.builtin.shell` (`id -u`, `getent group`) and registers `_samba_owner_ids`, which the assert at
+`:51` dereferences as `stdout_lines[0]`. A `shell` does not execute under `--check`, so the
+registration is a *skipped* dict with no `stdout_lines` at all and an unguarded
+`--check --tags samba` of oldsrv dies at that assert rather than previewing the `smb.conf` change —
+the owner-name drift this assert exists to catch is exactly what a dry run is supposed to show.
+Better variant, same one the tailscale case below names: that read is harmless under `--check`, so
+the task wants `check_mode: false` beside its existing `changed_when: false` — a READ site, which
+`check_self_converge_guard.py` classifies as such (`classify_check_mode_sites`) rather than as the
+blocking-task form it forbids. Until it lands, `--check` is not a valid pre-flight for a `samba`
+tag run.
 
 **⚠ Same class, still OPEN:** with the seed gated, an
 *unfiltered* `--check` of oldsrv dies one role earlier — `roles/tailscale-node` reads the assigned
