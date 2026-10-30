@@ -80,7 +80,17 @@ the instruction + PREFIX/SUFFIX code fence that Continue's tab provider actually
 correctly, 3/3**. So this section holds for the raw/marker surface and the card holds for the
 templated one; `fim_surface: instruction-fenced` records which shape the row was proven on, and
 `probe-fim --self-test` (6/6) breeds one wrong verdict per failure shape so the detector cannot go
-soft. **Open:** trigger latency inside the 150-400 ms budget (gate 5).
+soft.
+
+**Trigger latency is measured, and it misses the budget.** Cold prefill on this leg runs at
+**~880–1230 t/s**, so a trigger costs a ~0.13–0.25 s floor plus **~0.9 ms per prompt token**:
+**0.44 s at 613 tokens, 1.05 s at 1 287, 4.55 s at 4 010, 6.89 s at 7 159** — the whole 8 192 window
+(`raw/100-fim-latency.txt`, `probe-speed --ttft` against the instruction-fenced shape, two passes per
+shape, server-reported token counts). The 150–400 ms budget therefore holds only **below roughly
+300–450 prompt tokens**, and above that only a prefix-cache hit (0.10–0.17 s measured) comes back
+inside it — and the cache did not answer for the 1 287/4 010/7 159-token repeats, so a tab that relies
+on it works on the demo and not on the afternoon. That is the whole of why `fim-coder-3b` stays
+`certified: false` and the dial keeps `allow_uncertified: true`.
 
 ## Leg 2 — Vision = visual judgment (not OCR, not split inference)
 
@@ -112,7 +122,9 @@ huge photo already cost and returns detail, while shrinking is strictly worse (w
 fifth: `NOT VISIBLE`). Past ~3 MP you are paying the cap and discarding what you paid for. Practical
 rule for any seam that reads small text off a large photo: send the region, not the frame, and when a
 reading disagrees with the inventory, re-ask of a crop before believing either answer. A 32k window of this model is **3.0 GiB of KV** (96
-KiB/token) and the whole load measures **23.92 GiB**, so nothing else is resident while it runs.
+KiB/token) and the load measures **23.92 GiB** with an empty conversation and **23.80 GiB** at peak
+with ~4 k image tokens resident in that KV (`raw/101-vision-prefill-mem.txt`) — the budget is spent
+inside the envelope either way, so nothing else is resident while it runs.
 
 **Ask a photo once, or ask it the same way twice.** Re-asking the *identical* question on the same
 image costs **2.0 s**; asking a *different* question re-pays the full ~60 s (`raw/92`). The reason is
@@ -197,8 +209,8 @@ generation harness reaches the spark name edge **directly**
 
 | Profile | Model | Window | Budget against the 32 GiB carve (declared → measured) |
 |---------|-------|--------|----------------------------------------------------------|
-| **`vision-qwen3vl-30b`** (active — the dial's resident leg) | Qwen3-VL-30B-A3B-Instruct UD-Q4_K_XL **+ mmproj-BF16** | 32 768 f16 KV | 16.50 + 1.01 + 3.00 KV + 0 + 3.00 floor = **23.51** ⇒ +8.49 margin · **measured 23.92 GiB** at 32k (`raw/ctx32k.out`) |
-| `fim-coder-3b` | Qwen2.5-Coder-3B-Instruct Q4_K_M, q8_0 KV | 8 192 | 1.80 + 0.14 + floor = **4.94** — the only leg small enough to share the carve. `fim_probe` passed; **trigger latency is still unmeasured**, which is what `allow_uncertified: true` on the dial is for |
+| **`vision-qwen3vl-30b`** (active — the dial's resident leg) | Qwen3-VL-30B-A3B-Instruct UD-Q4_K_XL **+ mmproj-BF16** | 32 768 f16 KV | 16.50 + 1.01 + 3.00 KV + 0 + 3.00 floor = **23.51** ⇒ +8.49 margin · **measured 23.92 GiB** at 32k (`raw/ctx32k.out`), **23.80 GiB** peak with ~4 k image tokens resident (`raw/101-vision-prefill-mem.txt`) |
+| `fim-coder-3b` | Qwen2.5-Coder-3B-Instruct Q4_K_M, q8_0 KV | 8 192 | 1.80 + 0.14 + floor = **4.94** — the only leg small enough to share the carve. `fim_probe` passed; **measured trigger latency misses the 150–400 ms tab budget** at every real prompt size (0.44 s at 613 tokens, 1.05 s at 1 287 — `raw/100-fim-latency.txt`), which is what `allow_uncertified: true` on the dial is for |
 
 `agent-gemma-26b` and the three declared `agent-unified*` arms are out of the catalogue with that
 ruling; `laptop-llm.py matrix` does not offer any of them.
@@ -270,11 +282,11 @@ it proves: the raw
 §Leg 1's "Instruct variants do not do it" is TRUE for that surface), while the instruction-fenced
 shape Continue actually sends infills correctly (so Qwen's card is TRUE for that one).
 `raw/40-coder-probes.txt`, `fim_surface: instruction-fenced`.
-Still open, and the gate is what keeps them open: **FIM trigger latency** has never been measured
-(gate 5, sub-second is an assumption), `:1234` LAN exposure is an **owner decision that is still
-outstanding** (no firewall rule is
-added as a side effect), and the client render is verified only by `probe-client` while 1Password is
-signed out — `render-pi-config.py --check` needs `op`, which is a human step.
+**FIM trigger latency is measured and over budget** at every real prompt size (§Leg 1), which is what
+keeps `fim-coder-3b` uncertified. Still open, and the gate is what keeps them open: `:1234` LAN
+exposure is an **owner decision that is still outstanding** (no firewall rule is added as a side
+effect), and the client render is verified only by `probe-client` while 1Password is signed out —
+`render-pi-config.py --check` needs `op`, which is a human step.
 
 **Client contract — and the seat it is addressed to:** local models are
 served to **pi.dev running ON Win11**. `providers.laptop-lmstudio` in
@@ -297,6 +309,9 @@ contract that was never addressed to it. The drift check itself compares
 * **`lms load <key> --gpu max -c <N> --identifier <name> -y`.** It is **`-c`**, not `--context`; 0.4.25 has **no** `--pub`,
   `--kv-cache-type`, `--threads`, `--chat-template`, `--batch-size` or `--temperature` (verified against `load --help`).
   **`-y` is mandatory** — without it an unmatched key hangs on an interactive TTY picker.
+  No flag on this command carries `kv_cache_type` or `flash_attention` either, so those two dial fields
+  are **budget arithmetic, not a verified engine setting**: read the running load before quoting a KV
+  saving or an FA dependency that a `switch` was supposed to have applied.
 * **A folder you place by hand is NOT indexed** — `lms ls` does not rescan. Use
   `lms import --hard-link --user-repo <u>/<repo> [--dry-run]` (or restart the service). JIT loading is **off**, so
   `/v1/models` lists only resident models and the client must load explicitly.
@@ -339,6 +354,8 @@ At 31.6 GiB visible to Windows with a ~90 GB/s bus the ledger — **measured on 
 counter, not inferred from host RAM** — is: **one 30B-class leg fits, two do not.** The counter is
 `\GPU Adapter Memory(luid_0x00000000_0x0001a051_phys_0)\Dedicated Usage` in **bytes**; the engine's
 `offloaded N/N layers` line is absent at verbosity 3 on this Vulkan build, so it proves nothing here.
+The **LUID instance is per boot** (this box has answered `luid_0x00000000_0x000194dc_phys_0` since), so
+sample `\GPU Adapter Memory(*)\Dedicated Usage` and take the maximum rather than quoting a recorded path.
 Idle desktop under a load reads **2.15–3.12 GiB** and the Qwen-VL leg at 32k
 **23.92 GiB** of the 32 GiB carve (64 GiB of RAM in two sticks, 31.6 GiB
 visible to Windows, the rest the iGPU's island — so the carve is a real dedicated pool and the
@@ -346,7 +363,7 @@ desktop/WSL2 cannot compete with a load for it).
 
 | Resident set | Footprint | Verdict |
 |---|---|---|
-| `vision-qwen3vl-30b` (32 768) — the dial's active leg | 16.50 weights + 1.01 mmproj + **3.00 KV** (96 KiB/token), **23.92 GiB measured** | **this is the resident default.** ~8 GiB of the carve left, which is still not room for a second 30B-class model |
+| `vision-qwen3vl-30b` (32 768) — the dial's active leg | 16.50 weights + 1.01 mmproj + **3.00 KV** (96 KiB/token), **23.92 GiB measured** (23.80 GiB peak with ~4 k image tokens in the KV) | **this is the resident default.** ~8 GiB of the carve left, which is still not room for a second 30B-class model |
 | `fim-coder-3b` alongside it | ~1.93 + 0.14 KV | the only thing small enough to share, and LM Studio unloads on switch anyway — the applier keeps it one-at-a-time |
 
 **Unloading does return the allocation.** With `lms unload --all` before every load, the
@@ -365,15 +382,18 @@ documented order: **unload → confirm release → load**, never optimistically 
 3. **Bandwidth is ≈90 GB/s** — **measured here**: vision leg
    **23.84 t/s** decode, prefill ~250 t/s at 1.8–2.2k falling to ~58 t/s at
    20.8k — that collapse past 20 k is what retired the agent leg (§Served leg). The FIM leg's
-   ~150–400 ms budget is a claim about the other model on this box (`fim-coder-3b`, 3B dense)
-   and its trigger latency is still unmeasured — so gate 5 is open even though gate 3 is not.
+   ~150–400 ms budget is a claim about the other model on this box (`fim-coder-3b`, 3B dense), and its
+   trigger latency is measured: ~0.9 ms per prompt token over a ~0.2 s floor (§Leg 1). Gate 5 is
+   answered, and the answer is a FAIL above ~300–450 prompt tokens — the FIM wall is per-token prefill,
+   not the 20 k collapse that retired the agent leg.
 4. **VL multimodal path on the chosen backend** — **CLOSED: the tower runs on the GPU.** Image
    prefill measured **61.2 t/s** on the 8160×6120 photo (4060 tokens, 66 s) with dedicated memory at
    23.92 GiB; a CPU-side tower shows up as tens of seconds per image at a fraction of this rate, and
    it does not. What it also proved: the Gemma tower's ~1120 px long-side ceiling (§Leg 2).
 5. **FIM:** `fim_probe` **passed** — 3/3 cursor-shaped infills on the instruction-fenced surface
    (`fim_surface: instruction-fenced`, `raw/40-coder-probes.txt`), the shape Continue actually sends.
-   **Still open: trigger latency** in the real Continue shape.
+   **Trigger latency: measured, over budget** — 0.44 s at 613 prompt tokens, 1.05 s at 1 287, 6.89 s at
+   the full 8 192 window (`raw/100-fim-latency.txt`); only a prefix-cache hit answers inside 400 ms.
 6. **Carve-out/GTT + unload/reload** — **CLOSED on the 32 GiB carve**; the
    reload proof is in `raw/80` phase 3: unload → reload cycles at 32k/49k/65k return the dedicated
    counter to the idle floor each time and raise it by the model's size, reload of the 16.8 GB

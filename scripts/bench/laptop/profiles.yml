@@ -30,8 +30,9 @@ version: 1
 # re-litigates it. Generation harnesses reach spark directly (docs/services-ai.md §9 decision #26):
 # this dial is NOT the agent slot, and it does not fall back to spark.
 active: vision-qwen3vl-30b
-# Still true after the 2026-10-09 retirement for ONE reason: the FIM leg's trigger latency inside
-# Continue's 150-400 ms budget has never been measured (HD-401 gate 5), so `switch -Profile
+# Still true after the 2026-10-09 retirement for ONE reason: the FIM leg's trigger latency MISSES
+# Continue's 150-400 ms budget at every real prompt size (HD-401 gate 5 — 0.44 s at 613 prompt tokens,
+# 1.05 s at 1 287, reports/hd474-laptop-leg/raw/100-fim-latency.txt), so `switch -Profile
 # fim-coder-3b` must stay possible while its `certified: false` stands. It is not a licence for an
 # agent leg - there is none left to run - and it is not a licence for an uncertified vision load
 # either: the vision profile is `certified: true` from raw/88-certify.txt.
@@ -184,7 +185,7 @@ models:
     on_disk: true
     path: 'D:\llm\models\hesamation--Qwen3.6-35B-A3B-Claude-4.6-Opus-Reasoning-Distilled-GGUF\Qwen3.6-35B-A3B-Claude-4.6-Opus-Reasoning-Distilled.Q5_K_M.gguf'
 
-  # THE VISION LEG (HD-476) — and since the 2026-10-09 ruling, the runtime's ACTIVE leg. Numbers
+  # THE VISION LEG — and since the 2026-10-09 ruling, the runtime's ACTIVE leg. Numbers
   # are read from the GGUF header of the file on D: with
   # reports/hd474-laptop-leg/raw/gguf_hdr.py (qwen3vlmoe, 48 blocks, 4 KV heads, key_length 128,
   # context_length 262144, NO sliding window, NO vision keys in the main file - the tower lives in
@@ -225,12 +226,14 @@ models:
 # num_ctx 400s pi mid-session, so the two move in ONE commit (prompt-laptop-legs.md).
 profiles:
 
-  # THE VISION LEG (HD-476) — the dial's active profile. Same GPU, same carve, and nothing else is
+  # THE VISION LEG — the dial's active profile. Same GPU, same carve, and nothing else is
   # resident with it: 96 KiB/token means 32k alone is 3.0 GiB of KV on top of 16.50 GiB of weights
   # and 1.01 GiB of projector.
   # Budget: 16.50 + 1.01 + 3.00 KV(f16, 32k) + 0 + 3.00 floor = 23.51 of 32 GiB => +8.49 margin.
-  # Measured PDH dedicated memory at this load: 23.92 GiB of a ~24 GiB adapter (raw/ctx32k.out),
-  # which is why the rule is one resident model, not "two fit".
+  # Measured PDH dedicated memory at this load: 23.92 GiB of a ~24 GiB adapter (raw/ctx32k.out), and
+  # 23.80 GiB at peak with ~4 k image tokens resident in that KV (raw/101-vision-prefill-mem.txt) — so
+  # the declared 23.51 GiB is exercised by a real image, not by header arithmetic alone. That is why
+  # the rule is one resident model, not "two fit".
   # COST OF AN IMAGE, from the same capture: the untouched 8160x6120 rack photo = 4060 prompt_tokens
   # and 66 s, i.e. image prefill at 61.2 t/s. A full-resolution photo does not belong in a long
   # conversation: 8 of them are a third of the window and ~9 minutes of prefill.
@@ -278,11 +281,11 @@ profiles:
       tested and is strictly worse (whole frame at 1/5: 'NOT VISIBLE'). Practical: still verify a
       transcribed identifier against the inventory, and when a reading disagrees, re-ask of a crop
       before believing either answer.
-    certified: true                       # certified by measurement 2026-09-30 (laptop vision leg,
-                                          # HD-476 — the id this lane's row carries today; ids are
-                                          # re-derived from todo.md, never copied, CONVENTIONS §4).
+    certified: true                       # certified by measurement on this engine — the evidence line
+                                          # below, and the budget line above it (the 32k window measured
+                                          # with image tokens resident, not only with text).
     uncertified_reason: null
-    certified_evidence: 'reports/hd474-laptop-leg (raw/68,72,73, ctx32k.out, raw/88-certify.txt, raw/91,92)'
+    certified_evidence: 'reports/hd474-laptop-leg (raw/68,72,73, ctx32k.out, raw/88-certify.txt, raw/91,92, raw/101-vision-prefill-mem.txt)'
 
   # FIM is the runtime's OTHER leg and it stays SEPARATE by design (decision #28: the laptop's legs
   # are FIM + visual judgment; generation is spark's, reached directly — see THE DIAL above). It is
@@ -296,6 +299,9 @@ profiles:
     flash_attention: true                 # required by the KV quant — and it puts an FA dependency
                                           # on the tab-completion path for 0.15 GiB. f16 is the
                                           # safer default here; flip this back if tab latency moves.
+                                          # Neither field reaches the engine through `lms load` —
+                                          # 0.4.25+1 has no switch for either — so read the running
+                                          # load before treating one as the engine's setting.
     mtp: false
     offload_layers: max
     env_extra: {}
@@ -310,12 +316,14 @@ profiles:
                                         # fim_evidence. ONLY on the instruction-fenced shape.
     certified: false
     uncertified_reason: >-
-      docs/hardware-workstation.md:64 requires a FIM-trained model and claims Instruct variants
-      "do not do it"; Qwen2.5-Coder's card documents chat-template FIM on Instruct. Unresolved
-      on paper — run scripts/bench/laptop-llm.py probe-fim against a real Continue-shaped cursor.
-      Trigger latency must also be measured (HD-401 gate 5: sub-second is an assumption). And the
-      q8_0 KV the owner asked for needs flash attention for a 0.15 GiB saving on the latency-
-      critical path — measure both, then pick.
+      Trigger latency is measured and sits OUTSIDE Continue's 150-400 ms tab budget at every real
+      prompt size: ~880-1230 t/s cold prefill on this leg is a ~0.2 s floor plus ~0.9 ms per prompt
+      token, so 0.44 s at 613 tokens, 1.05 s at 1 287 and 6.89 s at the full 8 192 window
+      (reports/hd474-laptop-leg/raw/100-fim-latency.txt). The infill itself is correct on the
+      instruction-fenced surface (fim_probe: passed), so what is missing is a tab prompt small enough
+      to fit the budget — not another capability probe. Separately: `lms load` has no
+      kv_cache_type/flash_attention flag, so this row's q8_0 is budget arithmetic and not a verified
+      engine setting.
     certified_evidence: null
 
 # ── vision_policy (measured 2026-09-28 — why "it has vision files" is not proof) ─────────

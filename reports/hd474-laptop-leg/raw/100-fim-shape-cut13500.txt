@@ -1,0 +1,271 @@
+Complete the code between [PREFIX] and [SUFFIX], and output only the completion.
+
+[PREFIX]
+```python
+#!/usr/bin/env python3
+"""Laptop serving leg — THE MATRIX, THE GATE, THE PROBES (HD-474).
+
+LM Studio on the Win11 host, reached from WSL over its OpenAI-compatible endpoint. Mirrors the
+spark pattern one-for-one:
+
+  scripts/bench/laptop/profiles.yml   catalogue + dial       (= IaC group_vars §spark_llm_profiles)
+  laptop-llm.py matrix              what the dial offers, offline, no token
+  laptop-llm.py gate                hard invariants + canaries, offline  (= check_spark_llm_gate.py)
+  laptop-llm.py probe-*             live measurements that make a row true (= spark-llm-probe.py)
+  scripts/bench/laptop/win/lmstudio-llm.ps1      the Windows-side applier            (= 90-llm-switch-model.yml)
+
+Two structural differences from spark: the laptop is not Ansible-managed, so profiles.yml is the
+SSOT instead of the inventory; and the ceiling is a BIOS iGPU carve, not a discrete GPU pool.
+Nothing is hardcoded — no profile name, no path, no model identifier.
+
+    python3 scripts/bench/laptop-llm.py matrix
+    python3 scripts/bench/laptop-llm.py gate --self-test
+    python3 scripts/bench/laptop-llm.py budget --profile vision-qwen3vl-30b
+    python3 scripts/bench/laptop-llm.py probe-client
+    python3 scripts/bench/laptop-llm.py probe-ctx --model <lmstudio identifier>
+"""
+from __future__ import annotations
+
+import argparse
+import base64
+import copy
+import json
+import os
+import re
+import subprocess
+import sys
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+try:
+    import yaml
+except ImportError:
+    sys.exit("FATAL: needs pyyaml — sudo apt-get install -y python3-yaml")
+
+# The CONTRACTED seat is Windows-native (owner 2026-09-29), and on Win11 a plain
+# `python scripts\laptop-llm.py …` runs with the console/locale codec = cp1252. Measured live
+# 2026-09-29 (HD-474): that made this driver die before it could say anything — UnicodeDecodeError
+# reading the UTF-8 catalogue, and UnicodeEncodeError printing '⚠'/'→'. Every
+# scripts/bench/laptop/win/lmstudio-llm.ps1 call therefore failed in its FIRST catalogue read. UTF-8 is forced
+# in both directions here rather than trusting the caller to export PYTHONUTF8=1.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):    # redirected / closed streams
+        pass
+
+HERE = Path(__file__).resolve().parent
+# The two specs are resolved by NAME (scripts/lib/repo_root.py), not by walking out of this file.
+# HD-1118 Stage 3 moved the script to scripts/bench/ and split its data: profiles.yml came with it
+# (bench/laptop/), models-spec.yml did NOT (it lives with the pi renderers it feeds, harness/pi/).
+# `HERE / ".." / "pi-config"` was correct at the old depth and is a wrong path at the new one — and
+# it fails as a laptop probe that reads no spec, which is the shape this lane has now seen four
+# times: a move that leaves a tool silently reading nothing.
+sys.path.insert(0, str(next(_p for _p in Path(__file__).resolve().parents if _p.name == "scripts") / "lib"))
+from repo_root import script_path as _hl_script  # noqa: E402
+SPEC = _hl_script("profiles.yml", __file__)
+PI_SPEC = _hl_script("models-spec.yml", __file__)
+GiB = 1024 ** 3
+
+
+def dig(d, dotted, default=None):
+    cur = d
+    for part in str(dotted).split("."):
+        if not isinstance(cur, dict) or part not in cur:
+            return default
+        cur = cur[part]
+    return cur
+
+
+def expand(spec, cfg):
+    """Resolve '{host.model_library}' references against the config itself, then %VAR%/$VAR."""
+    if isinstance(spec, str):
+        for _ in range(6):
+            only = re.fullmatch(r"\{([^{}]+)\}", spec.strip())
+            if only:
+                spec = dig(cfg, only.group(1))
+                continue
+            if "{" in spec and "}" in spec:
+                spec = re.sub(r"\{([^{}]+)\}", lambda m: str(dig(cfg, m.group(1), "")), spec)
+                continue
+            break
+        spec = re.sub(r"%([^%]+)%", lambda m: os.environ.get(m.group(1), m.group(0)), spec)
+        return os.path.expandvars(spec)
+    if isinstance(spec, dict):
+        return {k: expand(v, cfg) for k, v in spec.items()}
+    if isinstance(spec, list):
+        return [expand(v, cfg) for v in spec]
+    return spec
+
+
+def load(path=SPEC):
+    # encoding explicit: profiles.yml is UTF-8 and the Windows seat's default codec is not.
+    cfg = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    cfg["_dir"] = str(Path(path).resolve().parent)
+    return cfg
+
+
+def kv_of(cfg, prof, model):
+    """KV bytes at this profile's window. kv_factor entries are {factor, requires}: llama.cpp only
+    honours a quantized KV cache with flash attention ON, so the requirement travels with the
+    factor instead of living as tribal knowledge in someone's head."""
+    ent = dig(cfg, f"kv_factor.{prof.get('kv_cache_type')}")
+    if not isinstance(ent, dict):
+        return None, None
+    bpt, ctx = model.get("kv_bytes_per_token") or 0, prof.get("num_ctx") or 0
+    return int(ctx * bpt * ent["factor"]), ent.get("requires")
+
+
+def budget(cfg, name, view=False):
+    p = dig(cfg, f"profiles.{name}")
+    if not p:
+        return None
+    m = dig(cfg["models"], p["model"]) or {}
+    kv, _ = kv_of(cfg, p, m)
+    carve = 100 * GiB if view else (dig(cfg, "host.gpu_carve_bytes") or 0)
+    floor = 0 if view else (dig(cfg, "host.held_floor_bytes") or 0)
+    mmproj = (m.get("mmproj_bytes") or 0) if "image" in (p.get("input") or []) else 0
+    state = m.get("state_bytes_per_sequence") or 0
+    w = m.get("weights_bytes") or 0
+    need = w + mmproj + (kv or 0) + state + floor
+    return dict(name=name, label=p.get("label"), weights=w, mmproj=mmproj, kv=kv or 0, state=state,
+                floor=floor, need=need, carve=carve, margin=carve - need, fits=need <= carve,
+                ctx=p.get("num_ctx"), kv_type=p.get("kv_cache_type"), mtp=bool(p.get("mtp")),
+                certified=p.get("certified"), client_ctx=p.get("client_context_window"))
+
+
+# ────────────────────────────────── the gate ──────────────────────────────────
+def gate(cfg, names=None):
+    """One profile that cannot fit or cannot boot fails the whole run — same policy as the spark
+    gate, because each of these maps to a failure this repo has already paid for.
+
+     1 the dial names a real profile
+     2 the runtime version is pinned in git (§7) — an auto-updating app is not a pin
+     3 the model row has a positive kv_bytes_per_token (0 makes invariant 5 a silent pass)
+     4 num_ctx ≤ the model's native window
+     5 weights + projector + KV + recurrent state + held floor ≤ the iGPU carve
+     6 a quantized KV cache requires flash_attention: true, else the profile costs more than it claims
+     7 client contextWindow ≤ num_ctx and maxTokens < contextWindow — pi's 400 lands here
+     8 image input requires a projector ON THE FILE and a passed vision probe
+     9 mtp and image input are mutually exclusive ("--mmproj not yet supported with MTP")
+    10 a `tool` capability requires a passed tool probe
+    11 uncertified profiles need allow_uncertified: true
+    """
+    errs = []
+    names = names or [dig(cfg, "active")]
+    allow = bool(dig(cfg, "allow_uncertified"))
+    carve = dig(cfg, "host.gpu_carve_bytes") or 0
+    floor = dig(cfg, "host.held_floor_bytes") or 0
+
+    if dig(cfg, "runtime.engine") == "lmstudio" and not dig(cfg, "runtime.version"):
+        errs.append("runtime.version is null: LM Studio auto-updates, so nothing may be certified "
+                    "against an unpinned engine. Record the installed version in profiles.yml (§7).")
+
+    for n in names:
+        p = dig(cfg, f"profiles.{n}")
+        if not p:
+            errs.append(f"profile '{n}' is not in the catalogue "
+                        f"(valid: {', '.join(dig(cfg, 'profiles', {}) or {})})")
+            continue
+        m = dig(cfg["models"], p.get("model")) or {}
+        if not m:
+            errs.append(f"profile {n}: model '{p.get('model')}' is not in models")
+            continue
+        if not m.get("kv_bytes_per_token"):
+            errs.append(f"profile {n}: model {p['model']} kv_bytes_per_token="
+                        f"{m.get('kv_bytes_per_token')!r} — a 0 here makes the budget check pass "
+                        "silently. Derive it from the layer/KV-head/head-dim triple and record the basis.")
+        ctx, nat = p.get("num_ctx") or 0, m.get("native_context_window")
+        if nat and ctx > nat:
+            errs.append(f"profile {n}: num_ctx {ctx} > native window {nat}")
+        kv, req = kv_of(cfg, p, m)
+        if kv is None:
+            errs.append(f"profile {n}: kv_cache_type {p.get('kv_cache_type')!r} not in kv_factor")
+            kv = 0
+        elif req and not p.get("flash_attention"):
+            errs.append(f"profile {n}: kv_cache_type {p['kv_cache_type']} needs flash_attention: true "
+                        "(llama.cpp honours a quantized KV cache only with FA on). Turn FA on or go "
+                        "back to f16 — claiming q8_0 while booting without FA is a budget lie, and "
+                        "FA-on-Vulkan for this hybrid arch is itself unproven here.")
+        mmproj = (m.get("mmproj_bytes") or 0) if "image" in (p.get("input") or []) else 0
+        need = (m.get("weights_bytes") or 0) + mmproj + kv + (m.get("state_bytes_per_sequence") or 0) + floor
+        if need > carve:
+            errs.append(f"profile {n}: needs {need/GiB:.2f} GiB (weights {(m.get('weights_bytes') or 0)/GiB:.2f}"
+                        f" + projector {mmproj/GiB:.2f} + KV {kv/GiB:.2f} + state "
+                        f"{(m.get('state_bytes_per_sequence') or 0)/GiB:.2f} + floor {floor/GiB:.2f}) "
+                        f"> carve {carve/GiB:.1f} GiB — raise the carve, drop a tier, or shrink num_ctx")
+        cwin, mt = p.get("client_context_window"), p.get("client_max_tokens")
+        if cwin and ctx and cwin > ctx:
+            errs.append(f"profile {n}: client contextWindow {cwin} > num_ctx {ctx} — the harness would "
+                        "400 mid-session if the two ship apart (prompt-laptop-legs.md)")
+        if cwin and mt and mt >= cwin:
+            errs.append(f"profile {n}: maxTokens {mt} must leave headroom below contextWindow {cwin}")
+        inp = p.get("input") or ["text"]
+        if "image" in inp:
+            if m.get("vision") not in ("mmproj", "fused"):
+                errs.append(f"profile {n}: input claims image but model {p['model']} is vision="
+                            f"{m.get('vision')!r}. A GGUF only sees if the projector is on disk (fused "
+                            "vision keys in the header, or a sibling mmproj-*.gguf) — read the file, "
+                            "not the model page.")
+            elif m.get("vision") == "mmproj" and not m.get("mmproj_bytes"):
+                # The hole blind-canary found: vision:mmproj with mmproj_bytes 0 means the projector
+                # is either not on disk or not in the budget — and either way the profile lies.
+                errs.append(f"profile {n}: model {p['model']} is vision:mmproj but mmproj_bytes="
+                            f"{m.get('mmproj_bytes')!r} — the projector is not budgeted. A load that "
+                            "needs a file the budget never counted fails at load time, on the airport.")
+            elif p.get("vision_probe") != "passed" and dig(cfg, "vision_policy.allow_probeless_image_claim") is not True:
+                errs.append(f"profile {n}: input claims image but vision_probe={p.get('vision_probe')!r}. "
+                            "Run: laptop-llm.py probe-vision --image <file>")
+        if p.get("mtp") and "image" in inp:
+            errs.append(f"profile {n}: mtp: true with image input — llama.cpp does not support --mmproj "
+                        "with MTP yet. Two profiles, same weights, one loaded at a time.")
+        if "tool" in (p.get("capabilities") or []) and p.get("tool_probe") not in ("passed", "not-applicable"):
+            errs.append(f"profile {n}: capabilities claim `tool` but tool_probe={p.get('tool_probe')!r} "
+                        "(never advertise a switch that 400s)")
+        if not p.get("certified") and not allow:
+            errs.append(f"profile {n} is not certified: {p.get('uncertified_reason')} "
+                        "— set allow_uncertified: true to run it anyway")
+    return errs
+
+
+# Each canary breaks ONE invariant and must fail loudly — an invariant no canary tests is an
+# invariant nobody knows is enforced. Paths are write-targets inside the parsed config.
+#
+# 2026-10-09: the runtime's agent legs left the catalogue (docs/hardware-workstation.md §Served
+# leg), and seven canaries targeted those profiles or their model row. Every one of them moved to a
+# surviving target that exercises the SAME invariant — none was dropped, none was softened, and the
+# count is what `gate --self-test` prints, not what this list is aiming at.
+CANARIES = [
+    ("typo-canary", "active", "nonsense-profile-name", "is not in the catalogue"),
+    ("nopin-canary", "runtime.version", None, "runtime.version is null"),
+    ("zerokv-canary", "models.qwen3vl-30b-a3b.kv_bytes_per_token", 0, "makes the budget check pass"),
+    ("native-canary", "profiles.vision-qwen3vl-30b.num_ctx", 10_000_000, "> native window"),
+    ("tool-canary", "profiles.vision-qwen3vl-30b.tool_probe", "failed", "tool_probe"),
+    ("mtpvision-canary", "profiles.vision-qwen3vl-30b.mtp", True, "not support --mmproj"),
+    ("client-canary", "profiles.vision-qwen3vl
+```
+[SUFFIX]
+```python
+30b.client_context_window", 1_048_576,
+     "would 400 mid-session"),
+    ("badkvtype-canary", "profiles.vision-qwen3vl-30b.kv_cache_type", "q8-x", "not in kv_factor"),
+    ("nofa-canary", "profiles.fim-coder-3b.flash_attention", False, "needs flash_attention: true"),
+    ("model-canary", "profiles.fim-coder-3b.model", "no-such-model", "is not in models"),
+    ("blind-canary", "models.qwen3vl-30b-a3b.mmproj_bytes", 0, "not budgeted"),
+    ("budget-canary", "host.gpu_carve_bytes", 12 * GiB, "raise the carve"),
+    ("uncert-canary", "allow_uncertified", False, "not certified"),
+]
+
+
+def cmd_matrix(cfg, _a=None):
+    act = dig(cfg, "active")
+    print(f"# laptop serving profiles — dial active={act} (runtime {dig(cfg,'runtime.engine')} "
+          f"{dig(cfg,'runtime.version') or 'UNPINNED'}; ceiling "
+          f"{(dig(cfg,'host.gpu_carve_bytes') or 0)/GiB:.0f} GiB iGPU carve)")
+    print("   profile                 ctx     kv     weights+proj+KV+state+floor        margin  flags")
+    for n in dig(cfg, "profiles", {}) or {}:
+        b = budget(cfg, n)
+        flags = (["CERTIFIED"] if b["certified"] else ["UNCERTIFIED"]) + (["MTP"] if b["mtp"] else [])
+        print(f"{'*' if n == act 
+```

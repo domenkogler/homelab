@@ -1,0 +1,61 @@
+# 102 · The client contract on the Win11 seat: gate, drift, render scope, and what stays parked
+# 2026-10-30, Domen_P14s. Windows python 3.13.13 + pyyaml 6.0.3 native; WSL Debian python 3.13.5.
+
+### gate / matrix / budget — offline, run on the Windows seat
+laptop-llm-gate: PASS (13 invariants, 1 profile(s), active=vision-qwen3vl-30b)
+# laptop serving profiles — dial active=vision-qwen3vl-30b (runtime lmstudio 0.4.25+1; ceiling 32 GiB iGPU carve)
+   profile                 ctx     kv     weights+proj+KV+state+floor        margin  flags
+* vision-qwen3vl-30b     32768  f16     16.50+1.01+3.00+0.00+3.00 =  23.51   +8.49  CERTIFIED
+  fim-coder-3b           8192   q8_0     1.80+0.00+0.14+0.00+3.00 =   4.94  +27.06  UNCERTIFIED
+
+  ⚠ UNCERTIFIED = the quality/speed claim is UNMEASURED on this hardware.
+
+### probe-client — the SKIP the seat used to give, and the PASS the same seat gives after the fix
+# (a) Windows python launched from a bash working directory, BEFORE the os.name guard:
+client drift: SKIP — provider 'laptop-lmstudio' is native_only and this is WSL2. The contract lives on the Windows seat; run this probe there (pi.dev on Win11).
+EXIT=0
+# (b) the same command with a Windows working directory, BEFORE the fix (proves it was the cwd, not
+#     the seat: /proc/version resolves through the wsl.localhost share when the cwd is a UNC path):
+#     open_proc=False was printed by the same invocation with Set-Location $env:TEMP.
+cwd=C:\Users\domen\AppData\Local\Temp
+open_proc= False
+# (c) AFTER the os.name guard — Windows python, bash working directory, vision leg resident:
+client drift: PASS — laptop-lmstudio/vision-qwen3vl-30b matches profile 'vision-qwen3vl-30b' (contextWindow=32768, maxTokens=8192, input=['text', 'image'], reasoning=False) — and the engine is serving it: ['vision-qwen3vl-30b']
+EXIT=0
+# (d) WSL Debian seat, same command: SKIP by contract, not by accident — native_only + Nat.
+client drift: SKIP — provider 'laptop-lmstudio' is native_only and this is WSL2. The contract lives on the Windows seat; run this probe there (pi.dev on Win11).
+
+### Which seat the RENDERER thinks it is (scope_skip on the laptop provider)
+# WSL python:
+interpreter os.name = posix | hostname = DomenP14s | cwd = /home/domen/source/homelab-wt-20261030-1101
+in_wsl() = True
+scope_skip(laptop-lmstudio) = native_only: true but this is WSL2 — with networkingMode=Nat, 127.0.0.1 here is the Linux guest, so this endpoint would be dead in the picker
+# Windows python from a bash working directory (after the os.name guard):
+interpreter os.name = nt | hostname = Domen_P14s | cwd = \\wsl.localhost\Debian\home\domen\source\homelab-wt-20261030-1101
+in_wsl() = False
+scope_skip(laptop-lmstudio) = None
+
+### The client file the Windows seat actually loads (~/.pi/agent/models.json, rendered 2026-10-23)
+  entrim           ['deepseek-ai/DeepSeek-V4.1-Flash', 'zai-org/GLM-5.3-Flash', 'Qwen/Qwen3.8-27B']
+  spark            ['spark/qwen3.8-flash-next']
+  laptop-lmstudio  ['vision-qwen3vl-30b', 'qwen/qwen2.5-coder-3b-instruct']
+  (no agent-* row anywhere; the WSL seat's own file carries entrim + spark and NO laptop-lmstudio row)
+
+### render --check on the Win11 seat — PARKED, the exact act
+$ op whoami                      (Windows)  -> [ERROR] account is not signed in
+$ op whoami                      (WSL)      -> SERVICE_ACCOUNT (a headless read exists on the GUEST seat only)
+$ python scripts/harness/render-pi-config.py --vendor pi --host Domen_P14s --check   (Windows python)
+      Render on a seat with a headless vault read (scripts/lib/vault-env.sh --check),
+      or mark the provider `unmanaged: true` and run with --keep-legacy-credentials.
+EXIT=1
+  Two facts the park rests on: the Windows seat has no headless vault read (OP_SERVICE_ACCOUNT_TOKEN
+  absent in both env scopes), and the row/brief command line is stale in two ways — the script lives at
+  scripts/harness/render-pi-config.py and the vendor is a --vendor flag, not a positional argument
+  (the positional form exits 2, usage error, before any vault is touched).
+
+### Exit checks
+* GPU as found: lms unload --all -> lms ps "No models are currently loaded", /v1/models {"data":[]},
+  PDH dedicated 2.58 GiB.
+* No tunnel was opened: every probe ran natively on the Windows host through powershell.exe.
+  `ss -ltn` in the guest afterwards lists only the seat's own listeners (two harness MainThread
+  sockets on 127.0.0.1 with pids from before this session, plus 5355/53 system names) and no :1234.

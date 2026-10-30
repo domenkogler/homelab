@@ -1,0 +1,95 @@
+# 100 · FIM trigger latency against Continue's 150-400 ms tab budget (HD-474 / HD-401 gate 5)
+# 2026-10-30, Domen_P14s (Win11 seat, socket.gethostname()).
+# Runtime: LM Studio 0.4.25+1, lms CLI commit 69d945a, llmster v0.0.25+1, llama.cpp Vulkan.
+# Leg: fim-coder-3b = qwen2.5-coder-3b-instruct, loaded by
+#   scripts/bench/laptop/win/lmstudio-llm.ps1 switch -Profile fim-coder-3b
+#   -> load qwen2.5-coder-3b-instruct --gpu max -c 8192 --identifier fim-coder-3b -y --parallel 1
+#   -> "Model loaded successfully in 2.18 s (1.80 GiB)", lms ps: fim-coder-3b IDLE 8192 1
+# Rule 0: the lane session stands on the WSL Debian seat, whose rendered picker carries no
+#   laptop-lmstudio row at all (native_only), so this session's model path is not the leg under test.
+# Request shape: one user message in the instruction + [PREFIX]/[SUFFIX] fence form (the surface the
+#   row's fim_surface records), probe-speed --ttft, max_tokens 64, temperature 0.2 from the dial.
+# Shape files: 100-fim-shape-*.txt, built by 100_fim_shapes.py from real repo source
+#   (scripts/bench/laptop-llm.py) at a real cursor cut. A shape is named for the char cut, never for
+#   a token count; the token count below is usage.prompt_tokens from the server.
+
+### probe-speed --ttft — the FIM leg's trigger-latency ladder (HD-401 gate 5)
+### engine LM Studio 0.4.25+1 / lms 69d945a, leg fim-coder-3b (Qwen2.5-Coder-3B-Instruct Q4_K_M, 8192 window, -c 8192 --parallel 1)
+### shape: instruction + [PREFIX]/[SUFFIX] fences, one user message, max_tokens 64, temperature from the dial (0.2)
+### run twice per shape: 'cold' = first ask, 'repeat' = identical ask again (what the prefix cache does)
+--- cold-gap 10:26:03Z ---
+[cold-gap] prompt shape: cold-gap (140 chars)
+  wall 0.3s | TTFT 0.13s | prompt 70 tok | completion 9 tok | decode 40.7 t/s | 546 t/s prefill (cold prompt)
+  a score without its configuration is not evidence.
+--- cold-cut800 10:26:04Z ---
+[cold-cut800] prompt shape: cold-cut800 (2130 chars)
+  wall 1.4s | TTFT 0.44s | prompt 613 tok | completion 36 tok | decode 37.2 t/s | 1381 t/s prefill (cold prompt)
+  a score without its configuration is not evidence.
+--- cold-cut1900 10:26:06Z ---
+[cold-cut1900] prompt shape: cold-cut1900 (3230 chars)
+  wall 0.8s | TTFT 0.10s | prompt 893 tok | completion 26 tok | decode 37.3 t/s | 9065 t/s prefill (cold prompt)
+  a score without its configuration is not evidence.
+--- cold-cut3400 10:26:08Z ---
+[cold-cut3400] prompt shape: cold-cut3400 (4730 chars)
+  wall 1.4s | TTFT 1.05s | prompt 1287 tok | completion 12 tok | decode 37.7 t/s | 1228 t/s prefill (cold prompt)
+  a score without its configuration is not evidence.
+--- cold-cut13500 10:26:10Z ---
+[cold-cut13500] prompt shape: cold-cut13500 (14830 chars)
+  wall 6.5s | TTFT 4.55s | prompt 4010 tok | completion 64 tok | decode 33.7 t/s | 880 t/s prefill (cold prompt)
+  a score without its configuration is not evidence.
+--- cold-cut24500 10:26:18Z ---
+[cold-cut24500] prompt shape: cold-cut24500 (25830 chars)
+  wall 8.9s | TTFT 6.89s | prompt 7159 tok | completion 64 tok | decode 31.4 t/s | 1039 t/s prefill (cold prompt)
+  a score without its configuration is not evidence.
+--- repeat-gap 10:26:27Z ---
+[repeat-gap] prompt shape: repeat-gap (140 chars)
+  wall 0.3s | TTFT 0.17s | prompt 70 tok | completion 7 tok | decode 41.9 t/s | 413 t/s first-token rate (prefill only if this prompt was cold)
+  a score without its configuration is not evidence.
+--- repeat-cut800 10:26:28Z ---
+[repeat-cut800] prompt shape: repeat-cut800 (2130 chars)
+  wall 1.9s | TTFT 0.11s | prompt 613 tok | completion 64 tok | decode 36.1 t/s | 5652 t/s first-token rate (prefill only if this prompt was cold)
+  a score without its configuration is not evidence.
+--- repeat-cut1900 10:26:31Z ---
+[repeat-cut1900] prompt shape: repeat-cut1900 (3230 chars)
+  wall 1.0s | TTFT 0.88s | prompt 893 tok | completion 5 tok | decode 43.5 t/s | 1020 t/s first-token rate (prefill only if this prompt was cold)
+  a score without its configuration is not evidence.
+--- repeat-cut3400 10:26:33Z ---
+[repeat-cut3400] prompt shape: repeat-cut3400 (4730 chars)
+  wall 2.9s | TTFT 1.07s | prompt 1287 tok | completion 64 tok | decode 35.8 t/s | 1208 t/s first-token rate (prefill only if this prompt was cold)
+  a score without its configuration is not evidence.
+--- repeat-cut13500 10:26:37Z ---
+[repeat-cut13500] prompt shape: repeat-cut13500 (14830 chars)
+  wall 5.6s | TTFT 4.56s | prompt 4010 tok | completion 35 tok | decode 32.8 t/s | 879 t/s first-token rate (prefill only if this prompt was cold)
+  a score without its configuration is not evidence.
+--- repeat-cut24500 10:26:43Z ---
+[repeat-cut24500] prompt shape: repeat-cut24500 (25830 chars)
+  wall 9.2s | TTFT 7.08s | prompt 7159 tok | completion 64 tok | decode 30.4 t/s | 1012 t/s first-token rate (prefill only if this prompt was cold)
+  a score without its configuration is not evidence.
+
+## Ladder (server-reported tokens; two passes per shape)
+
+| prompt_tokens | cold TTFT | repeat TTFT | wall (cold) | prefill | decode | vs 150-400 ms |
+|---|---|---|---|---|---|---|
+| 70    | 0.13 / 0.25 s | 0.17 s | 0.3 s | 546 t/s | 40.7 t/s | inside (upper half of the band) |
+| 613   | 0.44 s        | 0.11 s | 1.4 s | 1381 t/s | 37.2 t/s | OVER |
+| 893   | 0.10 s (cache hit on the head a smaller shape already sent) | 0.88 s | 0.8 s | 9065 t/s | 37.3 t/s | not a cold reading |
+| 1 287 | 1.05 s        | 1.07 s | 1.4 s | 1228 t/s | 37.7 t/s | OVER, ~3x |
+| 4 010 | 4.55 s        | 4.56 s | 6.5 s | 880 t/s | 33.7 t/s | OVER, ~11x |
+| 7 159 | 6.89 s        | 7.08 s | 8.9 s | 1039 t/s | 31.4 t/s | OVER, ~17x |
+
+Independent first pass at 11:21-11:24 local, before the shape files were renamed, same request shape:
+70 -> 0.25 s, 613 -> 0.76 s, 893 -> 0.87 s, 1 287 -> 1.58 s, 4 010 -> 4.86 s, 7 159 -> 6.97 s.
+
+## Reading
+
+* Cold prefill on this leg is ~880-1230 t/s, i.e. ~0.8-1.1 ms per prompt token, on a ~0.13-0.25 s
+  floor. TTFT is therefore a linear function of how much the client sends, and the
+  150-400 ms budget is met only below roughly 300-450 prompt tokens.
+* A cached prefix answers in 0.10-0.17 s (repeat-cut800, repeat-gap, cold-cut1900). The cache did NOT
+  answer for the 1 287/4 010/7 159-token repeats, so this run has no model for when it fires; a
+  reading that relies on it is a reading that works on the demo and not on the afternoon.
+* VERDICT: FAIL against the budget for any real-context tab prompt. The 444/454/521 ms figure in
+  raw/40-coder-probes.txt was a ~40-token toy; this ladder is the same request shape at real sizes.
+  The row's "sub-second is an assumption" is now a measurement, and the measurement is over budget.
+* GPU state left as found: `lms unload --all`, `/v1/models` answers `{"data":[]}`,
+  PDH dedicated back to 2.58 GiB (desktop floor).

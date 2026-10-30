@@ -1,0 +1,10 @@
+Complete the code between [PREFIX] and [SUFFIX], and output only the completion.
+
+[PREFIX]
+```python
+x = a 
+```
+[SUFFIX]
+```python
+ + b
+```

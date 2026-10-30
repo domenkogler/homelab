@@ -1,0 +1,55 @@
+Complete the code between [PREFIX] and [SUFFIX], and output only the completion.
+
+[PREFIX]
+```python
+#!/usr/bin/env python3
+"""Laptop serving leg — THE MATRIX, THE GATE, THE PROBES (HD-474).
+
+LM Studio on the Win11 host, reached from WSL over its OpenAI-compatible endpoint. Mirrors the
+spark pattern one-for-one:
+
+  scripts/bench/laptop/profiles.yml   catalogue + dial       (= IaC group_vars §spark_llm_profiles)
+  laptop-llm.py matrix              what the dial offers, offline, no token
+  laptop-llm.py gate                hard invariants + canaries, offline  (= check_spark_llm_gate.py)
+  laptop-llm.py probe-*             live measurements that make a row true (= spark-llm-probe.py)
+  scripts/bench/laptop/win/lmstudio-llm.ps1      the Windows-side applier            (= 90-llm-switch-model.yml)
+
+Two structural differences from spark: the laptop is not Ansible-managed, so profiles.yml is the
+
+```
+[SUFFIX]
+```python
+SOT instead of the inventory; and the ceiling is a BIOS iGPU carve, not a discrete GPU pool.
+Nothing is hardcoded — no profile name, no path, no model identifier.
+
+    python3 scripts/bench/laptop-llm.py matrix
+    python3 scripts/bench/laptop-llm.py gate --self-test
+    python3 scripts/bench/laptop-llm.py budget --profile vision-qwen3vl-30b
+    python3 scripts/bench/laptop-llm.py probe-client
+    python3 scripts/bench/laptop-llm.py probe-ctx --model <lmstudio identifier>
+"""
+from __future__ import annotations
+
+import argparse
+import base64
+import copy
+import json
+import os
+import re
+import subprocess
+import sys
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+try:
+    import yaml
+except ImportError:
+    sys.exit("FATAL: needs pyyaml — sudo apt-get install -y python3-yaml")
+
+# The CONTRACTED seat is Windows-native (owner 2026-09-29), and on Win11 a plain
+# `python scripts\laptop-llm.py …` runs with the console/locale codec = cp1252. Measured live
+# 2026-09-29 (HD-474): that made this driver die before it could say anything — UnicodeDecodeError
+# reading the UTF-8 catalogue, and UnicodeEncodeError printing '⚠'/'→'. Every
+# scripts/bench/laptop/win/lmstudio-llm.ps1
+```

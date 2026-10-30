@@ -1,0 +1,46 @@
+# 100 · FIM leg: the offline canary, the cursor-shaped probe, and the residency proof
+# 2026-10-30, Domen_P14s (Win11 seat). python 3.13.13 native on Windows; LM Studio 0.4.25+1.
+
+### lmstudio-llm.ps1 switch -Profile fim-coder-3b (the applier's own words)
+laptop-llm-gate: PASS (13 invariants, 1 profile(s), active=vision-qwen3vl-30b)
+
+== switch to 'fim-coder-3b' - engine ceiling and window come from the catalogue ==
+unload --all
+  Unloading "vision-qwen3vl-30b"...
+  Unloaded 1 model.
+load: load qwen2.5-coder-3b-instruct --gpu max -c 8192 --identifier fim-coder-3b -y --parallel 1
+  [?25l
+  Model loaded successfully in 2.18s.
+  (1.80 GiB)
+  To use the model in the API/SDK, use the identifier "fim-coder-3b".
+  [K[?25h
+  Success! Server is now running on port 1234
+serving id: fim-coder-3b    qwen2.5-coder-3b-instruct    IDLE      1.93 GB    8192       1           Local
+
+verify with: powershell -File scripts\win\lmstudio-llm.ps1 verify
+
+### laptop-llm.py gate --self-test — offline canary, run on the Windows seat
+fim self-test (each line is a canary that MUST be caught):
+  good bridge python-bridge  caught
+  good bridge def-body       caught
+  echo          python-bridge  caught
+  echo          def-body       caught
+  empty completion caught
+  control token  echo      caught
+
+fim self-test: 6/6 verdicts correct
+
+### laptop-llm.py probe-fim (live, default raw-gap surface — the surface raw/40 records as NOT infilling)
+FIM leg: profile 'fim-coder-3b' -> model 'qwen2.5-coder-3b-instruct' (the dial is active='vision-qwen3vl-30b'; the FIM leg is found by its `insert` capability, not by what is resident)
+FIM probe could not reach the server: HTTPError: HTTP Error 400: Bad Request
+
+## Reading
+
+* probe-fim resolves the leg by its `insert` capability and prints the model it will address
+  ('qwen2.5-coder-3b-instruct' = the model row's identifier). 1/2 on this surface is the surface
+  split raw/40 already records, re-confirmed here, not a new verdict: the raw gap continues and
+  ignores the suffix.
+* probe-fim has NO residency check of its own and addresses the model row's identifier, while the
+  served id is the PROFILE name (`--identifier fim-coder-3b`). This run therefore proved residency
+  separately — the applier's `lms ps` line above and `{"data":["fim-coder-3b"]}` from /v1/models —
+  because this endpoint answers a wrong model name from whatever is resident.

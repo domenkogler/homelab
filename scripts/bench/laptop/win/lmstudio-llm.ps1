@@ -82,7 +82,14 @@ function Invoke-Catalogue {
         $argv = @($pre + $Driver + $DriverArgs)
         $out = & $exe @argv 2>&1
         $txt = ($out | Out-String)
-        if ($LASTEXITCODE -ne 0 -and $txt -match "No such file or directory|can't open file") { continue }
+        # `Get-Command python3` also matches the Microsoft Store execution-alias STUB, which is an
+        # exe that runs and exits 9009 printing "Python was not found" — measured on this seat
+        # 2026-10-30, and it killed every applier command at its FIRST catalogue call, because a
+        # nonzero exit that is not one of the "file not found" shapes throws below. The stub is a
+        # missing interpreter, exactly like an absent one, so it falls through to the next candidate
+        # (here: the native `python`, which carries pyyaml).
+        if ($LASTEXITCODE -eq 9009) { continue }
+        if ($LASTEXITCODE -ne 0 -and $txt -match "No such file or directory|can't open file|Python was not found") { continue }
         # -AllowFail is for the calls whose NONZERO EXIT IS THE PRODUCT. `gate` exists to print why
         # a profile is refused; wrapping that in a PowerShell RuntimeException buried the very text
         # the operator came to read, and stopped `gate` ever reaching its own --self-test (measured

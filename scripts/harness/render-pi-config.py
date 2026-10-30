@@ -182,7 +182,15 @@ def op_secret(vault: str, item: str, field: str) -> str:
 def in_wsl() -> bool:
     """Are we running INSIDE the Linux guest? /proc/version is the documented marker (the kernel
     string carries 'microsoft'); it is a read of local fact, not a guess from the hostname, which is
-    the SAME on both seats of this laptop."""
+    the SAME on both seats of this laptop.
+
+    The `os.name` guard comes first for the same reason as `laptop-llm.py:_in_wsl()`, and it matters
+    HERE more than there: a Windows render started from a WSL working directory has a UNC cwd, which
+    makes `/proc/version` resolve through the `wsl.localhost` share into the guest's /proc — and a
+    renderer that believes it is in the guest silently DROPS every `native_only` provider from the
+    picker, which is the HD-409 failure mode `native_only:` exists to prevent."""
+    if os.name != "posix":
+        return False
     try:
         return "microsoft" in Path("/proc/version").read_text().lower()
     except OSError:

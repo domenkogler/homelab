@@ -1,0 +1,49 @@
+# 101 · The 32k window with image tokens actually resident in the KV
+# 2026-10-30, Domen_P14s (Win11 seat). LM Studio 0.4.25+1, lms CLI 69d945a, llmster v0.0.25+1.
+# Leg: vision-qwen3vl-30b, loaded by scripts/bench/laptop/win/lmstudio-llm.ps1 switch
+#   -Profile vision-qwen3vl-30b -> "Model loaded successfully in 1m 0.02s. (17.51 GiB)",
+#   lms ps: vision-qwen3vl-30b IDLE 18.80 GB 32768 1.
+# Instrument: PDH GPU Adapter Memory / Dedicated Usage, 1 Hz, max over instances, bytes
+#   (scratch sampler, raw/101-pdh-samples.tsv). The instance LUID is per boot — this one is
+#   luid_0x00000000_0x000194dc_phys_0, so the sampler discovers (*) rather than quoting the LUID
+#   an older capture recorded.
+# Image: reports/hd474-laptop-leg/raw/original8160.jpg, the untouched 8160x6120 / 10.6 MB rack photo.
+#   Crop-never-shrink respected; the max-side-length probe class was NOT re-run.
+# Rule 0: the lane session stands on the WSL Debian seat, whose rendered picker carries no
+#   laptop-lmstudio row at all (native_only), so the timed leg is not the session's own model path.
+
+### laptop-llm.py probe-vision --image .../original8160.jpg --expect CAT6 (run on the Windows seat)
+image original8160.jpg (10.6 MB) -> model=qwen3-vl-30b-a3b-instruct max_tokens=1024
+reply [content] after 65.7s: 'CAT6\nCAT6\nSwitch\nRouter Switch\nCPE328-24P-4S-RM\nMicroTik\nF21\nhp\nAERIS'
+usage: {"prompt_tokens": 4042, "completion_tokens": 40, "total_tokens": 4082, "completion_tokens_details": {"reasoning_tokens": 0}}
+  image cost: 4042 prompt_tokens in 65.7s = 61.5 t/s effective (prefill-dominated). Record this - HD-401 gate 4 is 'where did the tower run', and a
+  CPU-side tower shows up here as tens of seconds per image.
+VERDICT PASS: reply contains 'CAT6'
+→ set vision_probe: passed on that profile, and record the LARGEST image that survived
+  (this engine crashes on some sizes, so the client resize rule is part of the contract).
+EXIT=0
+
+### PDH dedicated-usage samples: 148 at 1 Hz, 2026-10-30 11:13:16 -> 2026-10-30 11:15:44
+  desktop floor, nothing resident      : 2.57 GiB (measured separately at 11:11, before any load)
+  leg loaded, empty conversation       : 23.38 GiB (last sample before the request;
+                                         the first sample, 23.39 GiB, is already under the load)
+  during the image prefill (67 samples): max 23.80 GiB at 2026-10-30 11:14:51, min 23.36 GiB
+  after the reply                      : 23.80 GiB .. 23.77 GiB
+  peak minus loaded-idle               : +0.422 GiB
+
+### Reading
+
+* The declared budget for this profile is 16.50 weights + 1.01 projector + 3.00 KV(f16, 32k) +
+  3.00 held floor = 23.51 GiB. With ~4 k image tokens actually resident in that KV the peak reading
+  is 23.80 GiB — 0.12 GiB UNDER the text-only-32k peak this repo carried before (23.92 GiB,
+  raw/ctx32k.out), and 8.2 GiB inside the 32 GiB carve. The budget is now exercised, not asserted.
+* Nothing spilled and the engine stayed up: the untouched 8160x6120 frame was accepted at
+  4042 prompt tokens in 65.7 s (61.5 t/s), inside the 4042-4060 / 61-72 s band of raw/88 and raw/91.
+* What this measurement does NOT separate: 4042 tokens x 96 KiB = 0.37 GiB of KV and the mmproj +
+  activation working set for an 8160x6120 frame are the same order, so the
+  +0.42 GiB rise over the loaded-idle reading cannot be attributed to one or the other
+  from a counter alone. Either way the load stays inside the declared envelope, which is the number
+  the row owed.
+* The wide-frame answer is the frame-limited one this repo already records (this run's reply named
+  'CPE328-24P-4S-RM' / 'MicroTik'); `--expect CAT6` asks about the eyes, and the verdict was PASS.
+* GPU left as found: lms unload --all, /v1/models = {"data":[]}, PDH dedicated 2.58 GiB.

@@ -347,7 +347,17 @@ def server_base(cfg, from_wsl=None):
 def _in_wsl():
     """/proc/version is the documented guest marker — and the ONLY reliable one here, because both
     seats of this laptop report the same hostname (`DomenP14s`), which is why the spec carries
-    `native_only:` instead of a second host name."""
+    `native_only:` instead of a second host name.
+
+    The `os.name` guard is load-bearing, measured 2026-10-30: a Windows python launched from a WSL
+    working directory (the normal shape when bash drives `powershell.exe`) has a UNC cwd, and a UNC
+    cwd makes the relative-looking path `/proc/version` resolve to the GUEST's /proc through the
+    `wsl.localhost` UNC share. The Windows seat then read the guest's kernel string,
+    `probe-client` SKIPped, and the SKIP looked like the correct oldsrv SKIP — the same silent-SKIP
+    class as the hostname mismatch (reports/hd474-laptop-leg D2). A non-POSIX interpreter is the
+    Windows seat, full stop, so it is asked before any file."""
+    if os.name != "posix":
+        return False
     try:
         return "microsoft" in open("/proc/version").read().lower()
     except OSError:

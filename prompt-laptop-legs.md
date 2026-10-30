@@ -2,7 +2,7 @@
 
 > **Role:** dispatch note for **one** lane session on the laptop's serving legs. **The rows are the authority** for what is
 > missing and how to do it — this file carries the contract, the order of work and the traps, nothing else:
-> [todo.md](todo.md) **HD-474 · HD-476** (row ids as of `16177f19` — re-derive with `grep -c "^| HD-<id> " todo.md` before
+> [todo.md](todo.md) **HD-474** (row ids as of `16177f19` — re-derive with `grep -c "^| HD-<id> " todo.md` before
 > quoting one).
 > **Linked from:** [todo-table.md](todo-table.md) §B0 · [todo.md](todo.md)
 
@@ -17,8 +17,9 @@ scripts/harness/pi` before any render hunk. The owner hands are single-seat by d
 
 **What this lane is not:** there is **no agent leg on this runtime** — the four `agent-*` profiles are out of the catalogue,
 `client_context_window: 150016` is deleted, the context windows are pinned FIM **8 192** / vision **32 768**
-(`scripts/bench/laptop/profiles.yml:294`, `:303` and `:256`; mirrored as the two `contextWindow` values of the
-`laptop-lmstudio` provider in `scripts/harness/pi/models-spec.yml`), and the slot does **not** fall back to spark. The
+(the `client_context_window` of each profile in `scripts/bench/laptop/profiles.yml`; mirrored as the two
+`contextWindow` values of the `laptop-lmstudio` provider in `scripts/harness/pi/models-spec.yml`), and the slot
+does **not** fall back to spark. The
 ruling and its measurements are in [docs/hardware-workstation.md](docs/hardware-workstation.md) §Served leg and the retired leg
 is logged in [docs/services-ai-rejected.md](docs/services-ai-rejected.md) — do not restate or re-decide it here.
 
@@ -31,8 +32,7 @@ measurements behind the numbers you will re-take.
 
 | # | Row | Do | Gate / trap |
 |---|-----|----|-------------|
-| 1 | **HD-474** | Two owner hands **on the Win11 seat**, in order: (1) `op signin`, then `python scripts\render-pi-config.py pi --host Domen_P14s --check` — the render must carry exactly the vision + FIM rows and **no agent row**; (2) `lmstudio-llm.ps1 switch -Profile vision-qwen3vl-30b`, then `python scripts\laptop-llm.py probe-client` | `probe-client` must **PASS, not SKIP** — a SKIP run taken from oldsrv is correct and proves nothing. Its residency half is load-bearing because the endpoint does **not** police the `model` field: with one leg resident, a request naming the other leg is answered by the resident one, so a stale row is silent, not loud. ⚠ Hostnames canonicalise (`Domen_P14s` == `domenp14s`). ⏳ AI-side and still unmeasured: the FIM leg's **trigger latency** inside Continue's 150–400 ms budget — `probe-fim` resolves that leg by its `insert` capability, not by the dial's name, and `probe-speed --ttft --prompt-file <real prose>` is the shape that measures it. Until it lands, `fim-coder-3b` stays `certified: false` and the dial keeps `allow_uncertified: true` for that reason and no other |
-| 2 | **HD-476** | Take the one number this leg owes: exercise the 32k window with image tokens **actually resident** in the KV — `python scripts\laptop-llm.py probe-vision --image <the 8160x6120 rack photo> --expect CAT6` against the loaded leg, reading the PDH **dedicated-memory** counter through the prefill | `--expect CAT6` is a whole-frame string the model supplies reliably; the switch **part number** is not (a wide-frame misread, since pixel allocation, not sight). The declared 23.51 GiB budget is header arithmetic plus a text-only 32k load today — ~4 k image tokens land in the same KV, so without this the budget is unproven |
+| 1 | **HD-474** | Two owner hands **on the Win11 seat**, in order: (1) `op signin`, then `python scripts\harness\render-pi-config.py --vendor pi --host Domen_P14s --check` — the render must carry exactly the vision + FIM rows and **no agent row**; (2) `powershell -File scripts\bench\laptop\win\lmstudio-llm.ps1 switch -Profile vision-qwen3vl-30b`, then `python scripts\bench\laptop-llm.py probe-client` | `probe-client` must **PASS, not SKIP** — a SKIP run taken from oldsrv is correct and proves nothing, and the same SKIP comes from a Windows interpreter run with a WSL working directory, so quote the interpreter and the cwd beside the verdict. Its residency half is load-bearing because the endpoint does **not** police the `model` field: with one leg resident, a request naming the other leg is answered by the resident one, so a stale row is silent, not loud. ⚠ Hostnames canonicalise (`Domen_P14s` == `domenp14s`). The FIM leg's **trigger latency** is measured and sits outside Continue's 150–400 ms budget above ~300–450 prompt tokens (`raw/100-fim-latency.txt`); what the row still owes is the owner's call on how much context the tab ships, not another measurement — `probe-fim` resolves the leg by its `insert` capability, not by the dial's name, and `probe-speed --ttft --prompt-file <real prose>` is the shape that measures it. While the call is open `fim-coder-3b` stays `certified: false` and the dial keeps `allow_uncertified: true` for that reason and no other |
 
 ## ⛔ Traps that cost a round
 
@@ -49,10 +49,11 @@ measurements behind the numbers you will re-take.
   `3221226505`) — that is why the leg is Qwen3-VL. Re-running it costs an engine crash, not information.
 * ⛔ `networkingMode=mirrored` is **owner-rejected** — WSL2 stays `Nat` on purpose, so `127.0.0.1` inside the guest is the guest
   and the seat for local models is pi.dev on Win11. Never "fix" the loopback by changing the WSL network mode.
-* The runtime is pinned in the **dial, not in `versions.yml`** (LM Studio has no Renovate datasource there): `version:
-  "0.4.25+1"` at `scripts/bench/laptop/profiles.yml:75` and `lms_cli_commit: "69d945a"` at `:76`. Quote `runtime.version` from the
+* The runtime is pinned in the **dial, not in `versions.yml`** (LM Studio has no Renovate datasource there):
+  `runtime.version` and `runtime.lms_cli_commit` in `scripts/bench/laptop/profiles.yml`. Quote `runtime.version` from the
   dial; never describe behaviour from an unpinned install, and never let an auto-update make the dial describe something other
-  than what the seat runs.
+  than what the seat runs. `lms load` has no flag for `kv_cache_type`/`flash_attention`, so those dial fields are budget
+  arithmetic until something reads the running load.
 * `scripts/bench/laptop-llm.py gate --self-test` is the offline canary and is the only part of the tool that can run away from the seat
   — say which of `gate` / `probe-*` you actually ran.
 * **A `contextWindow` in `scripts/harness/pi/models-spec.yml` and a `num_ctx` in the dial that ship in DIFFERENT commits 400s
@@ -74,8 +75,7 @@ this lane runs no converge; the frozen archives and generated `*-generated.md`.
 
 Every item returns `PASS` / `FAIL` / `BLOCKED` / `PARKED` + the number + the evidence path; a claim with no path counts as
 not run. Concretely: the render `--check` output on the seat showing exactly the vision + FIM rows and no agent row · `probe-client`
-**PASS** (never SKIP) with the residency half quoted · the FIM trigger latency measured against Continue's 150–400 ms budget, or
-`BLOCKED` naming the seam that hides it · `probe-vision --expect CAT6` with the PDH dedicated-memory counter read during the
-prefill, so the 32k + image budget is exercised rather than asserted · `gate --self-test` green and quoted, with the tool form
+**PASS** (never SKIP) with the residency half quoted · the FIM trigger latency stated against Continue's 150–400 ms budget at
+real prompt sizes, not at a toy prompt · `gate --self-test` green and quoted, with the tool form
 (`gate` vs `probe-*`) named · rows trimmed to their tails or deleted, no history in the row · `bash scripts/validate-all.sh` green
 **in this worktree** → **stop**.
