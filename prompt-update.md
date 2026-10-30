@@ -171,13 +171,19 @@ is *not* the same thing as "by hand" — those are marked **window** below.
    `headscale apikeys create`, RouterOS `/snmp community`, the kopia cert, the Postgres role (by converge), the unix
    account. ⛔ Never the vault first — that is precisely the divergence the blocklist names, and it fails as a silent
    401 at the next consumer rather than as an error now.
-3. **Write the vault.** Catalog item → `OP_SERVICE_ACCOUNT_TOKEN="$(op read
+3. **Write the vault.** The write is `OP_SERVICE_ACCOUNT_TOKEN="$(op read
    'op://Homelab-ansible/op-write_api/credential' </dev/null)" python3 scripts/secrets/provision-secrets.py --rotate
-   <item> --yes` (the one-shot env form is the runner's route because the seat's ambient token is **read**-scoped and
+   <item> --yes` — the one-shot env form is the runner's route because the seat's ambient token is **read**-scoped and
    `require_write_token()` refuses the script otherwise; `--rotate` also refuses every `NOT_AUTO_ROTATABLE` name — that
-   refusal is correct and is not an invitation to hand-generate). Hand-seeded item (no CATALOG row) → the round-trip:
-   `op item get <item> --format json` → set `value` on the fields whose **`id`** already exists → `op item edit <item>
-   --template -` **on a pipe**. ⛔ Never a template file in `/tmp`, and never a fields-only `--template`: that shape
+   refusal is correct and is not an invitation to hand-generate.
+   ⚠ **`--rotate` is only the write when the vault is the issuer.** It MINTS a value, so a far-end-first rotation (the
+   step-2 shape: the app's `config.xml`, a device, a provider) must NOT use it — the far end already holds a specific
+   value and writing a second one is the divergence step 2 exists to prevent. The write there, and for any hand-seeded
+   item with no CATALOG row, is the round-trip:
+   `op item get <item> --format json` → set `value` on the fields whose **`id`** already exists → `op item edit <item>`
+   with that JSON **on a pipe** (`op item get … | op item edit <item>`). ⛔ Not `op item edit <item> --template -`:
+   CLI 2.39 answers `cannot edit an item from template and stdin at the same time`, because the piped body IS the
+   template. ⛔ Never a template file in `/tmp`, and never a fields-only `--template`: that shape
    APPENDS a duplicate empty field and every label-based read then resolves the empty one.
 4. **Propagate.** The converge that renders the item is the propagation: for a `db_role_sync: true` service the role's
    `COMMENT ON ROLE` marker (`pgsync:<sha256>`) does the `ALTER ROLE` — ⛔ a hand-run `ALTER ROLE` desyncs that marker

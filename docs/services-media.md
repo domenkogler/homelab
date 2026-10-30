@@ -217,7 +217,8 @@ issuers are the apps, not the vault — and one surface has no machine path at a
 | `soulseek-internal_api`, `soulseek_api` | the vault; the slskd render **is** the far end | converge recreates `slskd` (bounded restart, no persistent state to lose) + soularr `[Slskd] api_key` | yes |
 | `privado-vpn_api` | the provider, by the owner | re-read the non-secret WG fields into `home_servers.yml` (`privado_vpn_endpoint_ip/_port/_public_key/_address`), then converge the two gluetun renders | yes — and the item's notes carry an `[Interface] PrivateKey` line, so read it **field-wise**, never by dumping or printing the body |
 | `jellyfin-seer_api`, `jellyfin-seerng_api` | **the Jellyfin admin UI** | each Seerr's own `settings.json` `jellyfin.apiKey` + restart, then the vault copy | **none**: this Jellyfin answers `GET /api/ApiKeys` and `GET /ApiKeys` with **404** and `GET /Users` with **401** unsigned. A vault-only write mints a value the server never issued and breaks request approval |
-| `admin @radarr.kogler.si` | the Radarr instance | the built-in user's password **is** `radarr_api`; changing it needs `AuthMethod=None` or a stopped Radarr. `/api/v3/user` → **404**: this build has no user store to PUT | no clean path |
+| `jellyfin-bazarr_api` | **the Jellyfin admin UI**, same issuer as the two rows above | `bazarr-seed.yml` writes the vault copy into Bazarr's settings DB — the one Jellyfin leg the seed writes rather than reads, so a re-pointed vault item plus that converge re-teaches Bazarr | **none**, measured with an authenticated key rather than inferred: the same token that gets **200** from `/Users` and `/Devices` gets **404** from `GET /ApiKeys`, `GET /api/ApiKeys` and `POST /api/ApiKeys/New`, so this build has no key surface to mint or revoke at all; the value is one plaintext row in Jellyfin's own `ApiKeys` table (3 rows, one per key) and the only mechanical alternative is that table with the server stopped |
+| `admin @radarr.kogler.si` | the Radarr instance's **user store** (`<AuthenticationMethod>Forms</AuthenticationMethod>`, the password held hashed in the app's DB) | ⚠ it is **not** `radarr_api`: the two were provisioned equal and are separate stores, so rotating the API key leaves this login working — measured as `POST /login` → **302** with the session root answering **200** after an `<ApiKey>` rotation. Changing the login itself needs `AuthMethod=None` or a stopped Radarr. `/api/v3/user` → **404**: this build has no user store to PUT | no clean path |
 | `admin @media.kogler.si` | the Jellyfin user store | `POST /Users/<id>/Password` → **403** on the shapes probed (`NewPassword`, and `NewPassword`+`Password`); `GET /Users` is 200 once a bearer is issued by `POST /Users/AuthenticateByName` **with** the `X-Emby-Authorization` device header (without it: 400) | UI path |
 
 Two facts that decide the order: the Soulseek **network** login (`soulseek_login`) is a different credential and
@@ -225,6 +226,18 @@ must not be touched by a rotation here — a 30-day-unused account is recycled, 
 app's own log (`Logged in` / `Disconnected`) or its connection state, never by grepping a rendered compose
 file. And the two `admin @…` items carry the **same** password value, so a rotation of one leaves the other
 stale unless both move in the same act.
+
+**What a rotated `radarr_api` / `sonarr_api` key actually reaches, measured end to end.** The instance's own
+`config.xml` is the source, so every leg that reads it follows the rotate — `arr-seed.yml`, `bazarr-seed.yml`, and
+Bazarr's own DB through the `bazarr_seed` re-teach (each proved by the stored key's `sha256[:12]` against the vault
+and one live call answered **200** with it). Seerr and SeerrNG hold **neither** key: their `settings.json`
+`radarr[0].apiKey` / `sonarr[0].apiKey` are empty on this install, so they are not consumers of these two items
+(they do hold the two owner-minted `jellyfin-seer*_api` keys). ⚠ **recyclarr is a consumer in IaC only:** the
+compose binds `/opt/recyclarr/recyclarr.yml` over the container's `/config/recyclarr.yml`, while the role's render
+writes `/srv/docker/recyclarr/config/recyclarr.yml`, which the running container never reads (and that file is
+empty). The two keys in the *mounted* file match neither the vault's current values nor the values they replaced, so
+recyclarr authenticates with neither — it has been refusing to sync independently of any rotation, and closing that
+is a render-path fix, never a rotation.
 
 ## Subtitles — Bazarr app-state wiring
 

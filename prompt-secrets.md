@@ -299,7 +299,10 @@ follows them. Clearing this is **not** a trim: it is the state-only rule (CONVEN
       the guard refuses as coupled.
 - [ ] The **owner** lines, when the owner takes them; the ones with **no path** stay open and go to §3d instead.
 - [ ] After any rotation: `--update-ledger --class run-capture` on a signed-in seat **that has the store**, and
-      the `STALE` lines deleted in the same commit — that commit is what makes the gate honest again.
+      the `STALE` lines deleted in the same commit — that commit is what makes the gate honest again. ⚠ **Only when
+      the run's remaining hits are all ledger-worthy:** the re-derive derives from THIS run's hits, so with a live
+      un-rotated finding still hitting it would mint a ledger line for a CURRENT value — the mute button §7 names.
+      When the residue includes one, skip the rewrite; the register line and the leak gate's red are the record.
 - [ ] `todo.md` — the register rows shrink here; the rows whose ⏳ list empties are **deleted**, their record
       being the owning doc and the commit.
 
