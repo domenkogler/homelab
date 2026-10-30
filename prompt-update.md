@@ -380,6 +380,14 @@ never `--diff` (§7).
   list is authored — then the registry row + compose and its `docker_services` converge in this host's leg, LAST
   for the sidecar/Traefik reason above. ⛔ `db-backup` stays the Postgres restore path; the exclusions oldsrv's
   agent carries are re-declared, not inherited.
+- [ ] ⏭ **owed on the next VPS pass — the `docker_services` pin propagation never ran on `vps`**: deployed there is
+  open-webui `0.11.4`, authentik `2026.8.3`, immich `v3.2.4`, tuwunel `v1.9.3`, element-web `v1.12.30`, while
+  [`IaC/ansible/group_vars/all/versions.yml`](IaC/ansible/group_vars/all/versions.yml) pins `0.12.3`, `2026.8.5`,
+  `v3.3.5`, `v1.9.4`, `v1.12.32` — the `vps` leg above ran `docker` → `monitoring` only, so no compose render ever
+  moved. Consequence for any later scoped act on that host: touching either service recreates it at the pin, so an
+  identity or routing fix must **hold** the versions (`-e openwebui_version=0.11.4 -e authentik_version=2026.8.3`) to
+  stay one act — and prove the hold with `--check` both ways. The propagation itself is an **IdP recreate with
+  migrations**, so it is an owner-present act, LAST for the sidecar/Traefik reason above.
 - [x] Per host after it converges: the roster is up, `RestartCount` flat, and the role's own `apt-mark showhold` assert passed.
 - [x] `todo.md` — the fold-in rows this phase proved, once.
 
