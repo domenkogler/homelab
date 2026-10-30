@@ -1192,10 +1192,20 @@ oldsrv is on NVMe and mostly unaffected):
    RAM, lost on reboot (acceptable; VictoriaLogs retains the useful logs). Cheap, well-tested Pi-SD saver.
    ⚠ A tmpfs mount makes rotation a **zero-sum** act: `.1` sits on the same 100 MB filesystem as the live file, so a
    calendar rotation of a large log moves bytes instead of retiring them. `/var/log` therefore rotates **by size,
-   with one retained generation** (`rotate 1` + a `maxsize` well under the mount), never by the calendar with four
-   uncompressed copies: a chatty week then cannot fill the mount, and the CPU cost of recompressing a ~75 MB syslog
+   with one retained generation** (`rotate 1` + a `maxsize` under a third of the mount), never by the calendar with
+   four generations: a chatty period then cannot fill the mount, and the CPU cost of recompressing a 75 MB syslog
    every period is not paid on a box whose durable log store is VictoriaLogs on the VPS. One period of local history
-   is the accepted cost. The policy is a file in a role, sized against the mount, not a host edit.
+   is the accepted cost. `roles/home_assistant/tasks/pi.yml` owns that policy by **rendering
+   `/etc/logrotate.d/rsyslog`** — the file the `rsyslog` package ships and logrotate already reads for these six
+   paths — with only its retention knobs changed (`rotate 4`→`rotate 1`, `weekly`→`daily`, `maxsize` added;
+   `postrotate /usr/lib/rsyslog/rsyslog-rotate` verbatim, since that is what tells rsyslog to reopen its files).
+   A second, role-named stanza beside it is not an option: logrotate refuses a path two stanzas name (`error: …
+   duplicate log entry for /var/log/syslog`, exit 1, `logrotate.service` failed), measured on the box's own
+   logrotate 3.22.0. That makes the file a **dpkg Conffile the role edits** — `dpkg-query -W -f='${Conffiles}'
+   rsyslog` names `/etc/logrotate.d/rsyslog` with the md5 of the packaged bytes, dpkg keeps a locally-modified
+   Conffile on upgrade, and the converge's read-leg is what catches the day it stops holding: it asserts the
+   retention logrotate *reports* (`after 1 days`, `log files >= 26214400 … are rotated earlier`, `(1 rotations)`,
+   no `error:` line), never that the rendered file exists.
 4. *(Optional)* **Docker *log* directory on tmpfs** to guarantee zero *transient* SD writes — must stay hard-capped
    (`max-size`/`max-file`); **never** tmpfs the Docker data-root (`/var/lib/docker`/overlay2, that holds images &
    containers), only the log portion. Only if the 4 GB RAM budget (shared with HA/Technitium) allows.
@@ -1220,14 +1230,22 @@ line is evidence about the NEXT mount, not this one. The acceptance read is `log
 (read-only): no `error: skipping … bad file mode`/`insecure permissions` line, and note that `logrotate -d` prints
 `does not exist -- skipping` for files a host simply lacks, which is not the defect.
 
-⚠ **Rotation moves bytes, it does not remove them, and on a tmpfs the bytes have nowhere else to go.**
-`logrotate` renames `/var/log/x` to `/var/log/x.1` on the SAME filesystem, so a `weekly` + `rotate 4`
-policy with **no `compress`** on a 100 MB tmpfs cannot hold four periods of a ~75 MB/period `syslog` —
-one real rotation of exactly that configuration leaves 77 M of that 100 M in use, which is the
-full-`/var/log` failure deferred into RAM rather than avoided. A retention policy for a tmpfs `/var/log`
-is therefore a sizing decision against `size=100m` (`compress` + `delaycompress`, or `rotate 1` +
-`maxsize`), and it is an owner's: how much log history an SD-card box should carry. The repo ships the
-mount and the mode here, not the policy.
+⚠ **Rotation moves bytes, it does not remove them, and on a tmpfs the bytes have nowhere else to go (HD-1103,
+2026-10-30).** `logrotate` renames `/var/log/x` to `/var/log/x.1` on the SAME filesystem, so a retention policy for
+a tmpfs `/var/log` is a sizing decision against `size=100m`, not against an SD card. The sizing that was on record
+here — `weekly` + `rotate 4` **with no `compress`**, four uncompressed periods of a ~75 MB/period `syslog`, "one real
+rotation of exactly that configuration leaves 77 M of that 100 M in use" — is **not what this box ran**: the
+packaged `/etc/logrotate.d/rsyslog` carries `compress` + `delaycompress` (md5 `3f26282a…`, still the packaged
+bytes), and the volumes are bursty rather than steady — this period measures `syslog` 5.0 M over five days
+(~1 M/day, last rotation 2026-10-25 00:41) with `/var/log` at **14 M of 100 M**, while the retained `/var/log/syslog.2.gz`
+inflates to **75,454,651 bytes**, so a chatty period really is ~75 MB raw. What that leaves unbounded is not the
+copy count but the **newest retained generation**, which `delaycompress` keeps UNCOMPRESSED beside a live file of
+the same size: one 75 MB period is ~150 MB of syslog in a 100 MB mount, which is the full-`/var/log` failure this
+row feared, deferred into RAM rather than avoided. `rotate 1` + `maxsize 25M` + `daily` bounds it at roughly 2 ×
+maxsize ≈ 50 M for this stanza (the other five paths measure 0.7 M / 96 K / 5 K / 16 K over the same window), and
+the first real rotation under it took `/var/log` from 14 M to **6.0 M** by pruning the `.2.gz` generations that
+`rotate 1` no longer keeps. The read that judges retention is `logrotate -d /etc/logrotate.conf` (read-only, runs
+under `--check`), never the file's presence.
 
 ---
 

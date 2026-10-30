@@ -491,6 +491,97 @@
       time only, so the mount line becomes truthful at a boot, never from a converge.
   tags: [pi_sd_trim, hd19]
 
+# ---- The retention the tmpfs needs ----
+# Rotation on a tmpfs moves bytes inside the SAME filesystem, so the calendar is not a bound: a
+# `weekly` + `rotate 4` stanza keeps four generations, the newest of them (`delaycompress`) sitting
+# UNCOMPRESSED next to a live file of the same size. Measured here, one period's raw syslog is
+# 75 MB (`/var/log/syslog.2.gz` inflates to 75,454,651 bytes) against a 100 MB mount, so a chatty
+# period at the distro retention is 75 M live + 75 M retained in 100 M of RAM — the full-`/var/log`
+# failure the row feared, deferred into RAM rather than avoided. The bound is the size, not the date.
+#
+# The file is `/etc/logrotate.d/rsyslog`, which the `rsyslog` package owns as a Conffile
+# (`dpkg-query -W -f='${Conffiles}' rsyslog` names it). It is rendered HERE rather than added beside
+# it because logrotate refuses a path two stanzas name — measured with logrotate 3.22.0, a second
+# stanza for `/var/log/syslog` gives `error: … duplicate log entry for /var/log/syslog`,
+# `error: found error in file …, skipping` and exit 1, which fails `logrotate.service`. Owning these
+# paths therefore means rendering the file that already owns them, and the only lines changed from
+# the packaged ones are the retention knobs: `weekly`→`daily`, `rotate 4`→`rotate 1`, plus `maxsize`.
+# `postrotate` is kept verbatim, because it is what tells rsyslog to reopen its files.
+- name: Name the /var/log retention this host owns
+  # maxsize 25M against the size=100m mount above: with rotate 1 the worst case is the live file
+  # (≤ maxsize) plus one retained generation (≤ maxsize, uncompressed while delaycompress defers it)
+  # = ~50 M of 100 M, and the other five paths in the stanza are two orders of magnitude quieter
+  # (auth.log 0.7 M, user.log 96 K, kern.log 5 K, cron.log 16 K over the same period as 5.0 M of
+  # syslog). Sized against the mount, not against an SD card.
+  ansible.builtin.set_fact:
+    pi_var_log_maxsize: "25M"
+  tags: [pi_sd_trim, hd1103]
+
+- name: Render the logrotate stanza that owns the rsyslog logs
+  # Owns /etc/logrotate.d/rsyslog — the packaged rsyslog Conffile, rendered with only its retention
+  # knobs changed. No notify: logrotate is timer-driven (`logrotate.timer`, daily with a 1 h jitter),
+  # so there is no daemon to reload and nothing restarts on this change.
+  ansible.builtin.template:
+    src: logrotate-rsyslog.j2
+    dest: /etc/logrotate.d/rsyslog
+    owner: root
+    group: root
+    mode: '0644'
+  tags: [pi_sd_trim, hd1103]
+
+- name: Read the retention logrotate is actually applying
+  # The read-leg, and it is the ONLY leg that can tell whether this render is still the file in
+  # force. logrotate prints the effective policy per stanza; the stanza's paths are printed one per
+  # line with the policy text after the last one, so the block is flattened before it is judged.
+  # `errors` counts logrotate's own `error:` lines, which is how a package-restored duplicate stanza
+  # announces itself. It really runs under --check.
+  ansible.builtin.shell:
+    cmd: |
+      set -eu
+      PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      out="$(logrotate -d /etc/logrotate.conf 2>&1 || true)"
+      flat="$(printf '%s ' "$out" | tr '\n' ' ')"
+      stanza="$(printf '%s' "$flat" | sed -e 's#.*rotating pattern: /var/log/syslog ##' -e 's# considering log /var/log/syslog.*##')"
+      printf 'stanza: %s\n' "$stanza"
+      printf 'errors: %s\n' "$(printf '%s\n' "$out" | grep -c 'error:' || true)"
+  register: pi_logrotate_policy
+  changed_when: false
+  check_mode: false   # a probe, not a mutation — --check must still be able to judge
+  tags: [pi_sd_trim, hd1103]
+
+- name: Report the retention the running logrotate reports
+  ansible.builtin.debug:
+    msg: >-
+      /var/log retention on {{ inventory_hostname }}: {{ pi_logrotate_policy.stdout_lines | join(' | ') }}.
+      Want `after 1 days`, `log files >= {{ (pi_var_log_maxsize | regex_replace('M$', '') | int) * 1048576 }}
+      … are rotated earlier` and `(1 rotations)` with `errors: 0` (logrotate 3.22.0 words the maxsize
+      clause that way); anything else is a different file in force, whatever this role rendered.
+  tags: [pi_sd_trim, hd1103]
+
+- name: Refuse to call the retention ruled while a different policy is in force
+  # Asserted on what logrotate REPORTS, never on the rendered file existing: an rsyslog upgrade that
+  # reinstalls its Conffile, or any second stanza naming these paths, makes the render a decoration
+  # while /var/log stays unbounded. Skipped under --check, where the report line IS the verdict (the
+  # split the /var/log and nm-resolver legs use).
+  ansible.builtin.assert:
+    that:
+      - "'stanza:' in pi_logrotate_policy.stdout"
+      - "'log files >= ' ~ ((pi_var_log_maxsize | regex_replace('M$', '') | int) * 1048576) in pi_logrotate_policy.stdout"
+      - "'(1 rotations)' in pi_logrotate_policy.stdout"
+      - "'after 1 days' in pi_logrotate_policy.stdout"
+      - "'errors: 0' in pi_logrotate_policy.stdout"
+    fail_msg: >-
+      {{ inventory_hostname }} does not run the ruled /var/log retention. The read says:
+      {{ pi_logrotate_policy.stdout_lines | join(' | ') }} — want daily (`after 1 days`),
+      maxsize {{ pi_var_log_maxsize }} and `(1 rotations)` with no logrotate `error:` line. A
+      `duplicate log entry` error means a second stanza names these paths and logrotate.service is
+      failing; retention text that differs means /etc/logrotate.d/rsyslog was reinstalled by the
+      rsyslog package or edited on the host. Either way the tmpfs is bounded by the calendar again,
+      which on this mount means by nothing.
+    quiet: true
+  when: not ansible_check_mode
+  tags: [pi_sd_trim, hd1103]
+
 - name: Refuse to call /var/log configured while logrotate has nowhere to write
   # Asserted, not reported: "the task is green" is not the invariant. It asserts the mode logrotate
   # really sees and NOT the mount line — the mount line cannot be made truthful without unmounting a

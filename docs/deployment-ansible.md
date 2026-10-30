@@ -117,7 +117,7 @@ How `--tags` actually behaves in THIS repo — verified against `site.yml`,
     (`playbooks/raspberry_pi.yml:21`, `playbooks/home_servers.yml:21`), so no `roles:`-entry cascade
     exists at all, and reach lives entirely in the include lines: `main.yml:83` carries
     `[home_assistant, ha_render, ha_failover, ha_recorder, pi_sd_trim, lovelace, knx, hd17, hd19,
-    hd185, hd204, hd418]` for `pi.yml`, and `main.yml:96` carries
+    hd185, hd204, hd418, hd1103]` for `pi.yml`, and `main.yml:96` carries
     `[home_assistant, ha_failover, lovelace, knx, hd17]` for `standby.yml`. The failure mode is
     therefore not a playbook edit but an INCLUDE edit: a new topic tag added to a task inside
     `pi.yml`/`standby.yml` without also being added to that include's list is selectable by no filter

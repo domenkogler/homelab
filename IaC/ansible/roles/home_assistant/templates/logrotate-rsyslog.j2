@@ -1,0 +1,45 @@
+{#
+  This file IS the policy: /etc/logrotate.d/rsyslog is the packaged rsyslog Conffile and the file
+  logrotate already reads for /var/log/syslog, mail.log, kern.log, auth.log, user.log and cron.log.
+  A second, role-named stanza cannot be added beside it — logrotate 3.22 refuses a path two stanzas
+  name (`error: zz-candidate:1 duplicate log entry for /var/log/syslog`, `found error in file
+  zz-candidate, skipping`, exit 1, logrotate.service failed), so owning these paths means rendering
+  the file that owns them and changing nothing but the retention knobs.
+
+  dpkg behaviour this relies on: this path is a listed Conffile (`dpkg-query -W -f='${Conffiles}'
+  rsyslog` names it and the md5 of the packaged bytes), and a locally-modified Conffile is KEPT on
+  package upgrade — dpkg does not silently restore it. The read-leg in tasks/pi.yml is the canary for
+  the day that stops holding: it asserts the retention logrotate REPORTS, not that this file exists.
+
+  Retention, ruled by the owner for this host: size-triggered with one retained generation, sized against the
+  mount. `/var/log` is a tmpfs (see pi_var_log_opts), so rotation moves bytes within the same
+  filesystem and a calendar retention has no bound. `daily` gives one rotation per period, `maxsize`
+  is the trip-wire for a chatty day, `rotate 1` keeps the retained generation to one. Worst case is
+  therefore ~2x maxsize for this stanza; the other five paths are two orders of magnitude quieter
+  (measured on the Pi: syslog 5.1 M against auth.log 0.69 M, user.log 0.09 M, kern.log 5 K, cron.log
+  16 K over the same period), so the mount keeps real headroom. If a non-syslog path ever becomes the
+  fat one, split this stanza instead of raising maxsize.
+
+  Everything else — compress/delaycompress/missingok/notifempty/sharedscripts/postrotate — is the
+  packaged stanza verbatim, postrotate included: it is what tells rsyslog to reopen its files.
+#}
+# Managed by Ansible — roles/home_assistant. Retention is sized against the /var/log tmpfs.
+/var/log/syslog
+/var/log/mail.log
+/var/log/kern.log
+/var/log/auth.log
+/var/log/user.log
+/var/log/cron.log
+{
+	rotate 1
+	daily
+	maxsize {{ pi_var_log_maxsize }}
+	missingok
+	notifempty
+	compress
+	delaycompress
+	sharedscripts
+	postrotate
+		/usr/lib/rsyslog/rsyslog-rotate
+	endscript
+}
