@@ -1345,7 +1345,8 @@ domain_local: kogler.si
 - **Scope:** read-only diagnostics (SMART, ZFS, journal) — see [`deployment-secrets.md`](deployment-secrets.md); script lives in `roles/ai_diag/files/ai-diag`
 - **`smartd` is decided by measurement, not by host name (HD-1103, 2026-10-19).** This role installs the
   package, so this role owns whether the daemon runs: one `smartctl --scan` probe drives a symmetric
-  `systemd` leg — start+enable where SMART sees devices, stop+disable+**mask** where it sees none. The
+  `systemd` leg — start+enable where SMART sees devices, stop+disable+**mask** where it sees none —
+  unless the host declares itself out of that decision (`ai_diag_smartd_managed: false`, below). The
   exit code that motivated it is `17` = "no devices to monitor", which on an SD-card or controller-hidden
   device fails at EVERY start and leaves a permanent tenant in `systemctl --failed` — the one command this
   fleet uses as its health probe, so a standing failure in it trains every reader to ignore the output.
@@ -1353,6 +1354,22 @@ domain_local: kogler.si
   no `smartctl` binary (⚠ it lives in `/usr/sbin`, which a non-login shell's PATH does not carry, so an
   unqualified `command -v smartctl` reports "absent" on a box that has it) and no unit, both of which are
   "nothing to decide about here" — only "present, scans nothing" is a decision about that host.
+- **A host can be ruled out of that decision instead of masked: the Pi, owner ruling 2026-10-30.**
+  `ai_diag_smartd_managed: false` in `host_vars/pi.kogler.si.yml` is a DECLARATION, not a measurement:
+  the leg takes no action at all and the unit is left **exactly as found** — `UnitFileState=enabled`,
+  `ActiveState=failed`, `ExecMainStatus=17`, unmasked, package installed. It is not a workaround for the
+  leg, it is the answer to what "dropped from the health surface" means when the alternative is a
+  converge mutating a unit nobody is asked to judge. **The Pi has no SMART-monitable device behind its
+  adapter** — the only physical block device is one 128 GB microSD (`lsblk -d`: `mmcblk0`, nothing else),
+  `smartctl --scan` is empty at rc 0, `-d scsi` and `-d sat` fail on it — so **smartd's exit 17 is that
+  fact and not a fault**, and the health surface excludes it by rule with the owner's date. Two
+  consequences, both intended: `systemctl --failed` on the Pi lists `smartmontools.service`
+  **permanently**, so that command's verdict on this host reads one entry shorter than it looks, and the
+  metric surface stays silent because the unit is not on this host's `monitoring_hygiene_units` list —
+  adding it there would be the same decision made twice, and a collector with no data source is the
+  blind-host class wearing a green. The probe task still runs under the declaration (it is what the
+  ruling was measured over, and what a future "give this box SMART" question reads), and flipping the
+  var back to true is the only way the leg comes back — never a forgotten default.
 - **What SMART can and cannot see on an SD-only host, measured on the Pi.** smartmontools `7.4-3` has no
   `scamm` device type (it needs ≥7.5), `-d removable` is a `smartd.conf` **directive** rather than a device
   TYPE, and both probes that do exist fail outright on `mmcblk0` (`scsi`: `Both 36 and 64 byte INQUIRY

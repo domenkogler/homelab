@@ -38,6 +38,13 @@
     validate: '/usr/sbin/visudo -cf %s'
 
 # ---- smartd: this role installs the package, so this role decides whether the daemon runs ----
+# Two answers mean "do nothing here" and they are NOT the same claim. `absent` from the probe is the
+# absence of anything to decide about. `ai_diag_smartd_managed: false` is a host DECLARING itself out
+# of the decision — a dead smartd the owner has ruled a non-signal, to be left exactly as found
+# instead of masked (defaults/main.yml, docs/deployment-ansible.md §ai_diag). The probe runs either
+# way: an exclusion that stops measuring cannot be audited, and a rule that outlives its measurement
+# is how a ruled-over fault comes back as a surprise.
+#
 # smartd's exit 17 is "No devices to monitor" — on a board whose storage is an SD card or an NVMe
 # behind a controller SMART cannot reach, the daemon fails at every single start and stays in
 # `systemctl --failed` forever. That is not cosmetic in the way it looks: `systemctl --failed` is
@@ -68,10 +75,14 @@
 - name: Run smartd where SMART has devices, mask it where it has none
   # The stop is what clears the recorded failure: a unit left in `failed` keeps appearing in
   # `systemctl --failed` until it is stopped or reset, and a reboot is not how this repo fixes
-  # anything.
+  # anything. A host that declares `ai_diag_smartd_managed: false` is excluded from this leg by that
+  # declaration, so its `systemctl --failed` carries the unit permanently and that listing is read
+  # with the ruling, not as a fault — see host_vars/pi.kogler.si.yml.
   ansible.builtin.systemd:
     name: smartmontools.service
     state: "{{ 'started' if ai_diag_smart_scan.stdout | trim | length > 0 else 'stopped' }}"
     enabled: "{{ ai_diag_smart_scan.stdout | trim | length > 0 }}"
     masked: "{{ ai_diag_smart_scan.stdout | trim | length == 0 }}"
-  when: ai_diag_smart_scan.stdout | default('') | trim != 'absent'
+  when:
+    - ai_diag_smart_scan.stdout | default('') | trim != 'absent'
+    - ai_diag_smartd_managed | bool   # the declared exclusion; true = the fleet default in defaults/main.yml

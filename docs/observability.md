@@ -831,6 +831,19 @@ Pi (`ha-cert-sync` + the two NUT units) also publish one cert pair and the NUT c
 `last_success = 1`; `nas` and `spark` publish no unit or cert series, because neither declares a watched
 unit or a pair — that absence is topology, and it is why the cert rules read four consumers, not five.
 
+⚠ **A unit can be excluded from this surface BY RULE, and then the exclusion is declared, not omitted.**
+The Pi's `smartmontools.service` fails at every start with exit 17 = "no devices to monitor": the box has
+no SMART-monitable device behind its adapter — one microSD is its only block device and `smartctl --scan`
+is empty — so that result is a fact about the hardware, not a fault, and a wear counter would have no
+data source on an SD card. The owner ruled it out of the health surface on **2026-10-30**; the exclusion
+lands as `ai_diag_smartd_managed: false` in `host_vars/pi.kogler.si.yml`, which keeps `roles/ai_diag`'s
+unit leg off it entirely — no mask, no disable, no removal, the unit stays `enabled`/`failed` exactly as
+found — and it is why `systemctl --failed` on that host names it permanently. Do not close the gap by
+adding the unit to `monitoring_hygiene_units`: a series that can only ever read `failed` about a device
+that does not exist is the blind-host class wearing a green, and letting the role mask the unit is the
+state change the ruling rules out. The measurement and the rule:
+[deployment-ansible.md](deployment-ansible.md) §ai_diag.
+
 **The NUT client→master leg is the claim the unit legs cannot carry.** `nut-monitor.service` and
 `nut-client.service` stay `active` while the master stops answering — `upsmon` retries forever and never
 fails its unit — so a window in which a client reads nothing is invisible until a converge happens to run

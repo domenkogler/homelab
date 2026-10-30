@@ -1,6 +1,21 @@
 ---
 # ai_diag role defaults
 
+# ---- smartd: does this role decide whether THIS host's smartd runs? -------------------------------
+# True (the fleet default) = the measurement decides: the one `smartctl --scan` probe in
+# tasks/main.yml drives the `systemd` leg — start+enable where SMART sees devices, stop+disable+mask
+# where it sees none.
+#
+# False is a DECLARATION, not a measurement: the host has ruled its dead smartd out of its own health
+# surface, so the leg takes NO action and the unit stays exactly as found — enabled, failed,
+# unmasked, installed. Masking a unit the owner has decided is not a signal would be a converge
+# acting on state that no longer has a verdict attached to it. The probe task still runs under the
+# declaration, so the measurement the ruling was made over stays on the record and the exclusion can
+# be audited against it; a host that later gains a SMART-visible device gets the leg back by setting
+# this back to true, which is a recorded decision, not a forgotten one.
+#   → docs/deployment-ansible.md §ai_diag
+ai_diag_smartd_managed: true
+
 # Lockout-exempt classification (read by scripts/gate/check_self_converge_guard.py, not by Ansible).
 # This role writes /etc/sudoers.d/ai-diag — a session-critical path — and manages one unit, so the
 # detector flags it and this row exists rather than silence. The sudoers change ADDS one narrow Cmnd
@@ -12,5 +27,6 @@
 # separately (the per-role ansible_user asserts).
 homelab_lockout_exempt_reason: >-
   Adds one validated (visudo -cf) sudoers drop-in granting a narrow Cmnd to ai-debug, and starts or
-  masks the smartmontools unit by measurement; no firewall, netdev, mount or sshd state is touched,
+  masks the smartmontools unit by measurement (or takes no action on it, where the host declares
+  `ai_diag_smartd_managed: false`); no firewall, netdev, mount or sshd state is touched,
   so it cannot cut the driving session and a malformed sudo render cannot land.

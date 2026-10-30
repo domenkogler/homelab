@@ -69,10 +69,33 @@ access_admit_extra: ['admin']
 # The result of the last run is the only signal that separates a healthy oneshot from a failing
 # one, and NUT's units can read "active" while the client leg is broken. `traefik-cert-pull` is
 # absent because this host pulls with ha-cert-sync: a unit that is not installed alerts on purpose.
+# `smartmontools.service` is absent because it is EXCLUDED BY RULE, not forgotten — see the block
+# below, and do not add it: a collector that reads nothing is a green that lies.
 monitoring_hygiene_units:
   - ha-cert-sync.service
   - nut-monitor.service
   - nut-client.service
+
+# ==== smartd is out of this host's health surface BY RULE (roles/ai_diag) ====
+# RULED by the owner (the date, the measurement and the reasoning are in
+# docs/deployment-ansible.md §ai_diag): smartmontools is DROPPED from this box's health surface. The
+# Pi has no SMART-monitable device behind its adapter — the only physical block device is one 128 GB
+# microSD (`lsblk -d` gives `mmcblk0` and nothing else, `storage.md` agrees), `smartctl --scan` is
+# empty at rc 0, `-d scsi` and `-d sat` fail on it (INQUIRY / identity errors), and `-d scamm` needs
+# smartmontools >=7.5 while this release's candidate is 7.4-3. So smartd's `ExecMainStatus=17` ("no
+# devices to monitor") at every start IS that fact and not a fault, and a wear-counter collector
+# would have no data source either: `life_a`/`life_b`/`pre_eol_info` are eMMC EXT_CSD fields this SD
+# card's sysfs does not expose and `mmc-utils` is absent.
+# "Dropped" means it stops being a SIGNAL, so nothing here changes the unit: it stays exactly as found
+# (`UnitFileState=enabled`, `ActiveState=failed`, unmasked, installed). The declaration below is what
+# makes that hold — `roles/ai_diag` derives "no devices" from its own probe and an UNTAGGED converge
+# would otherwise stop+disable+MASK the unit (`--tags` never reaches that leg, so this declaration is
+# the only thing standing between the next Pi converge and a state change the owner did not ask for).
+# Consequence, so the listing is read with the rule: `systemctl --failed` on this host carries
+# `smartmontools.service` permanently and that entry is not a verdict about the box. The metric
+# surface excludes it too — it is not on `monitoring_hygiene_units` above.
+# → docs/deployment-ansible.md §ai_diag
+ai_diag_smartd_managed: false
 
 # The ha-cert-sync.sh DST here is `/opt/traefik-ha/certs/` (hardcoded in that template, unlike
 # oldsrv's var-derived one) and the pair carries the same 90-day wildcard. The `.ts` pair is
