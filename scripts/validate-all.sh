@@ -24,7 +24,13 @@
 #                                     any other suffix is never compared — the checker names that
 #                                     hole on record and --self-test canaries it
 #   8d. check_vault_docs.py         — every vault item the IaC reads has a row in the secrets master
-#                                     list (an undocumented prerequisite fails a true-zero deploy)
+#                                     list (an undocumented prerequisite fails a true-zero deploy).
+#                                     The required set is derived from the IaC — lookups, the
+#                                     `_service_vault_items` registry and every `*_item:` scalar in
+#                                     host_vars AND group_vars (an item reached through a variable is
+#                                     a dependency, not an optional mention). The row is also READ:
+#                                     a `field=` cell must state a field or declare there is none
+#                                     here, never claim the item does not exist (HD-1157).
 #   9. check_placeholders.py        — placeholder tokens only in designated bootstrap files (HD-201)
 #  10. guard-session.sh             — session-discipline hard-gate + sandboxed self-test (HD-253):
 #                                     --validate-mode fails on primary+main+DIRTY; clean-main
@@ -1644,7 +1650,8 @@ item_q "check_generated_suffix.py" "${PY_CMD[@]}" scripts/gate/check_generated_s
 item_q "check_ledger_state.py (ledger = checkboxes, open rows only, ticks dated)" "${PY_CMD[@]}" scripts/gate/check_ledger_state.py
 item_q "check_runbook_purity.py (runbook = imperative procedure only)" "${PY_CMD[@]}" scripts/gate/check_runbook_purity.py
 item_q "check_runbook_purity.py --self-test (phase-alignment arms seen RED then GREEN; every single-letter phase suffix proved compared; a blind walk or a missing input refused, never OK: 0 phases)" "${PY_CMD[@]}" scripts/gate/check_runbook_purity.py --self-test
-item_q "check_vault_docs.py (every IaC-read vault item is documented)" "${PY_CMD[@]}" scripts/gate/check_vault_docs.py
+item_q "check_vault_docs.py (every IaC-read vault item is documented, and every §Master Secret List row states its field shape rather than a claim about the item)" "${PY_CMD[@]}" scripts/gate/check_vault_docs.py
+item_q "check_vault_docs.py --self-test (an item named only in a group_vars `*_item:` scalar is required; a `field=` cell that denies its own item reddens; the dash and the pointer stay quiet; an empty walk refused)" "${PY_CMD[@]}" scripts/gate/check_vault_docs.py --self-test
 item_q "check_todo_done.py (CONVENTIONS §4(a) done-row sweep)" "${PY_CMD[@]}" scripts/gate/check_todo_done.py
 item_q "check_view_registry_sync.py (todo-table.md §B9 holds exactly todo.md's row ids, in both directions — the dispatch view cannot silently lose a row, and cannot invent one)" "${PY_CMD[@]}" scripts/gate/check_view_registry_sync.py
 item_q "check_view_registry_sync.py --self-test (a row missing from §B9 must redden AND an id §B9 carries that the registry lacks must redden; the ratchet line whose difference cleared must go STALE)" "${PY_CMD[@]}" scripts/gate/check_view_registry_sync.py --self-test

@@ -34,6 +34,11 @@ that gets muted, the width-rule lesson):
                           there, the cell count stays legal, and the width rule cannot see it.
   7. duplicate-paragraph— the same passage twice inside one row (a botched edit leaves both copies,
                           and no identity rule sees it because the first cell is still unique).
+  8. pointer-value      — the OWNING SPEC cell is RESOLVED, not counted. Rule 5 proves a row carries a
+                          last cell; a last cell aimed at the wrong document is a clean row under a
+                          cell count, which is the HD-1157 shape: presence checked, content unread.
+                          The link is resolved with the resolution `check_doc_path_refs.py`
+                          implements, so the two gates cannot disagree about where a link lands.
 
 Run:   python3 scripts/gate/check_registry_prose.py [--show] [--self-test]
 Exit:  0 = clean, 1 = findings (or a corpus too small to trust — a walk that found nothing is a
@@ -42,6 +47,7 @@ Exit:  0 = clean, 1 = findings (or a corpus too small to trust — a walk that f
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import sys
 from pathlib import Path
@@ -53,6 +59,11 @@ from repo_root import require_corpus, root as _hl_root  # noqa: E402
 
 ROOT = _hl_root(__file__)
 TARGETS = [ROOT / "scripts" / "README.md"]
+# The path resolution is OWNED by check_doc_path_refs.py. Importing it, rather than re-implementing a
+# link resolver here, is what keeps this rule and that gate from growing two ideas of where a link
+# lands (HD-1157: "with the same resolution check_doc_path_refs.py already implements").
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import check_doc_path_refs as path_refs  # noqa: E402
 
 TICKET_RE = re.compile(r"\bHD-\d+[a-z]?\b")
 DATE_RE = re.compile(r"\b20\d\d-\d\d-\d\d\b")
@@ -74,6 +85,8 @@ ROW_HEAD = "| Script | What it does | Owning spec |\n|---|---|---|\n"
 
 LINK_CELL_RE = re.compile(r"^\|\s*\[")
 SEP_RE = re.compile(r"^\|[\s:|-]+\|?\s*$")
+# A link inside one table cell — the Owning-spec pointer rule 8 reads.
+CELL_LINK_RE = re.compile(r"\[[^\]]*\]\(<?([^)>\s]+)>?\)")
 
 
 def cells(line: str) -> list[str]:
@@ -81,8 +94,30 @@ def cells(line: str) -> list[str]:
     return re.split(r"(?<!\\)\|", line.strip().strip("|"))
 
 
-def scan(text: str, origin: Path | None = None) -> tuple[list[str], int, int]:
-    """Return (findings, registry_rows, exempt_date_sites)."""
+def owns_pointer(cell: str, origin: str, exists) -> tuple[str, str]:
+    """('', '') when every link in the cell lands; otherwise (target, where it resolved).
+    LINKS ONLY: a bare path mention in prose is `check_doc_path_refs.py`'s jurisdiction, and the
+    exemption list is that module's too (glob, placeholder, URL, frozen archive), so a shape it
+    declares benign is benign here. A cell carrying no link carries no pointer to read — rule 5 owns
+    the missing-cell half."""
+    for target in CELL_LINK_RE.findall(cell):
+        t = target.split("#")[0]
+        if not t or not path_refs.usable(t):
+            continue
+        exempt, _why = path_refs.is_exempt(t, origin)
+        if exempt:
+            continue
+        resolved = path_refs.resolve(origin, "link", t)
+        if not exists(resolved):
+            return t, resolved
+    return "", ""
+
+
+def scan(text: str, origin: Path | None = None, exists=None) -> tuple[list[str], int, int, int]:
+    """Return (findings, registry_rows, exempt_date_sites, pointer_sites). `exists` is the filesystem
+    probe, injectable so the self-test can breed a mis-aimed pointer without touching the tree."""
+    if exists is None:
+        exists = lambda p: (ROOT / p).exists() or (ROOT / p).is_dir()  # noqa: E731
     out: list[str] = []
     where = f"{origin}:" if origin else ""
     lines = text.splitlines()
@@ -97,8 +132,12 @@ def scan(text: str, origin: Path | None = None) -> tuple[list[str], int, int]:
 
     rows = 0
     exempt = 0
+    pointers = 0
     header_cols = 0          # cells in the header of the table currently being read
     seen_dup: set[int] = set()
+    # The origin is what a link is resolved AGAINST: `scripts/README.md`, so `../docs/x.md` lands in
+    # docs/ the way the reader's browser would put it.
+    origin_rel = str(origin).replace(os.sep, "/") if origin else "scripts/README.md"
 
     for i, raw in enumerate(lines, start=1):
         stripped = raw.strip()
@@ -156,13 +195,30 @@ def scan(text: str, origin: Path | None = None) -> tuple[list[str], int, int]:
                     seen_dup.add(i)
                     break
 
-    return out, rows, exempt
+        # Rule 8. `header_cols` is only set once the separator row has been seen, so this never reads
+        # a header cell as an owning spec.
+        if is_row and header_cols >= 2:
+            row_cells = cells(stripped)
+            bad, resolved = owns_pointer(row_cells[-1], origin_rel, exists)
+            if bad:
+                out.append(f"pointer-value  {tag} the Owning-spec link resolves to {resolved!r}, "
+                           f"which is not in the tree — a filled cell is not a right cell: "
+                           f"{stripped[:60]}")
+            elif CELL_LINK_RE.search(row_cells[-1]):
+                pointers += 1
+
+    return out, rows, exempt, pointers
 
 
 def self_test() -> int:
     """Breed each rule and require it to be caught; require each exemption to stay quiet; and
     require an empty corpus to fail loud — the failure this tool exists to prevent is a checker
     that walks nothing and prints OK."""
+    # The tree rule 8 resolves against. Links in a fixture are relative to scripts/README.md, so
+    # `../docs/real.md` lands on docs/real.md — the same resolution the real run uses, with the disk
+    # replaced so the arm tests the resolver and not this checkout.
+    tree = {"docs/real.md", "scripts/gate/x.py"}
+    exists = lambda p: p in tree  # noqa: E731
     cases = [
         ("ticket-id", "| [`x.py`](gate/x.py) | **Does a thing (HD-9)** — fact. | `doc.md` |", 1, []),
         ("iso-date", "| [`x.py`](gate/x.py) | **Fact** — added 2026-01-02. | `doc.md` |", 1, []),
@@ -175,6 +231,19 @@ def self_test() -> int:
                          "|---|---|---|", 1, []),
         ("dup-paragraph", "| [`x.py`](gate/x.py) | **Fact** — " + ("a long factual passage " * 14)
          + ("a long factual passage " * 14) + " | `doc.md` |", 1, []),
+        # HD-1157: the owning-spec cell is FILLED and aimed at a document that is not there. Every
+        # cell count is legal, so only a pointer-value read can see it.
+        ("pointer-value", "| [`x.py`](gate/x.py) | **Fact** — reads the pin, prints a verdict. "
+         "| [spec](../docs/gone.md) |", 1, []),
+        ("pointer-value exempt", "| [`x.py`](gate/x.py) | **Fact** — reads the pin, prints a "
+         "verdict. | [spec](../docs/real.md) |", 0, ["ticket-id", "iso-date", "narrative",
+                                                    "status-glyph", "column-count",
+                                                    "pipe-in-code", "dup-paragraph",
+                                                    "pointer-value"]),
+        ("pointer exempt shapes", "| [`x.py`](gate/x.py) | **Fact** — reads the pin. "
+         "| [glob](../docs/*.md) · [ext](https://e.com/x.md) |", 0,
+         ["ticket-id", "iso-date", "narrative", "status-glyph", "column-count", "pipe-in-code",
+          "dup-paragraph", "pointer-value"]),
         ("clean control", "| [`x.py`](gate/x.py) | **Fact** — reads the pin, prints a verdict, "
          "refuses without one. | `doc.md` |", 0, ["ticket-id", "iso-date", "narrative",
                                                   "status-glyph", "column-count", "pipe-in-code",
@@ -182,7 +251,7 @@ def self_test() -> int:
     ]
     bad = 0
     for name, text, want, muted in cases:
-        findings, rows, exempt = scan(ROW_HEAD + text)
+        findings, rows, exempt, pointers = scan(ROW_HEAD + text, None, exists)
         kinds = {f.split()[0] for f in findings}
         if want == 0:
             if findings:
@@ -193,7 +262,7 @@ def self_test() -> int:
             print(f"  FAIL {name}: canary NOT caught (found {sorted(kinds)})")
             bad += 1
     # the empty-corpus arm: a checker that lost its target must not be able to say OK
-    findings, rows, exempt = scan("")
+    findings, rows, exempt, pointers = scan("", None, exists)
     if rows:
         print("  FAIL empty-corpus: a walk of nothing counted rows")
         bad += 1
@@ -218,19 +287,21 @@ def main() -> int:
     findings: list[str] = []
     rows = 0
     exempt = 0
+    pointers = 0
     for target in TARGETS:
         if not target.exists():
             print(f"FAIL: {target} not found — the registry the gate exists to guard is missing")
             return 1
-        f, r, e = scan(target.read_text(encoding="utf-8"), target.relative_to(ROOT))
+        f, r, e, p = scan(target.read_text(encoding="utf-8"), target.relative_to(ROOT))
         findings += f
         rows += r
         exempt += e
+        pointers += p
     require_corpus(rows, ROW_FLOOR, "registry rows")
 
     if args.show:
         print(f"registry: {rows} linked rows, {exempt} state-date exempt site(s), "
-              f"{len(findings)} finding(s)")
+              f"{pointers} resolved owning-spec pointer(s), {len(findings)} finding(s)")
         return 0
 
     if findings:
@@ -240,7 +311,8 @@ def main() -> int:
             print(f"  - {f}")
         return 1
     print(f"OK: the registry is facts-only — {rows} linked rows, no ticket ids, no dated "
-          f"narrative, every row carries its owning spec ({exempt} state-date exempt site(s))")
+          f"narrative, every row carries its owning spec and that spec resolves "
+          f"({pointers} pointer(s) read, {exempt} state-date exempt site(s))")
     return 0
 
 
