@@ -658,6 +658,41 @@ def read_ledger(path: Path) -> set[tuple[str, str]]:
     return {(item, cls) for item, cls, _t in read_ledger_rows(path)}
 
 
+def containment_receipt() -> Path:
+    """Where a seat records the redactions it has performed. Resolved PER CALL, like `$HL_LEAK_LEDGER`,
+    so a fixture arm can aim it at a temp tree instead of a real seat's state."""
+    return Path(os.environ.get("HL_CONTAINMENT_RECEIPT")
+                or Path.home() / ".local" / "state" / "homelab" / "containment-receipt.jsonl")
+
+
+def read_containment(path: Path | None = None) -> dict[tuple[str, str], dict]:
+    """`(item-prefix, class)` -> the NEWEST receipt row for that pair.
+
+    A receipt is evidence that copies were REDUCED. It is never evidence of a rotation — that is what
+    `CONTAINED` means and why it must never be spelled `STALE` or folded into an OK. A missing or
+    unparseable file yields no rows, which is the same verdict as no containment at all; the LAST row
+    for a pair wins, because a receipt is append-only and the newest act is the one being reported.
+    A row naming a value is not a receipt this fleet would print: the writer prints ids, counts, paths
+    and times for the same reason this file does."""
+    path = path or containment_receipt()
+    out: dict[tuple[str, str], dict] = {}
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return out
+    for line in lines:
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(row, dict) or "item" not in row or "class" not in row:
+            continue
+        out[str(row["item"])[:8], str(row["class"])] = row
+    return out
+
+
 LEDGER_HEADER = [
     "# secret_leak_ledger.txt — CURRENT vault values KNOWN to sit in a run capture, the repo tree, or a",
     "# blob that is still reachable from a ref.",
@@ -785,12 +820,29 @@ def report(res: ScanRun, n_values: int, n_items: int, short: list[str], errs: li
 
     known = set() if strict else read_ledger(ledger_path)
     fresh, ledgered = ledger_split(res.findings, known)
+    contained = read_containment()
+    held: dict[tuple[str, str], str] = {}
+    done: dict[tuple[str, str], str] = {}
     if ledgered:
-        items = sorted({f"{iid[:8]} {cls} ({title})" for _t, _l, iid, title, cls in ledgered})
-        print(f"KNOWN-EXPOSED {len(items)} item+class pair(s) from {ledger_path.name} — each is closed "
-              "by ROTATING the item, then re-deriving the ledger:")
-        for it in items:
-            print(f"  {it}")
+        held = {(iid[:8], cls): title for _t, _l, iid, title, cls in ledgered
+                if (iid[:8], cls) not in contained}
+        done = {(iid[:8], cls): title for _t, _l, iid, title, cls in ledgered
+                if (iid[:8], cls) in contained}
+        if held:
+            items = sorted(f"{k[0]} {k[1]} ({t})" for k, t in held.items())
+            print(f"KNOWN-EXPOSED {len(items)} item+class pair(s) from {ledger_path.name} — each is closed "
+                  "by ROTATING the item, then re-deriving the ledger:")
+            for it in items:
+                print(f"  {it}")
+        if done:
+            print(f"CONTAINED {len(done)} item+class pair(s) — copies were REDUCED by "
+                  "scripts/secrets/contain-leaked-values.py; the VALUE NEVER ROTATED, so this is "
+                  "exposure reduction and the debt stays OPEN (never a close, never a rotation):")
+            for (item, cls), title in sorted(done.items()):
+                row = contained[(item, cls)]
+                print(f"  {item} {cls} ({title}) — {row.get('occurrences', '?')} copy(s) redacted on "
+                      f"{row.get('ts', '?')} at vault version {row.get('vault_version', '?')}, "
+                      f"{len(row.get('paths', []) or [])} path(s) on seat {row.get('seat', '?')}")
     hit_keys = {ledger_key(f) for f in res.findings}
     stale = sorted(k for k in known - hit_keys if k[1] in res.scanned)
     if stale:
@@ -815,6 +867,9 @@ def report(res: ScanRun, n_values: int, n_items: int, short: list[str], errs: li
             print(f"  … {len(fresh) - MAX_PRINTED} more hit(s), same items, not listed")
         return 1
     tail = " — PARTIAL: see NOT SCANNED above" if res.not_scanned else ""
+    if done and not fresh:
+        tail += (f" — CONTAINED pairs are exposure reduction, NOT closure: {len(contained)} pair(s) "
+                 "still hold their value")
     print(f"OK: no current vault value outside the ledger appears in what this run scanned{tail}")
     return 0
 
@@ -1237,6 +1292,47 @@ def self_test() -> int:
         else:
             os.environ["TMPDIR"] = prev_tmp
 
+    # (26) HD-1218: a pair whose COPIES were reduced but whose VALUE never rotated reads `CONTAINED` —
+    # never `STALE` (nothing rotated) and never a bare OK (the copies WERE the finding). The receipt is
+    # the only evidence a redaction happened, so the word must be un-earnable without one.
+    with tempfile.TemporaryDirectory() as td:
+        led = Path(td) / "led.txt"
+        led.write_text("# book\naaaaaaaa\trun-capture\titem_a\n", encoding="utf-8")
+        rec = Path(td) / "receipt.jsonl"
+        hit = [(str(Path(td) / "capture.jsonl"), 3, "a" * 26, "item_a", "run-capture")]
+        keep_rec = os.environ.get("HL_CONTAINMENT_RECEIPT")
+        os.environ["HL_CONTAINMENT_RECEIPT"] = str(rec)
+        try:
+            rc, out = verdict(ScanRun(hit, zero_counts(), 1, {"run-capture"}, {}, []), led)
+            check("a ledgered pair with no receipt stays plain KNOWN-EXPOSED — the word is earned",
+                  rc == 0 and "KNOWN-EXPOSED" in out and "CONTAINED" not in out, out[-160:])
+            rec.write_text(json.dumps({"item": "bbbbbbbb", "class": "run-capture", "seat": "wsl",
+                                       "paths": ["/x/events.jsonl"], "occurrences": 9,
+                                       "vault_version": 2, "ts": "2026-10-30T09:00:00+0100"}) + "\n",
+                           encoding="utf-8")
+            rc, out = verdict(ScanRun(hit, zero_counts(), 1, {"run-capture"}, {}, []), led)
+            check("a receipt for ANOTHER pair does not mute this one — containment is per pair",
+                  rc == 1 or ("KNOWN-EXPOSED" in out and "CONTAINED" not in out), out[-160:])
+            rec.write_text(json.dumps({"item": "aaaaaaaa", "class": "run-capture", "seat": "wsl",
+                                       "paths": ["/x/events.jsonl"], "occurrences": 3,
+                                       "vault_version": 2, "ts": "2026-10-30T09:00:00+0100"}) + "\n",
+                           encoding="utf-8")
+            rc, out = verdict(ScanRun(hit, zero_counts(), 1, {"run-capture"}, {}, []), led)
+            ok_line = [ln for ln in out.splitlines() if ln.startswith("OK:")]
+            check("a contained pair reads CONTAINED with its copy count, and never as STALE",
+                  rc == 0 and "CONTAINED 1" in out and "3 copy(s)" in out and "STALE" not in out,
+                  out[-200:])
+            check("the OK line of a run that contained something says the value still stands",
+                  bool(ok_line) and "NOT closure" in ok_line[0], ok_line[0][:150] if ok_line else "")
+            rc, out = verdict(ScanRun([], zero_counts(), 1, {"run-capture"}, {}, []), led)
+            check("a contained pair whose hit is GONE still prints STALE — copies are not the close",
+                  rc == 0 and "STALE" in out and "aaaaaaaa run-capture" in out, out[-160:])
+        finally:
+            if keep_rec is None:
+                os.environ.pop("HL_CONTAINMENT_RECEIPT", None)
+            else:
+                os.environ["HL_CONTAINMENT_RECEIPT"] = keep_rec
+
     print(f"check_secret_leak.py --self-test: {fails} failing arm(s)")
     if fails:
         return 1
@@ -1250,6 +1346,8 @@ def self_test() -> int:
 
 MUTATIONS = [
     # (label, old source text, new source text, which arm must go red)
+    ("a containment receipt that is read but ignored", "    contained = read_containment()",
+     "    contained = {}", "contained-pair arms"),
     ("shape-only scan (a `=` before the value)",
      "        for needle, iids in needles.items():\n            start = 0",
      "        for needle, iids in needles.items():\n            needle = b\"=\" + needle\n            start = 0",

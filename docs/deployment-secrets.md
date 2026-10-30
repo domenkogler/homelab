@@ -343,9 +343,28 @@ from a runner, these rules are what make it safe *and correct*:
   redaction and a rotation identically, so it is a receipt, never a hit count, that tells them apart
   ([`scripts/gate/secret_leak_ledger.txt`](../scripts/gate/secret_leak_ledger.txt)'s `STALE` means *rotated*, and a
   contained pair is not rotated). Containment that leaves no receipt is indistinguishable from hiding, which is what
-  that header forbids. **A hash of a live value is not the rotation check** for the same reason a hash is not a
+  that header forbids. **The instrument is
+  [`../scripts/secrets/contain-leaked-values.py`](../scripts/secrets/contain-leaked-values.py)** — manual
+  invocation only, `--dry-run` by default, scope DERIVED from the register's `path: none` column and held
+  against `NOT_ROTATABLE` at the moment of the act; it refuses a git object store, the repo tree and its
+  IaC, rendered live config, its own receipt and the invoking lane's own live capture. It appends one 0600
+  row per pair — `(item, class, seat, paths, occurrences, vault version, ts)` — to
+  `~/.local/state/homelab/containment-receipt.jsonl` (`$HL_CONTAINMENT_RECEIPT`, per-seat state and never
+  repo content), and `check_secret_leak.py` reads that file to print `CONTAINED` with the copy count. **A hash of a live value is not the rotation check** for the same reason a hash is not a
   proof anywhere else here: a short credential's hash is an offline guess-check; the vault's per-item `version`
   answers "rotated yet" and reads no value at all ([1password.md](1password.md) §Output hygiene).
+- **A mask at the output seam prevents; it closes nothing, and it can hide.** The pi harness exposes a
+  chained, redaction-capable `tool_result` hook, and every debt in the register arrived as a captured
+  command output, so that hook is the only seam where a value can be stopped before the session JSONL is
+  written. `pi-agent/proposed/vault-mask.ts` is that hook, **authored and not enabled**. What it prevents:
+  the next capture of a CURRENT value by a lane that was never asked to print one. What it could hide: a
+  lane that reads masked output believes the value is gone — the marker is not a redaction of the vault,
+  the debt stays open, `check_secret_leak.py` still finds the copy that was written before the hook
+  existed, and a rotation leg that has to COMPARE a value would be working blind, which is why the bypass
+  (`HL_VAULT_MASK_BYPASS`) is loud and process-scoped rather than a setting. Enabling it means moving the
+  file into `pi-agent/extensions/` and pushing that plane on every seat, which is a fleet-wide harness
+  change and an owner call, not a lane's
+  ([harness-pi-seats.md](harness-pi-seats.md) §1, "An extension that is authored and not enabled").
 - **A minted preauth key is captured, never displayed.** headscale 0.29.4 has no `--output <file>` —
   `-o` is the FORMAT flag — so `preauthkeys create … -o json` writes the value to stdout, and the
   documented mint commands in this repo and in `deployment-manual.md` are therefore only safe inside a

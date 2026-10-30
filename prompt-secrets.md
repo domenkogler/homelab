@@ -53,10 +53,11 @@
   recorded as a rejection: transcript redaction as *remediation*
   ([docs/deployment-rejected.md](docs/deployment-rejected.md)).
 - **The four tools the rows name are tasks, not references** — each is named again where it is owed:
-  `pi-agent/extensions/vault-mask.ts` does not exist yet,
+  `pi-agent/proposed/vault-mask.ts` is authored and deliberately NOT enabled (the plane owns
+  `pi-agent/extensions/**`, so the enable switch is the `git mv` — an owner act),
   `scripts/gate/secret_debt_register.txt` does not exist yet,
   `scripts/gate/check_secret_debt.py` does not exist yet,
-  `scripts/secrets/contain-leaked-values.py` is not committed yet,
+  `scripts/secrets/contain-leaked-values.py` is committed and its `CONTAINED` leg is in the eye,
   and `scripts/git/install-hooks.sh` is not committed yet.
 - **The instrument the tools hang off is finished and honest.** `check_secret_leak.py` matches by **content**
   (`MIN_VALUE_LEN = 8` is the containment floor it will not go under), names the stores it read per class,
@@ -145,9 +146,11 @@ starts protecting the commits the other three are made of.
 
 ### 3c. HD-1216 — the masker at the earliest seam where a value can be stopped
 
-- **File:** `pi-agent/extensions/vault-mask.ts` (to be written; the `extensions` plane already deploys and
-  drift-checks `pi-agent/extensions/**` on all three seats, so nothing new is installed — the repo IS the
-  deployment).
+- **File:** `pi-agent/proposed/vault-mask.ts` — **authored, tested, and left disabled.** The `extensions`
+  plane owns `pi-agent/extensions/**` as a directory glob, so a file committed there is live on every seat;
+  a hook that transforms tool output is a fleet-wide harness change, so it waits in `proposed/`, which the
+  plane cannot see. Enabling it = `git mv` into `pi-agent/extensions/` + `--push` on every seat +
+  `--check --strict`, and that is the owner's act, not this lane's.
 - **The hook is `tool_result`.** It is *chained* — each handler sees what earlier handlers returned — and a
   handler that redacts `content` **must replace `structuredContent` too**, or replacing only `content` drops
   it. That is the one integration detail that decides whether the tool works — the pi package's own
@@ -169,8 +172,8 @@ starts protecting the commits the other three are made of.
 
 ### 3d. HD-1218 — containment, for the values this fleet cannot rotate
 
-- **File:** `scripts/secrets/contain-leaked-values.py` (to be written) — **manual invocation only**, never a
-  `validate-all.sh` item, never an automatic sweep.
+- **File:** `scripts/secrets/contain-leaked-values.py` (committed) — **manual invocation only**, never a
+  `validate-all.sh` item, never an automatic sweep. `--dry-run` is the default; `--apply` is the act.
 - ⚠ **Two lists, one misleading name.** `NOT_AUTO_ROTATABLE` in
   [`scripts/secrets/provision-secrets.py`](../scripts/secrets/provision-secrets.py) is the **auto-rotation
   guard**: it asserts one narrow thing — *a vault-only `--rotate` write here would leave the far end running the
@@ -276,20 +279,25 @@ follows them. Clearing this is **not** a trim: it is the state-only rule (CONVEN
 
 ### Phase 3 — the masker (HD-1216)
 
-- [ ] `pi-agent/extensions/vault-mask.ts`: the chained `tool_result` handler, `structuredContent` included,
-      one batched read per process, the loud rotation bypass.
-- [ ] Push the plane on every seat, then `sync-extensions.sh --check --strict` green.
-- [ ] The acceptance read: the recurring item stops appearing on the next run. Name the seat.
+- [x] `pi-agent/proposed/vault-mask.ts`: the chained `tool_result` handler, `structuredContent` and
+      `details` included, one batched read per process asked for from the eye's own needle map, the loud
+      rotation bypass. Arms: `bun pi-agent/proposed/vault-mask.selftest.ts` (9 arms, zero vault requests).
+- [ ] ⏳ **OWNER:** enable it — `git mv` into `pi-agent/extensions/`, `sync-extensions.sh --push` on every
+      seat, `--check --strict`. Not run tonight: the file was pushed to the wsl seat during this lane and
+      removed again, and `--check --strict` is green with it absent.
+- [ ] The acceptance read, after the owner enables it: the recurring item stops appearing on the next run.
 - [ ] `todo.md` — HD-1216's tail.
 
 ### Phase 4 — containment (HD-1218)
 
 - [ ] Land the two halves of the ruling: `NOT_ROTATABLE` in `provision-secrets.py` and the register's `path:`
       column (§3d), plus the arm that reddens when they disagree.
-- [ ] Write `scripts/secrets/contain-leaked-values.py` (not committed yet) and the `CONTAINED` verdict in
-      `check_secret_leak.py`, both halves covered by `--self-test` arms that read no vault.
-- [ ] One `--dry-run` over the stores on this seat: ids and counts only, then the real run, then the scanner's
-      before/after hit count as the proof that a mask landed.
+- [x] `scripts/secrets/contain-leaked-values.py` and the `CONTAINED` verdict in `check_secret_leak.py`, both
+      halves covered by arms that read no vault (13 arms + one mutation arm in the eye).
+- [x] One `--dry-run` over the stores on this seat: 3 items in scope, 526 files read, `2 occurrence(s) across
+      1 file(s)`, and a shared-value refusal that found something (the row's tail names it: `spark_login` carries the
+      Soulseek bytes).
+- [ ] ⏳ **OWNER:** `--apply` — it rewrites past captures irreversibly for two copies and closes nothing.
 - [ ] `todo.md` — HD-1218's tail, and the register lines that now read `CONTAINED` stay open.
 
 ### Phase 5 — the rotations, by shape
