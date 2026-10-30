@@ -67,9 +67,13 @@
   listed in [docs/1password.md](docs/1password.md) §Where a token is installed — so nothing here waits on a
   re-seat, and a `403` with a freshly written token file is the running shell beating the file, not a bad
   install (§Proving which service account an install holds).
-- **This seat is the WSL Debian clone on the laptop**, served by spark — so Rule 0 binds it: no spark engine
-  restart and no `spark-ai` re-render from a session like this one (README §3). Every rotation that needs the
-  spark window is therefore parked, and parking it is the correct outcome, not a stall.
+- **This seat is the WSL Debian clone on the laptop**, served by spark — so the spark-served dispatch filter binds
+  the whole run: no child against the spark engine brief, and no converge that is not provably engine-safe
+  ([docs/orchestration.md](docs/orchestration.md) §4). HD-1170's rotation is neither — it recreates the engine to move
+  its `--api-key` argv — so every rotation that needs the spark window is parked here, and parking it is the correct
+  outcome, not a stall. ⛔ Rule 0 is the *timed-number* rule and HD-1170's row says the tree carries no
+  `PI_PROVIDER=spark` guard: argue the park from this filter and from the row's own preflight, never from a guard that
+  does not exist.
 
 ## 2. The register read — the only list this brief uses
 
@@ -222,8 +226,10 @@ stated here is the channel each one closes through:
 - **lane, inside the spark window:** `spark-llm_api` with `litellm-engine_api` riding it — see §4b.
 - **lane + owner split:** `spark_login` — `passwd` on the box is a lane act, the vault write is not, because the
   item lives in the human vault. Prove the fresh SSH in a second session before anyone reboots.
-- **owner:** `immich_oidc` (an owner call — ruling S4) and `pgvector_db`, which closes when the owner deletes the
-  item **with** the retired paths it guards; a vault write there is the divergence the guard names.
+- **owner:** `immich_oidc` (an owner call — ruling S4), `pgvector_db`, which closes when the owner deletes the
+  item **with** the retired paths it guards (a vault write there is the divergence the guard names), and the item the
+  ledger titles `slskd slskd@kogler.si` — a value **no IaC file reads**, so the close is the owner rotating it or
+  retiring the item, never a re-render.
 - **nobody:** the `pppoe_login` and Soulseek-account lines — containment is the only act available, it lowers the
   copy count, and it closes nothing.
 
@@ -325,8 +331,8 @@ class this brief exists to close. The answer to "was this process started with t
   can make the corpus non-empty while `$HOME` holds nothing. If a run does not name `pi-transcripts` among the
   stores it read, its silence about a persistent-store debt is `NOT JUDGED`, not `OK`.
 - **A ledger line for a live value that a re-derive mints is a mute button.** `--update-ledger` may drop lines;
-  it must never be run to make a red gate quiet. The gate is red at the tip **until a rotation lands** — that
-  red is the design.
+  it must never be run to make a red gate quiet. A live value the ledger does not name **reddens** the run, and that
+  red is the design; a ledger that carries the debt by name is what makes the same run green and honest.
 - **`--self-test` must cost nothing.** Any new leg that reaches the vault from a fixture arm is a gate that
   fails on an offline seat and spends the shared account budget for a test.
 - **Seat parity.** Every new leg runs on the Win11 Git-Bash seat too: pin stdout/stderr to UTF-8 the way the
@@ -370,8 +376,8 @@ Plus, per tool, the cheap test that only passes because of the fix: the version-
 ## 10. Held out on purpose
 
 The rotations themselves — each driven by the lane that owns the item and the slot it needs (§4a), never from
-this brief · every spark-window act, including HD-1170's close, which a spark-served
-session may not run (Rule 0) · the router-slot legs the WireGuard pair and the device SNMP community wait on · HD-1174's
+this brief · every spark-window act, including HD-1170's close, which the spark-served dispatch filter (not Rule 0)
+keeps off this seat · the router-slot legs the WireGuard pair and the device SNMP community wait on · HD-1174's
 kopia connect-line scrub, which is `prompt-storage-backup.md`'s cell · HD-442's rendered seat token, owned by
 `prompt-seat-cockpit-grants.md` · the app-side rotations HD-384 and HD-1091, owned by the litellm-consumers and
 media lanes · the Win11 seat-parity class HD-1202, which every new script here inherits but no lane closes
