@@ -949,8 +949,9 @@ class, because an unlisted spelling is the same gap wherever it is typed, and
 [`scripts/harness/seed-seat-ssh-config.sh`](../scripts/harness/seed-seat-ssh-config.sh) refuses a render that
 drops it), [`scripts/ansible/ak-shell.sh`](../scripts/ansible/ak-shell.sh) passes
 `-o IdentityFile=~/.ssh/ansible-admin_ssh -o IdentitiesOnly=yes`, and
-[`scripts/ansible/seed-runner-ssh.sh`](../scripts/ansible/seed-runner-ssh.sh)'s `KEY` defaults to the
-canonical file. **Rule: leave the file, named by no alias, and retire it only when every leg that
+and [`scripts/ansible/seed-runner-ssh.sh`](../scripts/ansible/seed-runner-ssh.sh) names the canonical file
+in the jump block it writes — canonical **first**, falling back to the default path only where the box holds
+nothing else, and printing which of the two it chose. **Rule: leave the file, named by no alias, and retire it only when every leg that
 reaches it by a bare FQDN names its identity and both forms of the probe below answer rc 0 with the file
 aside** — a measured dependence, not an exemption.
 

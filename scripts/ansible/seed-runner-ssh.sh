@@ -30,11 +30,27 @@ JUMP_HOST="${RUNNER_JUMP_HOST:-vps}"
 JUMP_ADDR="${RUNNER_JUMP_ADDR:-vps.kogler.si}"   # name, never an IP literal: split-horizon answers it
 JUMP_USER="${RUNNER_JUMP_USER:-ansible-admin}"
 # The canonical automation file, NOT ssh's default identity path (HD-1125): the block below pins
-# `IdentitiesOnly yes`, so this value is the ONLY key the jump leg offers, and pointing it at
-# `~/.ssh/id_ed25519` would make every jumped leg on a fresh runner depend on whatever sits at the
-# default path — the name this fleet is retiring. `RUNNER_IDENTITY` overrides it for a seat whose
-# automation half carries another canonical name.
-KEY="${RUNNER_IDENTITY:-$HOME/.ssh/ansible-admin_ssh}"
+# `IdentitiesOnly yes`, so this value is the ONLY key the jump leg offers and pointing it at
+# `~/.ssh/id_ed25519` would make every jumped leg depend on the name this fleet is retiring. But on a box
+# seeded before the canonical name was placed, the automation half still sits at ssh's DEFAULT path, and a
+# block naming a file that is not there is a dead jump — so the choice is made by EXISTENCE, canonical
+# first, and the fallback is printed instead of silent. `RUNNER_IDENTITY` overrides the search.
+KEY="${RUNNER_IDENTITY:-}"
+if [ -z "$KEY" ]; then
+    for _cand in "$HOME/.ssh/ansible-admin_ssh" "$HOME/.ssh/id_ed25519"; do
+        if [ -f "$_cand" ]; then KEY="$_cand"; break; fi
+    done
+    KEY="${KEY:-$HOME/.ssh/ansible-admin_ssh}"
+    if [ "$KEY" = "$HOME/.ssh/id_ed25519" ]; then
+        echo "note: no ~/.ssh/ansible-admin_ssh on this box, so the jump names the DEFAULT-path file —"
+        echo "      the name HD-1125 exists to retire. Place the canonical pair, then re-run this script"
+        echo "      (docs/network-vpn.md §Canonical identity file names)."
+    fi
+fi
+if [ ! -f "$KEY" ]; then
+    echo "note: the jump identity does not exist yet ($KEY) — the block is written and the jump will" >&2
+    echo "      authenticate as soon as it is placed (scripts/ansible/restore-runner-key.sh)." >&2
+fi
 CFG="$HOME/.ssh/config"
 MARKER_START="# >>> seed-runner-ssh: $JUMP_HOST jump (HD-407) >>>"
 MARKER_END="# <<< seed-runner-ssh: $JUMP_HOST jump (HD-407) <<<"
