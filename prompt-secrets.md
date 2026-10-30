@@ -289,8 +289,8 @@ follows them. Clearing this is **not** a trim: it is the state-only rule (CONVEN
 
 - [x] `pi-agent/extensions/vault-mask.ts`: the chained `tool_result` handler, `structuredContent` and
       `details` included, one batched read per process asked for from the eye's own needle map, the loud
-      rotation bypass. Arms: `bun pi-agent/proposed/vault-mask.selftest.ts` (9 arms, zero vault requests —
-      the child env is passed explicitly, since the fixture seam is otherwise seat-dependent).
+      rotation bypass. Arms: `node --experimental-strip-types pi-agent/proposed/vault-mask.selftest.ts`
+      (9 arms, zero vault requests; the child env is explicit, so the seam holds on any runner).
 - [x] Enabled: the file sits in `pi-agent/extensions/`, `sync-extensions.sh --push` ran on every seat and
       `--check --strict` is green on each.
 - [ ] The acceptance read: the recurring item stops appearing on the next run.

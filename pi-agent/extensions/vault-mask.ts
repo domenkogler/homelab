@@ -104,11 +104,13 @@ function load(): State {
 	const res = spawnSync("python3", ["-c", py, `${root}/scripts/gate`], {
 		encoding: "utf8",
 		maxBuffer: 64 * 1024 * 1024,
-		// The env is handed over EXPLICITLY, because the seats disagree about the implicit form: a child
-		// spawned without `env:` gets the environment as it stood when the process STARTED, so an
-		// in-process assignment (the fixture seam `HL_VAULT_READ_FIXTURE`, a leg that sets its own route)
-		// reaches the reader on the Debian bun and NOT on the Windows one — where the same arm silently
-		// reads the live vault instead of the fixture. Stating the env is the only form both agree on.
+		// The child env is STATED rather than assumed. A spawn with no `env:` leaves what the child
+		// inherits to the runner, and a runner that snapshots the environment block at process start hands
+		// over the environment as it stood BEFORE the parent's in-process assignments — and both seams this
+		// leg depends on are set in-process: the fixture `HL_VAULT_READ_FIXTURE` and a leg's own route
+		// choice. An assumed env can therefore read the LIVE vault where the arm believes it set a fixture.
+		// Under node, the runtime pi runs on, the assignment propagates either way; passing `env:` is what
+		// makes this leg independent of whichever runner is handed the file.
 		env: process.env,
 	});
 	if (res.error) return { kind: "off", why: `python3 could not run: ${res.error.message}` };

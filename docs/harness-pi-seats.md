@@ -172,22 +172,24 @@ it could hide — are written once in [deployment-secrets.md](deployment-secrets
 Workflow); its arms stay outside the glob in
 [`../pi-agent/proposed/vault-mask.selftest.ts`](../pi-agent/proposed/vault-mask.selftest.ts), because a
 self-test deployed into `~/.pi/agent/extensions` is LOADED as an extension by every session on every seat
-and would run its fixtures inside them. Arms: `bun pi-agent/proposed/vault-mask.selftest.ts` where the
-seat's pi release ships `bun` (the laptop classes do, under `~/.local/share/pi-node/current/bin/`), and
-`node --experimental-strip-types pi-agent/proposed/vault-mask.selftest.ts` where it ships only node (the
-`oldsrv` cockpit) — the file is erasable-syntax-only TypeScript, so node's own type-stripping runs the same
-nine arms; a missing `bun` on a seat is therefore never a reason to skip them.
+and would run its fixtures inside them. Arms: `node --experimental-strip-types
+pi-agent/proposed/vault-mask.selftest.ts` — the file is erasable-syntax-only TypeScript, so node's own
+type-stripping runs the same nine arms, and node is the runtime pi itself runs on (each seat's `pi`
+launcher execs a node binary: Volta's `$basedir/node` on the Windows seat, the pinned
+`~/.local/share/pi-node/current/bin/node` prefix on the Debian ones). The arms therefore have no
+runtime-dependent SKIP: the runner they need is the one pi is already running on.
 
-**A seat leg hands its child the environment explicitly, because the implicit form is seat-dependent.** A
-child spawned with no `env:` option gets the environment as it stood when the parent PROCESS started, so an
-assignment the parent made in-process never reaches it — and the seats disagree about whether that is true,
-because their runtimes are not the same build (the Debian seat's propagates, a Windows bun snapshot does
-not). The tell is a fixture seam the test believes it set: the leg reads the LIVE vault instead of the
-fixture, so a self-test documented as costing ZERO vault requests costs real ones and its value-matching
-arms go red on one seat only. Which way a seat behaves is one probe — mutate `process.env`, read it back in
-a spawned child. The rule: pass `env: process.env`, and let the arm that plants the fixture prove the
-fixture was read (the reader's `requests=0` in the load line is that proof, and it is the half that blocks
-the silent live read).
+**A JS leg states its child's environment instead of assuming it.** A spawn with no `env:` option leaves
+what the child inherits to the runner, and a runner that snapshots the environment block at process start
+hands over the environment as it stood BEFORE the parent assigned anything in-process — so a fixture seam
+(`HL_VAULT_READ_FIXTURE`) or a leg's own route choice, both set in-process, is silently IGNORED and the leg
+reads the LIVE store instead of the fixture: a self-test documented as costing ZERO vault requests costs
+real ones, and its value-matching arms go red on one runner only. The tell is exactly that split — the same
+arm green and red for the same code — and the question is one probe: mutate `process.env`, read it back in
+a spawned child. Under node, the runtime pi and this repo's JS legs run on, the assignment propagates both
+implicitly and with `env: process.env`; stating the env is what keeps the answer from depending on whoever
+executes the file. The half that actually blocks the silent live read is the arm that plants the fixture
+and proves the fixture was the thing read (the reader's `requests=0` in the load line is that proof).
 
 ---
 ## 5. Reference `~/.pi/agent/settings.json` (harness tuning)
