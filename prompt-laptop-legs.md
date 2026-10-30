@@ -17,8 +17,8 @@ scripts/harness/pi` before any render hunk. The owner hands are single-seat by d
 
 **What this lane is not:** there is **no agent leg on this runtime** — the four `agent-*` profiles are out of the catalogue,
 `client_context_window: 150016` is deleted, the context windows are pinned FIM **8 192** / vision **32 768**
-(`scripts/bench/laptop/profiles.yml:294`, `:303` and `:256`; mirrored in `scripts/harness/pi/models-spec.yml:196`, `:208` for the
-`laptop-lmstudio` provider at `scripts/harness/pi/models-spec.yml:152`), and the slot does **not** fall back to spark. The
+(`scripts/bench/laptop/profiles.yml:294`, `:303` and `:256`; mirrored as the two `contextWindow` values of the
+`laptop-lmstudio` provider in `scripts/harness/pi/models-spec.yml`), and the slot does **not** fall back to spark. The
 ruling and its measurements are in [docs/hardware-workstation.md](docs/hardware-workstation.md) §Served leg and the retired leg
 is logged in [docs/services-ai-rejected.md](docs/services-ai-rejected.md) — do not restate or re-decide it here.
 
@@ -31,7 +31,7 @@ measurements behind the numbers you will re-take.
 
 | # | Row | Do | Gate / trap |
 |---|-----|----|-------------|
-| 1 | **HD-474** | Two owner hands **on the Win11 seat**, in order: (1) `op signin`, then `python scripts\render-pi-config.py pi --host Domen_P14s --check` — the render must carry exactly the vision + FIM rows and **no agent row**; (2) `lmstudio-llm.ps1 switch -Profile vision-qwen3vl-30b`, then `python scripts\laptop-llm.py probe-client` | `probe-client` must **PASS, not SKIP** — a SKIP run taken from oldsrv is correct and proves nothing. Its residency half is load-bearing because the endpoint does **not** police the `model` field: with one leg resident, a request naming the other leg is answered by the resident one, so a stale row is silent, not loud. ⚠ Hostnames canonicalise (`Domen_P14s` == `domenp14s`). ⏳ AI-side and still unmeasured: the FIM leg's **trigger latency** inside Continue's 150–400 ms budget — `probe-fim` resolves that leg by its `insert` capability, not by the dial's name |
+| 1 | **HD-474** | Two owner hands **on the Win11 seat**, in order: (1) `op signin`, then `python scripts\render-pi-config.py pi --host Domen_P14s --check` — the render must carry exactly the vision + FIM rows and **no agent row**; (2) `lmstudio-llm.ps1 switch -Profile vision-qwen3vl-30b`, then `python scripts\laptop-llm.py probe-client` | `probe-client` must **PASS, not SKIP** — a SKIP run taken from oldsrv is correct and proves nothing. Its residency half is load-bearing because the endpoint does **not** police the `model` field: with one leg resident, a request naming the other leg is answered by the resident one, so a stale row is silent, not loud. ⚠ Hostnames canonicalise (`Domen_P14s` == `domenp14s`). ⏳ AI-side and still unmeasured: the FIM leg's **trigger latency** inside Continue's 150–400 ms budget — `probe-fim` resolves that leg by its `insert` capability, not by the dial's name, and `probe-speed --ttft --prompt-file <real prose>` is the shape that measures it. Until it lands, `fim-coder-3b` stays `certified: false` and the dial keeps `allow_uncertified: true` for that reason and no other |
 | 2 | **HD-476** | Take the one number this leg owes: exercise the 32k window with image tokens **actually resident** in the KV — `python scripts\laptop-llm.py probe-vision --image <the 8160x6120 rack photo> --expect CAT6` against the loaded leg, reading the PDH **dedicated-memory** counter through the prefill | `--expect CAT6` is a whole-frame string the model supplies reliably; the switch **part number** is not (a wide-frame misread, since pixel allocation, not sight). The declared 23.51 GiB budget is header arithmetic plus a text-only 32k load today — ~4 k image tokens land in the same KV, so without this the budget is unproven |
 
 ## ⛔ Traps that cost a round
@@ -55,6 +55,9 @@ measurements behind the numbers you will re-take.
   than what the seat runs.
 * `scripts/bench/laptop-llm.py gate --self-test` is the offline canary and is the only part of the tool that can run away from the seat
   — say which of `gate` / `probe-*` you actually ran.
+* **A `contextWindow` in `scripts/harness/pi/models-spec.yml` and a `num_ctx` in the dial that ship in DIFFERENT commits 400s
+  mid-session.** Nothing in the stack catches that drift except `probe-client`, so a window change is one commit touching both
+  files — and that is also why this brief names the two keys rather than their line numbers.
 
 ## Owns / never touches
 
