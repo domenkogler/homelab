@@ -836,8 +836,9 @@ def _self_test() -> int:
     # (HD-1117 — it used to write the real file and restore it from a byte snapshot in `finally`):
     # the assertion "the gate sees the duplicate" is equally evidence either way, and a crash can no
     # longer leave a fabricated row in the backlog because there is no write that could leave one.
-    dup_row = ("| HD-476 | 2 | AI | 1 | canary second claimant — ⏳ a tail so it is not "
-               "also flagged fully_done · [x](docs/index.md) |\n")
+    # The canary id is DERIVED from the registry, never hard-coded: when HD-476 closed on 2026-10-30 the
+    # injected "duplicate" became the file's ONLY HD-476 row, so the gate correctly found no duplicate and
+    # this item reddened for a row that had legitimately closed. A pinned id rots the day its row does.
     sub_row = ("| HD-900z | 2 | AI | 1 | canary sub-ID — ⏳ tail · [x](docs/index.md) |\n")
 
     def _dup_gate(payload: str, subtasks: frozenset[str] = frozenset()) -> list[str]:
@@ -881,18 +882,27 @@ def _self_test() -> int:
     if original is not None:
         try:
             lines = original.decode("utf-8").splitlines(keepends=True)
-            # Insert after the LAST row line, so the canary lands in the final module section —
-            # a different section from every real HD-476 row, which is the shape that hid it.
-            idx = max(i for i, ln in enumerate(lines) if ln.startswith("| HD-")) + 1
-            mutated = "".join(lines[:idx]) + dup_row + "".join(lines[idx:])
-            if "476" not in _dup_gate(mutated):
-                fails.append("duplicate-ID gate missed a second row heading HD-476 "
-                             "(the exact failure that reached main twice)")
-            # Proof the canary is load-bearing, not decorative: without the injected row the
-            # same file must NOT report 476, else the check would pass on any registry.
-            if "476" in _dup_gate("".join(lines)):
-                fails.append("canary is not discriminating: HD-476 already duplicated in todo.md "
-                             "on main — investigate before trusting this self-test")
+            # Derive the id to duplicate from the registry itself (first row line — the last section holds
+            # the newest ids, so the injected twin lands in a DIFFERENT section: the shape that hid it).
+            stem_match = re.search(r"^\| HD-([0-9]+)", "".join(lines), re.M)
+            if not stem_match:
+                fails.append("cannot derive a canary row id — todo.md parsed with no '| HD-' row line")
+            else:
+                canary_id = stem_match.group(1)
+                dup_row = (f"| HD-{canary_id} | 2 | AI | 1 | canary second claimant — ⏳ a tail so it is not "
+                           "also flagged fully_done · [x](docs/index.md) |\n")
+                # Insert after the LAST row line, so the canary lands in the final module section —
+                # a different section from every real HD-<id> row, which is the shape that hid it.
+                idx = max(i for i, ln in enumerate(lines) if ln.startswith("| HD-")) + 1
+                mutated = "".join(lines[:idx]) + dup_row + "".join(lines[idx:])
+                if canary_id not in _dup_gate(mutated):
+                    fails.append(f"duplicate-ID gate missed a second row heading HD-{canary_id} "
+                                 "(the exact failure that reached main twice)")
+                # Proof the canary is load-bearing, not decorative: without the injected row the
+                # same file must NOT report a duplicate, else the check would pass on any registry.
+                if canary_id in _dup_gate("".join(lines)):
+                    fails.append(f"canary is not discriminating: HD-{canary_id} already duplicated in "
+                                 "todo.md on main — investigate before trusting this self-test")
             # Un-registered sub-ID → flagged. Registered → silent. Both halves, or the
             # exemption is a hole nobody tested.
             if "900" not in _dup_gate(sub_row):

@@ -318,9 +318,9 @@ not this list, holds the steps, the file ownership and the converge host. Waves,
    code-retrieval candidate inside that bench (OQ-14 stays open on that axis and is called **at the memory plane's
    build** — HD-1178 rides that build instead of running alone, and the docs half stands parked).
    → [prompt-litellm-consumers.md](prompt-litellm-consumers.md)
-10. ⏳ **The Win11 seat's serving legs** — **HD-474** FIM latency and **HD-476** the VL `mmproj` on the iGPU. The
-    laptop's local **agent** leg is retired, so this brief is FIM + vision only and claims no converge host — which is
-    why it can run beside anything except a live pi-seat lane. → [prompt-laptop-legs.md](prompt-laptop-legs.md)
+10. ⏳ **The Win11 seat's serving legs** — **HD-474** FIM latency. The vision leg's declared 32k budget is exercised
+    and closed, so this brief carries FIM; the laptop's local **agent** leg is retired and it claims no converge host,
+    which is why it can run beside anything except a live pi-seat lane. → [prompt-laptop-legs.md](prompt-laptop-legs.md)
 11. ⏳ **The `scripts/` restructure** — **landed**: `scripts/` is now `lib/ gate/ ansible/ secrets/ git/ harness/ bench/
     hardware/ testdata/` with `validate-all.sh` + `render_all.py` at root, root resolution is structural, and
     `gate/check_script_layout.py` holds the tree from inside `validate-all.sh`. **Three live legs stay in the row.**
