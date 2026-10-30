@@ -22,7 +22,7 @@
 
 - name: "bazarr-seed: shape the live settings into the form the POST takes"
   # The tag is not decoration: an UNTAGGED task inside an included file is filtered out by a `--tags`
-  # run (docs/deployment-ansible.md §Filtered runs), which would expand the include, run nothing from it
+  # run (docs/deployment-ansible.md §Tags & surgical runs), which would expand the include, run nothing from it
   # and leave `_bz_live_body` undefined for the caller — a confusing failure three tasks later.
   ansible.builtin.set_fact:
     _bz_live_body:
