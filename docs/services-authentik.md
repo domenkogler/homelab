@@ -175,6 +175,18 @@ volume live in [`deployment-oidc.md`](deployment-oidc.md); the glue step is refe
      `check_redirect_uri`: `self.redirect_uri == allowed.url`); REGEX entries use `fullmatch`. Custom
      schemes are accepted (`FORBIDDEN_URI_SCHEMES` blocks only javascript/data/file-style ones) —
      Immich's `app.immich:///oauth-callback` and OpenCloud's `oc://android.opencloud.eu` both live.
+     **Authentik has no port-agnostic loopback matching**, so an RFC 8252 loopback callback — the
+     OpenCloud **desktop** client's `http://127.0.0.1:<port>`, on a port the OS assigns per run
+     (`Theme::oauthPorts()` returns `{0}`) — needs a REGEX entry (`http://127\.0\.0\.1:[0-9]+`);
+     a strict entry there can never match. Keycloak's port-lenient loopback handling is why the
+     same client works with a bare `http://127.0.0.1` in upstream's own Keycloak client files.
+   - **Per-platform OpenCloud callbacks, read off each client's own source** (one shared `client_id`,
+     never a per-platform provider): Android `oc://android.opencloud.eu` (hardcoded in the app's
+     `setup.xml`, intent-filtered in its manifest), iOS `oc://ios.opencloud.eu` (the SDK's own
+     `OCAuthenticationMethodOAuth2RedirectURI` default, `oc` scheme registered in Info.plist), Desktop
+     the loopback URI above. WebFinger advertises the shared id to every platform
+     (`WEBFINGER_<PLATFORM>_OIDC_CLIENT_ID=web`) — verified live, `platform=ios|desktop` both return
+     `client_id: web` and scopes including `offline_access`.
    - **`token_endpoint_auth_methods_supported` decides how a native client authenticates.** Authentik
      advertises only `client_secret_post` + `client_secret_basic` (no `none`), so the OpenCloud Android
      app sends `client_id` (+ empty `client_secret`) in the POST body with PKCE

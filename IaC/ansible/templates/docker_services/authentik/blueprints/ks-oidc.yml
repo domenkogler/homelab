@@ -239,13 +239,25 @@ entries:
       # intent-filtered in its AndroidManifest. STRICT comparison is BYTE-EXACT
       # (authentik providers/oauth2/views/authorize.py: `self.redirect_uri == allowed.url`), so
       # this entry must stay identical to what the client sends — add the trailing-slash variant
-      # rather than editing this one if a client ever sends one. Desktop/iOS share the client_id
-      # but have their OWN scheme callbacks; add their entries when those clients onboard.
+      # rather than editing this one if a client ever sends one. Desktop/iOS share the client_id but
+      # carry their OWN callbacks, read off each client's own source, never guessed:
+      #   iOS   `oc://ios.opencloud.eu` — the SDK's own default redirect
+      #         (opencloud-eu/ios-sdk, OCAuthenticationMethodOAuth2.m `OCAuthenticationMethodOAuth2RedirectURI`),
+      #         and the Info.plist registers the `oc` scheme, so strict matching applies.
+      #   Desktop is NOT a scheme callback: it is an RFC 8252 loopback redirect on an OS-assigned
+      #         port — `redirectUrlC()` = `http://127.0.0.1` and `Theme::oauthPorts()` = `{0}`
+      #         ("zero means a random port"), both in opencloud-eu/desktop `src/libsync/creds/oauth.cpp`
+      #         + `src/libsync/theme.cpp`. A strict entry can therefore never match (the port changes every
+      #         run), so this needs a REGEX entry — Authentik `fullmatch`es regex entries and does NOT
+      #         implement the port-agnostic loopback matching Keycloak does, which is why upstream's own
+      #         Keycloak client file can get away with a bare `http://127.0.0.1` and we cannot.
       client_type: public
       redirect_uris:
         - {url: "https://file.kogler.si/oidc-callback.html", matching_mode: strict}
         - {url: "https://file.kogler.si/oidc-silent-redirect.html", matching_mode: strict}
         - {url: "oc://android.opencloud.eu", matching_mode: strict}
+        - {url: 'oc://ios.opencloud.eu', matching_mode: strict}
+        - {url: 'http://127\.0\.0\.1:[0-9]+', matching_mode: regex}
       signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
       sub_mode: hashed_user_id
       # Pin grant_types explicitly: a blueprint upsert writes an absent attr as an empty
