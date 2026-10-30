@@ -406,8 +406,11 @@ hold that, and neither is the leak ledger:
 - [`scripts/gate/check_secret_debt.py`](../scripts/gate/check_secret_debt.py) answers **`rotated
   yet?`** from the vault's per-item `version` numbers (the same reason a hash is not the check: a short
   credential's hash is an offline guess-check, a version reads no value at all) crossed with the
-  ledger's pair set: `NOT ROTATED` (version unmoved, hit standing) / `CANDIDATE` (version moved, hit
-  standing — rotate-then-re-derive, the propagation half is missing) / `CLOSED` (version moved AND a
+  ledger's pair set. The read is names-first — one request, no value at all — and the tool says so
+  when this SDK release's list rows carry no versions and the batched read had to answer instead;
+  values reach memory, never the print. The verdicts: `NOT ROTATED` (version unmoved, hit standing) /
+  `CANDIDATE` (version moved, hit standing — rotate-then-re-derive, the propagation half is missing) /
+  `CLOSED` (version moved AND a
   re-derive proved the pair absent) / `GONE` (the vault answers no such item) / `NOT JUDGED` (another
   seat's line, or a store this run could not read). The pair the ledger alone cannot tell apart is the
   reason the checker exists: a pair that LEFT the ledger with its version UNMOVED prints `REFUSED` and
@@ -449,6 +452,23 @@ hold that, and neither is the leak ledger:
   the persistent transcript store cannot close its own lines (the measurement in the bullet above is
   why), and a line is closable only by the seat that recorded it. A seat the book carries no line for
   prints `NOT RECORDED`: a debt in a store nobody read is unknown, not absent.
+- **The ledger is seat-blind and the derivation is not, so a one-seat re-derive cannot be trusted with
+  another seat's `run-capture` line.** [`secret_leak_ledger.txt`](../scripts/gate/secret_leak_ledger.txt)
+  is keyed `<item-id-prefix>\t<class>\t<title>` with no
+  seat column, while `--update-ledger --class run-capture` derives from ONE seat's capture stores. The
+  drop guard therefore asks a class question where the debt is a seat question: it prints
+  `dropped <item> run-capture … — proven ABSENT this run` for a pair that is live in a store this run
+  never read (measured: a `win11` re-derive drops 4 lines whose debt sits in `wsl`'s stores), and what
+  it actually proved is that THIS seat's stores do not hold it. The same blindness shows on the read
+  side: a one-seat scan prints those foreign lines under `STALE ledger lines (no hit this run)`, which
+  invites somebody to delete a debt another store still holds — a class the run did read is treated as
+  evidence about every store, and it is evidence about one. The correct act is per-seat and
+  additive: on each seat derive into a temp book through the tool's own `$HL_LEAK_LEDGER` seam, then
+  commit the UNION of those books — never a single seat's derivation over the committed file. ⛔ A
+  `run-capture` line leaves this book only on the seat that recorded it, and a line whose pair is
+  carried by two seats is two debts, closed once per store. Making the drop guard seat-aware — so a
+  one-seat run cannot drop a line another seat recorded — is the machine half carried by the row that
+  links here.
 - **The no-rotation-path ruling lives in two places and an arm holds them equal**: the register's
   `path: none` column, and `NOT_ROTATABLE` in
   [`scripts/secrets/provision-secrets.py`](../scripts/secrets/provision-secrets.py). It is NOT
