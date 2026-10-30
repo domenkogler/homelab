@@ -38,6 +38,16 @@
 # this script covers every worktree of the clone with ONE install, and why `--self-test` builds a
 # real linked worktree and asserts the hook is where THAT worktree looks.
 #
+# THE SAME FALSE GREEN, FROM THE OTHER SIDE: an answer that is ALREADY absolute
+# ----------------------------------------------------------------------------
+# `--git-path` answers a relative `.git/hooks` in the main checkout and an ABSOLUTE path in a linked
+# worktree, and on a Windows seat that absolute answer is a drive path (`D:/repo/.git/hooks`) or a
+# UNC share (`//host/share/repo/.git/hooks`) — neither starts with `/`. Treating absolute-ness as
+# "starts with `/`" joins the answer to the checkout root anyway, which mints a directory literally
+# named `D:` inside the worktree, installs the hook where git never looks, reports a successful
+# install, and leaves `--check` reporting MISSING from that worktree forever. An absolute answer is
+# therefore used AS IT STANDS; only a relative one is joined, to the directory the `-C` named.
+#
 # MODES — the same contract as every other seat-plane owner
 #   --check (default)   SAME / DRIFTED / MISSING against what this script would write. Report
 #                       only; exits 0. MISSING means this clone has no gate, which is a finding
@@ -50,8 +60,9 @@
 #                       own hook is a seat with a reason, and the merge is a human's call.
 #   --self-test         sandboxed arms in a temp dir: a canary in the tree must BLOCK a real push,
 #                       a clean tree must allow one, a seat with no reachable vault must SKIP with
-#                       a printed reason rather than pass silently, and the hook must be found by
-#                       a SECOND worktree of the same clone — the arm the naive path fails.
+#                       a printed reason rather than pass silently, the hook must be found by a
+#                       SECOND worktree of the same clone, and an answer that is ALREADY ABSOLUTE must
+#                       be used as it stands — the arms the two naive path spellings fail.
 #
 # Exit codes follow the checker's own vocabulary: 0 ok/SAME, 1 MISSING or DRIFTED under --strict,
 # 2 a boundary (not a git repo, no python) — a SKIP that is printed, never counted as a pass.
@@ -93,7 +104,7 @@ usage: install-hooks.sh [--check [--strict]] | --push [--force] | --self-test
   --check --strict  exit 1 on MISSING or DRIFTED (the seat-plane form)
   --push           write the hook into the COMMON hooks dir (one install, every worktree);
                    a foreign pre-push hook is refused unless --force
-  --self-test      canary / clean / no-vault / second-worktree arms in a temp dir
+  --self-test      canary / clean / no-vault / second-worktree / absolute-answer arms in a temp dir
 EOF
 }
 
@@ -179,16 +190,23 @@ HOOK
 }
 
 # --- paths: the COMMON dir, never `dirname --git-dir` -------------------------------------------
-hooks_dir() {  # echo the dir git actually reads hooks from, absolute; rc 1 outside a repo
+hooks_dir() {  # hooks_dir [dir-inside-the-clone] — the dir git reads hooks from, absolute; rc 1 outside a repo
   # `--git-path hooks`, not `dirname --git-dir`: git-path resolves the COMMON dir for a linked
   # worktree AND honours `core.hooksPath`, and the answer is therefore the directory git will
-  # actually read. --path-format is newer than every git on this fleet, so the absolute-ness is
-  # checked rather than assumed: a relative answer is relative to the -C directory.
-  local d
-  d="$(git -C "$REPO" rev-parse --git-path hooks 2>/dev/null)" || return 1
+  # actually read. --path-format is newer than every git on this fleet, so absolute-ness is
+  # checked rather than assumed — and the check cannot be a leading `/` alone: a LINKED WORKTREE on
+  # a Windows seat is answered with a drive path (`D:/…`) or a UNC share (`\\host\share\…`), and
+  # joining either to a root makes a directory named `D:` that git never reads. Absolute answers are
+  # used AS IS, separators included, because a backslash is an ordinary character in a POSIX path.
+  local d from="${1:-$REPO}"
+  d="$(git -C "$from" rev-parse --git-path hooks 2>/dev/null)" || return 1
   [ -n "$d" ] || return 1
-  case "$d" in /*) ;; *) d="$REPO/$d" ;; esac
-  printf '%s' "${d%/}"
+  case "$d" in
+    /*) ;;                              # POSIX absolute
+    [A-Za-z]:[\\/]* | \\\\*) ;;          # drive path `D:/…` or `D:\…`, UNC `\\host\share\…`
+    *) d="$from/$d" ;;                  # genuinely relative: relative to the `-C` directory
+  esac
+  printf '%s' "${d%[/\\]}"
 }
 
 want() {  # the file content --push would write
@@ -280,9 +298,10 @@ fi
 # A self-test that installs hooks must prove it installed them ONLY in its fixtures. This exact bug
 # happened: one fixture invocation left $REPO inherited, the fixture's checker resolved the REAL
 # checkout, and the run installed a live hook into the merge station. So the checkout's own hook is
-# hashed before and after, and any change is a finding.
-_home_hook="$(git -C "$REPO" rev-parse --git-path hooks 2>/dev/null)/pre-push"
-case "$_home_hook" in /*) ;; *) _home_hook="$REPO/$_home_hook" ;; esac
+# hashed before and after, and any change is a finding. It asks the SAME resolver the installer uses:
+# a second spelling of the join here would resolve to a directory that exists on no platform, and the
+# guard below would then compare ABSENT with ABSENT — a green that proves nothing (CONVENTIONS §6).
+_home_hook="$(hooks_dir)/pre-push"
 before_hook="$([ -f "$_home_hook" ] && cksum <"$_home_hook" || echo ABSENT)"
 
 # A fixture repo whose ONLY content is a real checkout of the tooling the hook calls, so the hook
@@ -405,7 +424,7 @@ check "and never calls a crash a leak" \
 mk_repo "$T/main-wt"; git -C "$T/main-wt" worktree add -q "$T/link-wt" -b wt 2>/dev/null
 ( cd "$T/link-wt" && REPO="$PWD" bash scripts/git/install-hooks.sh --push >/dev/null )   # install FROM the worktree
 naive="$( cd "$T/link-wt" && printf '%s/hooks/%s' "$(git rev-parse --git-dir)" pre-push )"
-deployed="$( cd "$T/link-wt" && d="$(git rev-parse --git-path hooks)"; case "$d" in /*) ;; *) d="$PWD/$d";; esac; printf '%s/pre-push' "$d" )"
+deployed="$(hooks_dir "$T/link-wt")/pre-push"   # the resolver itself, so this arm cannot agree with a wrong one
 check "the naive dirname(--git-dir) path is NOT where the hook went" \
       "$( [ "$naive" != "$deployed" ] && [ ! -e "$naive" ] && printf 0 || printf 1)" "naive=$naive deployed=$deployed"
 check "a SECOND worktree of the same clone reads the installed hook" \
@@ -428,6 +447,56 @@ printf 'kept\n' >"$T/marker-inside-foreign"
 out="$( cd "$T/link-wt" && REPO="$PWD" bash scripts/git/install-hooks.sh --push 2>&1 )"; rc=$?
 check "a FOREIGN pre-push hook is refused, not overwritten" \
       "$([ "$rc" != 0 ] && printf '%s' "$out" | grep -qi refused && grep -q 'someone else' "$deployed" && printf 0 || printf 1)"
+
+# (4b) THE ABSOLUTE-ANSWER ARM — the same false green from the other side of the same call. git answers
+# `--git-path hooks` with a path that is ALREADY absolute in a LINKED WORKTREE, and on a Windows seat
+# that answer is a drive path (`C:/Users/…/.git/hooks`) or a share (`\\host\share\…`), neither of which
+# starts with `/`. A resolver that reads absolute-ness as "starts with `/`" joins such an answer to the
+# checkout anyway, which mints a directory literally named `C:` inside the worktree, installs the hook
+# where git never looks, and reports a successful install.
+#
+# The shape is PLANTED, not waited for. Whether a box's git answers `.git/hooks` or `C:/…` is a fact
+# ABOUT THE BOX, and a fixture built under a mounted `/tmp` is answered relatively even on a seat whose
+# real clones are answered absolutely — so the worktree arm above can pass on a box where the resolver
+# is broken for every checkout a human works in. A stub git answers the ONE query with a real temp
+# directory in its absolute form and execs this box's real git for everything else (a wrapper, never a
+# copy — see stub_bin), and the arms below assert WHICH directory received the hook. Where no directory
+# can be named without a leading `/`, the arm prints SKIP: a probe that is not there is not a pass.
+mkdir -p "$T/absans" "$T/abs-hooks" "$T/abs-bin"
+git init -q "$T/absans"
+ABS_ANSWER="$(cygpath -m "$T/abs-hooks" 2>/dev/null || true)"   # the same directory, in the shape that breaks a join
+[ -n "$ABS_ANSWER" ] || ABS_ANSWER="$T/abs-hooks"               # a native-Windows bash names $T as a drive path already
+printf '%s\n' '#!/bin/sh' \
+  '_p=' \
+  'for _a in "$@"; do' \
+  '  if [ "$_p" = --git-path ] && [ "$_a" = hooks ]; then printf "%s\n" "$HL_STUB_HOOKS_DIR"; exit 0; fi' \
+  '  _p="$_a"' \
+  'done' \
+  "exec \"$(command -v git)\" \"\$@\"" >"$T/abs-bin/git"
+chmod +x "$T/abs-bin/git"
+case "$ABS_ANSWER" in
+  # A box that can only name a directory from a `/` cannot present the shape. SKIP, out loud: an arm
+  # that is not buildable here is not a pass.
+  /*) printf '  SKIP the absolute-answer arm: no name for %s here avoids a leading / (best: %s)\n' "$T/abs-hooks" "$ABS_ANSWER" ;;
+  *)  # HL_STUB_HOOKS_DIR is the stub's own channel, read by the wrapper above and by nothing in this script
+    ( cd "$T/absans" && REPO="$T/absans" HL_STUB_HOOKS_DIR="$ABS_ANSWER" PATH="$T/abs-bin:$PATH" \
+        bash "$SELF" --push >/dev/null 2>&1 )
+    check "an absolute answer RECEIVES the hook — it is used as it stands" \
+          "$( [ -f "$ABS_ANSWER/pre-push" ] && grep -qF "$MARKER" "$ABS_ANSWER/pre-push" && printf 0 || printf 1)" \
+          "answer=$ABS_ANSWER"
+    check "and is never joined to the checkout: no directory named for the drive appears inside it" \
+          "$( [ ! -e "$T/absans/$ABS_ANSWER" ] && printf 0 || printf 1)" "would-be=$T/absans/$ABS_ANSWER"
+    check "the clone's OWN .git/hooks is not the destination either — the answer named the target" \
+          "$( [ ! -e "$T/absans/.git/hooks/pre-push" ] && printf 0 || printf 1)"
+    out="$( cd "$T/absans" && REPO="$T/absans" HL_STUB_HOOKS_DIR="$ABS_ANSWER" PATH="$T/abs-bin:$PATH" \
+             bash "$SELF" --check 2>&1 )"
+    # -x, not a substring: the joined path ENDS with the absolute one, so a substring match would
+    # agree with the very directory-inside-a-directory this arm exists to rule out.
+    check "--check's verdict NAMES that directory, so the read side resolves it the same way" \
+          "$(printf '%s' "$out" | grep -qxF "  $ABS_ANSWER/pre-push: SAME" && printf 0 || printf 1)" \
+          "$(printf '%s' "$out" | tr '\n' '|' | cut -c1-200)"
+    ;;
+esac
 
 after_hook="$([ -f "$_home_hook" ] && cksum <"$_home_hook" || echo ABSENT)"
 check "the self-test installed nothing into the checkout it was run from" \
