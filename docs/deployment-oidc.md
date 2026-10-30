@@ -195,8 +195,8 @@ verified by its redirect; native-OIDC services are verified by the session exist
 
 | Service | Tier | Proof | Status |
 |---|---|---|---|
-| `ai` (Open WebUI) | native OIDC | authorize works, **the callback 404s** — the app serves `/oauth/oidc/callback` since 0.11 and our redirect URI still says `/oauth2/callback` on both sides | ❌ broken — fix the redirect URI on both sides |
-| `vpn` (Headscale) | native OIDC | owner login, not re-proven since | ✅ once — **not re-verified** (an old ✅ is not a current one) |
+| `ai` (Open WebUI) | native OIDC | the return leg is proven end to end without a browser: the login 302 carries `redirect_uri=…/oauth/oidc/callback`, the authorize endpoint accepts that URI and 400s the old `/oauth2/callback` one, and a bogus-code `GET` of the callback returns **307 → `/auth?error=…`** (handler ran, exchange attempted) where the dead path returns 200 + `index.html` | ⏳ plumbing proven — **a human login is still the ✅** |
+| `vpn` (Headscale) | native OIDC | owner login, not re-proven since. The IdP side re-checked 2026-10-30: provider `headscale` carries `https://vpn.kogler.si/oidc/callback` + `/admin/oidc/callback`, grants `authorization_code`+`refresh_token`, and the authorize endpoint 302s the first and 400s a bogus path | ✅ once — **not re-verified by a login** (an old ✅ is not a current one) |
 | `chat` (Element + Tuwunel) | homeserver SSO | `/_matrix/client/v3/login` advertises `m.login.sso` with the `authentik` IdP + owner login | ✅ |
 | `file` (OpenCloud) | native OIDC (web) | owner login **and** a `.docx` open through the ONLYOFFICE WOPI chain in that session ([services-office.md](services-office.md)) | ✅ |
 | `file` (OpenCloud) **native Android app** | native OIDC, client_id from WebFinger | owner login as `domen` **and** the file list on device; acceptance measured server-side = a `RefreshToken` row for the provider whose scope still contains `offline_access` (an app that logs in but gets no refresh token LOOKS alive for an hour) | ✅ |
