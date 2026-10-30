@@ -245,6 +245,8 @@ transcript that captured only a prefix names neither the item nor the generation
 matches every holder of a different credential too.
 
 ### Rotating the control-node token
+**The re-seat is a command now: `bash scripts/secrets/reseat-vault-token.sh --check`, then `--apply`** — run it on the Debian engine (`wsl.exe -d Debian -- bash -lc 'cd ~/source/homelab && …'` from the Windows seat), because the proof it prints is a file mode plus a chmod-gated verify and NTFS carries neither. It reads the item once, pipes it into each target's stdin, and there proves the value answers the vault BEFORE swapping, so a typo or an expired token leaves the seat byte-identical. The hand forms below stay documented: they are what a seat with no repo clone, or a pasted token, still needs.
+
 `scripts/ansible/bootstrap-runner.sh` is **create-only** — `if [ ! -f "$OP_TOKEN_FILE" ]` — so after a
 rotation it prints *"token already stored"* and changes nothing. Prefer the **pipe form**, which needs
 no paste box and leaves no literal in history or in a transcript (needs any still-working token on the

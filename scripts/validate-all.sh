@@ -1662,6 +1662,11 @@ item_q "lib/vault_read.py --self-test (the ONE reader: both route arms, the get_
 item_q "guard-session.sh --self-test (sandboxed guard fixture, HD-253)" hl_wsl_route bash scripts/gate/guard-session.sh --self-test
 item_q "guarded-converge.sh --self-test (post-converge liveness verdict, HD-436)" bash scripts/ansible/guarded-converge.sh --self-test
 item_x "drives every 1Password refusal state through a fake op binary in a sandbox: a CLI-contract self-test, not a tree check — rerun it when the bootstrap script changes" "git-bootstrap.sh --self-test (each 1Password refusal state says the right thing)" hl_wsl_route bash scripts/git/git-bootstrap.sh --self-test
+# A rotated service-account token has to REACH the seats, and until HD-495 the repo's answer was a pipe
+# form the operator types by hand while the superseded generation is still alive. The self-test grades
+# the install with a fake op + a stubbed transport: atomic, proven by a vault ANSWER before it swaps,
+# value-blind in both modes, never half-installed. Runs on the engine (the modes are real there).
+item_q "reseat-vault-token.sh --self-test (HD-495: a rotation lands on the seats by command, is proved by a vault answer, and prints no value)" hl_wsl_route bash scripts/secrets/reseat-vault-token.sh --self-test
 # The Windows sibling's contract, proved with a fixture op + a throwaway HOME, so it runs on a Debian
 # seat too and a seat that is not present never makes it a SKIP: the raise is fill-in-only, never
 # clobbers, always derives the pub, and the route verdict keys on "can a git call WAIT?" rather than on
