@@ -371,6 +371,45 @@ Scripts that fetch `op-write_api` because "the exported SA token is READ-scoped"
 what is wrong is asserting either scope from prose. Do not treat a write-capable token as permission to write from an
 automation path that was designed to be read-only.
 
+**9. A leak debt is a debt against a VALUE, so a book of hits is not a book of debts.** Two machines
+hold that, and neither is the leak ledger:
+
+- [`scripts/gate/secret_debt_register.txt`](../scripts/gate/secret_debt_register.txt) is the ledger's
+  **companion**, one `<item-id-prefix>\t<class>\t<seat>\t<vault-version-at-leak>\t<path>\t<rotation-doc>`
+  line per debt. It is a separate file because the ledger is a **render view** — `--update-ledger`
+  rewrites its body, so anything hand-authored into it dies at the next re-derive — the SSOT rule of
+  [CONVENTIONS.md](../CONVENTIONS.md) §2, applied to a debt list. `path:` is the ruling on WHO acts: `lane` (a vault rotation this lane can
+  drive), `lane+converge` (the vault write plus the host or app act that makes it live), `human` (the
+  act is an owner's or a provider's), `none` (no channel at either end — the line is then a standing
+  exposure that only containment shrinks). The `rotation-doc` column points at the doc that carries
+  the actual steps, because a debt list that restates them is a second copy of a runbook.
+- [`scripts/gate/check_secret_debt.py`](../scripts/gate/check_secret_debt.py) answers **`rotated
+  yet?`** from the vault's per-item `version` numbers (the same reason a hash is not the check: a short
+  credential's hash is an offline guess-check, a version reads no value at all) crossed with the
+  ledger's pair set: `NOT ROTATED` (version unmoved, hit standing) / `CANDIDATE` (version moved, hit
+  standing — rotate-then-re-derive, the propagation half is missing) / `CLOSED` (version moved AND a
+  re-derive proved the pair absent) / `GONE` (the vault answers no such item) / `NOT JUDGED` (another
+  seat's line, or a store this run could not read). The pair the ledger alone cannot tell apart is the
+  reason the checker exists: a pair that LEFT the ledger with its version UNMOVED prints `REFUSED` and
+  exits 1 — a redaction, a shredded store or an edited book makes a hit disappear, and in a book of
+  hits that is indistinguishable from a rotation.
+- **Locality is part of the verdict.** A `run-capture` line is judged per STORE, so a checkout without
+  the persistent transcript store cannot close its own lines (the measurement in the bullet above is
+  why), and a line is closable only by the seat that recorded it. A seat the book carries no line for
+  prints `NOT RECORDED`: a debt in a store nobody read is unknown, not absent.
+- **The no-rotation-path ruling lives in two places and an arm holds them equal**: the register's
+  `path: none` column, and `NOT_ROTATABLE` in
+  [`scripts/secrets/provision-secrets.py`](../scripts/secrets/provision-secrets.py). It is NOT
+  `NOT_AUTO_ROTATABLE`, which is step 3's ordering guard and asserts only that a far end exists to act
+  on — folding the two would let "auto-rotation can't do it" be read as "nothing can", which is the
+  claim that made containment legal for a value that was rotatable all along.
+- **The gate that stands between a commit and the remote** is a `pre-push` hook installed by
+  [`scripts/git/install-hooks.sh`](../scripts/git/install-hooks.sh) (seat plane `git-hooks`, so a clone
+  without it is reported rather than assumed). It runs the tree-only leg — one leg, seconds, one
+  batched read — and prints the two classes it did not look at. ⛔ A green push is repo-tree clean and
+  is not a clean fleet, and it closes no debt: a secret that reached a remote is closed by ROTATING it,
+  never by scrubbing the commit, because the remote keeps the old blob and a force-push is a fetch away.
+
 ---
 
 ## Master Secret List (canonical)

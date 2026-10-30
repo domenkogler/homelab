@@ -35,6 +35,7 @@ tags: [deployment, rejected, decision-log]
 | Debt-register columns on `secret_leak_ledger.txt`                              | rejected   | `--update-ledger` rewrites the body; an added column dies at the next re-derive |
 | Doco-CD                                                                        | dropped    | second Docker-socket deploy path; Ansible is the single path    |
 | `doco-cd_password` webhook HMAC                                                | superseded | single Ansible-only deploy path                                 |
+| A leak gate at commit time (`pre-commit`, one vault read per commit)                   | rejected      | the same coverage at a push costs a fraction of the 1000 req/24 h budget every service account in the account shares; a phase boundary is where the pushes land anyway                           |
 | DSH as LiteLLM consumer (`dsh_api`)                                            | rejected   | harness removed; parked, not re-minted                          |
 | `dsh`/`pi-dev` tailscale preauth keys                                          | dropped    | harnesses removed, rows `enabled: false`                        |
 | Edge 401 with the old bearer as containment test                               | rejected   | That host authenticates with the engine key                     |

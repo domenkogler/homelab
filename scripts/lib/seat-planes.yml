@@ -216,3 +216,29 @@ check: --check --strict
 push: --push
 seats: wsl
 installer: none
+
+---
+# The clone's OWN pre-push gate: the leak eye's affordable leg, standing between a commit and a
+# remote. It is the first plane whose target lives INSIDE the checkout (`.git/hooks/`), which is
+# what makes it worth a row and what makes the row awkward: the state is per-CLONE, not per-HOME,
+# and a `git worktree add` inherits it from the common dir rather than from this seat's HOME.
+#
+# `installer: none`, and the reason is the same one the `llm-path` and `dns-route` rows give: a
+# from-zero bootstrap converging a HOME must not install a gate into a clone it may be about to
+# push from with no vault credential configured yet — the hook would then block the bootstrap's own
+# push with a defect that is the bootstrap's, not the tree's. The bootstrap prints the one command
+# that lands it; the fan-out reports the clone until it is landed, which is the whole point of the
+# row: a seat that runs no converge and cloned this repo is a seat whose pushes were unchecked, and
+# `--check --strict` is what says so out loud instead of assuming the hook is there.
+#
+# `seats` is all three even though the mechanism is per-clone: every seat clones this repo. The
+# hook's own reach is wider than any seat — one install covers every worktree of that clone, and
+# the installer that resolves it is `scripts/git/install-hooks.sh`, never a hand-placed file.
+plane: git-hooks
+harness: all
+owner: install-hooks.sh
+runner: bash
+check: --check --strict
+push: --push
+seats: win11 wsl oldsrv
+installer: none

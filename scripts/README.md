@@ -156,6 +156,14 @@ Everything that drives Ansible — the control node, the runner, and the rendere
 
 ---
 
+## `scripts/git/`
+
+Things that live INSIDE the checkout rather than in a seat's HOME.
+
+| File | What it is for | Owning rule / doc |
+|---|---|---|
+| [`git/install-hooks.sh`](git/install-hooks.sh) | **Install, and prove, the clone's own pre-push leak gate** — it writes the hook into the directory `git rev-parse --git-path hooks` names, which is the COMMON dir: in a linked worktree `--git-dir` answers `.git/worktrees/<name>`, so a path built as `dirname --git-dir`/hooks installs into a directory git never reads, reports SUCCESS, and `--check` then agrees with itself. The hook runs the affordable leg (`check_secret_leak.py --tree-only --no-history`) so a push costs seconds, and it prints the two classes it did NOT look at (`git-history`, `run-capture`) with a `PARTIAL` verdict — a green push is not a clean fleet. Its rc map is the checker's: 0 push, 1 REFUSED (a value LIVE in the vault is in the tree — the close is a rotation, never a scrub), 2 SKIP with a printed reason because a seat with no vault token must not be blocked from every push, and rc 1 with NO verdict line is a CRASH, which prints NOT JUDGED and never accuses the tree. `--check`/`--check --strict` is the seat plane `git-hooks`; `--push` installs (a foreign hook is refused, not overwritten), `--self-test` proves the arms on minted values with real pushes into a throwaway remote and installs NOTHING in the checkout it was run from. `installer: none` in the registry: a from-zero bootstrap must not gate its own pushes before a vault credential exists. | [`docs/1password.md`](../docs/1password.md) §Output hygiene, [`docs/1password.md`](../docs/1password.md) §Output hygiene, [`lib/seat-planes.yml`](lib/seat-planes.yml) |
+
 ## `scripts/secrets/`
 
 The 1Password leg: provisioning, the bulk exporter the IaC pre-pass uses, and the key-injecting generators.

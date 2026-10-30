@@ -1609,6 +1609,12 @@ item_x "installs into a fixture HOME through stub installers across a dozen CLI 
 # caught in the concurrent run and passed standalone, the documented pool-flake class). The cheap and
 # meaningful half IS gated: the --check --strict item below.
 item_x "~25 CLI launches against a fixture settings.json: HD-1135 measured 97 s on this seat even after the fork diet — a self-test for the settings harness, not a tree check" "pi-settings-config.sh --self-test (HD-1110: the harness keys of ~/.pi/agent/settings.json)" st_pi_settings_selftest
+# The clone's own pre-push gate. The SELF-TEST is gated; the `--check --strict` half is NOT, on
+# the HD-1137 rule: a clone's hooks are deploy state, and an item that reddens every session
+# worktree that has not yet run `install-hooks.sh --push` would make one lane's unset-up seat
+# another lane's red gate. The half that reports it is the seat plane `git-hooks` in
+# lib/seat-planes.yml, which `pi-seat-sync.sh --check` fans out and prints as DRIFT.
+item_q "install-hooks.sh --self-test (HD-1219: a canary blocks a real push, a clean tree passes and says what it did not scan, an unreachable vault SKIPs loudly, a crashed eye is never called a leak, and a second worktree of the same clone finds the hook — the arm the naive `dirname --git-dir` path fails)" bash scripts/git/install-hooks.sh --self-test
 item_q "pi-tui-config.sh --self-test (HD-1110: the pi-open-tui footer hostname key)" st_pi_tui_selftest
 item_x "drives every seat plane through stubbed seats in a temp HOME: HD-1135 measured 46 s on this seat — the fan-out driver's own harness, not a tree check" "pi-seat-sync.sh --self-test (HD-1110: the fan-out driver verdicts, on stubbed seats)" hl_wsl_route bash scripts/harness/pi-seat-sync.sh --self-test
 item_x "arms sandboxed installers and a canary package name across every probe layout — an installer harness, and it must never touch a real registry" "pi-self-update.sh --self-test (HD-1115: BEHIND and AHEAD are both drift)" hl_wsl_route bash scripts/harness/pi-self-update.sh --self-test
