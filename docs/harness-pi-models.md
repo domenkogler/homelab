@@ -156,6 +156,10 @@ that lands the successor.
 A row can also be **served but unlisted** — a model can leave the catalog and keep answering completions.
 That is a heads-up, not a removal trigger: deleting a row that answers is an outage for whoever has it
 selected, so the successor is an owner call, probed like any other row.
+The provider also serves undated **aliases** for some rows (the 404 text of a retired id names both the
+dated successor and an `always-latest` alias). The spec pins the **dated** id: an alias re-points the model
+under a working seat with no diff in this repo, which is exactly what a client-side contract exists to
+prevent.
 
 **Capabilities are probed, per model, never inherited from the provider or copied from a vendor page:**
 
@@ -168,7 +172,7 @@ selected, so the successor is an owner call, probed like any other row.
 | streaming usage | `stream: true` + `stream_options.include_usage` | a final chunk carrying `usage` — pi's ctx % and compaction trigger depend on it, and it is why no hosted row needs a `compat:` block |
 
 **Thinking-off is not a capability a provider has; it is a capability each model has.** Measured row by
-row: `deepseek-ai/DeepSeek-V4.1-Flash` and `Qwen/Qwen3.8-27B` answer `none` with zero reasoning tokens
+row: `deepseek-ai/DeepSeek-V4.1-Flash-1017` and `Qwen/Qwen3.8-27B` answer `none` with zero reasoning tokens
 and a direct reply, so their `thinkingLevelMap` carries `"off"` and `/thinking off` means what it says;
 `zai-org/GLM-5.3-Flash` accepts `none`
 with a 200, thinks anyway, and spends its whole response budget thinking — 3002 reasoning tokens, empty

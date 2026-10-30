@@ -73,7 +73,7 @@ providers:
       # docs/harness-pi-models.md §4c. Usage arrives in the final stream chunk, so pi's ctx % and
       # compaction trigger work on the default `supportsUsageInStreaming` — no `compat:` block is
       # needed or claimed.
-      - id: deepseek-ai/DeepSeek-V4.1-Flash
+      - id: deepseek-ai/DeepSeek-V4.1-Flash-1017
         name: Entrim DeepSeek V4.1 Flash
         reasoning: true
         input: [text, image]
