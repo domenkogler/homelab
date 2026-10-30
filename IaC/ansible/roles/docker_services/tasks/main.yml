@@ -293,6 +293,26 @@
     loop_var: svc_entry
   tags: [docker_services, arr_seed]
 
+# The subtitle leg: Bazarr's PVR links, Jellyfin refresh leg, language set and provider login are its
+# OWN database state, not compose env, so a rebuild returns a blank app behind a 200 route. The PVR keys
+# come from each app's own config.xml — a rotated arr key reaches every consumer through its render and
+# reaches Bazarr through nothing. Autopsy + the two replace-all fields: tasks/bazarr-seed.yml.
+- name: "Seed Bazarr's PVR links, languages and subtitle provider"
+  ansible.builtin.include_tasks:
+    file: bazarr-seed.yml
+  vars:
+    svc: "{{ svc_entry }}"
+  loop: "{{ docker_services }}"
+  when:
+    - svc_entry.enabled | default(true)
+    - svc_entry.template_dir | default('') == 'bazarr'
+    - scope_is_all or svc_entry.name in scope_list
+    - not ansible_check_mode
+  loop_control:
+    label: "{{ svc_entry.name }}"
+    loop_var: svc_entry
+  tags: [docker_services, bazarr_seed]
+
 # SABnzbd's DNS-rebinding guard refuses every Host this stack uses (the shipped whitelist holds only the
 # container id), so the UI shows "Hostname verification failed" and a client pointed at sabnzbd:8080 can
 # never be saved. No env translation in the image and no config API make the ini the only automatable

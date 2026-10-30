@@ -129,6 +129,11 @@ immich_oauth_mobile_redirect_uri: ""
 # anywhere. Paths are the CONTAINER-side view: /mnt/nas/media/media binds at /media in this family.
 arr_seed_config_dir: /srv/docker              # <dir>/<service>/config/config.xml holds the instance ApiKey
 arr_seed_assert_profiles: true                # false = skip the profile gate (emergency only; say why)
+# The read-and-REPORT half: fail when the app holds a live root folder this file does not declare. IaC
+# can add a root and cannot remove one (no DELETE for `rootfolder` exists here), so an undeclared live
+# path is otherwise invisible in both directions while the app keeps offering it in its dropdown.
+# false = skip the report, in an emergency only, and say why in the commit (tasks/arr-seed.yml).
+arr_seed_report_root_drift: true
 arr_seed_apps:
   sonarr:
     port: 8989
@@ -149,8 +154,30 @@ arr_seed_apps:
       name: Music
       defaultMetadataProfileId: 1             # "Standard" — the live value, not an invention
 
-# ---- SABnzbd host_whitelist — what tasks/sabnzbd-seed.yml reconciles ----
-# SABnzbd rejects any `Host:` it does not recognise with 403 "Hostname verification failed". The shipped
+# ---- Bazarr seed — what tasks/bazarr-seed.yml reconciles in the app's OWN SQLite ----
+# Subtitle wiring is app state: compose owns the container and the DB owns the behaviour, so a rebuild
+# brings back an app that answers 200 and fetches nothing (docs/services-media.md §Subtitles).
+bazarr_seed_port: 6767                      # the container's own port; the seed dials the overlay IP
+# The two PVRs Bazarr syncs from. `ip` is the OVERLAY container name, never a `*.kogler.si` host — the
+# edge would put its own Forward-Auth in front of the API Bazarr polls. The API key is NOT here: it is
+# read from each app's own `config.xml` at seed time (the arr-seed.yml rule, and the reason a rotated arr
+# key still reaches Bazarr). The key names are the field names this seed writes, so they are load-bearing.
+bazarr_seed_pvr:
+  radarr: {ip: radarr, port: 7878}
+  sonarr: {ip: sonarr, port: 8989}
+# The ONE leg Bazarr dials over HTTPS by name (the container name does not resolve in its network), so it
+# is the edge name and not `jellyfin_url`.
+bazarr_seed_jellyfin_url: "https://media.{{ domain_local }}"
+# ⚠ REPLACE-all fields: what is declared here is the COMPLETE set, not an addition. `sh` is in the
+# language list because it is enabled live (and is what the `cro/srb` profile asks for); dropping it from
+# here would silently stop hunting Serbo-Croatian subtitles. `enabled_providers` is replace-all the same
+# way — one entry per provider this stack actually credentials.
+bazarr_seed_languages: [sl, en, hr, sh, sr]
+bazarr_seed_providers: [opensubtitlescom]
+bazarr_seed_provider_item: opensubtitles_login   # username + password; an external account, never rotated by IaC
+bazarr_seed_jellyfin_item: jellyfin-bazarr_api   # the read-only Jellyfin key minted FOR Bazarr
+
+# ---- SABnzbd host_whitelist — what tasks/sabnzbd-seed.yml reconciles ----# SABnzbd rejects any `Host:` it does not recognise with 403 "Hostname verification failed". The shipped
 # value holds only the container's short id, so BOTH doors are closed: the UI behind Traefik (which
 # forwards `sab.<domain>`) and container-side consumers (which send `sabnzbd`).
 # The seed writes the UNION of what is in the ini and this list, so the image's own entry survives.
@@ -392,6 +419,11 @@ _template_vault_items:
   lidarr: {'qbittorrent_api'}
   prowlarr: {'qbittorrent_api'}   # same reason and same item as the three arrs — tasks/arr-client-torrent.yml
                                   # writes this client too, and derive mode fetches per service IN SCOPE
+  # Bazarr takes no compose secret, but tasks/bazarr-seed.yml writes two app-state legs from the vault:
+  # the Jellyfin key Jellyfin minted for Bazarr, and the OpenSubtitles account. Derive mode fetches per
+  # enabled service IN SCOPE, so with no row here a `docker_services_scope=bazarr` converge would seed
+  # against an empty `vault` and the include's own assert would fail it closed.
+  bazarr: {'jellyfin-bazarr_api', 'opensubtitles_login'}
   aurral: []   # config is all IN-UI (Lidarr API, Last.fm, ListenBrainz in first-run setup); no 1P items for the compose. lastfm_login/metabrainz_login stay as owner-reference items + docs rows. An empty set is `[]`: a bare `set()` is a Python literal YAML parses as the STRING "set()", which pollutes the derive item set with per-char fake items and op-vault-export fails on '('.
   lidarr-ydl: {'lidarr_api'}   # Lidarr API key (compose). Its Web-UI login has NO vault item — first-run setup, not fetched/required by compose.
   slskd: {'slskd_login', 'soulseek_api', 'soulseek-internal_api', 'privado-vpn_api'}   # Soulseek login + slskd UI password (JWT) + the slskd HTTP API key (x-api-key, read by soularr) + VPN client key (gluetun sidecar)

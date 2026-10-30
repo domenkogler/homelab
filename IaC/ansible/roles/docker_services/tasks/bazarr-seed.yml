@@ -1,0 +1,301 @@
+---
+# bazarr-seed.yml — seed Bazarr's PVR links, Jellyfin leg, languages and subtitle provider.
+# Included ONCE from docker_services/main.yml, gated on `svc.template_dir == 'bazarr'` + the deploy scope
+# + `not ansible_check_mode` (every task here drives the live API — deployment-ansible.md §Dry-run).
+#
+# WHY A SEED TASK AT ALL: Bazarr keeps its wiring in its OWN SQLite DB. Compose owns the container and
+# `config/config.yaml` is only a partial mirror of the running instance, so a from-zero converge brings
+# up an app that answers 200 and fetches nothing (`GET /api/movies` = `{"total": 0}`,
+# `GET /api/providers` = `[]`) — the `arr-seed.yml` split, one service later. A populated library is not
+# proof either: those rows live in Bazarr's own DB, so they keep listing titles long after every PVR
+# call has started failing. → docs/services-media.md §Subtitles — Bazarr app-state wiring.
+#
+# WHERE EACH VALUE COMES FROM, and it is not always the vault:
+#   * `radarr.apikey` / `sonarr.apikey` — EACH APP'S OWN `config.xml`, the `arr-seed.yml` rule. This is
+#     not stylistic: measured on oldsrv, Bazarr's stored keys answered 401 from both apps while the same
+#     apps answered 200 to the key in their own `config.xml`. A rotate of an arr key propagates to
+#     `lidarr-ydl`, soularr and SeerrNG through their renders, and to Bazarr through NOTHING — so the
+#     instance file is the only place the current truth lives.
+#   * `jellyfin.url` + `jellyfin.apikey` — `jellyfin-bazarr_api` from the vault: Jellyfin mints that key
+#     FOR Bazarr, so there is no instance file to read it from. The URL is the ONE leg Bazarr dials over
+#     HTTPS by name; the container name does not resolve in its network (docs/services-media.md).
+#   * the provider login — `opensubtitles_login` from the vault. It is an external account, not a machine
+#     credential: nothing mints it and no converge rotates it.
+#
+# WHAT THIS FILE NEVER WRITES:
+#   * Bazarr's OWN `auth.apikey`. The instance issues it and no IaC file reads `bazarr_api`, so a seed
+#     that wrote it would mint a value the app never issued and invent the drift it is meant to prevent.
+#   * `languages-profiles`. The reader renders each profile item's `language` as an OBJECT and the writer
+#     stores what it is given; an object there breaks every movie serialisation (`api/utils.py
+#     postprocess`: `subs.split(':')` on a dict) and takes the Settings → Languages page down with it.
+#     Profiles are created in the UI; this file only reads them back.
+#   * any default-profile or hunting switch (`movie_default_profile`, `serie_default_enabled`,
+#     `wanted_search_frequency`): WHICH library gets hunted, and whether Sonarr content is hunted at all,
+#     is an owner call, not a seed's.
+#
+# WHY THE WRITE IS FORM-URLENCODED AND HOW IT FAILS: POST /api/system/settings takes one field per value
+# (`settings-<section>-<key>`, plus the bare `languages-enabled`), answers 204, and on an unrecognised
+# KEY SHAPE answers 500 with the reason only in `log/bazarr.log`. So the status code is checked AND the
+# values are read back — a silently-dropped field would otherwise look like a successful converge forever.
+#
+# ⚠ TWO WHOLE-SET FIELDS: `enabled_providers` and `languages-enabled` are REPLACE-all — the app disables
+# every language row and re-enables only the codes sent — so what this seed declares is the complete set,
+# not an addition. Adding a language or a provider here DISABLES the ones left out, by design.
+#
+# Idempotence: read the settings, diff ONLY the fields this seed owns, POST only those (plus the language
+# set when it differs), then read back and require the diff to be empty. A run with nothing to fix is a
+# no-op, and a run that had to fix something says which field drifted.
+
+- name: "bazarr-seed: assert the seed facts for Bazarr are defined"
+  ansible.builtin.assert:
+    that:
+      - bazarr_seed_pvr | length > 0
+      - bazarr_seed_providers | length > 0
+      - bazarr_seed_languages | length > 0
+      - bazarr_seed_jellyfin_url | trim | length > 0
+      - bazarr_seed_jellyfin_item in (vault | default({}))
+      - bazarr_seed_provider_item in (vault | default({}))
+      - vault[bazarr_seed_jellyfin_item].credential | default('') | length >= 16
+      - vault[bazarr_seed_provider_item].username | default('') | length > 0
+      - vault[bazarr_seed_provider_item].password | default('') | length > 0
+    fail_msg: >-
+      A bazarr_seed_* default is empty, or one of the two vault items
+      ({{ bazarr_seed_jellyfin_item }}, {{ bazarr_seed_provider_item }}) was not fetched by the 1P
+      pre-pass. Neither has a fallback on purpose: an empty provider list DISABLES every provider (the
+      field is replace-all) and an empty language list disables every language, which is the app
+      answering 200 and fetching nothing — the exact state this file exists to prevent.
+  tags: [docker_services, bazarr_seed]
+
+- name: "bazarr-seed: read Bazarr's own API key from its config.yaml"
+  # The API is authenticated by the key the INSTANCE issued (`auth.apikey`); the vault's `bazarr_api` is
+  # a copy with no IaC consumer, so it is not what this task should trust.
+  # Note the DOUBLED directory, unlike every arr two lines above: the app writes its YAML one level below
+  # the `/config` mount, so the host path is `.../bazarr/config/config/config.yaml` while Radarr's is
+  # `.../radarr/config/config.xml`. One path short of that and this task fails on a running instance.
+  ansible.builtin.slurp:
+    src: "{{ arr_seed_config_dir }}/{{ svc.name }}/config/config/config.yaml"
+  register: _bz_cfg
+  no_log: true
+  failed_when: _bz_cfg.content is not defined
+  tags: [docker_services, bazarr_seed]
+
+- name: "bazarr-seed: extract the API key"
+  # `from_yaml`, not a grep: `apikey:` appears once per provider/PVR section in this file (six-plus
+  # times), so a line-oriented read returns whichever section happens to sort first.
+  ansible.builtin.set_fact:
+    _bz_key: "{{ (_bz_cfg.content | b64decode | from_yaml).auth.apikey | default('') | trim }}"
+  no_log: true
+  tags: [docker_services, bazarr_seed]
+
+- name: "bazarr-seed: read the PVR config.xml of every app Bazarr syncs from"
+  ansible.builtin.slurp:
+    src: "{{ arr_seed_config_dir }}/{{ item }}/config/config.xml"
+  loop: "{{ bazarr_seed_pvr.keys() | list }}"
+  register: _bz_pvr_cfg
+  no_log: true
+  tags: [docker_services, bazarr_seed]
+
+- name: "bazarr-seed: extract each PVR's own key"
+  # The same expression as tasks/arr-seed.yml, including the single-backslash `'\1'` inside the `>-`
+  # scalar: a block scalar is literal text, so Jinja needs the bare backreference, and `'\\1'` here raises
+  # "'NoneType' object has no attribute 'group'" instead of matching (verified on this engine).
+  ansible.builtin.set_fact:
+    _bz_pvr_keys: >-
+      {{ _bz_pvr_keys | default({}) | combine({item.item:
+         (item.content | b64decode) | regex_search('<ApiKey>([^<]*)</ApiKey>', '\1') | first | default('') | trim}) }}
+  loop: "{{ _bz_pvr_cfg.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  no_log: true
+  tags: [docker_services, bazarr_seed]
+
+- name: "bazarr-seed: discover the Bazarr container IP"
+  # Same discovery shape as arr-seed.yml / immich-seed.yml — host→container routing works on oldsrv since
+  # the docker orphan-bridge cleanup, so this needs no host publish.
+  ansible.builtin.shell:
+    cmd: >-
+      docker inspect {{ svc.name }}
+      --format '{{ '{{' }}range $k, $v := .NetworkSettings.Networks{{ '}}' }}{{ '{{' }}$v.IPAddress{{ '}}' }} {{ '{{' }}end{{ '}}' }}'
+      | tr ' ' '\n' | awk 'NF{print $1; exit}'
+    executable: /bin/bash
+  register: _bz_ip
+  changed_when: false
+  tags: [docker_services, bazarr_seed]
+
+- name: "bazarr-seed: fail when the instance is not reachable"
+  ansible.builtin.assert:
+    that:
+      - _bz_key | length >= 16
+      - _bz_pvr_keys.values() | map('length') | min | default(0) >= 16
+      - _bz_ip.stdout | trim | length > 0
+    fail_msg: >-
+      Cannot seed Bazarr: {{ 'no auth.apikey in ' ~ arr_seed_config_dir ~ '/' ~ svc.name ~ '/config/config.yaml'
+        if _bz_key | length < 16 else
+        ('a PVR key is missing from its own config.xml'
+         if _bz_pvr_keys.values() | map('length') | min | default(0) < 16
+         else 'docker inspect returned no container IP') }}.
+      The container must be Up before the seed runs — fix the stack, do not seed blindly.
+  tags: [docker_services, bazarr_seed]
+
+- name: "bazarr-seed: read the live settings"
+  ansible.builtin.uri:
+    url: "http://{{ _bz_ip.stdout | trim }}:{{ bazarr_seed_port }}/api/system/settings"
+    headers:
+      X-Api-Key: "{{ _bz_key }}"
+    status_code: 200
+  register: _bz_settings
+  no_log: true
+  failed_when: _bz_settings.json is not defined or _bz_settings.json.general is not defined
+  tags: [docker_services, bazarr_seed]
+
+- name: "bazarr-seed: read the live enabled languages"
+  # `GET /api/system/settings` has NO languages section — the enabled set lives here (one row per
+  # language with an `enabled` flag), which is why the language half cannot ride on the settings diff.
+  ansible.builtin.uri:
+    url: "http://{{ _bz_ip.stdout | trim }}:{{ bazarr_seed_port }}/api/system/languages"
+    headers:
+      X-Api-Key: "{{ _bz_key }}"
+    status_code: 200
+  register: _bz_langs
+  no_log: true
+  failed_when: _bz_langs.json is not defined or _bz_langs.json | length == 0
+  tags: [docker_services, bazarr_seed]
+
+- name: "bazarr-seed: the settings this seed owns (Bazarr form field -> value)"
+  # Keyed by the form field name on purpose (tasks/bazarr-seed-shape.yml): the same string addresses the
+  # POST field and the `[section][key]` path in the GET, so the wanted side and the live side cannot be
+  # keyed differently. Booleans are the lowercase strings `save_settings` casts, ports are strings, and
+  # the provider set stays a LIST so Ansible repeats the field (it is one of the app's array keys).
+  ansible.builtin.set_fact:
+    _bz_want_body:
+      settings-general-use_radarr: "true"
+      settings-general-use_sonarr: "true"
+      settings-general-use_jellyfin: "true"
+      settings-general-enabled_providers: "{{ bazarr_seed_providers | sort | list }}"
+      settings-radarr-ip: "{{ bazarr_seed_pvr.radarr.ip }}"
+      settings-radarr-port: "{{ bazarr_seed_pvr.radarr.port | string }}"
+      settings-radarr-apikey: "{{ _bz_pvr_keys.radarr }}"
+      settings-sonarr-ip: "{{ bazarr_seed_pvr.sonarr.ip }}"
+      settings-sonarr-port: "{{ bazarr_seed_pvr.sonarr.port | string }}"
+      settings-sonarr-apikey: "{{ _bz_pvr_keys.sonarr }}"
+      settings-jellyfin-url: "{{ bazarr_seed_jellyfin_url }}"
+      settings-jellyfin-apikey: "{{ vault[bazarr_seed_jellyfin_item].credential }}"
+      settings-opensubtitlescom-username: "{{ vault[bazarr_seed_provider_item].username }}"
+      settings-opensubtitlescom-password: "{{ vault[bazarr_seed_provider_item].password }}"
+  no_log: true
+  tags: [docker_services, bazarr_seed]
+
+- name: "bazarr-seed: shape the live settings into the same form"
+  vars:
+    bz_live_json: "{{ _bz_settings.json }}"
+  ansible.builtin.include_tasks:
+    file: bazarr-seed-shape.yml
+  tags: [docker_services, bazarr_seed]
+
+- name: "bazarr-seed: name the fields that drifted (and the languages, which are their own half)"
+  vars:
+    # Compared as strings, key-aligned: the live JSON carries real booleans and ints while this file's
+    # values are what the form encoder would send (the immich-seed.yml precedent). A key the app does not
+    # know extracts to nothing -> drift -> write, which is the fail-safe direction.
+    _bz_want_str: "{{ dict(_bz_want_body.keys() | zip(_bz_want_body.values() | list | map('string') | list)) }}"
+    _bz_live_str: "{{ dict(_bz_live_body.keys() | zip(_bz_live_body.values() | list | map('string') | list)) }}"
+  ansible.builtin.set_fact:
+    _bz_drift: >-
+      {{ ((_bz_want_str.items() | list) | difference(_bz_live_str.items() | list)
+          | map('first') | list) | sort }}
+    _bz_lang_drift: >-
+      {{ (_bz_langs.json | selectattr('enabled') | map(attribute='code2') | map('lower') | list | sort)
+         != (bazarr_seed_languages | map('lower') | list | sort) }}
+  tags: [docker_services, bazarr_seed]
+
+- name: "bazarr-seed: write what drifted"
+  # Only on drift, and only the drifted fields plus the language set when IT differs — never the whole
+  # settings form. Two consequences of writing are worth knowing, both measured in `app/config.py`:
+  # a changed PVR field restarts that app's SignalR client by itself, and a changed provider credential
+  # deletes the provider's cached token and clears an auth-error throttle — so no `?action=restart` call
+  # is needed here, and a re-taught OpenSubtitles login is retried immediately.
+  ansible.builtin.uri:
+    url: "http://{{ _bz_ip.stdout | trim }}:{{ bazarr_seed_port }}/api/system/settings"
+    method: POST
+    headers:
+      X-Api-Key: "{{ _bz_key }}"
+    body_format: form-urlencoded
+    body: >-
+      {{ dict(_bz_drift | zip(_bz_drift | map('extract', _bz_want_body)))
+         | combine({'languages-enabled': bazarr_seed_languages | sort | list} if _bz_lang_drift | bool else {}) }}
+    status_code: 204
+  when: _bz_drift | length > 0 or _bz_lang_drift | bool
+  changed_when: true
+  no_log: true
+  tags: [docker_services, bazarr_seed]
+
+- name: "bazarr-seed: read the settings back"
+  # A 204 only says the POST was accepted. This is what proves the fields landed: a key shape the app
+  # does not recognise is stored nowhere and reported nowhere.
+  ansible.builtin.uri:
+    url: "http://{{ _bz_ip.stdout | trim }}:{{ bazarr_seed_port }}/api/system/settings"
+    headers:
+      X-Api-Key: "{{ _bz_key }}"
+    status_code: 200
+  register: _bz_after
+  no_log: true
+  failed_when: _bz_after.json is not defined or _bz_after.json.general is not defined
+  tags: [docker_services, bazarr_seed]
+
+- name: "bazarr-seed: shape the read-back settings"
+  vars:
+    bz_live_json: "{{ _bz_after.json }}"
+  ansible.builtin.include_tasks:
+    file: bazarr-seed-shape.yml
+  tags: [docker_services, bazarr_seed]
+
+- name: "bazarr-seed: assert the app now reads what IaC declares"
+  vars:
+    _bz_want_str: "{{ dict(_bz_want_body.keys() | zip(_bz_want_body.values() | list | map('string') | list)) }}"
+    _bz_after_str: "{{ dict(_bz_live_body.keys() | zip(_bz_live_body.values() | list | map('string') | list)) }}"
+  ansible.builtin.assert:
+    that:
+      - ((_bz_want_str.items() | list) | difference(_bz_after_str.items() | list) | map('first') | list) | length == 0
+    fail_msg: >-
+      Bazarr accepted the POST and still reports these fields differently:
+      {{ (_bz_want_str.items() | list) | difference(_bz_after_str.items() | list) | map('first') | list }}.
+      Field names only — never values. Read log/bazarr.log under the Bazarr config dir: this app reports a
+      rejected setting key there and nowhere else. Do not add a `?action=restart` to make it stick.
+  tags: [docker_services, bazarr_seed]
+
+- name: "bazarr-seed: read the provider status and the profile assignment"
+  # `/api/providers` is the honest provider-auth read — a provider that is enabled and configured can
+  # still be `AuthenticationError`, which is the credential and not the network. The profile fields are
+  # reported because a languages profile is created in the UI and an UNASSIGNED one makes the scheduled
+  # search find nothing while every endpoint above stays green.
+  ansible.builtin.uri:
+    url: "http://{{ _bz_ip.stdout | trim }}:{{ bazarr_seed_port }}/api/providers"
+    headers:
+      X-Api-Key: "{{ _bz_key }}"
+    status_code: 200
+  register: _bz_providers
+  no_log: true
+  failed_when: _bz_providers.json is not defined
+  tags: [docker_services, bazarr_seed]
+
+- name: "bazarr-seed: summary"
+  # Names and states only, never values. The third line is the one a green run cannot tell you on its
+  # own: `*_default_enabled` + the assigned profile decide whether the SCHEDULED hunt does anything, and
+  # both are UI-side owner choices this seed deliberately does not write.
+  ansible.builtin.debug:
+    msg:
+      - "settings: {{ 'wrote ' ~ (_bz_drift | join(', ')) if (_bz_drift | length > 0) else 'no drift' }}"
+      - "languages: {{ 'replaced with ' ~ (bazarr_seed_languages | sort | join(',')) if _bz_lang_drift | bool else 'no drift (' ~ (bazarr_seed_languages | sort | join(',')) ~ ')' }}"
+      - >-
+        providers: {{ (_bz_providers.json.data | default([]) | map(attribute='name')
+        | zip(_bz_providers.json.data | default([]) | map(attribute='status')) | map('join', '=')
+        | join(' ')) | default('(none reporting)', true) }} — a status other than OK is the credential,
+        not this seed (docs/services-media.md §Subtitles)
+      - >-
+        hunt: movie_default_enabled={{ _bz_after.json.general.movie_default_enabled | default('?', true) }}
+        serie_default_enabled={{ _bz_after.json.general.serie_default_enabled | default('?', true) }}
+        profiles movie='{{ _bz_after.json.general.movie_default_profile | default('', true) }}'
+        serie='{{ _bz_after.json.general.serie_default_profile | default('', true) }}' — a disabled flag
+        or an empty profile means the SCHEDULED hunt does nothing while every endpoint here stays green;
+        turning it on is an owner call (profiles are UI-created, see the header)
+  tags: [docker_services, bazarr_seed]

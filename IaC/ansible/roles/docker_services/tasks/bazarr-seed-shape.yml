@@ -1,0 +1,46 @@
+---
+# bazarr-seed-shape.yml — the live Bazarr settings, in the shape the POST takes.
+# Included TWICE from bazarr-seed.yml — once before the write and once after it — with `bz_live_json`
+# set to the register to read. That is the only reason this is a file: the pre-write drift and the
+# post-write verification must be the SAME expression, or a key this seed believes it owns can pass the
+# check that was written for it and fail the one that was not.
+#
+# THE FIELD NAME IS THE INTERFACE. `settings-<section>-<key>` is both what POST /api/system/settings
+# takes as a form field and how GET /api/system/settings nests the same value as
+# `[section][key]` (measured on `bazarr_version`, `app/config.py:save_settings` splits the key on '-').
+# So one string serves both directions and a rename cannot half-land.
+#
+# EVERY VALUE IS NORMALISED TO THE STRING FORM THE FORM ENCODER WOULD SEND, because the diff is a
+# dict-diff and a type-only difference would churn on every converge:
+#   * booleans arrive from JSON as real `true`, while a templated `{{ x | bool }}` can render
+#     "True"/"true" depending on the jinja2_native setting — and `save_settings` casts only the
+#     lowercase `value == 'true'`, so this is the one form that is both comparable AND correct to send.
+#   * numbers are stringified for the same reason; the app casts them back to int itself.
+#   * `enabled_providers` is one of the app's `array_keys`, so its value stays a LIST (the encoder
+#     repeats the field per item); it is sorted here and in `bazarr_seed_providers` so the order the
+#     UI happens to store in never reads as drift.
+
+- name: "bazarr-seed: shape the live settings into the form the POST takes"
+  # The tag is not decoration: an UNTAGGED task inside an included file is filtered out by a `--tags`
+  # run (docs/deployment-ansible.md §Filtered runs), which would expand the include, run nothing from it
+  # and leave `_bz_live_body` undefined for the caller — a confusing failure three tasks later.
+  ansible.builtin.set_fact:
+    _bz_live_body:
+      settings-general-use_radarr: "{{ bz_live_json.general.use_radarr | default(false) | ternary('true', 'false') }}"
+      settings-general-use_sonarr: "{{ bz_live_json.general.use_sonarr | default(false) | ternary('true', 'false') }}"
+      settings-general-use_jellyfin: "{{ bz_live_json.general.use_jellyfin | default(false) | ternary('true', 'false') }}"
+      settings-general-enabled_providers: "{{ bz_live_json.general.enabled_providers | default([]) | sort | list }}"
+      settings-radarr-ip: "{{ bz_live_json.radarr.ip | default('') | string }}"
+      settings-radarr-port: "{{ bz_live_json.radarr.port | default(0) | string }}"
+      settings-radarr-apikey: "{{ bz_live_json.radarr.apikey | default('') | string }}"
+      settings-sonarr-ip: "{{ bz_live_json.sonarr.ip | default('') | string }}"
+      settings-sonarr-port: "{{ bz_live_json.sonarr.port | default(0) | string }}"
+      settings-sonarr-apikey: "{{ bz_live_json.sonarr.apikey | default('') | string }}"
+      settings-jellyfin-url: "{{ bz_live_json.jellyfin.url | default('') | string }}"
+      settings-jellyfin-apikey: "{{ bz_live_json.jellyfin.apikey | default('') | string }}"
+      # ⚠ `password` is in the app's `str_keys`, so it is never int-cast on the way in — the reason an
+      # all-digit OpenSubtitles password survives a write at all.
+      settings-opensubtitlescom-username: "{{ bz_live_json.opensubtitlescom.username | default('') | string }}"
+      settings-opensubtitlescom-password: "{{ bz_live_json.opensubtitlescom.password | default('') | string }}"
+  no_log: true
+  tags: [docker_services, bazarr_seed]

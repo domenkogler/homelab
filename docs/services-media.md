@@ -211,7 +211,8 @@ issuers are the apps, not the vault — and one surface has no machine path at a
 | Credential | Issuer (moves first) | Propagation to the consumers | Machine path |
 |---|---|---|---|
 | `lidarr_api` | Lidarr `config.xml` `<ApiKey>`, applied by a container restart | converge re-renders `lidarr-ydl` (`LIDARR_API_KEY`) + soularr `[Lidarr] api_key`; SeerrNG `settings.json` `lidarr[].apiKey` is app state, restarted by hand | yes |
-| `bazarr_api` | Bazarr `config/config.yaml` `auth.apikey` | **none** — no IaC file reads the item, so no converge propagates it | yes |
+| `bazarr_api` | Bazarr `config/config.yaml` `auth.apikey` | **none by design** — `bazarr-seed.yml` READS that file and authenticates with the key the instance issued, so the vault copy is a record, not a source; a converge never writes it | yes (read path) |
+| `radarr_api` / `sonarr_api` as Bazarr sees them | each arr's `config.xml` `<ApiKey>` | converge `bazarr_seed` re-reads every `config.xml` and POSTs the current key (the `arr-seed.yml` rule) — before that seed, a rotated arr key reached every consumer EXCEPT Bazarr, whose stored key went `401` silently while its own library rows kept listing | yes |
 | `qbittorrent_api` | the vault, then `roles/docker_services/tasks/qbittorrent-seed.yml` writes `WebUI\Password_PBKDF2` | converge `qbittorrent_seed` + `arr_client_seed`; the seed re-runs each arr's client `test`, so four `HTTP 200` lines are the consumer proof | yes |
 | `soulseek-internal_api`, `soulseek_api` | the vault; the slskd render **is** the far end | converge recreates `slskd` (bounded restart, no persistent state to lose) + soularr `[Slskd] api_key` | yes |
 | `privado-vpn_api` | the provider, by the owner | re-read the non-secret WG fields into `home_servers.yml` (`privado_vpn_endpoint_ip/_port/_public_key/_address`), then converge the two gluetun renders | yes — and the item's notes carry an `[Interface] PrivateKey` line, so read it **field-wise**, never by dumping or printing the body |
@@ -227,25 +228,30 @@ stale unless both move in the same act.
 
 ## Subtitles — Bazarr app-state wiring
 
-> **Status: 🟢 live** — Radarr + Sonarr + Jellyfin connected, provider and languages
-> set, `.srt` sidecars landing next to the media. ⏳ **None of it is in IaC.** Bazarr keeps its settings in
+> **Status: 🟢 live + seeded** — Radarr + Sonarr + Jellyfin connected, provider and languages
+> set, `.srt` sidecars landing next to the media. The wiring is IaC: `compose` owns the container and
+> **`roles/docker_services/tasks/bazarr-seed.yml`** owns the app state (converge
+> `--tags docker_services,bazarr_seed -e docker_services_scope=bazarr`). Bazarr keeps its settings in
 > its own SQLite DB (`/srv/docker/bazarr/config/db/bazarr.db`; `config/config.yaml` is only a partial
-> mirror — `use_radarr` there can disagree with the running instance), so a from-zero
-> converge recovers a blank app. ⏳ The seed to write is `roles/docker_services/tasks/bazarr-seed.yml`, which does not exist yet.
+> mirror — `use_radarr` there can disagree with the running instance), so without that seed a from-zero
+> converge recovers a blank app.
 
 **Readiness is not the container.** Up, `bazarr.kogler.si` → 200 and a honoured `versions.yml` pin can
 still sit next to `GET /api/movies` = `{"data": [], "total": 0}` and `GET /api/providers` = `[]` — a
 running app that cannot fetch anything, because the compose owns the container and **the app's own DB
 owns the behaviour** — the same split `tasks/arr-seed.yml` handles (§Request → import wiring).
 
-**API surface worth knowing (1.6.0).** No spec is published (`/api/schema` serves the SPA), so this was
-read out of the UI bundle (`assets/index-*.js`, the `Oa` request classes) and then measured:
+**API surface worth knowing** (the shape is identical on 1.6.1 and the pinned `bazarr_version: 1.6.2`;
+no spec is published — `/api/schema` serves the SPA — so this was read out of the shipped app source and
+then measured):
 
 | Call | Notes |
 |---|---|
-| `GET/POST /api/system/settings` | POST is **form-urlencoded**, one field per value: `settings-<section>-<key>=<value>` (`settings-radarr-ip=radarr`), plus the **bare** keys `languages-enabled=<code2>` (repeat the field for several languages) and `languages-profiles=<json>`. **204** on success; a wrong key shape answers **500** and the reason only appears in `log/bazarr.log` — read that file after every POST |
-| `POST /api/system?action=restart` | graceful restart from inside the app; the PVR link needs it to run its initial sync, and it works where the operator has no `docker` access |
+| `GET/POST /api/system/settings` | POST is **form-urlencoded**, one field per value: `settings-<section>-<key>=<value>` (`settings-radarr-ip=radarr`), plus the **bare** keys `languages-enabled=<code2>` (repeat the field for several languages) and `languages-profiles=<json>`. **204** on success; a wrong key shape answers **500** and the reason only appears in `log/bazarr.log` — read that file after every POST. The GET returns the same values nested as `[section][key]`, which is what makes one field name serve both directions |
+| `GET /api/system/languages` | one row per language with an `enabled` flag — the ONLY place the enabled set is readable, `settings` has no languages section. A POST of `languages-enabled` is **replace-all**: the app disables every row and re-enables the sent codes |
+| `POST /api/system?action=restart` | graceful restart from inside the app; the PVR link needs it to run its initial sync, and it works where the operator has no `docker` access. A settings POST naming a PVR field already restarts that app's SignalR client by itself (`app/config.py:run_signalr_client`), so the seed does not call it |
 | `GET /api/system/health` | the honest gate — `{"object": "Missing languages profile"}` is what "the search did nothing" looks like from outside |
+| `GET /api/providers` | the honest provider-auth read — the per-provider `status` is what separates "configured" from "working" (`AuthenticationError` is the credential, not the network) |
 | `PATCH /api/movies/subtitles?radarrid=<n>&language=<code2>&forced=false&hi=false` | automatic search, one movie × one language. **All four params are required**; the 400 names exactly the one missing |
 | `GET /api/providers/movies?radarrid=<n>` | the UI's Manual Search; 500s without an assigned profile (`int() argument … not 'NoneType'`) |
 | `POST /api/jellyfin/test-connection` (`url`, `apikey`) | run it before saving the Jellyfin leg — it is the only thing that separates a wrong URL from a wrong key |
@@ -265,26 +271,35 @@ host), with exactly one exception.** Measured from inside the Bazarr container:
 
 | Leg | Value that works | Evidence |
 |---|---|---|
-| Bazarr → Radarr | `radarr:7878` + the key read from `/srv/docker/radarr/config/config.xml` | SignalR connected; job `Synced movies with Radarr` → 2 movies |
-| Bazarr → Sonarr | `sonarr:8989` + its own `config.xml` key (the `arr-seed.yml` rule: instance key, never the vault copy) | SignalR connected; 3 series synced |
+| Bazarr → Radarr | `radarr:7878` + the key read from `/srv/docker/radarr/config/config.xml` | `GET /api/v3/system/status` → `200` with that key, while the key Bazarr had stored answered `401`; the seed writes the `config.xml` value |
+| Bazarr → Sonarr | `sonarr:8989` + its own `config.xml` key (the `arr-seed.yml` rule: instance key, never the vault copy) | the same `401`-vs-`200` pair |
 | Bazarr → Jellyfin | **`https://media.kogler.si`** — the container name fails (`HTTPSConnectionPool(host='media', port=443) … NameResolutionError`), because Bazarr dials this one over HTTPS by name | `test-connection` → `{"success": true, "server_name": "media", "version": "10.11.11"}`; `Movies` library + refresh-on-download on |
-| Bazarr → provider | `opensubtitlescom` with `opensubtitles_login` | ❌ `Throttling opensubtitlescom for 12 hours … AuthenticationError … 'Login failed'` — the credential, not the network |
+| Bazarr → provider | `opensubtitlescom` with `opensubtitles_login` | ❌ `Throttling opensubtitlescom … AuthenticationError … 'Login failed'`, retried hourly — and the stored login is **byte-equal to the vault item**, so this is the credential itself, not a propagation failure or the network |
 
-**Keys are app state, documented as such:** Bazarr's own API key is the vault `bazarr_api` (proved equal
-to the instance `auth.apikey` by sha256 — vault-vs-instance key drift is a real failure class here). **The
+**The PVR legs are the propagation gap this seed closes.** A rotated arr API key reaches
+`lidarr-ydl`, soularr and SeerrNG through their renders, and reached Bazarr through nothing: the pin
+window left Bazarr storing pre-rotation Radarr/Sonarr keys, which is invisible from the outside — the
+library keeps listing rows synced before the rotate (`GET /api/movies` is Bazarr's own DB, not the
+arr's), while every live call returns the arr's `401` body. `bazarr-seed.yml` reads each key from the
+app's own `config.xml` on every converge, so the gap is closed by the render rule rather than by memory.
+
+**Keys are app state, documented as such:** Bazarr's own API key is the vault `bazarr_api`. **The
 instance issues it, so a rotation goes there first**: `auth.apikey` in
 `/srv/docker/bazarr/config/config/config.yaml`, edited with the container STOPPED — a running Bazarr
 rewrites that file on a graceful exit and would restore the old value — then Bazarr starts, then the vault
-copy is written. No IaC file reads `bazarr_api`, so no converge propagates it and `--rotate` on the item
-alone writes a value the app never issued. Jellyfin's read-only key minted for Bazarr is `jellyfin-bazarr_api` →
-[deployment-secrets.md](deployment-secrets.md).
+copy is written. `bazarr-seed.yml` READS that file (as `X-Api-Key`) and never writes it, so no converge
+propagates a rotate and `--rotate` on the item alone writes a value the app never issued. Jellyfin's
+read-only key minted for Bazarr is `jellyfin-bazarr_api` → [deployment-secrets.md](deployment-secrets.md);
+that one leg the seed DOES write, because Jellyfin mints it and there is no instance file to read.
 
 **App state read over the API:** languages enabled
-`sl, en, hr, sr`; profiles `slo + eng` (sl,en), `slo` (sl), `cro/srb` (hr,sh) — ⚠ **no profile is
-assigned**: both movies carry `profileid: null` and `movie_default_profile` is empty, so the scheduled
-search will keep finding nothing until a default profile is set (Settings → Radarr → Default profile,
-or per movie) ⏳. The library holds one sidecar for the title *Svadba* / `The Wedding` (2026, tmdb 1551507,
-Radarr id 2):
+`sl, en, hr, sr, sh` (`bazarr_seed_languages`; `sh` is what the `cro/srb` profile asks for, so dropping it
+from the list would silently stop hunting Serbo-Croatian); profiles `slo + eng` (sl,en), `slo` (sl),
+`cro/srb` (hr,sh) — ⚠ **no profile is assigned and default hunting is off**: both movies carry
+`profileid: null`, `movie_default_profile`/`serie_default_profile` are empty and
+`movie_default_enabled`/`serie_default_enabled` are `false`, so the scheduled search will keep finding
+nothing until an owner sets it (Settings → Radarr → Default profile, or per movie) ⏳. The library holds
+one sidecar for the title *Svadba* / `The Wedding` (2026, tmdb 1551507, Radarr id 2):
 `movies/The Wedding (2026)/Svadba.2026.WEBRip.1080p.h264.[ExYuSubs].en.hi.srt` (English, HI; Bazarr lists
 it with `hi: true`). No `sl`/`hr`/`sr` file exists for the title — a provider-availability question that
 cannot be answered until the provider login works.

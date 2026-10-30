@@ -27,6 +27,16 @@
 # exists. Opt out only with `arr_seed_assert_profiles=false`, and say why in the commit.
 #
 # Idempotence: GET rootfolder, POST only the paths that are absent. Re-running is a no-op.
+#
+# WHY THE SEED ALSO REPORTS WHAT IT DID NOT DECLARE: the POST loop is driven by the DECLARED list, so a
+# root folder that exists in the app and is absent from `arr_seed_apps` is never removed, never listed and
+# never mentioned — the seed says `ok` over it. That asymmetry is not untidiness: the app offers every
+# live path in its Root Folder dropdown, so a request can be pinned to a path IaC has never heard of, and
+# for Lidarr one of those paths is the Soulseek completion tree that soularr clears on timeout
+# (docs/services-media.md §Music Pillar). So the live set is read back against the declared set and a live
+# path that is not declared FAILS here, naming itself. Declaring a path (IaC can add, and — there is no
+# DELETE for `rootfolder` anywhere in `IaC/` — can never remove) and deleting a live root are the owner's
+# calls, made on this report; keeping the drift quiet is not an option the seed gets to take.
 
 - name: "arr-seed: assert the seed facts for {{ svc.name }} are defined"
   ansible.builtin.assert:
@@ -97,6 +107,28 @@
   register: _arr_roots
   no_log: true
   failed_when: _arr_roots.json is not defined
+  tags: [docker_services, arr_seed]
+
+- name: "arr-seed: name every live root folder the declared set does not cover"
+  # `subitems` walks section -> params; `difference` keeps the message honest about WHICH path drifted
+  # rather than printing the whole set and asking the reader to diff it.
+  ansible.builtin.assert:
+    that:
+      - (_arr_roots.json | default([]) | map(attribute='path') | list)
+        | difference(arr_seed_apps[svc.template_dir].root_folders) | length == 0
+    fail_msg: >-
+      {{ svc.name }} has live root folder(s) that IaC does not declare:
+      {{ (_arr_roots.json | default([]) | map(attribute='path') | list)
+         | difference(arr_seed_apps[svc.template_dir].root_folders) | join(', ') }}.
+      Declared in arr_seed_apps.{{ svc.template_dir }}.root_folders:
+      {{ arr_seed_apps[svc.template_dir].root_folders | join(', ') }}. Nothing below this line will add or
+      remove anything about them: IaC can POST a root folder and has no DELETE for one, so the fix is a
+      human call made on this report — declare the path in roles/docker_services/defaults/main.yml, or
+      DELETE rootfolder/<id> in the app after moving the artists/movies/series pinned to it. Read who is
+      pinned with GET {{ arr_seed_apps[svc.template_dir].api_base }}/artist (Lidarr names the field
+      `rootFolderPath`, there is no `rootFolderId` in the artist list). Skip in an emergency only with
+      `arr_seed_report_root_drift=false`.
+  when: arr_seed_report_root_drift | bool
   tags: [docker_services, arr_seed]
 
 - name: "arr-seed: create the missing root folders"
