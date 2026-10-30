@@ -42,7 +42,12 @@
 # =====================================================================
 set -euo pipefail
 
-REPO="${REPO:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+# HD-1118 Stage 1: the repo root is FOUND by scripts/lib/repo-root.sh, never assumed from a depth —
+# "one level above me" is what turns a folder move into a gate that checks nothing.
+_hl_d="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+while [ ! -f "$_hl_d/lib/repo-root.sh" ] && [ "$_hl_d" != / ]; do _hl_d="$(dirname "$_hl_d")"; done
+# shellcheck source=/dev/null
+. "$_hl_d/lib/repo-root.sh"   # sets REPO (an inherited $REPO still wins)
 # OWN PATH, not a name spliced into REPO: a self-test that re-execs `$SELF` must survive the file being
 # copied or renamed by a harness, or every arm fails for the wrong reason (measured that way).
 SELF="${BASH_SOURCE[0]}"
@@ -107,8 +112,11 @@ tx() { # tx <target> <cmd...>   (stdin forwarded)
     return $?
   fi
   if [ "$t" = "wsl" ]; then
+    # ORDER MATTERS: inside the engine `wsl.exe` is STILL on PATH (WSL interop), and asking it from in
+    # there runs the leg in a different namespace and reports ABSENT for a file that is right there — a
+    # false red measured on this box. The engine checks itself first.
+    if this_is_wsl_engine; then bash -lc "$*"; return $?; fi
     if command -v wsl.exe >/dev/null 2>&1; then MSYS_NO_PATHCONV=1 wsl.exe -d "$PI_WSL_DISTRO" -- bash -lc "$*"; return $?; fi
-    this_is_wsl_engine && { bash -lc "$*"; return $?; }
     return 99                                     # unreachable from this seat, by definition
   fi
   ssh -o BatchMode=yes -o ConnectTimeout=10 "$t" "$*"
@@ -358,15 +366,36 @@ refuse_windows_side
 # A driver run reads the item ONCE, digests it, and holds the value in this process only.
 hl_vault_ask || die "no vault credential for this seat (see scripts/lib/vault-env.sh) — a re-seat reads the item, so it needs one working credential somewhere: this seat's file, its env, or the WSL door"
 OP="$(opbin)"; [ -n "$OP" ] || die "no op CLI on this seat"
-# The read is VERIFIED, not trusted: `op read` prints `does not have a field …` and STILL EXITS 0
-# (measured, op 2.39), so a wrong field path looks like a successful empty read — and an empty token
-# exported into a leg is the 403-that-looks-like-a-dead-token shape. Hence: the documented field, then a
-# non-empty check, then a shape check, and nothing is touched before all three pass.
-for path in "${ITEM}/credential" "${ITEM}/credential/op-service-account-token"; do
-  TOKEN="$("$OP" read "op://${OP_VAULT:-Homelab-ansible}/${path}" 2>/dev/null | tr -d '\r\n')"
-  case "$TOKEN" in ops_*) break ;; *) TOKEN="" ;; esac
-done
-[ -n "$TOKEN" ] || die "could not read a service-account token from '$ITEM' — the field path is wrong or the item is not a service-account credential; nothing was touched"
+# The read goes through the repo's ONE batched reader, and its answer is VERIFIED by shape. Why not
+# `op read <path>`: on op 2.39 BOTH plausible paths fail QUIETLY — `…/op_api/credential` prints nothing
+# and exits 0, `…/credential/op-service-account-token` prints `does not have a field` and ALSO exits 0
+# (measured). A read that fails as a success is how an empty token reaches a seat and 403s there.
+read_item() {
+  local json
+  if [ -n "${RESEAT_STUB:-}" ]; then "$(opbin)" read "op://${OP_VAULT:-Homelab-ansible}/${ITEM}/credential"; return; fi
+  json=$(python3 "$REPO/scripts/lib/vault_read.py" --item "$ITEM" 2>/dev/null | sed -n '/^{/,$p' || true)
+  [ -n "$json" ] || return 1
+  printf '%s' "$json" | python3 -c 'import json,sys
+# the reader prefixes a NOTE line and wraps the record as {"item": {…}} — both shapes are read, and the
+# value is taken by its service-account prefix, not by a field label guessed here
+try:
+    j = json.load(sys.stdin)
+except Exception:
+    sys.exit(1)
+item = j.get("item", j)
+for f in item.get("fields", []):
+    v = f.get("value")
+    if isinstance(v, str) and v.startswith("ops_"):
+        print(v.strip()); break
+    if isinstance(v, list):
+        for s in v:
+            sv = s.get("value")
+            if isinstance(sv, str) and sv.startswith("ops_"):
+                print(sv.strip()); sys.exit(0)' 2>/dev/null || true
+}
+TOKEN="$(read_item || true)"
+case "$TOKEN" in ops_*) : ;; *) TOKEN="" ;; esac
+[ -n "$TOKEN" ] || die "could not read a service-account token from '$ITEM' via lib/vault_read.py — nothing was touched"
 WANT="$(printf %s "$TOKEN" | d12)"
 say "reseat-vault-token · item $ITEM · vault sha256[:12]=$WANT · targets: ${SEATS:-$RESEAT_TARGETS}"
 fails=0

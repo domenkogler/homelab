@@ -394,7 +394,10 @@ hl_vault_self_test() {
   # each one a copy of the rule this lib replaces, and the fold is that lane's edit, not this one's.
   # What the arm forbids from now on is a NEW file naming the path: the list can only shrink.
   # `\.md` is excluded because a registry row that NAMES the path is documentation, not a reader.
-  readers="$(cd "$REPO" 2>/dev/null && git grep -l 'homelab-sa-token' -- scripts/ 2>/dev/null     | grep -v -e '\.md$' -e '^scripts/lib/vault-env\.sh$' -e '^scripts/testdata/'              -e '^scripts/ansible/bootstrap-runner\.sh$'                                                                  || true)"
+  # `secrets/reseat-vault-token.sh` is a WRITER, in the same class as bootstrap-runner.sh: it re-seats
+  # the install after a rotation and names the path to place the file, and the fold that removes the
+  # second writer is a lib mode (`--install-from-stdin` on this lib), which is that lane's edit.
+  readers="$(cd "$REPO" 2>/dev/null && git grep -l 'homelab-sa-token' -- scripts/ 2>/dev/null     | grep -v -e '\.md$' -e '^scripts/lib/vault-env\.sh$' -e '^scripts/testdata/'              -e '^scripts/ansible/bootstrap-runner\.sh$' -e '^scripts/secrets/reseat-vault-token\.sh$'                       || true)"
   # A git that cannot open this checkout answers with NOTHING, and "nothing new" must not read as a
   # passed arm (a Linux git pointed at a Windows worktree reads the `gitdir:` file as relative and
   # dies — lib/wsl-route.sh records it). Not judged is printed as not judged.

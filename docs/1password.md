@@ -226,6 +226,15 @@ installed). Run the sweep with `sudo` on every host.
 control node's sweep never lists `vps`'s install. Enumerating consumers means running the loop on
 every host in §Where a token is installed, not on the one you are standing in.
 
+**The command that walks the plane instead:** `bash scripts/secrets/reseat-vault-token.sh --check` (then
+`--apply`) runs that sweep across the alias plane from one seat — `wsl`, the cockpit seat, `vps`, and the
+on-site control account — and prints `CURRENT` / `STALE` / `ABSENT` per target against the vault's current
+value, each with the target's own `op item list` answer. `STALE … still works` is the grace window
+speaking: a re-issued service account leaves the superseded token answering until it expires, so a seat
+that reads fine today is the seat that 403s on the expiry date. The leg runs on the Debian engine (its
+proof is a file mode, and NTFS carries none), so from the Windows seat: `wsl.exe -d Debian -- bash -lc
+'cd ~/source/homelab && bash scripts/secrets/reseat-vault-token.sh --check'`.
+
 ⚠ **A bare-value token file is hashed, never sourced.** `~/.config/op/homelab-sa-token` is
 `export OP_SERVICE_ACCOUNT_TOKEN=…`, so the dot-and-hash above is safe. `/etc/op/provision-token` is the
 **bare token**, and `. "$f"` executes it: bash answers `command not found` **with the whole value on the
