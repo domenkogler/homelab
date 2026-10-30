@@ -132,6 +132,19 @@ All endpoints are **LAN/tailnet-only** (served on the oldsrv hosts above).
 - ⏳ **Concrete client config files are not authored here yet** — the URLs above are the **SSOT
   contract**; the client-side config is environment-specific and lives with each tool
   ([services-ai.md](services-ai.md)).
+- ✅ **The endpoints answer, read through the vars, not through literals.** With
+    `mcp_metrics_port`/`mcp_logs_port` (`group_vars/all/main.yml`) the pair is
+    `oldsrv_home_ip:8083` / `:8084`, and a Streamable-HTTP `initialize` against `/mcp` on each port
+    returns `200` with `serverInfo` `VictoriaMetrics v1.18.0` / `VictoriaLogs v1.8.0` and
+    `tools`/`prompts`/`resources` capabilities (`GET /health` on either is `404` — there is no such
+    route, which is not a failure read). 8080/8081 stay out of it: 8080 is pi-dev's.
+- ⚠ **Registering a consumer is an act in that consumer's own plane, not in this doc.** The three named
+    consumers hold their MCP config where their own lane owns it — the pi harness in the seat settings
+    plane (`pi-agent/`, merged by the harness seat plane), Open WebUI in its **database** (Admin → Tools
+    → MCP, not a rendered file), OpenClaw in its own service directory. Nothing in `roles/monitoring`
+    or the MCP compose can carry the registration, so the row cannot be closed by an observability
+    converge: each leg is one entry, `type: http`, `url: http://<oldsrv home ip>:8083|:8084`, done in
+    the file or UI that the owning lane maintains.
 
 ---
 
@@ -311,6 +324,23 @@ shows) → `.id` on the linked oldsrv daemon, stored in `group_vars/all/main.yml
     step, not a side effect of this one. The chain is temporary in shape: a Matrix failure cannot suppress
     a Signal send, but a Signal failure stops the workflow before the Matrix node — which is exactly why
     the demotion has to be an act and not a drift.
+  - **The read that proves the leg: the room's own events.** `GET
+    https://matrix.kogler.si/_matrix/client/v3/rooms/<room-id>/messages?dir=b&limit=N&filter=<m.room.message>`
+    with `Authorization: Bearer <matrix-alerts_api · credential>` — the same token the send uses, held in
+    the vault and never printed. Re-read this way: the 8 newest events in the room are all sent by
+    `@homelab-alerts:kogler.si` and carry the workflow's own `⚠️ *[FIRING:n] …*` shape with
+    `Labels:`/`Annotations:`/`Source:` lines, newest ~7 h old — so the real Grafana → n8n → Matrix path
+    delivers today, without a canary. ⚠ What that read does **not** prove is the ordering above: a Signal
+    failure stops the workflow before the Matrix node, so a room full of delivered alerts is proof of the
+    happy path only. A webhook `200`, an `active: true` workflow and a `Up` n8n container are not this
+    proof — the event in the room is, and the workflow's own status is not.
+  - **The live workflow is readable, and that is the cheap drift check.** `n8n_api`'s `credential` is an
+    `X-N8N-API-KEY` and n8n publishes 5678 on the VPS loopback, so `curl -H "X-N8N-API-KEY: …"
+    http://127.0.0.1:5678/api/v1/workflows` answers the running node list — including `onError` per node.
+    Re-read that way: ONE workflow `homelab-alerts`, `active: true`, and `onError: stopWorkflow` on all
+    four send nodes (both Signal, both Matrix) — the mutes really are out of the live instance, not just
+    out of the repo file. ⚠ The API URL is the **host loopback**; `http://n8n:5678` is Docker DNS and
+    resolves for nothing driven from the host, which reads as an empty API.
 
 ### Operational gotchas
 
@@ -418,6 +448,20 @@ shows) → `.id` on the linked oldsrv daemon, stored in `group_vars/all/main.yml
   [observability-rejected.md](observability-rejected.md) and `todo.md` HD-1182 for where HA liveness
   actually comes from (the gated `ha_exporter` job). ⛔ Do not re-add the target to close that gap: the gap is
   the row, and a target that can never pass is the wrong instrument for it.
+  ⚠ **Two things that sentence used to lean on are now measured differently, and both matter.**
+  (1) *HA is behind the VIP*: from oldsrv, `http://<ha_vip>:8123/` answers `200` and `/api/config`
+  authenticates with the vault `ha_api` bearer (161 components, `version 2026.9.4`) — "no HA behind
+  ha_vip" is no longer a true statement, so the VIP is not what gates the exporter job. What does gate it
+  is the exporter itself: `/api/prometheus` answers **404** and no Prometheus/metrics integration is
+  loaded, so flipping `alloy_ha_exporter` today renders a target that 404s forever — the same shape as the
+  probe target this bullet refuses. HD-14 (enable the exporter on the instance) is the precondition.
+  (2) *The rule removal is not applied merely by deleting the lines*: `rules.yml` on the VPS carries no
+  `ha-unreachable` (grep: 0) while the ruler still lists `uid=ha-unreachable` with the retired
+  `instance="https://ha.kogler.si"` expression, because file provisioning adds and updates rules and does
+  not delete the ones a file stopped carrying. With `noDataState: OK` and no matching series it reads
+  green forever — a silent, stale copy of the very rule that was retired. Quote the **ruler**, not the
+  file, for what the rule plane holds (§Silent-failure hygiene has the read), and delete a retired rule by
+  `uid` in the same act that removes it from the file.
 - **Do not alert on intentionally-empty state.** Unprovisioned is not incident-worthy: a link rule that
   matches every switch port pages on the ports that carry nothing (ten simultaneous instances on ports with
   no cable). Alert on the loss of a link that carries something.
@@ -747,7 +791,8 @@ and clears **~1.5 min after the cause is fixed** (next scrape + the 1 m rule int
 
 | Question | The read that answers | The read that misleads |
 |---|---|---|
-| Are the rules in Grafana? | `GET http://<grafana-container-ip>:3000/api/ruler/grafana/api/v1/rules` with `admin` + the password from `docker exec grafana printenv GF_SECURITY_ADMIN_PASSWORD` (the role's own source — never a vault guess). Match on the **metric in the expression**: a file-provisioned rule lists under its TITLE, not its `uid`. | `GET /api/v1/rules` → **404** on this Grafana; a name-match on `uid` finds **zero** of the five while all five are loaded. |
+| Are the rules in Grafana? | `GET http://<grafana-container-ip>:3000/api/ruler/grafana/api/v1/rules` with `admin` + the password from `docker exec grafana printenv GF_SECURITY_ADMIN_PASSWORD` (the role's own source — never a vault guess). Match on the **metric in the expression**: a file-provisioned rule lists under its TITLE, not its `uid`, and on this Grafana the expression + `uid` + state live inside each rule's `grafana_alert` block, so a reader that prints the top-level `name`/`state` sees 32 empty rows and concludes nothing is loaded. | `GET /api/v1/rules` → **404** on this Grafana; a name-match on `uid` finds **zero** of the five while all five are loaded. |
+| …and is a rule the repo deleted really gone? | The same ruler read, grepped for the deleted rule's `uid`. **A rule removed from `rules.yml` stays loaded in the running instance** — file provisioning adds and updates rules but does not delete the ones a file stopped carrying, so the live set can hold a rule the repo has retired. Measured: `rules.yml` carries no `ha-unreachable` (grep: 0 hits) while the ruler still lists `uid=ha-unreachable` with the retired `probe_success{job="blackbox_http_probes", instance="https://ha.kogler.si"} == 0` expression. Harmless-but-lying: no series matches, `noDataState: OK`, so it reads green forever — the exact "structurally green whatever HA did" shape its removal was meant to end. | Concluding from the file that the live set is clean. The file is the record; the ruler is the state, and here they disagree. |
 | Did the series reach the backend? | Query **through the datasource proxy**: `…/api/datasources/proxy/uid/prometheus/api/v1/query?query=…`. | A direct `curl` to `victoria-metrics:8428` answers **400** even with correct basic auth (this VM build wants a request shape curl's `-G` does not produce) — a 400 there is NOT "no data", and a 401 is often just the absent `OP_SERVICE_ACCOUNT_TOKEN`, because the vault lookup then yields nothing. |
 | Is the exporter up on a host? | `curl -s 127.0.0.1:9098/metrics \| grep -c '^homelab_'` on that host (oldsrv: 9). | The unit being `active` — the collector can be up and its `systemctl show` loop empty. |
 
@@ -1526,7 +1571,7 @@ is dark for a reason that is now measured rather than assumed.**
 | Instrument | Where it sits | In VM? | What it can prove |
 |---|---|---|---|
 | **Engine counters** `vllm:*` | spark's own `/metrics` on the API port, scraped by `vllm` + `vllm_hot` (`IaC/ansible/roles/monitoring/templates/alloy.river.j2:557`, `:586`) | ✅ live | **tokens** — prompt / generation / cached / by-source, for **every caller**, because the counter is on the engine and does not care who sent the request. Labels: `model_name` + `instance` + `job` — no client, key or user dimension exists. |
-| **LiteLLM gateways** (`litellm` on the VPS, `lan-litellm` on oldsrv) | the proxy's own process — and in this pin, from a **separate metrics process/port** | ❌ nothing, and now for a measured reason | per-key / per-user spend and `rpm` — the attribution the fleet could get for *free*. Those numbers live only in each gateway's Postgres + Admin UI. See **Why the LiteLLM surface is dark** below: the endpoint is not mounted in the running process, so there is deliberately **no `job="litellm"`** anywhere. |
+| **LiteLLM gateways** (`litellm` on the VPS, `lan-litellm` on oldsrv) | the proxy's own process — the surface mounts only when the `prometheus` callback is configured, and in this pin `/metrics` is served on the API port | VPS: **surface live, scraped by nothing**; oldsrv: still dark | per-key / per-user spend and `rpm` — the attribution the fleet could get for *free*. Those numbers live only in each gateway's Postgres + Admin UI. See **Why the LiteLLM surface is dark** below: the VPS instance now mounts the endpoint (`127.0.0.1:4000/metrics`, 401 unauthenticated / 200 with a bearer) and there is still deliberately **no `job="litellm"`**, because the only credential in the vault is the admin key — the scrape waits on a scoped metrics key. |
 | **oldsrv serving tier** (`embed`, `reranker`, `whisper` on the RX 7600) | llama.cpp / whisper.cpp containers + the host's `amdgpu` sysfs | ✅ **both halves live** | The card reports `homelab_gpu_vram_used_bytes` / `_vram_total_bytes` / `_busy_percent` (`gpu="rx7600"`), published by the host hygiene collector. The request/token counters came live on 2026-10-19 when `ai_tier_metrics_publish` went `true` (HD-1122): `llama-server --metrics` runs on both GGUF legs and the `llamacpp:*` family (`prompt_tokens_total`, `prompt_tokens_cached_total`, `tokens_predicted_total`, `*_seconds_total`) lands under `job="llama-cpp"` with a `leg="embed"`/`leg="reranker"` label. They join no `vllm:*`/`sglang:*` panel — different names — but they have their own panel on `homelab-llm` (§LLM Dashboard), authored, not hand-placed. whisper.cpp (STT) still has no metrics surface. |
 
 The honest sentence this section exists to force: **totals are known, attribution is not.**
@@ -1545,8 +1590,9 @@ The rejection itself is logged in [observability-rejected.md](observability-reje
 ### Why the LiteLLM surface is dark — measured on both gateways, same pin
 
 The probe was the first step, and it does **not** end in "no Prometheus surface": the endpoint exists in
-`docker.litellm.ai/berriai/litellm:v1.104.0` but is **not mounted in the running process**. Measured on
-`lan-litellm` (oldsrv, `:4000`) and on `litellm` (VPS, container `:4000`):
+`docker.litellm.ai/berriai/litellm:v1.104.0` but mounts **only when the `prometheus` callback is
+configured**. Measured on `lan-litellm` (oldsrv, `:4000`) and on `litellm` (VPS, container `:4000`) before
+any change:
 
 | Read | Answer |
 |---|---|
@@ -1560,11 +1606,11 @@ the configured callbacks. No callback is configured, so nothing mounts, and the 
 route that would 404 anyway. `litellm/proxy/prometheus_metrics_server.py` additionally documents that a
 worker-separated deployment serves `/metrics` from **its own process** via the CLI flag
 `--prometheus_metrics_port` (which must differ from `--port` and auto-creates `PROMETHEUS_MULTIPROC_DIR`).
+Neither gateway runs that flag, so `/metrics` here is the API port's own mount — which is why the VPS
+publish is a publish of `4000`, not of a metrics-only port.
 
 So enabling the surface is a **gateway change**, not a monitoring one, and until it lands a scrape job
-here would scrape nothing — which is why there is no `job="litellm"` in
-[`alloy.river.j2`](../IaC/ansible/roles/monitoring/templates/alloy.river.j2). Two independent halves must
-land, in this order:
+here would scrape nothing. Two independent halves must land, in this order:
 
 1. **Mount it** (both gateways): add the `prometheus` callback to the rendered `config.yaml` — and name
    the auth story with it, because the endpoint answers `401` to a scraper by default. Either keep auth
@@ -1572,14 +1618,34 @@ land, in this order:
    `roles/monitoring/tasks/main.yml`), or set `require_auth_for_metrics_endpoint: false` and accept that
    per-key spend becomes readable by anything that can reach the port. ⚠ `lan-litellm` publishes
    `oldsrv_home_ip:4000` — a LAN bind, so the unauthenticated form is a LAN-wide read of the spend ledger.
+   And the same argument reaches the VPS instance even though its publish is loopback-only: the
+   tailnet-only `litellm.kogler.si` route proxies **every** path to `litellm:4000`, so an unauthenticated
+   `/metrics` would be readable by any tailnet peer that can name the host. **Auth stays on.**
 2. **Reach it** (VPS only): the VPS `litellm` publishes **no host port at all**, and `discovery.docker`
    finds 0 targets for a container with no port mapping, so the VPS instance additionally needs a
    loopback publish of the metrics port (the `spark_metrics_publish` shape) before any job can address it
    — an ephemeral `172.22.x.x` target is the dangling-static-IP failure class, not a fix.
 
-When both land, one `prometheus.scrape` per instance with an **explicit `job` and `instance`** (the two
-instances must never merge) at the **60 s cold** cadence, and a keep-list built from the names quoted by
-the live render at that moment — never from this document.
+**Where it stands.** Both halves landed on the **VPS** instance (`litellm/config.yaml.j2` carries
+`callbacks: [prometheus]`; the compose publishes `127.0.0.1:4000`), re-measured after the apply:
+`127.0.0.1:4000/metrics` answers **401 unauthenticated** and **200 with a bearer**, 18 224 bytes and 21
+series, `litellm_proxy_total_requests_metric_total` / `litellm_in_flight_requests` /
+`litellm_active_users` among them. `lan-litellm` is untouched — enabling it needs an oldsrv
+`docker_services` recreate, so it still answers `404` with a bearer there.
+
+⛔ **No `job="litellm"` in [`alloy.river.j2`](../IaC/ansible/roles/monitoring/templates/alloy.river.j2),
+and it is the credential, not the surface.** The endpoint keeps its auth middleware, and the only LiteLLM
+credential in the vault is `litellm_api`, which that service's own compose header says is
+admin/bootstrap-only and consumed by nothing. A scrape job holding it would be a permanently-red target
+and a documented invariant spent in the same change. The unblock is three named acts, in order: mint a
+**scoped** virtual key for metrics as its own vault item (the bootstrap-keys glue that owns every
+consumer key mints it — never the admin key), then add the `prometheus.scrape` per instance
+(`bearer_token_file`, explicit `job`/`instance`, 60 s cold, keep-list quoted from the live render), then
+prove `up{job="litellm"}` twice. todo.md HD-1121 carries the tail.
+
+When both gateways are scraped, one `prometheus.scrape` per instance with an **explicit `job` and
+`instance`** (the two instances must never merge) at the **60 s cold** cadence, and a keep-list built from
+the names quoted by the live render at that moment — never from this document.
 
 ### The trap that makes per-client accounting silently wrong: which address is the client?
 
@@ -2085,8 +2151,9 @@ collector: a metric is only listed here once a series carrying a real value is q
 > the PyPI module name `routeros_api`), running as `networkclients` with the install dir `0750
 > root:networkclients` so a low-privilege service user holds the RouterOS credentials, and `/metrics`
 > serving the `mikrotik_client` union (DHCP + ARP + FDB + wifi) from the RB4011 `logpipe` read-only user.
-> ⏳ Open: verify the wifi path against `/interface/wifi/registration-table` (vs the legacy API) and the
-> owner render-check of the dashboard.
+> ✅ The wifi source is verified on the box (see the join table below): `/interface/wifi/registration-table`
+> is the only registration path this RB4011 answers. What is left here is the owner render-check of the
+> dashboard.
 
 **Goal.** One dashboard showing *every* client on the homelab, grouped by VLAN
 (10 Home / 20 IoT / 30 Guest / 40 Kids / 50 Media / 99 Management).
@@ -2144,10 +2211,19 @@ convention `homelab-*`, datasource uid `prometheus` — same as the other dashbo
 **Open before this is called done.**
 - Exporter + dashboard are authored and deployed (`roles/monitoring/`: `network-clients-exporter.py.j2` host binary +
   systemd unit + Alloy `prometheus.scrape "network_clients"` + `homelab-network-clients.json`).
-- ⏳ Confirm live wifi path: modern `wifi-qcom-ac` registers under `/interface/wifi/registration-table`
-  (legacy `/interface/wireless/registration-table` in `skills/mikrotik` is the old path).
-- ⏳ Router API reachable from oldsrv (Mgmt) — already the case for the SNMP exporter; re-verify with
-  a read-only `mikrotik-read.py` call at deploy time.
+- ✅ **Live wifi path: `/interface/wifi/registration-table`, read off the box with the sanctioned reader**
+  (`python3 skills/mikrotik/scripts/mikrotik-read.py --op-env-file skills/mikrotik/.env.op
+  /interface/wifi/registration-table`) on RouterOS **7.24.4 (stable)** / **RB4011iGS+**: 11 registered
+  clients, rows carrying `interface=cap-wifi1-virtual1`, `ssid`, `mac-address`, `signal`, `band`,
+  `tx-rate`. Both alternative paths answer **`no such command prefix`** — `/wireless/registration-table`
+  (the legacy path `skills/mikrotik` documents) and `/interface/wifi-wave2/registration-table` (the
+  transitional v7 name) — so on this box the modern path is not a preference, it is the only one that
+  exists. Cross-check without touching the router: the exporter's own `/metrics` union carries 11 rows
+  whose `source` includes `wifi`, the same 11. ⚠ Ask with `logpipe` and only the registration table
+  answers — `/system/resource/print` is "no such command" for that scoped user, so name the
+  version/package reads with the admin credential (`mikrotik-read.py`) or not at all.
+- ✅ Router API reachable from the collector (the exporter polls it every scrape; 0 poll failures over the
+  last 1000 journal lines) and from a station off the Mgmt VLAN via `mikrotik-read.py`.
 - ⏳ Device-side SNMP enable (“if used as backstop”) is still an owner deploy step; the API collector
   needs only the API service (`/ip/service set api disabled=no`), already INPUT-scoped to Mgmt.
 
