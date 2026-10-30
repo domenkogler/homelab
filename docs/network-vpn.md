@@ -270,7 +270,10 @@ a MagicDNS record is a pointer to a *node*, not to a service, so the question a 
 "is that node up", never "is that app up". Re-pointing such a record at a live node is a routing decision, not a
 fix — the target must actually serve the route. ⚠ **And the obvious read-back instrument is missing at home:**
 the Pi does not accept tailscale DNS (`/etc/resolv.conf` is `1.1.1.1`, not `100.100.100.100`), so it cannot resolve
-any `.ts` name and proves nothing about a record; a `.ts` read-back needs a client with MagicDNS enabled.
+any `.ts` name and proves nothing about a record; a `.ts` read-back needs a client with MagicDNS enabled. ⚠ The
+same missing answer reads as an outage when nothing pins it: `curl https://<name>.ts.kogler.si/` from a host whose
+resolver knows nothing for the tailnet namespace prints `000`, which is the resolver, not the service — pin the
+address for the read (`curl --resolve <name>.ts.kogler.si:443:<the record's tailnet address> …`) first.
 The overlay's live user is `litellm`.
 
 ### Reach matrix for the tailnet-only admin names
@@ -400,8 +403,10 @@ client switch accepts only `""`, `"A"`, `"AAAA"` and `continue`s every other typ
 is invisible to the resolver, not an indirection.
 (`live-verified 2026-10-29`: `dig +short @100.100.100.100 A ha.ts.kogler.si` from two tailnet members —
 oldsrv and the WSL seat — returned `tailnet_oldsrv_ip` on 12 of 12 queries with resolver caches flushed
-between them, never `tailnet_pi_ip`; the netmaps those clients hold do carry both rows, read from
-`tailscale debug netmap`.) The away path that survives oldsrv's node dying is therefore still the OTHER
+between them, never `tailnet_pi_ip`; the netmaps those clients hold do carry both rows — read them
+**projected**, never raw:
+`sudo -n tailscale debug netmap | jq -c '[.DNS.ExtraRecords[] | select(.Name | startswith("ha"))]'`, because a raw
+netmap carries node keys (CONVENTIONS.md §3).) The away path that survives oldsrv's node dying is still the OTHER
 node's own name, `pi.ts.kogler.si`. The SERVICE surviving either box is the VIP's second advertiser, a
 different claim ([smart-home-failover.md](smart-home-failover.md) §Away access (tailnet)).
 
@@ -414,7 +419,10 @@ keyed by name+type+value — and the order is **frozen for the lifetime of the p
 why one client's answer is stable across cache flushes and why two clients agree. Read here: the rendered
 file lists `tailnet_oldsrv_ip` first and the netmaps of two live members carry that order, so the answer is
 `tailnet_oldsrv_ip` (`live-verified 2026-10-29`); **the flip itself is unprovoked** — it takes a headscale
-restart or a records-file rewrite, both live acts. The inline `dns.extra_records` shape is the opposite:
+restart or a records-file rewrite, both live acts. A rewrite needs no changed content to provoke it: rewriting
+the records file in place (`sudo touch /opt/headscale/extra_records.json`) re-draws the set and pushes a DNS update
+to every client at once, which makes it an owner-present act, never a read-only probe. The inline
+`dns.extra_records` shape is the opposite:
 `viper.UnmarshalKey` leaves it a slice, so the authored order survives into the netmap. ⛔
 `check_zone_kogler_si_parity.py` proves the two renders emit the same rows and is structurally blind to
 what headscale does with them afterwards — a `dual` name is the one place where the record key, not the
@@ -1006,6 +1014,12 @@ container on the VPS, per §Two Layers above).
    **not** evidence of anything here, since the netns owner of a `network_mode: service:` sibling
    reports `Up` while the sidecar that carries the tailnet sits `Created`. See
    [deployment-compose.md](deployment-compose.md) §Boot auto-start (docker-compose@).
+7. **A peer is not in every netmap, so a node name is not a fleet-wide alias.** A client's netmap carries the
+   peers its policy can reach, and no rule in `policy.hujson.j2` grants `tag:dev` → `tag:home-edge`, so the Pi is
+   absent from oldsrv's netmap — a `.ts` **node name** (`pi.ts.kogler.si`, `oldsrv.ts.kogler.si`) can answer on one
+   device and be missing on another. And because every accept rule names the owner's user as `src`, a device owned
+   by anyone else holds no grant toward either home node, so off-LAN it reaches neither. **Probe the device the app
+   lives on, not the seat.**
 
 **Also worth knowing off-LAN:** the Pi is the **toggle-only Slovenian exit node** (egress, not ingress —
 see the section below; ⏳ **Not yet advertised in IaC**), and the tailnet does **not** bridge the home LAN,
