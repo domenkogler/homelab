@@ -417,6 +417,33 @@ hold that, and neither is the leak ledger:
   value). The two are told apart by the ledger at `HEAD` (one `git show`, values never touched), and
   both are red — an unreadable HEAD keeps the harsher word, so the vocabulary can only ever make a run
   redder, never quieter.
+- **The seven verdicts are classified, and the classification is a ruling, not an exit code that fell
+  out of the implementation.** One question draws the line: does the verdict say something is wrong
+  IN THE TREE, or that something is still owed IN THE FLEET? Reminder semantics are
+  [CONVENTIONS.md](../CONVENTIONS.md) §6.4.
+  - `BLOCKING` — `REFUSED`, `UNLEDGERED`, exit 1. The first is a hit that vanished with no version move,
+    which is a close no rotation backs; the second is a CURRENT value the ledger rightly does not mute,
+    so the book may not calmly table the finding the leak gate is reddening on. Neither is clearable by
+    editing a book, which is what a blocker must be.
+  - `REMINDER` — `NOT ROTATED`, `CANDIDATE`, exit 0. An open debt whose act is owed, by the actor the
+    register's `path:` column names, in the doc its `rotation-doc` column names — so the line prints
+    with its actor instead of becoming somebody's permanent red. It re-derives itself from the vault's
+    `version` numbers on every run (no frozen seal to rot into yellow — CONVENTIONS.md §6.4), and it must
+    never be
+    promoted to a blocker: the `path: none` lines are credentials an ISP provisions and a network
+    account whose reset mail never arrives, so a red on this word would be true forever, and a gate
+    that is always red is a gate that gets scrolled past.
+  - `STATE` — `CLOSED`, `GONE`, `NOT JUDGED`, exit 0. The book's own condition: a line to delete, an
+    item the vault no longer answers, a line only another seat or another store may judge.
+  - ⛔ What the reminder class does not mute, and cannot: a CURRENT value. That red lives in
+    [`check_secret_leak.py`](../scripts/gate/check_secret_leak.py), which reads no register and is not
+    the debt checker's to edit; a debt whose exposure is already declared in the ledger is a stated
+    debt, and this class says only who still owes the act. `check_secret_debt.py --self-test` is what
+    makes the sentence above a fact: an arm proves each verdict prints in the class it is filed under,
+    that the classes are disjoint and cover the vocabulary so the printed legend cannot drift from the
+    code, that a verdict left out of every class is BLOCKING rather than quietly green, and that moving
+    a red word into the reminder class really does turn the exit green — which is the proof that the
+    red on a live finding is the classification working and not an accident of the fixture.
 - **Locality is part of the verdict.** A `run-capture` line is judged per STORE, so a checkout without
   the persistent transcript store cannot close its own lines (the measurement in the bullet above is
   why), and a line is closable only by the seat that recorded it. A seat the book carries no line for

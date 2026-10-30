@@ -19,18 +19,44 @@ there dies at the next run (docs/deployment-rejected.md). So this checker reads 
     imported rather than re-spelled, because two ideas of what a `(item, class)` pair is is the twin
     this family of gates exists to catch.
 
-THE VERDICTS, and the pair of them that is the whole reason this file exists:
+THE VERDICTS, their EXIT CLASS, and the two of them that are the whole reason this file exists:
 
-    pair in ledger, version unmoved     `NOT ROTATED` — the debt is open and nothing has moved
-    pair in ledger, version moved       `CANDIDATE — prove with check_secret_leak.py`
-    pair left ledger, version moved     `CLOSED — remove the line` — rotated AND proven absent
-    pair left ledger, version unmoved   `REFUSED — the hit left the ledger and the value never
-                                        rotated` (exit 1)
-    pair the book never named, value    `UNLEDGERED — a live finding the ledger rightly does not
-    unmoved                             mute` (exit 1)
-    the vault answers no such item      `GONE — re-derive, then remove the line`
-    a foreign seat's line, or a store   `NOT JUDGED` — nothing known either way, and a line is
-    this run could not read             closable only by the seat that recorded it
+    verdict                              class     what the class means
+    in ledger, version unmoved           REMINDER  `NOT ROTATED` — the debt is open and nobody has
+                                                   moved the value. An act is owed, by the actor the
+                                                   `path:` column names, in the doc the rotation-doc
+                                                   column names.
+    in ledger, version moved             REMINDER  `CANDIDATE — prove with check_secret_leak.py` — the
+                                                   vault moved and the propagation did not: half an
+                                                   act done, the other half owed.
+    left ledger, version moved           STATE     `CLOSED — remove the line` — rotated AND proven
+                                                   absent; the book carries a dead line. Delete it.
+    the vault answers no such item       STATE     `GONE — re-derive, then remove the line`.
+    a foreign seat's line, or a store    STATE     `NOT JUDGED` — nothing known either way; a line is
+    this run could not read                        closable only by the seat that recorded it, and an
+                                                   unread store proves nothing.
+    left ledger, version unmoved         BLOCKING  `REFUSED` — the accusation this book exists to be
+                                                   able to make: a hit that vanished with no version
+                                                   move is a redaction, a shredded store or an edited
+                                                   line, never a rotation. (exit 1)
+    the book never named it, value       BLOCKING  `UNLEDGERED` — a CURRENT value the ledger rightly
+    unmoved                                        does not mute, which is the leak gate's own red,
+                                                   restated so this book cannot calmly table a debt
+                                                   that gate is reddening on. (exit 1)
+
+WHY THE LINE IS DRAWN THERE — a ruling, not a side effect of the implementation. Reminder semantics are
+CONVENTIONS §6.4 and the classification is written in
+docs/deployment-secrets.md §Creation & Rotation Workflow item 9; one question decides a class: does the
+verdict say something is wrong IN THE TREE, or that something is still owed IN THE FLEET? A reminder
+re-derives itself from the vault on every run — there is no frozen baseline for it to rot into — prints
+the actor and the doc with it, and exits green. Reddening on `NOT ROTATED` would be a permanent red by
+construction: the register's `path: none` lines are credentials an ISP provisions and a network account
+whose reset mail never arrives, so NO act can ever move their versions, and a gate that is always red on
+them trains every lane to scroll past it — the same mute CONVENTIONS §6.4 and HD-1182's never-passing
+probe target were written against. What this classification does not mute, and cannot: a CURRENT value.
+That red lives in `check_secret_leak.py`, which reads no register and is not this file's to edit, and it
+lives in `UNLEDGERED` — so the reminder class buys quiet for nothing that is exposed, only for debts
+whose exposure is already declared in the ledger, which is the mute-safe book by design.
 
 The `REFUSED` line is the defect the ledger alone cannot see: a redaction, a shredded store or a
 hand-edited book makes a hit disappear, and in the ledger alone that looks EXACTLY like a rotation.
@@ -63,10 +89,15 @@ class is evidence rather than hope.
 
 USE:
     python3 scripts/gate/check_secret_debt.py [--self-test] [--register F] [--all-seats]
-Exit: 0 every line judged or honestly NOT JUDGED, and the two no-rotation-path sets agree;
-      1 a `REFUSED` or `UNLEDGERED` line, a disagreement between the two sets, or a malformed
-        register line;
+Exit: 0 every line judged, honestly NOT JUDGED, or REMINDER-class — an open debt is not a defect in the
+      tree — and the two no-rotation-path sets agree;
+      1 a BLOCKING line (`REFUSED` or `UNLEDGERED`), a disagreement between the two sets, or a
+        malformed register line. Never for a debt that is merely still open;
       2 environment boundary: no vault route, no answer, an unreadable book. Never a green.
+The two tables below ARE the classification and the exit code reads THEM, not a chain of word
+comparisons, so `--self-test` can prove each verdict lands where it is written: a word that drifts
+between classes reddens there, and a verdict added without a class is BLOCKING by default, because an
+unclassified word must never be quietly green.
 Wired into `validate-all.sh` and listed in `scripts/README.md`.
 """
 from __future__ import annotations
@@ -112,6 +143,24 @@ PROVISIONER = ROOT / "scripts" / "secrets" / "provision-secrets.py"
 PATHS = ("lane", "lane+converge", "human", "none")
 SEATS = ("win11", "wsl", "oldsrv")
 VERDICTS = ("NOT ROTATED", "CANDIDATE", "CLOSED", "REFUSED", "UNLEDGERED", "GONE", "NOT JUDGED")
+# THE EXIT CLASSIFICATION, stated where it is enforced — see the docstring. Red is kept for the two
+# verdicts that describe a tree defect (a close no version move backs; a live value no book mutes). An
+# open debt is a REMINDER: printed, re-derived from the vault every run, exit green, and it names the
+# actor and the doc so the next session can clear it. STATE is the book's own condition.
+BLOCKING = ("REFUSED", "UNLEDGERED")
+REMINDERS = ("NOT ROTATED", "CANDIDATE")
+STATE = ("CLOSED", "GONE", "NOT JUDGED")
+CLASS_DOC = "docs/deployment-secrets.md §Creation & Rotation Workflow item 9, CONVENTIONS §6.4"
+
+
+def classify(word: str) -> str:
+    """The exit class of a verdict word. Unclassified is BLOCKING, never a silent green: the tables
+    above are the whole vocabulary — an arm proves they cover VERDICTS and do not overlap — so a
+    verdict added without a class reddens until somebody places it."""
+    for cls, words in (("BLOCKING", BLOCKING), ("REMINDER", REMINDERS), ("STATE", STATE)):
+        if word in words:
+            return cls
+    return "BLOCKING"
 
 
 class Boundary(Exception):
@@ -438,7 +487,7 @@ def run(register: Path | None = None, all_seats: bool = False) -> int:
     for word in VERDICTS:
         group = [g for g in shown if g[0] == word]
         if group:
-            print(f"{word}: {len(group)}")
+            print(f"{classify(word):<9} {word}: {len(group)}")
             for verdict, ln, why in group:
                 print(f"  {verdict:<11} {ln.item} {ln.cls} seat={ln.seat} path={ln.path} "
                       f"v{ln.version} — {why}")
@@ -452,6 +501,15 @@ def run(register: Path | None = None, all_seats: bool = False) -> int:
              if not all_seats and any(g[0] == "NOT JUDGED" and g[1].seat != seat for g in got) else ""))
     refused = [g for g in got if g[0] == "REFUSED"]
     unledgered = [g for g in got if g[0] == "UNLEDGERED"]
+    blocking = [g for g in got if classify(g[0]) == "BLOCKING"]
+    reminder = [g for g in got if classify(g[0]) == "REMINDER"]
+    # The classification, in the tool's own words, on every run — including a green one, so a reader
+    # learns which words the exit code is actually made of instead of guessing from a red.
+    print("exit class: " + " · ".join([
+        f"{' + '.join(BLOCKING)} = RED (exit 1)",
+        f"{' + '.join(REMINDERS)} = REMINDER (exit 0, re-derived from the vault every run)",
+        f"{' + '.join(STATE)} = STATE (exit 0)"])
+        + f" — the split and why: {CLASS_DOC}")
     if refused:
         print("REFUSED is the defect this book exists to catch: a hit that left the ledger without a "
               "rotated value. Nothing was rotated; the copy count may have moved. See "
@@ -461,12 +519,24 @@ def run(register: Path | None = None, all_seats: bool = False) -> int:
               "NOWHERE, because a ledger line for a CURRENT value is the mute button HD-1181 forbids, "
               "and the value has not moved. The leak gate is red on the same finding — check_secret_leak.py "
               "goes green on this pair only by ROTATING it, never by adding a line here.")
+    if reminder:
+        by_path: dict[str, int] = {}
+        for _v, ln, _w in reminder:
+            by_path[ln.path] = by_path.get(ln.path, 0) + 1
+        stuck = sum(n for p, n in by_path.items() if p == "none")
+        print(f"REMINDER {len(reminder)} line(s) are an open debt, not a finding — no act has moved "
+              "them and the exit stays green on them by the classification above. Owed by: "
+              + ", ".join(f"`{p}` {n}" for p, n in sorted(by_path.items()))
+              + " (the `rotation-doc` column of each line names where the act is written)."
+              + (f" {stuck} of them carry `path: none`, so no act can move them and a red here would "
+                 "be permanent — that is the red CONVENTIONS §6.4 says gets scrolled past, which is why it is a "
+                 "reminder and why the CURRENT-value red stays in check_secret_leak.py." if stuck else ""))
     if [t for t in twin if t.startswith("REFUSED")]:
         print("The two statements of the no-rotation-path ruling disagree — containment would derive "
               "its scope from one of them and the guard from the other.")
     if boundary:
         print("NOTE: the equality arm did not get judged (boundary above) — that is not an agreement.")
-    if refused or unledgered or [t for t in twin if t.startswith("REFUSED")] or bad:
+    if blocking or [t for t in twin if t.startswith("REFUSED")] or bad:
         return 1
     return 2 if boundary else 0
 
@@ -565,6 +635,29 @@ def self_test() -> int:
     def with_version(item_id: str, v: int) -> list[tuple[str, str, int]]:
         return [(i, t, v if i == item_id else n) for i, t, n in rows]
 
+    def said(out: str, word: str) -> bool:
+        """Was this verdict printed AS a verdict? Every run now prints the classification legend, which
+        names all seven words, so `word in out` proves nothing on its own: an arm that asks whether a
+        verdict landed must read the indented VERDICT LINES, not the legend, not the group header, and
+        not the two explanation paragraphs (which start at column 0 with a verdict word)."""
+        return any(ln.startswith("  ") and ln.lstrip().startswith(word) for ln in out.splitlines())
+
+    def ask_classed(tables: dict, *args, **kw) -> tuple[int, str]:
+        """Run the same fixture against a re-written classification table, then restore it.
+
+        Two arms use this and they prove opposite halves of one claim: that a verdict left out of every
+        table STILL reddens (the fail-closed default in `classify`), and that placing a red word in
+        REMINDERS really does buy rc 0. The second is the proof that the exit code for a live finding
+        comes from the table — so the arm that keeps `UNLEDGERED` red is load-bearing, not an accident
+        of some other branch.
+        """
+        keep = {k: globals()[k] for k in tables}
+        globals().update(tables)
+        try:
+            return ask(*args, **kw)
+        finally:
+            globals().update(keep)
+
     # (1) the four verdicts the ledger half cannot decide on its own.
     rc, out = ask(rows, LED_ALL)
     check("a version-unmoved line whose hit stands reads NOT ROTATED and exits 0",
@@ -574,7 +667,7 @@ def self_test() -> int:
           "CANDIDATE" in out and rc == 0, out[-200:])
     rc, out = ask(with_version(ids["rot"], 9), LED_NO_ROT)
     check("a version-moved line whose hit a re-derive proved absent reads CLOSED",
-          "CLOSED" in out and "REFUSED" not in out and rc == 0, out[-200:])
+          "CLOSED" in out and not said(out, "REFUSED") and rc == 0, out[-200:])
     rc, out = ask(rows, LED_NO_ROT)
     check("a hit that left the ledger with the version UNMOVED reddens as REFUSED",
           "REFUSED" in out and rc == 1, out[-200:])
@@ -591,13 +684,13 @@ def self_test() -> int:
           "UNLEDGERED" in out and "NOT ROTATED" in out and rc == 1, out[-200:])
     rc, out = ask(rows, LED_ALL, history="absent")
     check("a pair the ledger DOES name can never read UNLEDGERED, whatever HEAD's book says",
-          "UNLEDGERED" not in out and "NOT ROTATED" in out and rc == 0, out[-200:])
+          not said(out, "UNLEDGERED") and "NOT ROTATED" in out and rc == 0, out[-200:])
     rc, out = ask(rows, LED_NO_ROT, history="present")
     check("a pair HEAD still names still reddens as REFUSED, so the softer word cannot swallow it",
-          "REFUSED" in out and "UNLEDGERED" not in out and rc == 1, out[-200:])
+          said(out, "REFUSED") and not said(out, "UNLEDGERED") and rc == 1, out[-200:])
     rc, out = ask(rows, LED_NO_ROT)
     check("a ledger whose HEAD body cannot be read (a fixture book) keeps the harsher word",
-          "REFUSED" in out and "UNLEDGERED" not in out and rc == 1
+          said(out, "REFUSED") and not said(out, "UNLEDGERED") and rc == 1
           and "could not be read" in out, out[-200:])
 
     # (2) THE CHEAP TEST from the row: bump ONE item's version in the fixture and prove exactly one
@@ -616,19 +709,18 @@ def self_test() -> int:
     # asked for. The ledger says its pair is gone; a foreign seat still may not close it.
     foreign = reg_body.replace("\twsl\t", "\toldsrv\t")
     rc, out = ask(with_version(ids["rot"], 9), "", register=foreign)
-    check("another seat's line prints NOT JUDGED and is never CLOSED from here",
-          "NOT JUDGED" in out and "CLOSED" not in out and rc == 0, out[-200:])
+    check("another seat's line is never CLOSED from here, and the default run says it omitted them",
+          not said(out, "CLOSED") and "NOT JUDGED=" in out and "omitted" in out and rc == 0,
+          out[-200:])
     rc, out = ask(with_version(ids["rot"], 9), "", register=foreign, all_seats=True)
     check("--all-seats prints the foreign lines and keeps them NOT JUDGED",
-          "NOT JUDGED" in out and "seat=oldsrv" in out, out[-200:])
-    check("the default print omits the foreign lines and says so",
-        "omitted" in ask(with_version(ids["rot"], 9), "", register=foreign)[1], out[-120:])
+          said(out, "NOT JUDGED") and not said(out, "CLOSED") and "seat=oldsrv" in out, out[-200:])
 
     # (4) the store half: a checkout whose persistent store was not read may not close its OWN lines,
     # even with the version moved — the HD-1181 shape, one level up.
     rc, out = ask(with_version(ids["rot"], 9), LED_NO_ROT, store=False)
     check("a store-less run prints NOT JUDGED for its own run-capture lines",
-          "NOT JUDGED" in out and "persistent transcript store" in out and "CLOSED" not in out,
+          "NOT JUDGED" in out and "persistent transcript store" in out and not said(out, "CLOSED"),
           out[-200:])
 
     # (5) the twin arm, in both directions, plus its boundary.
@@ -681,6 +773,53 @@ def self_test() -> int:
     check("the pair set and the store walk are the leak eye's, not a local twin",
           "read_ledger" in leak.__dict__ and "capture_stores" in leak.__dict__
           and "read_ledger" not in globals() and "capture_stores" not in globals())
+
+    # (10) THE EXIT CLASSIFICATION: every verdict lands where the tables say, the tables cover the
+    # vocabulary, and the exit code is made of the tables. Reminder semantics are CONVENTIONS §6.4 and
+    # docs/deployment-secrets.md §Creation & Rotation Workflow item 9 — the arms below are what make
+    # that classification a fact rather than a sentence, so a word that drifts between classes reddens
+    # this leg instead of quietly changing what validate-all.sh stops a push for.
+    check("the three classes are disjoint and cover the verdict vocabulary (the legend cannot drift)",
+          set(BLOCKING) | set(REMINDERS) | set(STATE) == set(VERDICTS)
+          and not (set(BLOCKING) & set(REMINDERS)) and not (set(BLOCKING) & set(STATE))
+          and not (set(REMINDERS) & set(STATE))
+          and all(classify(w) == c for c, ws in (("BLOCKING", BLOCKING), ("REMINDER", REMINDERS),
+                                                 ("STATE", STATE)) for w in ws),
+          f"{BLOCKING} {REMINDERS} {STATE}")
+    for want_class, want_word, args, kwargs in (
+            ("REMINDER", "NOT ROTATED", (rows, LED_ALL), {}),
+            ("REMINDER", "CANDIDATE", (with_version(ids["rot"], 9), LED_ALL), {}),
+            ("STATE", "CLOSED", (with_version(ids["rot"], 9), LED_NO_ROT), {}),
+            ("STATE", "GONE", ([r for r in rows if r[0] != ids["gone"]], LED_ALL), {}),
+            ("STATE", "NOT JUDGED", (with_version(ids["rot"], 9), ""),
+             {"register": foreign, "all_seats": True}),
+            ("BLOCKING", "REFUSED", (rows, LED_NO_ROT), {"history": "present"}),
+            ("BLOCKING", "UNLEDGERED", (rows, LED_NO_ROT), {"history": "absent"})):
+        rc, out = ask(*args, **kwargs)
+        want_rc = 1 if want_class == "BLOCKING" else 0
+        header = [ln for ln in out.splitlines() if ln.startswith(want_class) and want_word in ln]
+        check(f"{want_word} prints tagged {want_class} and exits {want_rc}",
+              f"{want_class:<9} {want_word}:" in out and said(out, want_word) and rc == want_rc,
+              f"rc={rc} header={header[:1]}")
+    rc, out = ask(rows, LED_ALL)
+    check("a green run still prints the classification it was graded by, in its own words",
+          "exit class:" in out and "REMINDER" in out and rc == 0, out[-160:])
+    rc, out = ask_classed({"BLOCKING": ("REFUSED",), "REMINDERS": REMINDERS, "STATE": STATE},
+                          rows, LED_NO_ROT, history="absent")
+    check("a verdict in no class at all still reddens — the reminder class cannot be reached by "
+          "forgetting to place a word",
+          rc == 1 and said(out, "UNLEDGERED"), f"rc={rc}")
+    rc, out = ask_classed({"BLOCKING": ("REFUSED",), "REMINDERS": REMINDERS + ("UNLEDGERED",),
+                           "STATE": STATE}, rows, LED_NO_ROT, history="absent")
+    check("the table is what holds UNLEDGERED red: moving it to REMINDER really does buy rc 0, so the "
+          "red above is the classification working and not an accident of the fixture",
+          rc == 0 and said(out, "UNLEDGERED"), f"rc={rc}")
+    none_only = "".join(ln for ln in reg_body.splitlines(True) if "\tnone\t" in ln)
+    rc, out = ask(rows, LED_ALL, register=none_only)
+    check("a book whose only open lines are `path: none` — debts no act can ever move — is a reminder "
+          "and exits green: the permanent red §6.4 forbids is not what this gate is for",
+          rc == 0 and said(out, "NOT ROTATED") and "`none` 2" in out and "permanent" in out,
+          out[-220:])
 
     print(f"check_secret_debt.py --self-test: {fails} failing arm(s)")
     return 1 if fails else 0

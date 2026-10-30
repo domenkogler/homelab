@@ -55,10 +55,11 @@
 - **The four tools the rows name are tasks, not references** — each is named again where it is owed:
   `pi-agent/proposed/vault-mask.ts` is authored and deliberately NOT enabled (the plane owns
   `pi-agent/extensions/**`, so the enable switch is the `git mv` — an owner act),
-  `scripts/gate/secret_debt_register.txt` does not exist yet,
-  `scripts/gate/check_secret_debt.py` does not exist yet,
+  `scripts/gate/secret_debt_register.txt` and `scripts/gate/check_secret_debt.py` are both committed and
+  wired into `validate-all.sh`,
   `scripts/secrets/contain-leaked-values.py` is committed and its `CONTAINED` leg is in the eye,
-  and `scripts/git/install-hooks.sh` is not committed yet.
+  and `scripts/git/install-hooks.sh` is committed with the `git-hooks` seat plane.
+  What is still owed by all four is the **owner-side half**, never a second version of the tool.
 - **The instrument the tools hang off is finished and honest.** `check_secret_leak.py` matches by **content**
   (`MIN_VALUE_LEN = 8` is the containment floor it will not go under), names the stores it read per class,
   prints `NOT JUDGED` for a class it did not read, `PARTIAL` on an incomplete sweep, and exits `2` on a vault
@@ -103,10 +104,16 @@ starts protecting the commits the other three are made of.
 
 ### 3a. HD-1217 — the debt book that says who acts, on which seat, and whether it rotated
 
-- **Files:** `scripts/gate/secret_debt_register.txt` (data — does not exist yet) and
-  `scripts/gate/check_secret_debt.py` (verdicts — does not exist yet). A **companion** book, deliberately:
-  columns on the ledger itself were weighed and
-  declined, because `--update-ledger` rewrites that file's body and a fourth column dies at the next run.
+- **Files:** `scripts/gate/secret_debt_register.txt` (data) and `scripts/gate/check_secret_debt.py`
+  (verdicts) — both committed, both gated. A **companion** book, deliberately: columns on the ledger
+  itself were weighed and declined, because `--update-ledger` rewrites that file's body and a fourth
+  column dies at the next run.
+- **The exit classification is a ruling, and the checker prints it on every run:** `REFUSED` and
+  `UNLEDGERED` are RED, `NOT ROTATED` and `CANDIDATE` are REMINDERS that name the actor from the `path:`
+  column, and `CLOSED`/`GONE`/`NOT JUDGED` are STATE. The reminder half exists because a `path: none`
+  line is a credential no act can move, so a red on that word is true forever — and a permanently-red
+  gate is the mute CONVENTIONS.md §6.4 exists to prevent. ⛔ It mutes no CURRENT value: that red is
+  `check_secret_leak.py`'s, and `UNLEDGERED` exists so the book agrees with it instead of tabling it.
 - **Key:** `(item-id-prefix, class, seat)`, carrying the vault **`version` at leak time** and the owning doc's
   rotation link. The version is what makes "rotated?" a *fact* rather than a memory: `--list` answers versions
   for one request, version unchanged ⇒ provably `NOT ROTATED`, version moved ⇒ `CANDIDATE — prove with
@@ -262,9 +269,10 @@ follows them. Clearing this is **not** a trim: it is the state-only rule (CONVEN
 ### Phase 1 — the book (HD-1217)
 
 - [ ] Re-derive the ledger first: `--update-ledger --class run-capture`, delete the `STALE` lines by hand.
-- [ ] Write `scripts/gate/secret_debt_register.txt` and `scripts/gate/check_secret_debt.py` (both do not exist
-      yet) with the fixture-only `--self-test` and the version-bump test in §3a.
-- [ ] A registry row in [`scripts/README.md`](scripts/README.md) for each new file — `check_script_layout.py`
+      ⛔ not while a live un-rotated finding still hits — Phase 5 states the mute-button rule.
+- [x] `scripts/gate/secret_debt_register.txt` and `scripts/gate/check_secret_debt.py`, with the
+      fixture-only `--self-test` and the version-bump test in §3a.
+- [x] A registry row in [`scripts/README.md`](scripts/README.md) for each new file — `check_script_layout.py`
       reddens a script the registry does not carry, and the row states what the tool refuses.
 - [ ] `todo.md` — HD-1217's tail.
 
@@ -359,12 +367,14 @@ class this brief exists to close. The answer to "was this process started with t
 ```bash
 python3 scripts/gate/check_secret_leak.py            # the register, all classes, this seat named
 python3 scripts/gate/check_secret_leak.py --self-test
+python3 scripts/gate/check_secret_debt.py            # the book: who acts, where, rotated yet
+python3 scripts/gate/check_secret_debt.py --self-test
 python3 scripts/gate/check_brief_coverage.py         # the row→brief map this brief joins
 bash scripts/validate-all.sh                         # from the worktree
 ```
 
-The register's own checker is not written yet, so it is absent from the block above by design — it joins it
-when Phase 1 lands.
+The debt checker prints its own exit classification, so a run states which verdicts reddened it and
+which only reminded (§3a) — read that line before calling a red a defect.
 
 Plus, per tool, the cheap test that only passes because of the fix: the version-bump arm (§3a), the canary push
 (§3b), the recurring item absent from the next register read (§3c), and the before/after hit count of a
