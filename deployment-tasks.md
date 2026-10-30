@@ -803,14 +803,21 @@ HD-358 (Seerr → \*arr link — IaC-seeded by `roles/docker_services/tasks/arr-
 
 **Deploy-gated verification (Phase 6):** ✅ the migration itself is **done** — VictoriaMetrics + VictoriaLogs run
 on the VPS, Pi and oldsrv ship Alloy + network-clients + syslog, Grafana is the single UI.
-- [ ] **HD-14** — enable the HA Prometheus exporter (seed `ha_api` + flip `alloy_ha_exporter` + re-enable the
-      scrape job **together**, or the converge breaks), then the HA dashboard and Grafana panels. · [smart-home.md](docs/smart-home.md)
+- [ ] **HD-14** — enable the HA Prometheus exporter ON the HA instance: HA answers behind `ha_vip` and the
+      `ha_api` vault bearer authenticates, but `/api/prometheus` answers 404 with no Prometheus integration
+      loaded, so the gate flip (`alloy_ha_exporter`, now declared in `host_vars/oldsrv.kogler.si.yml` with its
+      token file + directory) is the SECOND step, not the first — flipping it today renders a 404-forever target.
+      Then the HA dashboard and Grafana panels. · [smart-home.md](docs/smart-home.md)
 - [ ] **Pi recorder trim** (`purge_keep_days: 2`) + log strategy to protect the Pi SD — planned in
       [observability.md](docs/observability.md) §Log strategy but **has no `todo.md` row** (the old HD-19 lineage);
       register a row when it is actually scheduled. · [observability.md](docs/observability.md)
-- [ ] **HD-343** — the network-clients exporter: verify the live wifi path (`/interface/wifi/registration-table`
-      vs the legacy API) + **[MANUAL, owner]** render-verify the panels on `stats.kogler.si`. · [observability.md](docs/observability.md)
-- [ ] **HD-344** — register the Victoria MCP endpoints in pi / Open WebUI / OpenClaw (the servers are live); the
+- [ ] **HD-343** — the network-clients exporter: ✅ live wifi path verified (`/interface/wifi/registration-table`
+      is the only registration path this RB4011 answers on RouterOS 7.24.4; the legacy `/wireless/...` and
+      `/interface/wifi-wave2/...` paths answer `no such command prefix`) + **[MANUAL, owner]** render-verify the
+      panels on `stats.kogler.si`. · [observability.md](docs/observability.md)
+- [ ] **HD-344** — register the Victoria MCP endpoints in pi / Open WebUI / OpenClaw. The servers answer `initialize`
+      on `oldsrv_home_ip:8083/:8084`; each registration is an entry in that consumer's OWN config plane (seat
+      settings / Open WebUI's database / OpenClaw's service directory), so no monitoring converge closes it; the
       tailnet redo is an owner call. · [observability.md](docs/observability.md)
 - [x] **HD-345** — **DONE + LIVE 2026-09-23.** The label fault is fixed in `alloy.river.j2` (the SNMP scrape
       re-asserts `job="alloy-snmp"` + `instance="<dev>"`) and the **oldsrv** `monitoring` converge ran
