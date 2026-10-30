@@ -232,6 +232,13 @@ assert_body() {
     [ "$ok" = 1 ] || { err "FAIL: IdentityFile '$v' names no canonical identity — see docs/network-vpn.md §Canonical identity file names"; bad=1; }
   done < <(awk '/^[[:space:]]*IdentityFile /{print $2}' "$f")
   njump="$(grep -c '^  ProxyJump ' "$f" || true)"
+  # The typed-FQDN leg must name an identity (HD-1125). `ssh ansible-admin@vps.kogler.si` is a leg repo
+  # scripts really run, and an unlisted spelling matches no block, so the leg would fall back to ssh's
+  # DEFAULT identity — on the Debian seats that path holds the automation key under a superseded name,
+  # which is the dependence the retirement list's step 6 cannot clear while it stands.
+  if ! awk '/^Host /{for(i=2;i<=NF;i++) if ($i=="vps.kogler.si") found=1} END{exit !found}' "$f"; then
+    err "FAIL: no block names the typed FQDN vps.kogler.si — a leg that types it authenticates through ssh's default identity instead of the canonical file (docs/network-vpn.md §The Win11 ~/.ssh retirement list, step 6)"; bad=1
+  fi
   if [ "$class" = cockpit ] && [ "$njump" != 0 ]; then
     err "FAIL: the cockpit class carries $njump ProxyJump line(s) — it sits ON the Home VLAN, so a jump hairpins through the VPS to reach a box the shell is already on"; bad=1
   fi
@@ -612,6 +619,14 @@ FIX
   [ "$(probe 2 "$h" "$pt")" = 2 ] && grep -q 'ProxyJump lines' "$root/out" \
     && { pass=$((pass+1)); echo "ok   7h a -vps twin stripped of its hop is CAUGHT (the count, not the name)"; } \
     || { fails=$((fails+1)); echo "FAIL 7h the hop-twin count assertion did not fire:"; sed 's/^/     | /' "$root/out" | head -5; }
+  # 7i: the typed-FQDN half of HD-1125. Dropping the FQDN from the `Host vps` line is invisible to every
+  # other assertion — the block still renders, the jump still works — and it silently re-creates the
+  # dependence on ssh's default identity that the seat rename is waiting for.
+  sed 's/^Host vps vps\.kogler\.si$/Host vps/' "$TMPL" > "$pt"
+  h="$(mkhome poison-fqdn)"
+  [ "$(probe 2 "$h" "$pt")" = 2 ] && grep -q 'names the typed FQDN' "$root/out" \
+    && { pass=$((pass+1)); echo "ok   7i a render that dropped the typed FQDN vps.kogler.si is CAUGHT (an unlisted spelling would authenticate through ssh's default identity)"; } \
+    || { fails=$((fails+1)); echo "FAIL 7i the typed-FQDN assertion did not fire:"; sed 's/^/     | /' "$root/out" | head -5; }
 
   # 8. the three renders differ ONLY where the seat class says they may.
   for cls in laptop-win11 laptop-wsl cockpit; do

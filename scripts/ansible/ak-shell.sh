@@ -19,8 +19,9 @@
 #   print([(t.identifier, t.user.username) for t in Token.objects.all()])
 #   PY
 #
-# Prereqs: WSL runner bootstrapped (Phase 0; canonical key at ~/.ssh/id_ed25519 —
-# this path does NOT depend on the Windows 1Password agent). Noise filter drops
+# Prereqs: WSL runner bootstrapped (Phase 0; the canonical automation key at
+# ~/.ssh/ansible-admin_ssh — docs/network-vpn.md §Canonical identity file names. This path does NOT
+# depend on the Windows 1Password agent). Noise filter drops
 # authentik's own startup JSON log lines (they begin with '{"').
 set -euo pipefail
 
@@ -37,7 +38,14 @@ fi
 
 B64=$(printf '%s' "$CODE" | base64 -w0)
 
-out=$(ssh -o BatchMode=yes -o ConnectTimeout=10 ansible-admin@vps.kogler.si \
+# The identity is NAMED, not inherited (HD-1125). `vps.kogler.si` is the name TYPED, and OpenSSH
+# matches the name actually typed (docs/network-vpn.md §The laptop alias contract rule 2), so a leg
+# with no IdentityFile here resolves no alias block and offers ssh's DEFAULT identity instead — on
+# the Debian seats that default path holds the fleet's automation key under a superseded name, which
+# makes this work by accident. Naming the canonical file with IdentitiesOnly is the wiring; `-n` is
+# the CONVENTIONS §6 stdin rule.
+out=$(ssh -n -o BatchMode=yes -o ConnectTimeout=10 -o IdentitiesOnly=yes \
+  -o IdentityFile=~/.ssh/ansible-admin_ssh ansible-admin@vps.kogler.si \
   "sudo docker exec authentik-worker ak shell -c \"\$(echo $B64 | base64 -d)\"" \
   2>/dev/null) || { echo "ak-shell: remote execution failed (runner key / VPS unreachable?)" >&2; exit 1; }
 

@@ -49,7 +49,13 @@
 # jumped leg — including the seat's own address — then reads `Connection timed out during banner
 # exchange`. The laptop never hits it because it has no IPv6 at all; the line is there so a seat
 # that grows an IPv6 route does not discover it as a mystery.
-Host vps
+# The FQDN rides the Host line because it is a name a leg really types: `ssh ansible-admin@vps.kogler.si`
+# is what several repo scripts connect with, and rule 2 means an unlisted spelling matches NO block, so
+# such a leg offers ssh's DEFAULT identity instead of the canonical file (docs/network-vpn.md §The Win11
+# `~/.ssh` retirement list, step 6). Listing it here is what makes those legs a wiring fact; a seat that
+# renames the default-path key then loses nothing. It is on every class, not just the laptops, because a
+# bare FQDN typed on the cockpit seat has the same gap.
+Host vps vps.kogler.si
   HostName vps.kogler.si
   User ansible-admin
   IdentityFile @ADMIN@

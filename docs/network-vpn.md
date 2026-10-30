@@ -735,7 +735,7 @@ Three rules decide every block:
 
 | Block | Leg (see [network-addresses-generated.md](network-addresses-generated.md)) | `ProxyJump` | Notes |
 |---|---|---|---|
-| `vps` | public | — | the jump itself; `User ansible-admin` |
+| `vps`, `vps.kogler.si` | public | — | the jump itself; `User ansible-admin`. The **FQDN rides the `Host` line** because repo scripts type it and rule 2 matches the name typed — an unlisted spelling would authenticate through ssh's default identity (§The Win11 `~/.ssh` retirement list, step 6); `seed-seat-ssh-config.sh` refuses a render that drops it |
 | `pi`, `….1.20` | Home | **none** — opt in with `pi-vps` | alias uses the human user, the IP block the `ansible-admin` one |
 | `pi-vps` | Home | `vps` | the away spelling of the same leg; laptop classes only |
 | `nas`, `….1.10` | Home | **none** — opt in with `nas-vps` | the group var still carries the jump for Ansible, which is why a converge is unchanged |
@@ -894,7 +894,7 @@ Facts about these files:
 - **A file that is a copy of an identity is still a second identity to a reader.** The operator key exists
   under one name per seat (`domen_ssh`); the old duplicate names are retired in the order below — not the other
   way round. The automation key on WSL and on the cockpit seat still sits at `~/.ssh/id_ed25519`, named by no
-  alias, and step 6 explains why it is not renamed yet.
+  alias, and step 6 names what its rename still waits on.
 
 #### The Win11 `~/.ssh` retirement list (ordered — prove the new path BEFORE you rename the old one)
 
@@ -937,14 +937,25 @@ as ruled below, and its Debian `id_ed25519` carve-out is still blocked by the FQ
 **Step 6's `id_ed25519` carve-out is wrong on the two Debian seats, and "retire it anyway" is not safe yet.**
 On WSL and on the cockpit seat `~/.ssh/id_ed25519` is **byte-identical to the vault's
 `ansible-admin_ssh` private half** (`cmp` clean, `SHA256:1uKzm…`) — so it is not machine-local, it is a
-superseded NAME. It stays in place, named by no alias, because the path is
-also **ssh's default identity** and the repo scripts connect by **bare FQDN**, which matches no alias —
-contract rule 2 says OpenSSH matches the name ACTUALLY TYPED, and the laptop classes carry the alias and the
-`Host <ip>` spellings but **not the `.kogler.si` spelling**. Those legs work only by accident, because the
-accident-key happens to be the fleet's automation key. **Rule: leave it in place, named by no alias, and retire
-it only when that dependence is removed** — a measured dependence, not an
-exemption. The four callers: `scripts/ansible/ak-shell.sh`, `scripts/secrets/provision-vault.sh`, `seed-runner-ssh.sh`'s
-`KEY="$HOME/.ssh/id_ed25519"`, and `restore-runner-key.sh`, which treats that path as the canonical runner key.
+superseded NAME. What made it load-bearing is a rule-2 artifact: a leg reaching `ansible-admin@vps.kogler.si`
+matched no alias block, so ssh offered its **default identity**, and that path happened to hold the fleet's
+automation key. The legs that reach it by bare FQDN name their identity instead —
+[`ssh/aliases.tmpl`](../ssh/aliases.tmpl) carries `vps.kogler.si` on the `Host vps` line (on every seat
+class, because an unlisted spelling is the same gap wherever it is typed, and
+[`scripts/harness/seed-seat-ssh-config.sh`](../scripts/harness/seed-seat-ssh-config.sh) refuses a render that
+drops it), [`scripts/ansible/ak-shell.sh`](../scripts/ansible/ak-shell.sh) passes
+`-o IdentityFile=~/.ssh/ansible-admin_ssh -o IdentitiesOnly=yes`, and
+[`scripts/ansible/seed-runner-ssh.sh`](../scripts/ansible/seed-runner-ssh.sh)'s `KEY` defaults to the
+canonical file. **Rule: leave the file, named by no alias, and retire it only when every leg that
+reaches it by a bare FQDN names its identity and both forms of the probe below answer rc 0 with the file
+aside** — a measured dependence, not an exemption.
+
+**What the rename waits on is three things, not one** — `scripts/secrets/provision-vault.sh` naming its
+identity the way `ak-shell.sh` now does, a ruling on where a runner's automation identity lives
+(**OQ-17**, below, because ssh's default identity search finds only `~/.ssh/id_*` and a runner seeded by the
+scripts alone has no block for a typed address, so its behind-NAT legs authenticate at the FINAL hop out of
+that search), and the probe below answering rc 0 in both forms with the file aside on each seat. Renaming the
+file while any of the three is open does not retire a name, it moves a failure from the hop to the target.
 
 **The probe, both seats, reversible** (move the file aside, put it back; never copy or edit it):
 
@@ -957,9 +968,33 @@ ssh -o BatchMode=yes -o ConnectTimeout=15 -o IdentityFile=~/.ssh/ansible-admin_s
 ```
 
 The second command is the fix, proven rather than asserted: FQDN spelling + the canonical identity already
-works, so retiring the path is a wiring job — add the `.kogler.si` spellings to the laptop classes in
-[`ssh/aliases.tmpl`](../ssh/aliases.tmpl) and repoint those four scripts — and only then does step 6 become a
-plain rename.
+works, so retiring the path is a wiring job — the `.kogler.si` spelling in
+[`ssh/aliases.tmpl`](../ssh/aliases.tmpl) and an `IdentityFile` on every leg that types it — and only then
+does step 6 become a plain rename.
+
+### Options — OQ-17 (where does a runner's automation identity live once `~/.ssh/id_ed25519` is retired?)
+
+[`scripts/ansible/restore-runner-key.sh`](../scripts/ansible/restore-runner-key.sh) installs the vault's
+automation key AT ssh's default path, so the name step 6 exists to retire is the name a runner's key is
+installed under. Repointing that target is the rename's other half, and two measurements set the ground it has
+to land on:
+
+- **A leg that types a NAME needs only a block.** `ssh -G -F <render> ansible-admin@vps.kogler.si` answers
+  `hostname vps.kogler.si`, `user ansible-admin`, `identitiesonly yes`, `identityfile ~/.ssh/ansible-admin_ssh`;
+  the same `-G` against an empty config answers `identitiesonly no` and the seven-entry `~/.ssh/id_*` search.
+  The exact leg [`scripts/ansible/ak-shell.sh`](../scripts/ansible/ak-shell.sh) now runs answers rc 0 either
+  way it is read, which is what makes the flag the cause rather than the mood.
+- **A leg that types an ADDRESS resolves a block only where the seat carries the typed-address blocks.** The
+  laptop classes do; a runner seeded by `bootstrap-runner.sh` + `seed-runner-ssh.sh` alone gets the `Host vps`
+  jump block and nothing else, no `ansible_host` in the inventory is a name, and nothing in `group_vars/`,
+  `host_vars/` or `ansible.cfg` names a key file. So a behind-NAT hop from such a runner authenticates at the
+  FINAL hop out of ssh's default search — and that search is the file this rename moves.
+
+| Option | For | Against | Cost | Cheap test |
+|---|---|---|---|---|
+| Name the identity in the inventory (`ansible_ssh_private_key_file` in `group_vars/all`) | every leg declares its own key, so the rename breaks nothing on any runner, cloned or fresh | an IaC value decides a seat-local file layout, and a runner on an older clone keeps the path it had | one `group_vars` line, plus one converge to prove the transport | `ANSIBLE_SSH_ARGS="-F /dev/null" ansible vps -m ping -e ansible_ssh_private_key_file=~/.ssh/ansible-admin_ssh` with `id_ed25519` moved aside — rc 0 is the proof, a `Permission denied` says the leg was riding the default path |
+| Give a runner the alias plane as part of Phase 0 (`seed-seat-ssh-config.sh --seat cockpit --push`) | reuses the plane that already pins `User` and the identity per block, and it changes no IaC | the `cockpit` class stamps a self-alias for the box it names, so on "bare Debian tomorrow" it declares a host that is not this one | a Phase-0 line, and a class that has to mean *host seat* rather than *the oldsrv cockpit* | on a box seeded by the two scripts alone: `ssh -G -F ~/.ssh/config <the address the inventory types>`, then read its `user` and `identityfile` lines — today they answer the default search |
+| Leave `restore-runner-key.sh` installing that path | nothing moves, and "leave the name in place, named by no alias" already holds as the rule | a runner keeps installing the superseded NAME, so step 6 stays a carve-out instead of becoming a rename | none today; the rename stays blocked and every future runner repeats the same wiring | `cmp ~/.ssh/ansible-admin_ssh ~/.ssh/id_ed25519` on a runner after a restore — byte-identical means the superseded NAME is still being installed |
 
 **No IaC blast radius — read this before grepping.** The string `laptop-domen` also appears in
 `IaC/ansible/group_vars/all/main.yml`, `IaC/ansible/group_vars/router.yml`,

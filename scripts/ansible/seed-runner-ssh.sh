@@ -29,7 +29,12 @@ set -euo pipefail
 JUMP_HOST="${RUNNER_JUMP_HOST:-vps}"
 JUMP_ADDR="${RUNNER_JUMP_ADDR:-vps.kogler.si}"   # name, never an IP literal: split-horizon answers it
 JUMP_USER="${RUNNER_JUMP_USER:-ansible-admin}"
-KEY="${RUNNER_IDENTITY:-$HOME/.ssh/id_ed25519}"
+# The canonical automation file, NOT ssh's default identity path (HD-1125): the block below pins
+# `IdentitiesOnly yes`, so this value is the ONLY key the jump leg offers, and pointing it at
+# `~/.ssh/id_ed25519` would make every jumped leg on a fresh runner depend on whatever sits at the
+# default path — the name this fleet is retiring. `RUNNER_IDENTITY` overrides it for a seat whose
+# automation half carries another canonical name.
+KEY="${RUNNER_IDENTITY:-$HOME/.ssh/ansible-admin_ssh}"
 CFG="$HOME/.ssh/config"
 MARKER_START="# >>> seed-runner-ssh: $JUMP_HOST jump (HD-407) >>>"
 MARKER_END="# <<< seed-runner-ssh: $JUMP_HOST jump (HD-407) <<<"
