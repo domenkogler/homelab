@@ -5,6 +5,18 @@ Documentation=file:///usr/local/sbin/storage-push-db-dumps-push.sh
 # this job fails, which is the whole point (a push of yesterday's dumps must not look green).
 Requires=push-db-dumps.service
 After=push-db-dumps.service network-online.target
+# The timer is Persistent=true, so the run an outage missed fires at ACTIVATION — before anything has
+# touched the automount point, when the script's `findmnt -T $TARGET` can still hold only the
+# `systemd-1 autofs` line, because findmnt reads the mount table and never accesses the path. The
+# guard in the script is right (it is what stops a dead mount from becoming a quietly LOCAL
+# "backup"), so the fix is ordering: require the mount for the target, derived from the SAME var the
+# script asserts, so retargeting the push cannot leave this line pointing at yesterday's path. A
+# mount that genuinely cannot come up now fails the unit before ExecStart, which is the loud half.
+# No hand-spelled `After=mnt-nas-data.automount` is added beside it: that unit name is a second
+# spelling of this path and would drift from it silently. This buys ORDERING only — the script still
+# asserts the source before it copies, exactly the reason `push-music.service` names for running
+# without any mount dependency, so do not "harmonise" the two units by dropping one guard or the other.
+RequiresMountsFor={{ storage_push_db_dumps.target }}
 
 [Service]
 # Runs as ROOT deliberately: nas exports `/tank/data` with root_squash,anonuid=1005, so root

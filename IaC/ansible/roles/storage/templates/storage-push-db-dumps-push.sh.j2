@@ -9,7 +9,8 @@
 #
 # What is asserted rather than assumed:
 #  * the target really is the NAS export — a stale automount must not turn a failed mount into a
-#    quietly LOCAL "backup", which is the failure mode a green timer loves;
+#    quietly LOCAL "backup", which is the failure mode a green timer loves; the check reads the mount
+#    table, wakes the automount once if that answer is not the export, and reads it ONE more time;
 #  * owner/group preservation is OFF, because on this export it can only ever fail (rc 23);
 #  * the copy landed, by looking for a fresh file on the far side.
 set -euo pipefail
@@ -27,7 +28,22 @@ command -v findmnt >/dev/null || fail "findmnt not present"
 tgt=$(findmnt -no SOURCE,FSTYPE -T "$TARGET" 2>/dev/null || true)
 case "$tgt" in
   *"$EXPECT"*nfs*) : ;;
-  *) fail "$TARGET is not mounted from $EXPECT (found: ${tgt:-nothing}) — refusing to write a backup where the mount is not" ;;
+  *)
+    # One bounded wake, then ONE re-read — that is the whole race, and it is a `findmnt` property,
+    # not a mount failure: `-T` reads the mount table and never accesses the path, so at first
+    # activation of an `x-systemd.automount` entry it answers with the `systemd-1 autofs` line while
+    # the NFS mount underneath is one access away. The push unit orders on the mount
+    # (RequiresMountsFor), this is the belt for any other path into the script.
+    # The touch's own result is deliberately ignored: a dead server makes `ls` slow or failing, and
+    # what decides is the re-read below. `timeout` cannot reap an uninterruptible `ls`, so the unit's
+    # TimeoutStartSec stays the real backstop.
+    timeout 30 ls -d "$TARGET" >/dev/null 2>&1 || true
+    tgt=$(findmnt -no SOURCE,FSTYPE -T "$TARGET" 2>/dev/null || true)
+    case "$tgt" in
+      *"$EXPECT"*nfs*) : ;;
+      *) fail "$TARGET is not mounted from $EXPECT (found: ${tgt:-nothing}) — refusing to write a backup where the mount is not" ;;
+    esac
+    ;;
 esac
 
 # no --delete: retention on the NAS belongs to sanoid, not to a copy job

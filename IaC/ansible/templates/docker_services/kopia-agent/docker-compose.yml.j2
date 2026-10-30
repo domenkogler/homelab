@@ -81,12 +81,33 @@ services:
           }
           _enc_user=$$(_urlenc "$$KOPIA_AGENT_USER")
           _enc_pass=$$(_urlenc "$$KOPIA_SERVER_PASSWORD")
-          kopia repository connect server \
+          # --- The connect output is SCRUBBED, never logged raw ---
+          # kopia carries the HTTP Basic auth in the URL userinfo and `repository connect server`
+          # echoes the URL it was handed, so the raw first-connect line writes
+          # `kopia-server-internal_api.credential` in plaintext into the container log — which
+          # `docker logs` replays and the log tail ships into the log store for its whole retention
+          # window (docs/backup.md §Layer 2). So: capture, print only the scrubbed text, and exit with
+          # KOPIA's status. Piping the connect straight into a scrubber would make `set -e` report the
+          # FILTER's status instead of kopia's — a failed connect reading as success, the fail-open
+          # half of this same bug class, and busybox ash has no `pipefail` to lean on.
+          _connect_rc=0
+          _connect_out=$$(kopia repository connect server \
             --url="https://$${_enc_user}:$${_enc_pass}@$${KOPIA_SERVER_ADDR}" \
             --password="$${KOPIA_PASSWORD}" \
             --server-cert-fingerprint="$${KOPIA_SERVER_FINGERPRINT}" \
             --override-hostname=oldsrv.kogler.si \
-            --override-username=oldsrv-agent
+            --override-username=oldsrv-agent 2>&1) || _connect_rc=$$?
+          # The scrubber's pattern is a CONSTANT — the URL-userinfo shape (`scheme://` up to the last
+          # `@` before whitespace), which is the only place kopia puts a credential. The credential is
+          # never handed to sed, so it lands in no argv, no log and no shell trace; over-redacting a
+          # line that carried no credential is the safe direction.
+          printf '%s\n' "$$_connect_out" | sed -E 's#(://)[^[:space:]]*@#\1scrubbed@#g' \
+            || echo "(connect output withheld — scrubber unavailable)"
+          if [ "$$_connect_rc" -ne 0 ]; then
+            echo "kopia repository connect server FAILED rc=$$_connect_rc (text above is userinfo-scrubbed)"
+            exit "$$_connect_rc"
+          fi
+          echo "Connected to kopia-server (connect output userinfo-scrubbed)"
         fi
         # Scheduled worker (no UI): snapshot loop, first pass at start-up. Interval
         # is env-tunable; exact window + server-side policy tuning = deploy-gated.
