@@ -37,22 +37,24 @@
  * block: the instrument that judges whether a value leaked is `check_secret_leak.py`, and a hook that
  * reddens a session gets worked around the first time it misfires.
  *
- * ─── WHY THIS FILE SITS IN `pi-agent/proposed/` AND NOT IN `pi-agent/extensions/` ───
- * It is authored, not enabled. An extension that transforms tool output changes what EVERY session
- * sees, which is a fleet-wide harness change and not a lane's call. Two sides of it, both true:
+ * ─── PLACEMENT: `pi-agent/extensions/` IS the enable switch ───
+ * The `extensions` seat plane owns `pi-agent/extensions/**` as a directory glob, so a file that lives here is
+ * deployed to, and drift-checked on, EVERY seat — there is no "committed but inactive" inside that path. A hook
+ * that transforms tool output therefore changes what EVERY session sees, which is a fleet-wide harness change
+ * and not a lane's call: it is authored in `pi-agent/proposed/` (a directory the plane cannot see) and enabled
+ * by the `git mv` here plus `sync-extensions.sh --push` on every seat and `--check --strict` — an owner act.
+ * Two sides of what accepting it bought, both true:
  *   * WHAT IT PREVENTS: the next capture of a CURRENT value by a lane that was never asked to print one
  *     — the exact shape of every line in the debt register, and the reason the register is the size it
  *     is. Prevention at this seam is the only prevention that exists; everything else in this repo is
  *     detection after the fact.
  *   * WHAT IT COULD HIDE: a lane that reads its own masked output believes the value is gone. The
  *     marker is not a redaction of the vault, the debt stays open, and `check_secret_leak.py` still
- *     finds the copy the harness wrote before this hook existed — but a model that has to COMPARE a
+ *     finds the copy the harness wrote before this hook was enabled — but a model that has to COMPARE a
  *     value (a rotation leg, a hash-to-config proof) would be working blind, and a tool result that
  *     lies about the fleet is worse than one that is merely noisy.
- * The owner act, when the hazard is accepted: `git mv pi-agent/proposed/vault-mask.ts
- * pi-agent/extensions/vault-mask.ts`, run `scripts/harness/sync-extensions.sh --push` on every seat,
- * then `--check --strict`. The `extensions` plane owns `pi-agent/extensions/**`, so the move is the
- * enable switch — and it is why this file lives one directory outside that glob until then.
+ * Its arms stay in `pi-agent/proposed/vault-mask.selftest.ts`, outside the plane's glob, because a self-test
+ * deployed into `~/.pi/agent/extensions` would be LOADED as an extension by every session on every seat.
  */
 
 import { execFileSync, spawnSync } from "node:child_process";
@@ -102,6 +104,12 @@ function load(): State {
 	const res = spawnSync("python3", ["-c", py, `${root}/scripts/gate`], {
 		encoding: "utf8",
 		maxBuffer: 64 * 1024 * 1024,
+		// The env is handed over EXPLICITLY, because the seats disagree about the implicit form: a child
+		// spawned without `env:` gets the environment as it stood when the process STARTED, so an
+		// in-process assignment (the fixture seam `HL_VAULT_READ_FIXTURE`, a leg that sets its own route)
+		// reaches the reader on the Debian bun and NOT on the Windows one — where the same arm silently
+		// reads the live vault instead of the fixture. Stating the env is the only form both agree on.
+		env: process.env,
 	});
 	if (res.error) return { kind: "off", why: `python3 could not run: ${res.error.message}` };
 	if (res.status !== 0) {

@@ -1,12 +1,14 @@
 /**
- * vault-mask.selftest.ts — the arms `pi-agent/proposed/vault-mask.ts` must pass before an owner decides
- * whether the fleet should run it (HD-1216).
+ * vault-mask.selftest.ts — the arms `pi-agent/extensions/vault-mask.ts` passes on every seat (HD-1216).
+ * This file sits OUTSIDE the `extensions` plane's glob on purpose: the plane deploys
+ * `pi-agent/extensions/**` to `~/.pi/agent/extensions`, and a self-test loaded as an extension would run
+ * its fixtures inside every session and `process.exit` the harness.
  *
  * ZERO vault requests: the masker asks the leak eye for its needle map, and the eye honours
  * `$HL_VAULT_READ_FIXTURE`, so a minted fixture stands in for the fleet. Nothing here needs `op`, a
  * credential, or a network.
  *
- * RUN:  bun pi-agent/proposed/vault-mask.selftest.ts        (bun ships with the pi package)
+ * RUN:  bun pi-agent/proposed/vault-mask.selftest.ts   (from a homelab clone; bun ships with pi)
  * Exit 0 = every arm green; 1 = at least one arm red. A scenario that could not be reached prints a
  * FAIL line, never a silent skip.
  */
@@ -83,7 +85,7 @@ function event(text: string, extra: Record<string, unknown> = {}) {
 async function main() {
 	const scenario = process.argv[2] ?? "";
 	const { pi, ctx, notifications, statuses, register } = harness();
-	const { default: vaultMask } = await import("./vault-mask.ts");
+	const { default: vaultMask } = await import("../extensions/vault-mask.ts");
 	vaultMask(pi as never);
 	const handle = register();
 

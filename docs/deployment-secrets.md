@@ -356,15 +356,16 @@ from a runner, these rules are what make it safe *and correct*:
 - **A mask at the output seam prevents; it closes nothing, and it can hide.** The pi harness exposes a
   chained, redaction-capable `tool_result` hook, and every debt in the register arrived as a captured
   command output, so that hook is the only seam where a value can be stopped before the session JSONL is
-  written. `pi-agent/proposed/vault-mask.ts` is that hook, **authored and not enabled**. What it prevents:
+  written. `pi-agent/extensions/vault-mask.ts` is that hook, **enabled — deployed to every seat by the
+  `extensions` plane**, its arms kept out of that plane's glob. What it prevents:
   the next capture of a CURRENT value by a lane that was never asked to print one. What it could hide: a
   lane that reads masked output believes the value is gone — the marker is not a redaction of the vault,
   the debt stays open, `check_secret_leak.py` still finds the copy that was written before the hook
-  existed, and a rotation leg that has to COMPARE a value would be working blind, which is why the bypass
-  (`HL_VAULT_MASK_BYPASS`) is loud and process-scoped rather than a setting. Enabling it means moving the
-  file into `pi-agent/extensions/` and pushing that plane on every seat, which is a fleet-wide harness
-  change and an owner call, not a lane's
-  ([harness-pi-seats.md](harness-pi-seats.md) §1, "An extension that is authored and not enabled").
+  was enabled, and a rotation leg that has to COMPARE a value would be working blind, which is why the bypass
+  (`HL_VAULT_MASK_BYPASS`) is loud and process-scoped rather than a setting. The switch is PLACEMENT: the
+  file under `pi-agent/extensions/` is loaded by every session on every seat, the same file under
+  `pi-agent/proposed/` by none — a fleet-wide harness change and an owner call, not a lane's
+  ([harness-pi-seats.md](harness-pi-seats.md) §1, "An extension's placement is its enable switch").
 - **A minted preauth key is captured, never displayed.** headscale 0.29.4 has no `--output <file>` —
   `-o` is the FORMAT flag — so `preauthkeys create … -o json` writes the value to stdout, and the
   documented mint commands in this repo and in `deployment-manual.md` are therefore only safe inside a

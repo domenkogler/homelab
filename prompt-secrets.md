@@ -53,8 +53,8 @@
   recorded as a rejection: transcript redaction as *remediation*
   ([docs/deployment-rejected.md](docs/deployment-rejected.md)).
 - **The four tools the rows name are tasks, not references** — each is named again where it is owed:
-  `pi-agent/proposed/vault-mask.ts` is authored and deliberately NOT enabled (the plane owns
-  `pi-agent/extensions/**`, so the enable switch is the `git mv` — an owner act),
+  `pi-agent/extensions/vault-mask.ts` is enabled and deployed on every seat (the plane owns
+  `pi-agent/extensions/**`, so placement there is the switch — an owner act),
   `scripts/gate/secret_debt_register.txt` and `scripts/gate/check_secret_debt.py` are both committed and
   wired into `validate-all.sh`,
   `scripts/secrets/contain-leaked-values.py` is committed and its `CONTAINED` leg is in the eye,
@@ -153,11 +153,10 @@ starts protecting the commits the other three are made of.
 
 ### 3c. HD-1216 — the masker at the earliest seam where a value can be stopped
 
-- **File:** `pi-agent/proposed/vault-mask.ts` — **authored, tested, and left disabled.** The `extensions`
-  plane owns `pi-agent/extensions/**` as a directory glob, so a file committed there is live on every seat;
-  a hook that transforms tool output is a fleet-wide harness change, so it waits in `proposed/`, which the
-  plane cannot see. Enabling it = `git mv` into `pi-agent/extensions/` + `--push` on every seat +
-  `--check --strict`, and that is the owner's act, not this lane's.
+- **File:** `pi-agent/extensions/vault-mask.ts` — **enabled; the arms stay in `pi-agent/proposed/`.** The
+  `extensions` plane owns `pi-agent/extensions/**` as a directory glob, so a file committed there is live on
+  every seat; a hook that transforms tool output is a fleet-wide harness change, so placement in that
+  directory is the owner's act and `proposed/` is where a written-but-unaccepted hook waits.
 - **The hook is `tool_result`.** It is *chained* — each handler sees what earlier handlers returned — and a
   handler that redacts `content` **must replace `structuredContent` too**, or replacing only `content` drops
   it. That is the one integration detail that decides whether the tool works — the pi package's own
@@ -287,13 +286,13 @@ follows them. Clearing this is **not** a trim: it is the state-only rule (CONVEN
 
 ### Phase 3 — the masker (HD-1216)
 
-- [x] `pi-agent/proposed/vault-mask.ts`: the chained `tool_result` handler, `structuredContent` and
+- [x] `pi-agent/extensions/vault-mask.ts`: the chained `tool_result` handler, `structuredContent` and
       `details` included, one batched read per process asked for from the eye's own needle map, the loud
-      rotation bypass. Arms: `bun pi-agent/proposed/vault-mask.selftest.ts` (9 arms, zero vault requests).
-- [ ] ⏳ **OWNER:** enable it — `git mv` into `pi-agent/extensions/`, `sync-extensions.sh --push` on every
-      seat, `--check --strict`. Not run tonight: the file was pushed to the wsl seat during this lane and
-      removed again, and `--check --strict` is green with it absent.
-- [ ] The acceptance read, after the owner enables it: the recurring item stops appearing on the next run.
+      rotation bypass. Arms: `bun pi-agent/proposed/vault-mask.selftest.ts` (9 arms, zero vault requests —
+      the child env is passed explicitly, since the fixture seam is otherwise seat-dependent).
+- [x] Enabled: the file sits in `pi-agent/extensions/`, `sync-extensions.sh --push` ran on every seat and
+      `--check --strict` is green on each.
+- [ ] The acceptance read: the recurring item stops appearing on the next run.
 - [ ] `todo.md` — HD-1216's tail.
 
 ### Phase 4 — containment (HD-1218)

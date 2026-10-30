@@ -158,18 +158,32 @@ boundary on an item list and a named partial read on an item get, never a U+FFFD
 mangled. `vault_read.py --self-test` carries the arms that plant both shapes — a CR plus a non-ASCII value through the pipe, and
 a raw non-UTF-8 byte in an `op` answer — at ZERO vault requests.
 
-**An extension that is authored and not enabled.** The `extensions` plane owns
+**An extension's placement is its enable switch.** The `extensions` plane owns
 `pi-agent/extensions/**` as a directory glob, so the moment a file exists there it is deployed to and
 drift-checked on every seat — there is no "committed but inactive" inside that path. A hook that is
 written and not yet accepted therefore lives in [`../pi-agent/proposed/`](../pi-agent/proposed/), which
-the plane cannot see, and **the enable switch is the `git mv`** into `pi-agent/extensions/` followed by
+the plane cannot see, and enabling it is the `git mv` into `pi-agent/extensions/` followed by
 `sync-extensions.sh --push` on every seat and `--check --strict`. That placement is deliberate rather
 than tidy: an extension that transforms tool output changes what EVERY session sees — including the
 lanes whose job is to catch a leak, and the leak eye's own view of a value that really is sitting in a
-tree — so enabling one is an owner decision, not something a lane does on the way past. Tonight's
-occupant is `pi-agent/proposed/vault-mask.ts` (HD-1216): the two sides of it, what it prevents and what
-it could hide, are written once in [deployment-secrets.md](deployment-secrets.md) §Creation & Rotation
-Workflow, and its arms run with `bun pi-agent/proposed/vault-mask.selftest.ts`.
+tree — so enabling one is an owner decision, not something a lane does on the way past.
+`pi-agent/extensions/vault-mask.ts` sits in the enabled position (its two sides — what it prevents, what
+it could hide — are written once in [deployment-secrets.md](deployment-secrets.md) §Creation & Rotation
+Workflow); its arms stay outside the glob in
+[`../pi-agent/proposed/vault-mask.selftest.ts`](../pi-agent/proposed/vault-mask.selftest.ts), because a
+self-test deployed into `~/.pi/agent/extensions` is LOADED as an extension by every session on every seat
+and would run its fixtures inside them. Arms: `bun pi-agent/proposed/vault-mask.selftest.ts`.
+
+**A seat leg hands its child the environment explicitly, because the implicit form is seat-dependent.** A
+child spawned with no `env:` option gets the environment as it stood when the parent PROCESS started, so an
+assignment the parent made in-process never reaches it — and the seats disagree about whether that is true,
+because their runtimes are not the same build (the Debian seat's propagates, a Windows bun snapshot does
+not). The tell is a fixture seam the test believes it set: the leg reads the LIVE vault instead of the
+fixture, so a self-test documented as costing ZERO vault requests costs real ones and its value-matching
+arms go red on one seat only. Which way a seat behaves is one probe — mutate `process.env`, read it back in
+a spawned child. The rule: pass `env: process.env`, and let the arm that plants the fixture prove the
+fixture was read (the reader's `requests=0` in the load line is that proof, and it is the half that blocks
+the silent live read).
 
 ---
 ## 5. Reference `~/.pi/agent/settings.json` (harness tuning)
