@@ -57,7 +57,10 @@
 # 2 a boundary (not a git repo, no python) — a SKIP that is printed, never counted as a pass.
 #
 # Env: REPO (self-derived, an inherited value wins) and HL_LEAK_PY (the interpreter the INSTALLED
-# hook will use; default `python3`) — the override exists for the self-test, which is the only
+# hook will use). With the override unset — every real push — the interpreter is the seat-plane
+# answer, resolved at PUSH time by harness/seat-python.sh, because the hook sits in the COMMON dir
+# of a clone that gets pushed from both platforms and a launcher chosen at install time is one
+# box's answer shipped to the other. The override exists for the self-test, which is the only
 # reason any of these scripts have env knobs at all.
 #
 # Owning rule: docs/deployment-secrets.md §Output hygiene · docs/1password.md §Output hygiene ·
@@ -72,6 +75,9 @@ while [ ! -f "$_hl_d/lib/repo-root.sh" ] && [ "$_hl_d" != / ]; do _hl_d="$(dirna
 
 MARKER="managed-by: scripts/git/install-hooks.sh"
 HOOK_NAME="pre-push"
+# The per-box launcher resolver, as a filesystem path for THIS script's own legs. The installed
+# hook names the same file by its repo-relative path, since it runs from the checkout root.
+RESOLVER="$_hl_d/harness/seat-python.sh"
 MODE="check"
 STRICT=0
 FORCE=0
@@ -120,15 +126,27 @@ root="$(git rev-parse --show-toplevel 2>/dev/null)" || root="$(pwd)"
 cd "$root" || { echo "pre-push: cannot reach the worktree root — push NOT judged"; exit 2; }
 [ -f "scripts/gate/check_secret_leak.py" ] || {
   echo "pre-push: scripts/gate/check_secret_leak.py is not in this checkout — push NOT judged"; exit 2; }
+[ -f "scripts/harness/seat-python.sh" ] || {
+  echo "pre-push: scripts/harness/seat-python.sh is not in this checkout — push NOT judged"; exit 2; }
 
-PY="${HL_LEAK_PY:-python3}"
+# WHICH interpreter runs the eye is decided HERE, at push time, by the box doing the push: this file
+# lives in the COMMON hooks dir of a clone that is pushed from a Windows seat and from Debian ones,
+# so a launcher written in at install time ships one platform's answer to the other — `py -3` has no
+# Debian box to be found on, and `python3` on the Windows one is the Microsoft-Store alias stub that
+# exits without running. The resolver execs, so the checker's rc and output are the hook's own,
+# which is what the rc map below reads. HL_LEAK_PY overrides the whole choice; the self-test is what
+# that is for.
+if [ -n "${HL_LEAK_PY:-}" ]; then
+  eye=("$HL_LEAK_PY")
+else
+  eye=(bash scripts/harness/seat-python.sh)
+fi
 # stdout is captured, not streamed, because the verdict must be READ before the push is decided: the
 # checker's rc 1 means "finding" ONLY when it printed the finding line. rc 1 with no finding line is a
 # crash (a missing lib, a bad interpreter, a half-checked-out tool), and refusing a push for a crash
 # accuses the tree of a leak the tool never actually looked for — the accusation would be wrong, and
 # a wrongly-red hook is a hook that gets `--no-verify`'d into decoration.
-# shellcheck disable=SC2086
-out="$("$PY" scripts/gate/check_secret_leak.py --tree-only --no-history 2>&1)"; rc=$?
+out="$("${eye[@]}" scripts/gate/check_secret_leak.py --tree-only --no-history 2>&1)"; rc=$?
 printf '%s\n' "$out"
 if [ "$rc" = 1 ] && ! printf '%s' "$out" | grep -q '^FAIL: '; then
   echo "pre-push: NOT JUDGED — the leak eye exited $rc without producing a verdict, so this push was"
@@ -150,7 +168,7 @@ case "$rc" in
     exit 0 ;;
   1)
     echo "pre-push: REFUSED — a value that is LIVE in the vault right now is present in this tree."
-    echo "          Find it:  python3 scripts/gate/check_secret_leak.py --strict"
+    echo "          Find it:  bash scripts/harness/seat-python.sh scripts/gate/check_secret_leak.py --strict"
     echo "          The close is a ROTATION, never a scrub of the commit or an edit to this hook"
     echo "          (docs/1password.md §Output hygiene). \`git push --no-verify\` is how you skip it;"
     echo "          it is also how HD-1170 happened."
@@ -237,12 +255,27 @@ check() {  # check <name> <cond-rc> [detail]
 
 SELF="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
 command -v git >/dev/null 2>&1 || { say "self-test: no git on this seat — cannot run any arm"; exit 2; }
-PYC="${HL_LEAK_PY:-python3}"
-"$PYC" -c 'import sys' >/dev/null 2>&1 || { say "self-test: no python ('$PYC') — arms would be vacuous"; exit 2; }
 
 T="$(mktemp -d)"
 # shellcheck disable=SC2064
 trap 'rm -rf "$T"' EXIT
+
+# The arms mint values and run real pushes, so they need an interpreter that RUNS — and WHICH one
+# does is the same per-box question the installed hook asks at push time, asked the same way: the
+# resolver execs a probe and the probe answers with its own path. `PYC` is then that interpreter, so
+# `command -v`-style PATH guessing and any hardcoded launcher are both out of this file. The
+# override wins over the resolver, because the no-vault arm below aims the hook at a stub through it.
+PYC_VIA="HL_LEAK_PY"
+if [ -n "${HL_LEAK_PY:-}" ]; then
+  PYC="$HL_LEAK_PY"
+else
+  _probe="$T/probe_python.py"
+  printf '%s\n' 'import pathlib, sys; print(pathlib.Path(sys.executable).as_posix())' >"$_probe"
+  PYC="$(bash "$RESOLVER" "$_probe" 2>/dev/null)"
+  PYC_VIA="seat-python.sh"
+fi
+{ [ -n "$PYC" ] && "$PYC" -c 'import sys'; } >/dev/null 2>&1 \
+  || { say "self-test: no python ($PYC_VIA: '${PYC:-nothing}') — arms would be vacuous"; exit 2; }
 
 # A self-test that installs hooks must prove it installed them ONLY in its fixtures. This exact bug
 # happened: one fixture invocation left $REPO inherited, the fixture's checker resolved the REAL
@@ -256,7 +289,7 @@ before_hook="$([ -f "$_home_hook" ] && cksum <"$_home_hook" || echo ABSENT)"
 # runs the REAL checker against a minted vault fixture — never a live vault, never a real value.
 mk_repo() {  # mk_repo <dir> — a git repo with scripts/gate + scripts/lib from THIS repo
   local d="$1"
-  mkdir -p "$d/scripts/gate" "$d/scripts/lib" "$d/scripts/git" "$d/IaC/ansible" "$d/docs"
+  mkdir -p "$d/scripts/gate" "$d/scripts/lib" "$d/scripts/git" "$d/scripts/harness" "$d/IaC/ansible" "$d/docs"
   : >"$d/docs/index.md"
   git init -q "$d"
   git -C "$d" config user.email t@t; git -C "$d" config user.name t
@@ -266,11 +299,33 @@ mk_repo() {  # mk_repo <dir> — a git repo with scripts/gate + scripts/lib from
   # leak. That exact accident is why the rc-1-without-a-verdict arm below exists.
   cp "$REPO/scripts/gate/check_secret_leak.py" "$d/scripts/gate/"
   cp "$REPO"/scripts/lib/*.py "$_hl_d"/lib/*.sh "$d/scripts/lib/"
+  # The launcher too: the hook resolves the interpreter from the CHECKOUT it runs in, so a fixture
+  # without it hits the hook's own "not in this checkout" boundary and proves nothing about leaks.
+  cp "$RESOLVER" "$d/scripts/harness/"
   cp "$SELF" "$d/scripts/git/"
   # the ledger: empty, so ANY current value found in the tree is a finding, not carried debt
   : >"$d/empty-ledger.txt"
   printf 'a\n' >"$d/README.md"
   git -C "$d" add -A >/dev/null && git -C "$d" commit -qm init >/dev/null
+}
+
+# The stub PATH an arm runs in: WRAPPERS, never `ln -sf`. On a Windows seat `ln` cannot link a
+# Windows binary and leaves a COPY, and a copy of `git` or `bash` pulled out of its own directory
+# exits 127 without printing a word — an arm built that way proves only that a broken bin dir does
+# not block a push. A wrapper execs THIS box's real binary, so the stub means the same thing on
+# both platforms: these are the seat's whole toolbox, and `op` is not one of them.
+stub_bin() {  # stub_bin <dir> <command>… — <dir>/<name> execs whatever THIS box resolves for <name>
+  local d="$1" _b _t
+  shift
+  for _b in "$@"; do
+    if _t="$(command -v "$_b")"; then
+      printf '#!/bin/sh\nexec "%s" "$@"\n' "$_t" >"$d/$_b"
+      chmod +x "$d/$_b"
+    else
+      printf '  FAIL stub-bin: no %s on this seat — the arm that needs it cannot be built\n' "$_b"
+      fails=$((fails + 1))
+    fi
+  done
 }
 
 VAULT="$T/vault.json"
@@ -320,11 +375,13 @@ check "and calls its own verdict PARTIAL, never a clean fleet" \
 mk_repo "$T/novault"; git -C "$T/novault" remote add origin "$REMOTE"
 ( cd "$T/novault" && REPO="$PWD" bash scripts/git/install-hooks.sh --push >/dev/null )
 mkdir -p "$T/noop-bin" "$T/noop-home"
-for _b in git bash grep cmp sed uname mv chmod date; do ln -sf "$(command -v "$_b")" "$T/noop-bin/$_b"; done
-ln -sf "$(command -v "$(basename "$PYC")")" "$T/noop-bin/$(basename "$PYC")"
+stub_bin "$T/noop-bin" git bash grep cmp sed uname mv chmod date
+# The interpreter comes from the resolution above, by absolute path. It is not copied into the stub
+# bin on purpose: a Windows python.exe pulled out of its own directory does not run (rc 127), and
+# which interpreter answers is not what this arm is about — the unreachable vault is.
 out="$( cd "$T/novault" && env -u HL_VAULT_READ_FIXTURE -u OP_SERVICE_ACCOUNT_TOKEN -u REPO \
         HL_VAULT_READ_ROUTE=sdk HL_VAULT_READ_PY_CANDIDATES=vault-unreachable-stub HL_WSL=off \
-        HL_LEAK_PY="$T/noop-bin/$(basename "$PYC")" PATH="$T/noop-bin" HOME="$T/noop-home" \
+        HL_LEAK_PY="$PYC" PATH="$T/noop-bin" HOME="$T/noop-home" \
         REPO="$PWD" bash "$(git rev-parse --git-path hooks)/pre-push" 2>&1 )"; rc=$?
 check "an unreachable vault does not block the push" "$([ "$rc" = 0 ] && printf 0 || printf 1)" \
       "rc=$rc $(printf '%s' "$out" | tr '\n' '|' | cut -c1-240)"
