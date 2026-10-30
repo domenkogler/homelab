@@ -29,6 +29,14 @@ services:
     image: kopia/kopia:{{ kopia_version }}   # same pin as kopia-server (one pin per image)
     cap_drop:
       - ALL
+    # `cap_drop: ALL` leaves CapEff=0, and without CAP_DAC_OVERRIDE the DAC check binds root too. The
+    # pinned signal volume's state dirs are `drwx------` for the service uid, so an unprivileged-root
+    # agent reads `Permission denied` on them, kopia records the errors IN the snapshot and can still
+    # exit 0, and what lands off-site is the one world-readable file (46 B of an 8.6 MB / 144-file
+    # store). Sources are mounted read-only, so this widens reads only. Precedent for a container that
+    # reads a uid-owned volume: docs/deployment-compose.md (DAC_OVERRIDE alongside CHOWN/SETGID/SETUID).
+    cap_add:
+      - DAC_OVERRIDE
     # read_only is intentionally ABSENT: the kopia image's entrypoint writes /app/logs
     # (cli-logs/content-logs cache markers) and /app/cache markers before the command runs, so a
     # read-only root makes those mkdirs fail. /app/config + /app/cache are the bind dirs below;

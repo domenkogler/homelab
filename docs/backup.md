@@ -102,13 +102,26 @@ certificate means re-seeding it and re-rendering every agent, or every connect f
    only. Server
 port 51515 is bound **only to the VPS tunnel address**
 (`wg_s2s_vps.ip`, never 0.0.0.0; loopback-only until the router peer key is provisioned), so reach stays
-scoped by the S2S ACL. Agent sources are oldsrv-local, read-only: `/opt/*` configs,
-`/srv/dumps` scratch, the immich upload/thumb dir, and the signal-cli state volume — plus **the NAS music
+scoped by the S2S ACL. Agent sources are oldsrv-local, read-only: `/opt/*` configs, `/srv/dumps` scratch
+(`lan-litellm-db` dumps, retention 14 — populated, and the push leg lands nightly), the signal-cli state volume,
+and a `/srv/docker/immich/upload` line that reads an **empty tree**: Immich runs on the VPS, so that source has
+held 0 files and every snapshot of it is an identical empty tree — the thumbs row in §What Gets Backed Up names
+the live location. Plus **the NAS music
 master** (`/mnt/nas/media/media/music`), the one NAS-resident source, snapshotted by its own line behind a
 mount-and-emptiness guard so a NAS outage costs that one snapshot and nothing else.
 
+> **A source the agent cannot read is snapshotted as whatever it CAN read.** The image runs as root and
+> `cap_drop: ALL` leaves `CapEff=0`; without `CAP_DAC_OVERRIDE` the DAC check binds root too, so a `drwx------`
+> directory owned by a service uid — a named volume's state dir, e.g. the signal gateway store — answers
+> `Permission denied`. kopia records those errors **inside** the snapshot, uploads what the one world-readable
+> file amounts to, and can still exit 0, so the loop's failure branch stays quiet and retention happily keeps the
+> near-empty copy. The agent therefore carries `cap_add: [DAC_OVERRIDE]`: widening reads, across mounts that are
+> all `:ro`, never writes. The same asymmetry is why the source manifest is proved by a restore — see
+> §Restore drill (yearly), never by `kopia snapshot list`.
+
 > ✅ **Status: the oldsrv `kopia-agent` connects over HTTPS + fingerprint pin and takes snapshots**
-> (`/opt/*` configs + signal-cli state; retention labels send them offsite to the backup Box). The
+> (the `/opt/*` configs, the dump scratch, the pinned signal volume and the NAS music master; retention labels
+> send them offsite to the backup Box). The
 > fingerprint is seeded by a **VPS-only** task (`kopia-fingerprint-sync.yml`) — an agent-side task cannot
 > produce it.
 >
@@ -234,7 +247,7 @@ no second mechanism exists. Payload, in one rsync pass:
 
 | what | source (measured, not assumed) | on the box |
 |---|---|---|
-| every Postgres dump db-backup keeps | `/var/lib/docker/volumes/db-backup_db-backups/_data` (1.3 GiB, 286 files) | `vps-state/vps.kogler.si/dumps/` |
+| every Postgres dump db-backup keeps | `/var/lib/docker/volumes/db-backup_db-backups/_data` (1.4 GB, 319 files — root `du`, live-verified 2026-10-30) | `vps-state/vps.kogler.si/dumps/` |
 | the declarative state of every service | `/opt/*/docker-compose.yml` + `/opt/*/.env` (41 files, 0.2 MiB) | `vps-state/vps.kogler.si/state/opt/` |
 | n8n's database (runs `DB_TYPE: sqlite`, so it has **no dump path**) | `/srv/docker/n8n/data/database.sqlite*` | `state/n8n-sqlite/` |
 
@@ -258,8 +271,11 @@ no second mechanism exists. Payload, in one rsync pass:
   Headscale, CrowdSec decisions, Qdrant, OpenCloud, Grafana, the **Forgejo git repos**, and any Immich
   original not yet on the Box. The rule is the **live Hetzner Box** for originals — what the `cifs` role
   mounts and [`storage.md`](storage.md) §Immich Hybrid Storage states — so an original sitting on VPS NVMe is
-  misplaced rather than duplicated, and this push neither carries it nor needs to. ⏳ Residue to move:
-  **289 MB under `/srv/docker/immich/upload`** on the VPS; the Immich storage-template migration job is what
+  misplaced rather than duplicated, and this push neither carries it nor needs to. ⏳ Residue to move, measured
+  under root `du` (live-verified 2026-10-30): **295 MB / 36 files under `/srv/docker/immich/upload`**, which is
+  NOT all originals — `backups/` 254 MB, `library/` 25 MB (the originals), `encoded-video/` 15 MB, `thumbs/`
+  1.2 MB; `immich-server` mounts that one directory as `/data` and nothing else, so no path of the service
+  reaches the CIFS mount today. The Immich storage-template migration job is what
   files them onto the CIFS mount. And this is rsync to a CIFS share, **not** the
   encrypted snapshot Kopia would give: the kopia-client gap above is unchanged.
 
@@ -370,10 +386,28 @@ VPS NVMe and the Box target is unencrypted at rest), and its NAS leg cannot exis
 `/tank/data` to oldsrv's `/32` and nothing else. The rejected alternative is rowed in
 [storage-rejected.md](storage-rejected.md).
 
-The include list is written after the sizes are numbers, not estimates: `du -sh` over the three include
-roots, plus one snapshot of one small state dir from a throwaway client, which is what prices the nightly
-window and the repo growth. Until the client exists, every "Kopia-backed" line in this file that names a
-**VPS path** is policy, not state (§VPS-side coverage gap).
+**The sizes, measured before any include list was written** (root `du -sh` on the VPS, live-verified
+2026-10-30; a non-root read under-reads `/opt` by the one directory it cannot enter, so these are root's numbers):
+
+| include root | size | what dominates it |
+|---|---|---|
+| `/opt` | **497 MB** | `/opt/traefik` 459 MB (certificates + static), `/opt/technitium` 38 MB, the rest per-service config dirs |
+| the `db-backup` dump volume (`db-backup_db-backups`) | **1.4 GB / 319 files** | the retained Postgres dumps `vps-state-push` also mirrors |
+| `/srv/docker` | **3.6 GB** | `open-webui` 890 MB, `immich` 626 MB, `authentik` 551 MB, `victoria-metrics` 362 MB, `grafana` 269 MB, `kopia-server` 217 MB |
+
+So the first pass is a ~4 GB push and every path the §What Gets Backed Up table calls "Kopia-backed" on this
+host finally has a client to attach to. What the repository costs is measurable rather than guessed: the repo
+holds **9238 blobs / 3.2 GB packed**, and the oldsrv agent's own nightly delta on a 1.4–1.5 GB `/opt` root is
+**64–79 MB of new data per snapshot at 0 % compression** (most payloads — `.sql.gz`, media — arrive already
+compressed, which is why the repo's overall compression reads 0.1 %). The only throughput number this repo has
+measured is the **restore** direction over the same WG S2S path: 9.7 MB in 21 s (≈ 0.5 MB/s) for a store whose
+chunks were not in the local cache, against 15.5 MB in 5 s (≈ 3 MB/s) for one partly cached — so a ~4 GB first
+pass is an **hours** event at the cold end, which is why the client's first snapshot belongs in a window and not
+in the timer's first night. What is still unmeasured is the push side of that path, and measuring it needs a
+`repository connect server` carrying the credential in the URL userinfo — so it runs on the same window as the
+`kopia-server-internal_api` rotation (§Layer 2: the connect line and the credential), never on a scratch command
+line. Until the client exists,
+every "Kopia-backed" line in this file that names a **VPS path** is policy, not state (§VPS-side coverage gap).
 
 ## Backup Flow
 
@@ -474,8 +508,21 @@ window and the repo growth. Until the client exists, every "Kopia-backed" line i
    date. A drill with no recorded result is a drill that did not happen.
 
 ### Restore Drills
-- **Frequency: Yearly**
-- Test: restore random service from Kopia snapshot, verify it works
+- **Frequency: Yearly.** The pass criterion is step 3 above: the payload reads, not the copy finished.
+- **Legs, and what each one buys** (last drill 2026-10-30, live-verified on oldsrv: three NON-newest snapshots,
+  restored into a scratch tmpfs path — never onto a live host bind):
+
+  | leg | the snapshot restored | verdict |
+  |---|---|---|
+  | application dump | the `/mnt/src/dumps` weekly-3 snapshot (2026-10-18): 14 files / 8.3 MB, 2 s | ✅ every restored `.sql.gz` passes `gunzip -t` and carries 59 `CREATE TABLE` + 59 `COPY` blocks — a loadable `lan-litellm-db` dump, names spanning 2026-10-05 to 2026-10-18 |
+  | file-level service state | one subtree (`technitium`) of the `/mnt/src/opt` weekly-3 snapshot: 928 files / 15.5 MB, 5 s | ✅ config and zone files present in the restored tree |
+  | a pinned named volume | `/mnt/src/signal-cli-data` — the same source with and without the cap | ❌ without `CAP_DAC_OVERRIDE` the store's `drwx------` dirs are unreadable at snapshot time (§Layer 2), so a restore of that source yields **1 file / 46 B** where the live volume holds **144 files / 9.7 MB**. A/B on the same mount: 1 file without the cap, 144 with it. ✅ with the cap the source snapshots `files:144 dirs:11` with **no `errors:`** and restores 144 files / 9.7 MB in 21 s — `data/accounts.json` and the SQLite store present, so the pin is verified at the restore, not in the include list |
+
+  The ❌ half is the reason this section exists: a `kopia snapshot list` that shows a source under a full
+  retention label is a state that coexists with an unrecoverable service.
+- **Legs a drill on oldsrv cannot exercise:** one `/srv/docker/<service>` dir — those paths are on the VPS and the
+  VPS has no client, so §Runbook step 4.2 has no snapshot to restore from yet (§VPS-side coverage gap). Naming
+  that is part of the drill result, not a footnote to it.
 
 ### Recovery Paths
 

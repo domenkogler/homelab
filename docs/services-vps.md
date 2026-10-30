@@ -306,8 +306,10 @@ entry (navidrome, matrix and zipline included) — `pgvector` was the one except
 
 **The count is the command's, not this doc's.** `ssh vps 'docker volume ls -q --filter dangling=true | wc -l'`
 → **37**; `du -sh -c` over their `_data` dirs → **644 MB**; `docker system df` → `Local Volumes 47, 2.16 GB,
-671.5 MB reclaimable`, of which **10 volumes are in use**. Every dangling volume is `driver=local` and
-**anonymous** (64-hex name). None carries a compose label — and that is NOT evidence of a hand-run container:
+671.5 MB reclaimable`, of which **10 volumes are in use**. Re-read 2026-10-30 the same command answers **44**;
+this table is the 2026-10-19 census, so the delta is unattributed until the set is re-derived. Every dangling
+volume is `driver=local` and **anonymous** (64-hex name). None carries a compose label — and that is NOT evidence
+of a hand-run container:
 Docker labels the *named* volumes compose creates, so a compose-created anonymous volume carries exactly one
 label, `com.docker.volume.anonymous` (verified on the five in-use ones). "Anonymous volumes carry no
 provenance at all", the claim in the census table above, is therefore **void**: provenance is content +
@@ -344,28 +346,28 @@ anonymous volume therefore means "this run had no bind" — an experiment, never
 | `4cc4279a6ea4` | 2026-10-07 02:47 | 46M | postgres cluster (PG_VERSION=16), user db `forgejo` body=7.4M | bind /srv/docker/forgejo/postgres — live, 71 MB, same datname | prune-when-proven | 10-07 02:47 |
 | `4e6a6df9e92d` | 2026-10-07 02:48 | 46M | postgres cluster (PG_VERSION=16), user db `forgejo` body=7.4M | bind /srv/docker/forgejo/postgres — live, 71 MB, same datname | prune-when-proven | 10-07 02:48 |
 | `4f8a2cced787` | 2026-10-08 22:20 | 8.0K | image skeleton, **0 files** | the live mount of the same image VOLUME path (a bind, or the recreate's own new anonymous volume) | prune | 10-08 22:20 |
-| `5444b783f43b` | 2026-10-17 16:02 | 20K | onlyoffice WOPI/JWT keypair | the anonymous volume now mounted at onlyoffice-docs:/var/www/onlyoffice/Data | prune-when-proven | 10-17 16:02 |
-| `5604fa0ce848` | 2026-10-17 16:02 | 36K | onlyoffice docservice logs (logrotate archives) | the anonymous volume now mounted at onlyoffice-docs:/var/log/onlyoffice | prune | 10-18 04:19 |
+| `5444b783f43b` | 2026-10-17 16:02 | 20K | onlyoffice WOPI/JWT keypair | named volume `onlyoffice-docs_onlyoffice-data` — live, and it owns the path since the named-volume fix | prune-when-proven | 10-17 16:02 |
+| `5604fa0ce848` | 2026-10-17 16:02 | 36K | onlyoffice docservice logs (logrotate archives) | named volume `onlyoffice-docs_onlyoffice-logs` — live, and it owns the path since the named-volume fix | prune | 10-18 04:19 |
 | `580682655bf6` | 2026-10-08 19:20 | 47M | postgres cluster (PG_VERSION=18), user db `probe` body=7.6M | nothing — the scratch PG-18 attempt; no live cluster carries this datname | prune-when-proven | 10-08 19:20 |
 | `582452b0b4e9` | 2026-10-17 10:08 | 4.0K | image skeleton, **0 files** | the live mount of the same image VOLUME path (a bind, or the recreate's own new anonymous volume) | prune | 10-17 10:08 |
-| `6648a8e0b3cb` | 2026-10-17 10:08 | 20K | onlyoffice WOPI/JWT keypair | the anonymous volume now mounted at onlyoffice-docs:/var/www/onlyoffice/Data | prune-when-proven | 10-17 10:08 |
+| `6648a8e0b3cb` | 2026-10-17 10:08 | 20K | onlyoffice WOPI/JWT keypair | named volume `onlyoffice-docs_onlyoffice-data` — live, and it owns the path since the named-volume fix | prune-when-proven | 10-17 10:08 |
 | `6952c4a2555e` | 2026-10-08 19:21 | 47M | postgres cluster (PG_VERSION=18), user db `probe` body=7.6M | nothing — the scratch PG-18 attempt; no live cluster carries this datname | prune-when-proven | 10-08 19:21 |
 | `6a022e411261` | 2026-08-23 22:35 | 39M | postgres cluster (PG_VERSION=16), user db `onlyoffice` body=7.4M (no user-db dir) | named volume onlyoffice-docs_onlyoffice-pgdata — live, 47 MB, same datname | prune-when-proven | 08-23 22:35 |
 | `760a72464bce` | 2026-10-08 19:21 | 47M | postgres cluster (PG_VERSION=18), user db `probe` body=7.6M | nothing — the scratch PG-18 attempt; no live cluster carries this datname | prune-when-proven | 10-08 19:21 |
 | `83721c4acd62` | 2026-10-07 02:48 | 46M | postgres cluster (PG_VERSION=16), user db `forgejo` body=7.4M | bind /srv/docker/forgejo/postgres — live, 71 MB, same datname | prune-when-proven | 10-07 02:48 |
 | `85866a74be54` | 2026-10-08 22:25 | 8.0K | image skeleton, **0 files** | the live mount of the same image VOLUME path (a bind, or the recreate's own new anonymous volume) | prune | 10-08 22:25 |
-| `8c508da6951d` | 2026-08-23 22:35 | 316K | onlyoffice docservice logs (logrotate archives) | the anonymous volume now mounted at onlyoffice-docs:/var/log/onlyoffice | prune | 10-17 09:53 |
+| `8c508da6951d` | 2026-08-23 22:35 | 316K | onlyoffice docservice logs (logrotate archives) | named volume `onlyoffice-docs_onlyoffice-logs` — live, and it owns the path since the named-volume fix | prune | 10-17 09:53 |
 | `8dd3c94f9b02` | 2026-10-08 19:20 | 47M | postgres cluster (PG_VERSION=18), user db `probe` body=7.4M | nothing — the scratch PG-18 attempt; no live cluster carries this datname | prune-when-proven | 10-08 19:20 |
 | `975c0ff9c1e2` | 2026-10-08 19:17 | 16K | image skeleton, **0 files** | the live mount of the same image VOLUME path (a bind, or the recreate's own new anonymous volume) | prune | 10-08 19:17 |
 | `9e9ca7c5cf3d` | 2026-10-08 20:07 | 16K | image skeleton, **0 files** | the live mount of the same image VOLUME path (a bind, or the recreate's own new anonymous volume) | prune | 10-08 20:07 |
-| `a324dc67d31d` | 2026-10-17 10:08 | 36K | onlyoffice docservice logs (logrotate archives) | the anonymous volume now mounted at onlyoffice-docs:/var/log/onlyoffice | prune | 10-17 16:01 |
+| `a324dc67d31d` | 2026-10-17 10:08 | 36K | onlyoffice docservice logs (logrotate archives) | named volume `onlyoffice-docs_onlyoffice-logs` — live, and it owns the path since the named-volume fix | prune | 10-17 16:01 |
 | `a4edec661743` | 2026-10-07 02:44 | 46M | postgres cluster (PG_VERSION=16), user db `forgejo` body=7.2M | bind /srv/docker/forgejo/postgres — live, 71 MB, same datname | prune-when-proven | 10-07 02:44 |
 | `ac9839fc7dbe` | 2026-10-07 02:49 | 46M | postgres cluster (PG_VERSION=16), user db `forgejo` body=7.4M | bind /srv/docker/forgejo/postgres — live, 71 MB, same datname | prune-when-proven | 10-07 02:49 |
 | `acd58df614ad` | 2026-10-08 21:39 | 8.0K | image skeleton, **0 files** | the live mount of the same image VOLUME path (a bind, or the recreate's own new anonymous volume) | prune | 10-08 21:39 |
 | `cd272b207530` | 2026-10-08 22:48 | 8.0K | image skeleton, **0 files** | the live mount of the same image VOLUME path (a bind, or the recreate's own new anonymous volume) | prune | 10-08 22:48 |
 | `d2478277e0b2` | 2026-10-08 19:18 | 16K | image skeleton, **0 files** | the live mount of the same image VOLUME path (a bind, or the recreate's own new anonymous volume) | prune | 10-08 19:18 |
 | `e778b635265e` | 2026-10-17 16:01 | 8.0K | image skeleton, **0 files** | the live mount of the same image VOLUME path (a bind, or the recreate's own new anonymous volume) | prune | 10-17 16:01 |
-| `eb4b30e403cb` | 2026-08-23 22:35 | 20K | onlyoffice WOPI/JWT keypair | the anonymous volume now mounted at onlyoffice-docs:/var/www/onlyoffice/Data | prune-when-proven | 08-23 22:35 |
+| `eb4b30e403cb` | 2026-08-23 22:35 | 20K | onlyoffice WOPI/JWT keypair | named volume `onlyoffice-docs_onlyoffice-data` — live, and it owns the path since the named-volume fix | prune-when-proven | 08-23 22:35 |
 | `f04c62127919` | 2026-10-17 16:01 | 8.0K | image skeleton, **0 files** | the live mount of the same image VOLUME path (a bind, or the recreate's own new anonymous volume) | prune | 10-17 16:01 |
 | `f545c862df59` | 2026-10-07 02:48 | 46M | postgres cluster (PG_VERSION=16), user db `forgejo` body=7.4M | bind /srv/docker/forgejo/postgres — live, 71 MB, same datname | prune-when-proven | 10-07 02:48 |
 | `fa9a8ebdf666` | 2026-10-17 10:08 | 8.0K | image skeleton, **0 files** | the live mount of the same image VOLUME path (a bind, or the recreate's own new anonymous volume) | prune | 10-17 10:08 |
@@ -382,15 +384,20 @@ fix below has landed. A blanket `docker volume prune -f` stays refused: it takes
 its exit code says nothing about which volumes it chose. Destroying live host state still runs in a VPS window with
 the read-backs below, not in an unattended overnight lane.
 
-**Two findings the table exposes; the named-volume half is the fix that must land FIRST:**
+**The mechanism the table's onlyoffice rows came from — and the mapping that closes it:**
 
-1. `onlyoffice-docs` keeps `/var/www/onlyoffice/Data` — the **WOPI/JWT keypair** — in an *anonymous* volume,
-   so every container recreate mints a fresh keypair and strands the old one (three stranded copies here:
-   2026-08-23, 2026-10-17 10:08, 2026-10-17 16:01). Anything that cached the previous public key fails on the
-   next recreate. State that must outlive a recreate lives in a **named volume or a bind**, never in an anonymous
-   one; give the path one of those before pruning, or the prune removes the only copies of the minted keys.
-2. Same shape at `/var/log/onlyoffice`: the docservice logs live in an anonymous volume, so the running
-   container's log history is discarded at every recreate and the stranded copies are the only history left.
+1. `/var/www/onlyoffice/Data` — the **WOPI/JWT keypair** — is owned by the named volume
+   `onlyoffice-docs_onlyoffice-data`: the compose maps the path instead of leaving the image's `Config.Volumes`
+   entry unmapped, so a recreate no longer mints a fresh pair (live-verified 2026-10-30 — the container's mounts
+   name that volume, and `/hosting/discovery` answers with its `proof-key`). An **unmapped** image VOLUME path is
+   the shape that produced the three stranded keypair copies in the table: one fresh anonymous volume per container
+   create, seeded from the image, the previous copy abandoned where it stood, and anything that cached the earlier
+   public key failing at the next recreate. State that must outlive a recreate lives in a **named volume or a
+   bind**, never in an anonymous one — and it must be given one **before** the prune, or the prune removes the only
+   copies of the minted keys.
+2. Same shape at `/var/log/onlyoffice`, mapped to `onlyoffice-docs_onlyoffice-logs`: docservice log history then
+   survives a recreate, where unmapped it is discarded at every create and the stranded copies are the only
+   history left.
 
 Re-derive (read-only, every claim above):
 
