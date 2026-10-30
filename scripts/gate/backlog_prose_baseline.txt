@@ -78,7 +78,7 @@ FIND	prompt-update.md/evidence	0
 FIND	prompt-update.md/glyph	1
 FIND	prompt-update.md/phrase	0
 FIND	prompt-update.md/verb-date	0
-FIND	todo.md/evidence	7
+FIND	todo.md/evidence	8
 FIND	todo.md/glyph	19
 FIND	todo.md/phrase	1
 FIND	todo.md/verb-date	6
@@ -162,7 +162,7 @@ ROW	HD-1212	3321
 ROW	HD-1213	1851
 ROW	HD-1214	1220
 ROW	HD-1215	1136
-ROW	HD-1216	1441
+ROW	HD-1216	1975
 ROW	HD-1218	4348
 ROW	HD-1219	1996
 ROW	HD-1220	1806
