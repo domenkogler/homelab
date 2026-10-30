@@ -22,6 +22,18 @@
 # header is never what the redirect overwrites, and the command's own summary goes to stderr.
 # Nothing here is a decision log: an entry's existence says the debt is carried, and the reason a
 # given pointer is not worth fixing yet belongs in the doc that owns the section.
+1	AGENTS.md	AGENTS.md	§2
+1	AGENTS.md	AGENTS.md	§6
+1	AGENTS.md	AGENTS.md	§8.2
+1	CONVENTIONS.md	CONVENTIONS.md	§4(a
+1	CONVENTIONS.md	docs/deployment-secrets.md	§6
+1	CONVENTIONS.md	docs/index.md	§8.2
+1	CONVENTIONS.md	docs/storage.md	§2
+1	CONVENTIONS.md	prompt.md	§3
+1	CONVENTIONS.md	scripts/README.md	§3
+1	CONVENTIONS.md	scripts/README.md	§4
+1	CONVENTIONS.md	scripts/README.md	§Validation
+1	CONVENTIONS.md	todo.md	§⏳
 1	IaC/ansible/group_vars/all/main.yml	docs/services-traefik.md	§Service
 1	IaC/ansible/group_vars/all/versions.yml	docs/deployment-renovate.md	§7
 1	IaC/ansible/group_vars/all/versions.yml	docs/spark-llm-profiles.md	§Draft-vocab
@@ -29,7 +41,6 @@
 1	IaC/ansible/group_vars/home_servers.yml	docs/smart-home-voice.md	§the
 1	IaC/ansible/group_vars/raspberry_pi.yml	(unresolved target)	§7 one-place rule
 1	IaC/ansible/group_vars/raspberry_pi.yml	docs/network-dns.md	§the
-1	IaC/ansible/group_vars/spark.yml	deployment-manual.md	§5.2
 1	IaC/ansible/group_vars/spark.yml	docs/hardware-spark.md	§Partition
 1	IaC/ansible/host_vars/nas.kogler.si.yml	docs/storage.md	§2
 1	IaC/ansible/host_vars/spark.kogler.si.yml	docs/hardware-spark.md	§LLM
@@ -40,21 +51,40 @@
 1	IaC/ansible/roles/spark-llm-profile/tasks/main.yml	(no owning document)	§Qwen3.8-Flash-Next / §Qwen3.8
 1	IaC/ansible/roles/spark-llm-profile/tasks/main.yml	docs/hardware-spark.md	§Partition
 1	IaC/ansible/roles/storage/tasks/samba.yml	docs/storage-rejected.md	§2
+1	README.md	CONVENTIONS.md	§0
+1	README.md	README.md	§8.3
+3	audit.md	CONVENTIONS.md	§0
+1	audit.md	README.md	§Parallel
+1	audit.md	reports/full-audit-2026-08-29.md	§4
+1	audit.md	scripts/README.md	§8
+1	deployment-manual.md	deployment-manual.md	§5
+1	deployment-manual.md	deployment-manual.md	§8.4
+1	deployment-manual.md	deployment-manual.md	§9b
+1	deployment-manual.md	deployment-manual.md	§Hardlink
+1	deployment-manual.md	deployment-manual.md	§The
+1	deployment-manual.md	deployment-manual.md	§Which
+1	deployment-manual.md	deployment-manual.md	§qBittorrent's
+1	deployment-manual.md	docs/hardware-spark.md	§Dashboard
+1	deployment-manual.md	docs/manual/immich.md	§1.6b
+1	deployment-manual.md	docs/network-ops.md	§QoS
+1	deployment-manual.md	docs/network-vpn.md	§HD
+1	deployment-manual.md	docs/services-admin.md	§Path
+1	deployment-tasks.md	deployment-tasks.md	§Vault
+1	deployment-tasks.md	docs/observability.md	§Log
+2	deployment-tasks.md	docs/services-ai.md	decision #25
 1	docs/1password.md	deployment-tasks.md	§Vault
 1	docs/1password.md	docs/deployment-secrets.md	§op-write_api
-2	docs/backup.md	(unresolved target)	§VPS state push
 1	docs/deployment-ai-stack-secrets.md	docs/deployment-ai-stack-secrets.md	§Rotation
 1	docs/deployment-ansible.md	docs/deployment-ansible.md	§6
 1	docs/deployment-ansible.md	docs/deployment-ansible.md	§docker_services
 1	docs/deployment-ansible.md	docs/deployment-secrets.md	§6
 1	docs/deployment-ansible.md	docs/deployment-secrets.md	§Rotation
 1	docs/deployment-oidc.md	docs/deployment-ansible.md	§docker_services`
-1	docs/deployment-secrets.md	(unresolved target)	§2 rotation propagation
-1	docs/deployment-secrets.md	(unresolved target)	§Item titles are load-bearing below
 1	docs/deployment-secrets.md	IaC/ansible/roles/home_assistant/templates/ha-config-sync.sh.j2	§Runtime
 1	docs/deployment-secrets.md	deployment-manual.md	§DNS
 1	docs/deployment-secrets.md	deployment-manual.md	§spark
 1	docs/deployment-secrets.md	docs/deployment-oidc.md	§3
+1	docs/deployment-secrets.md	docs/deployment-secrets.md	§2
 1	docs/deployment-secrets.md	docs/deployment-secrets.md	§6
 1	docs/deployment-secrets.md	docs/network-ops.md	§Rotating
 1	docs/deployment-secrets.md	scripts/gate/check_vault_docs.py	§Creation
@@ -66,7 +96,7 @@
 1	docs/hardware-spark.md	docs/hardware-spark.md	§above
 1	docs/hardware-spark.md	docs/hardware-workstation.md	§Text-only
 2	docs/hardware-spark.md	docs/observability.md	§DCGM
-1	docs/harness-pi-seat-identity.md	(unresolved target)	§Terminal and display carries `theme`/`tuiMode`/`terminal.*` and nothing else
+1	docs/harness-pi-seat-identity.md	docs/harness-pi-seat-identity.md	§Terminal
 1	docs/index.md	deployment-manual.md	§oldsrv
 1	docs/index.md	scripts/README.md	§Adjacent
 1	docs/network-dns.md	docs/services-media.md	§How
@@ -75,9 +105,7 @@
 1	docs/network-vpn.md	docs/network-dns.md	§Split-Horizon
 1	docs/network-vpn.md	docs/network-vpn.md	§Rename
 1	docs/network-vpn.md	docs/network-vpn.md	§Tailnet
-1	docs/observability.md	(unresolved target)	§1 fail-loud, and `validate-docker-services.py`'s mock `default` would silently render an empty port
-1	docs/observability.md	(unresolved target)	§LLM Dashboard
-1	docs/observability.md	(unresolved target)	§LLM Dashboard**, not the metric-name inventory. The three `DCGM_FI_PROF_*` panels are **deleted** — they can never load on GB10 — and the six real GB10 signals are wired in their place: utilisation, die temperature, power draw **with the energy-counter rate beside it**, SM clock, PCIe replays, and `DCGM_FI_DEV_XID_ERRORS` as a readiness stat. The 7 whitelisted `job=
+1	docs/observability.md	docs/observability.md	§1
 1	docs/observability.md	docs/observability.md	§Unified-memory
 1	docs/observability.md	docs/observability.md	§above
 1	docs/observability.md	scripts/ansible/build-llm-dashboard.py	§LLM
@@ -105,12 +133,196 @@
 1	docs/services-media.md	docs/services-media.md	§The
 1	docs/services-media.md	docs/services-traefik.md	§The
 1	docs/services-office.md	docs/services-office.md	§LLM
-1	docs/services-traefik.md	(unresolved target)	§Certification row is the owning contract for what those paths mean. Declared today on `oldsrv
 1	docs/services-utilities.md	docs/services-utilities.md	§5
-1	docs/services-vps.md	(unresolved target)	§1.12 step 3
-1	docs/services-vps.md	(unresolved target)	§1.12 step 6
+2	docs/services-vps.md	docs/services-vps.md	§1.12
 1	docs/smart-home-voice.md	docs/smart-home-voice.md	§9c
 1	docs/spark-incidents.md	docs/hardware-spark.md	§Cold
 1	docs/spark-llm-profiles.md	docs/spark-llm-profiles.md	§8.3
 1	docs/spark-llm-profiles.md	docs/spark-llm-profiles.md	§Adjacent
 1	docs/spark-llm-profiles.md	docs/spark-llm-profiles.md	§Unified-memory
+1	pin-major-postgres.md	pin-major-postgres.md	§4a
+1	pin-major-postgres.md	pin-major-postgres.md	§4b
+1	pin-major-postgres.md	pin-major-postgres.md	§4c
+1	pin-major-postgres.md	pin-major-postgres.md	§4d
+1	pin-major-redis.md	pin-major-redis.md	§7
+1	prompt-dns-transport.md	prompt-dns-transport.md	§Host-side
+1	prompt-dns-transport.md	prompt-dns-transport.md	§Network
+1	prompt-dns-transport.md	prompt-dns-transport.md	§The
+1	prompt-edge-identity.md	prompt-edge-identity.md	§B0's
+1	prompt-edge-identity.md	prompt-edge-identity.md	§Immich
+1	prompt-edge-identity.md	prompt-edge-identity.md	§Open
+1	prompt-edge-identity.md	prompt-edge-identity.md	§Rotating
+1	prompt-external.md	prompt-external.md	§6
+1	prompt-external.md	prompt-external.md	§B0
+1	prompt-external.md	prompt-external.md	§Master
+1	prompt-laptop-wsl.md	CONVENTIONS.md	§0
+1	prompt-laptop-wsl.md	prompt-laptop-wsl.md	§B0
+1	prompt-laptop-wsl.md	prompt-laptop-wsl.md	§C2
+1	prompt-laptop-wsl.md	spark/llm-profiles/README.md	§C2
+1	prompt-litellm-consumers.md	prompt-litellm-consumers.md	§4c
+1	prompt-litellm-consumers.md	prompt-litellm-consumers.md	§9c
+1	prompt-litellm-consumers.md	prompt-litellm-consumers.md	§9c's
+1	prompt-litellm-consumers.md	prompt-litellm-consumers.md	§the
+1	prompt-media-arrs.md	docs/storage.md	§Store
+1	prompt-observability-alerting.md	prompt-observability-alerting.md	§6
+1	prompt-observability-alerting.md	prompt-observability-alerting.md	§LLM
+1	prompt-observability-alerting.md	prompt-observability-alerting.md	§MCP
+1	prompt-observability-alerting.md	prompt-observability-alerting.md	§Network
+1	prompt-scripts.md	prompt-scripts.md	§4-orchestrator
+1	prompt-scripts.md	prompt-scripts.md	§B0
+1	prompt-scripts.md	prompt-scripts.md	§Who
+1	prompt-secrets.md	docs/deployment-secrets.md	§4c
+3	prompt-secrets.md	prompt-secrets.md	§4a
+1	prompt-secrets.md	prompt-secrets.md	§4b
+1	prompt-secrets.md	prompt-secrets.md	§4c's
+1	prompt-secrets.md	prompt-secrets.md	§Proving
+1	prompt-spark-llm.md	docs/harness-pi-engines.md	§2–§3
+1	prompt-spark-llm.md	docs/services-ai-rejected.md	§8.3
+1	prompt-spark-llm.md	prompt-spark-llm.md	§7's
+1	prompt-spark-llm.md	spark/stability-test.md	§6a
+1	prompt-storage-backup.md	prompt-storage-backup.md	§Recovery
+1	prompt-storage-backup.md	prompt-storage-backup.md	§Restore
+1	prompt-storage-backup.md	prompt-storage-backup.md	§Runbook
+1	prompt-storage-backup.md	prompt-storage-backup.md	§The
+1	prompt-storage-backup.md	prompt-storage-backup.md	§VPS-side
+1	prompt-update.md	docs/network-vpn.md	§Headplane
+1	prompt-update.md	docs/services-traefik.md	§Bouncer
+2	prompt-update.md	prompt-update.md	§2(a
+2	prompt-update.md	prompt-update.md	§2(b
+1	prompt.md	prompt-scripts.md	§The
+1	prompt.md	prompt.md	§0
+1	prompt.md	prompt.md	§4c
+3	prompt.md	prompt.md	§D
+1	prompt.md	prompt.md	§Reaching
+1	prompt.md	prompt.md	§The
+1	prompt.md	prompt.md	§Validation
+1	prompt.md	scripts/README.md	§Validation
+1	prompt.md	todo.md	§Mgmt-plane
+1	scripts/README.md	CONVENTIONS.md	§0
+3	scripts/README.md	CONVENTIONS.md	§4(a
+1	scripts/README.md	CONVENTIONS.md	§Secrets
+1	scripts/README.md	IaC/ansible/group_vars/all/versions.yml	§Seat
+1	scripts/README.md	IaC/ansible/playbooks/render-routeros.yml	§Portability
+1	scripts/README.md	docs/deployment-ansible.md	§Runner placement
+1	scripts/README.md	docs/deployment-ansible.md	§Running
+1	scripts/README.md	docs/deployment-preseed.md	§media-layout
+1	scripts/README.md	docs/deployment-secrets.md	§0.4b-adjacent
+1	scripts/README.md	docs/harness-pi-seats.md	§7
+1	scripts/README.md	docs/index.md	§6
+1	scripts/README.md	docs/services-admin.md	§Record
+1	scripts/README.md	prompt.md	§4
+1	scripts/README.md	prompt.md	§B0
+1	scripts/README.md	prompt.md	§B0's
+1	scripts/README.md	scripts/README.md	§2
+1	scripts/README.md	scripts/README.md	§4(a
+1	scripts/README.md	scripts/README.md	§5a
+1	scripts/README.md	scripts/README.md	§6
+1	scripts/README.md	scripts/README.md	§7
+1	scripts/README.md	scripts/README.md	§7's
+1	scripts/README.md	scripts/README.md	§8.1
+3	scripts/README.md	scripts/README.md	§8.2
+1	scripts/README.md	scripts/README.md	§8.3
+1	scripts/README.md	scripts/README.md	§8.6
+1	scripts/README.md	scripts/README.md	§8.6's
+1	scripts/README.md	scripts/README.md	§B0
+1	scripts/README.md	scripts/README.md	§Per-Subnet
+1	scripts/README.md	scripts/README.md	§pointer
+1	scripts/README.md	scripts/README.md	§with
+1	scripts/README.md	scripts/gate/check_doc_headings.py	§Heading`
+1	scripts/README.md	scripts/gate/check_doc_headings.py	§Section`
+1	scripts/README.md	scripts/gate/check_view_registry_sync.py	§B9
+1	scripts/README.md	todo.md	§4(a
+1	scripts/README.md	todo.md	§B0↔brief
+1	scripts/ansible/ansible_query.py	(no owning document)	§6, two distinct masking paths
+1	scripts/ansible/build-llm-dashboard.py	(no owning document)	§doc-section pointer
+1	scripts/bench/laptop/profiles.yml	CONVENTIONS.md	§10
+1	scripts/bench/laptop/profiles.yml	IaC/ansible/group_vars/spark.yml	§spark_llm_profiles
+1	scripts/bench/laptop/profiles.yml	docs/services-ai-rejected.md	§Served
+1	scripts/bench/spark/gate7-read.py	docs/hardware-spark.md	§C3
+1	scripts/gate/check_backlog_prose.py	CONVENTIONS.md	§4(a
+1	scripts/gate/check_brief_coverage.py	(no owning document)	§4(a
+1	scripts/gate/check_brief_coverage.py	(no owning document)	§B0 assigns it, the brief never cites it: dispatched, and never read
+1	scripts/gate/check_brief_coverage.py	(no owning document)	§B0 edit that widens a cell without touching the brief produces
+1	scripts/gate/check_brief_coverage.py	(no owning document)	§B0 hands the brief a row it never mentions — dispatched work the lane never reads. This
+1	scripts/gate/check_brief_coverage.py	(no owning document)	§B0 is bounded by its neighbour heading, never by a line count
+1	scripts/gate/check_brief_coverage.py	(no owning document)	§B0 names it, so the third copy agrees with the other two
+1	scripts/gate/check_brief_coverage.py	(no owning document)	§B0 whose bounding heading moved, a brief whose header moved
+1	scripts/gate/check_brief_coverage.py	(no owning document)	§B0's cell grammar IS the view's own documented re-derive command: `**469**` or `HD
+1	scripts/gate/check_brief_coverage.py	(no owning document)	§B0, a §B0 whose bounding heading moved, a brief whose header moved
+1	scripts/gate/check_doc_headings.py	(no owning document)	§-cites
+1	scripts/gate/check_doc_headings.py	(no owning document)	§-cites, and while they were not sources, every pointer written from
+1	scripts/gate/check_doc_headings.py	(no owning document)	§Phase 0` onto `Phase 0.5 -- VPS` is a real heading reached by a real
+1	scripts/gate/check_doc_headings.py	(no owning document)	§Phase index 99q` reached `Phase index
+1	scripts/gate/check_doc_headings.py	(no owning document)	§means THIS document's own section: the
+1	scripts/gate/check_doc_headings.py	AGENTS.md	§6.4`
+1	scripts/gate/check_doc_headings.py	deployment-manual.md	§B0`
+1	scripts/gate/check_doc_headings.py	docs/services-ai.md	decision #10
+1	scripts/gate/check_handoff_size.py	(no owning document)	§anchor or a todo row id
+1	scripts/gate/check_todo_done.py	(no owning document)	§4(a
+1	scripts/gate/check_todo_done.py	docs/services-ai.md	decision #25
+1	scripts/gate/check_todo_done.py	prompt.md	§5
+1	scripts/gate/check_view_registry_sync.py	(no owning document)	§B9 carries an id the registry does not. A view inventing
+1	scripts/gate/check_view_registry_sync.py	(no owning document)	§B9 lacks. This is the shape a commit that
+1	scripts/gate/check_view_registry_sync.py	(no owning document)	§B9 lists one row twice. The id sets match, so a
+1	scripts/secrets/provision-secrets.py	docs/deployment-secrets.md	§3
+5	todo-table.md	CONVENTIONS.md	§4(a
+1	todo-table.md	IaC/ansible/roles/common/tasks/apt-holds.yml	§B9
+1	todo-table.md	docs/hardware-spark.md	§Re-deriving
+1	todo-table.md	docs/network-dns.md	§…
+1	todo-table.md	docs/observability.md	§The
+1	todo-table.md	docs/orchestration.md	§6
+1	todo-table.md	docs/services-traefik.md	§Reachability
+1	todo-table.md	prompt-laptop-wsl.md	§C
+1	todo-table.md	scripts/gate/check_doc_path_refs.py	§B9
+1	todo-table.md	scripts/gate/check_vault_docs.py	§Master
+2	todo-table.md	scripts/gate/check_view_registry_sync.py	§B9
+1	todo-table.md	scripts/gate/check_view_registry_sync.py	§B9's
+1	todo-table.md	scripts/harness/pi-self-update.sh	§keyboard
+1	todo-table.md	todo-table.md	§2
+1	todo-table.md	todo-table.md	§2.7
+2	todo-table.md	todo-table.md	§4
+1	todo-table.md	todo-table.md	§5
+1	todo-table.md	todo-table.md	§7b
+1	todo-table.md	todo-table.md	§9b
+1	todo-table.md	todo-table.md	§Per-Subnet
+1	todo-table.md	todo-table.md	§refs
+1	todo-table.md	todo.md	§A
+2	todo-table.md	todo.md	§B9
+1	todo.md	IaC/ansible/playbooks/apply-converge.yml	§Mgmt-plane
+1	todo.md	deployment-manual.md	§1's
+1	todo.md	docs/deployment-oidc.md	§SSO
+1	todo.md	docs/deployment-secrets.md	§Token
+1	todo.md	docs/deployment-secrets.md	§Unattended
+1	todo.md	docs/harness-pi-seats.md	§5a
+1	todo.md	docs/harness-pi-terminal.md	§6
+1	todo.md	docs/network-addresses-generated.md	§8.2
+1	todo.md	docs/network-addresses-generated.md	§8.5
+1	todo.md	docs/network-vlans.md	§Firewall
+1	todo.md	docs/network-vlans.md	§Kids
+1	todo.md	docs/security.md	§services-internal
+1	todo.md	docs/services-ai.md	decision #23
+3	todo.md	docs/services-ai.md	decision #25
+1	todo.md	docs/services-matrix.md	§Domain
+1	todo.md	docs/services-traefik.md	§Reachability
+1	todo.md	docs/services.md	§the
+1	todo.md	docs/smart-home-failover.md	§Drill
+1	todo.md	docs/smart-home.md	§KNX
+1	todo.md	docs/spark-llm-profiles.md	§The
+1	todo.md	prompt-laptop-wsl.md	§B0's
+1	todo.md	prompt.md	§4
+1	todo.md	scripts/README.md	§Scoped
+1	todo.md	scripts/README.md	§Validation
+1	todo.md	scripts/gate/check_vault_docs.py	§Master
+1	todo.md	spark/llm-profiles/README.md	§C
+1	todo.md	todo.md	§4a
+1	todo.md	todo.md	§8.6's
+2	todo.md	todo.md	§9b
+1	todo.md	todo.md	§9b's
+1	todo.md	todo.md	§A2
+1	todo.md	todo.md	§Alert
+1	todo.md	todo.md	§C
+1	todo.md	todo.md	§Convergence
+1	todo.md	todo.md	§Per-Subnet
+1	todo.md	todo.md	§Recovery
+1	todo.md	todo.md	§Restore
+1	todo.md	todo.md	§The

@@ -37,20 +37,36 @@ THE GRAMMAR IT ACCEPTS, stated rather than buried in a regex:
     style `spark/stability-test.md` and the audit reports use -- is compared with that leading
     mark removed, so `\u00a72`, `\u00a7Terminal B` and `\u00a72 Terminal B` all name it. The strip is
     on the HEADING side and only at its start; it never touches text in the middle of a line.
-  * BOUNDARIES, stated because both halves have a corpus behind them: a NUMERIC reference must
-    end at a digit boundary, so `\u00a73` never names `30 Other thing` and `\u00a79` never names
-    `90 things` (an absolute rule -- such a match is dropped, not merely de-ranked). A
-    LETTER-internal prefix still resolves -- `\u00a7Alert` names `## Alerts` -- BY DESIGN, so that a
-    short citation into a plural heading stays legal; making that absolute dangles two real
-    pointers in this corpus, so treat it as a corpus decision, not as a bug found in here. One
-    known hole: the window `\u00a7Phase 0` is rejected against `Phase 0.5 -- VPS`, but resolve_ref
-    then retries the shorter window `Phase`, which ends at a space and so never tests a number
-    boundary, and the pointer resolves anyway. Self-test (h) keeps that on record.
+  * BOUNDARIES, three of them, stated because each has a corpus behind it. (1) A NUMERIC reference
+    must end at a digit boundary, so `\u00a73` never names `30 Other thing` and `\u00a79` never names
+    `90 things` -- an absolute rule, such a match is dropped, not merely de-ranked. (2) A reference
+    that is ONLY a number must not land on a LETTERED sub-number either: `\u00a71` is not
+    `1b. Why the harness does NOT go through LiteLLM`, because the label written is a label the
+    document does not have (HD-1156 -- a normalized prefix was calling that resolved, which is how a
+    pointer to a section that does not exist reported `resolved=True kind=prefix`). (3) A LETTER-internal
+    prefix still resolves for a reference spelled with WORDS -- `\u00a7Alert` names `## Alerts` -- BY
+    DESIGN, so a short citation into a plural heading stays legal; making that absolute dangles two
+    real pointers in this corpus, so it is a corpus decision, not a bug found in here. The token
+    window that degrades a long reference to its heading part is KEPT (prose trailing an anchor is
+    legal), and it may no longer throw away a LETTERED sub-number to do it -- `\u00a7Phase index 99q`
+    names a sub-number the target does not have, and used to resolve onto `Phase index` anyway. The
+    one degradation that stays is `\u00a7Phase 0` onto `Phase 0.5 -- VPS`: a bare number, a real heading,
+    and the reading the row keeps. Self-test (h) holds all three halves open; (j) holds (2) and the
+    word-boundary tie-break; (k) holds the source set below.
   * `decision #N`, `\u00a79 #N`, `\u00a79 decisions #24/#27`, `\u00a79 row 26` -- N must be a row of
     the owning numbered decision table (a table whose header starts `| # |` and whose remaining
     cells say rule/decision). One exists today -- `docs/services-ai.md` \u00a79 -- so a
     `decision #N` written in a document without one is read against it, which is how the repo
     already reads `decision #26`.
+
+THE SOURCES ARE WHERE POINTERS ARE WRITTEN, not only where headings live: `docs/**`, comments under
+`IaC/**`, EVERY root-level `.md`, and `scripts/**`. The last two used to be missing (HD-1156), which
+left every `\u00a7`-cite written from `CONVENTIONS.md`, `deployment-manual.md`, `scripts/README.md`,
+`prompt.md` or `todo.md` unchecked in BOTH directions -- its anchor never resolved, and renaming a
+heading never reddened the file pointing at it. A Markdown source owns its unqualified cites (an
+unqualified `\u00a72` in `CONVENTIONS.md` is that file's own section 2, exactly as in `docs/`), and a
+BARE number its own file does not carry is read against the rulebook, which is the same reading an
+IaC comment already got.
 
 WHAT IT IGNORES, each named by --verbose: code fences, shell heredocs and YAML block scalars --
 deployed payload, not a promise to a reader (RULES R-2); `*-generated.md` as a SOURCE -- rendered
@@ -129,6 +145,13 @@ SECTION_MARK_RE = re.compile(r"^[ \t]*(?:[" + SECTION + r"#+][ \t]*)+")
 # the reference names a section that is not there (`3` against `30 Other thing`, `Phase 0` against
 # `Phase 0.5`). resolve_ref may still retry a shorter window -- see self-test (h).
 SUBNUM_RE = re.compile(r"[.\-]\s*\d")
+# A reference that is nothing but a section number (`1`, `8.3`, `9c`) -- the shape HD-1156 bounds,
+# because such a reference carries no words to disambiguate it and a normalized prefix was enough to
+# call it a hit.
+BARE_NUM_RE = re.compile(r"\d+[a-z]?(?:[.\-]\d+[a-z]?)*")
+# A section number whose label carries a LETTER (`99q`, `1a`) -- the shape a retried token window
+# used to drop in silence.
+LETTERED_NUM_RE = re.compile(r"\d+[a-z]")
 ROW_HASH_RE = re.compile(r"#(\d+)")
 ROW_WORD_RE = re.compile(r"\brows?[ \t]+(\d+)\b")
 DECISION_WORD_RE = re.compile(r"\bdecisions?\b")
@@ -458,13 +481,24 @@ def match_candidate(cand, headings):
             r = rest(h)
             return bool(r) and (r[0].isdigit() or SUBNUM_RE.match(r) is not None)
 
-        # A LETTER boundary stays a tie-break, by design: `\u00a7Alert` still resolves
-        # `## Alerts`, and making that absolute would dangle real pointers for no reader's
-        # benefit (measured: 2 of them in this corpus). Only a tie that survives the tie-break
-        # below is an ambiguity. Where both rules are silent is the retried window: `\u00a7Phase 0`
-        # loses `Phase 0` here, then resolves `Phase 0.5 -- VPS` on the unique prefix `Phase`,
-        # which ends at a space rather than inside a number.
-        hits = [h for h in hits if not inside_a_number(h)]
+        # A LETTER boundary stays a tie-break for a reference spelled with WORDS: `\u00a7Alert` still
+        # resolves `## Alerts`, and making that absolute would dangle real pointers for no reader's
+        # benefit (measured: 2 of them in this corpus). A reference that is ONLY a number gets the
+        # opposite rule (HD-1156): `numbered_sub` below. Where both rules are silent is the retried
+        # window: `\u00a7Phase 0` loses `Phase 0` here, then resolves `Phase 0.5 -- VPS` on the unique
+        # prefix `Phase`, which ends at a space rather than inside a number.
+        bare_number = bool(BARE_NUM_RE.fullmatch(ck))
+
+        def numbered_sub(h):
+            """HD-1156: a BARE number must not land on a LETTERED sub-number. `\u00a71` reaching
+            `1b. Why the harness does NOT go through LiteLLM` is the reported defect -- the label
+            cited is a label the document does not have, and a normalized prefix called it resolved.
+            Bounded to a number-only reference so the spelled-name tie-break above survives: a
+            reference with words in it still gets the letter boundary."""
+            r = rest(h)
+            return bare_number and bool(r) and r[0].isalpha()
+
+        hits = [h for h in hits if not inside_a_number(h) and not numbered_sub(h)]
         if not hits:
             return None, []
         # score 2 = the reference stops in the middle of a word (`\u00a7Alert` and `## Alerts`);
@@ -476,12 +510,26 @@ def match_candidate(cand, headings):
     return None, []
 
 
+def bare_section_ref(raw):
+    """True when the reference is nothing but a section number -- the only spelling that may be read
+    against the rulebook from a document that has no such section of its own."""
+    return bool(BARE_NUM_RE.fullmatch(key(raw)))
+
+
 def resolve_ref(ref, headings):
     """Longest token window that names a heading wins: prose trailing an anchor, and a pointer
     wrapped onto the next comment line, both degrade to the part that is a real heading.
     Returns (resolved, kind, candidates, used_text)."""
     toks = ref.split()[:8]
     used = ""
+    # HD-1156 hole (i), the LETTERED half. A retried window ends at a space, so `inside_a_number()`
+    # has nothing to bite on -- which is how `§Phase index 99q` reached `Phase index (true-zero
+    # order)` after the full window had failed: the retry silently THREW AWAY the sub-number the
+    # pointer named. So before a shorter window is allowed to stand, a dropped tail that IS a
+    # lettered section number (`99q`, `1a`) must exist somewhere in the target as a section number.
+    # The bare-number case stays the recorded limitation of self-test (h) -- the row keeps that
+    # window green, and `§Phase 0` onto `Phase 0.5 -- VPS` is a real heading reached by a real
+    # degradation, not a dropped label.
     for k in range(len(toks), 0, -1):
         used = " ".join(toks[:k]).rstrip(TRAIL_JUNK)
         if not used:
@@ -489,6 +537,12 @@ def resolve_ref(ref, headings):
         kind, hits = match_candidate(used, headings)
         if kind is None:
             continue
+        if k < len(toks):
+            dropped = [tok.strip(TRAIL_JUNK) for tok in toks[k:]]
+            named = [d for d in dropped if LETTERED_NUM_RE.fullmatch(d)]
+            if named and not any(h.num and h.num.lower() in {n.lower() for n in named}
+                                 for h in headings):
+                return False, None, [], used
         return len(hits) == 1, kind, hits, used
     return False, None, [], used or ref.strip().rstrip(TRAIL_JUNK)
 
@@ -525,7 +579,13 @@ def scan_file(path, text, tree, notes):
     lines = text.split("\n")
     masked = mask_file(path, text)
     mlines = masked.split("\n")
-    is_doc = path.startswith(DOC_DIR + "/")
+    # A MARKDOWN document owns its own unqualified `§`-cites; an IaC comment does not (it names
+    # the document beside the pointer, or the rulebook for a bare number). The old test was
+    # `path.startswith("docs/")`, which made a root-level doc like CONVENTIONS.md or
+    # deployment-manual.md behave like an IaC comment and read its own `§B0` against some other
+    # file (HD-1156: those files were not sources at all; widening the source set without this
+    # line would report their self-cites as wrong-target findings).
+    is_doc = path.endswith(".md")
 
     # Which document an IaC comment is about: the last one named in the comment block. A real
     # code line resets it, so the context cannot leak down a 1500-line file.
@@ -569,10 +629,15 @@ def scan_file(path, text, tree, notes):
             target, why = tree.doc_for_hint(hint, path)
             if target:
                 break
-        if target is None and hinted:
+        if target is None and hinted and not is_doc:
             findings.append(Finding(path, line_no, "(unresolved target)", SECTION + raw, why))
             continue
         if target is None:
+            # In a MARKDOWN document an unqualified `§` means THIS document's own section: the
+            # name-nearest rule that reads an IaC comment is wrong here, where the word before the
+            # sign is prose ("...per §2"), not a document stem. (HD-1156 made the root docs and
+            # `scripts/**` sources; without this ordering their self-cites were read against a
+            # guessed document and every long table row reported an unresolved target.)
             if is_doc:
                 target, why = path, ""
             elif context[line_no - 1]:
@@ -585,14 +650,29 @@ def scan_file(path, text, tree, notes):
                                                              CONVENTIONS))
         if target is None:
             findings.append(Finding(path, line_no, "(no owning document)", SECTION + raw,
-                                    "a section pointer in an IaC comment names no document: "
-                                    "cite `docs/<file>.md \u00a7Heading`"))
+                                    "a section pointer in a comment names no document: cite "
+                                    "`docs/<file>.md \u00a7Heading`"))
             continue
         if target not in tree.headings:
             findings.append(Finding(path, line_no, target, SECTION + raw, why))
             continue
         headings = tree.headings[target]
         ok, kind, hits, used = resolve_ref(raw, headings)
+        # A BARE number a root-level document does not carry itself is the rulebook's number -- the
+        # same reading the IaC branch above already gives an IaC comment. `AGENTS.md §6.4` means
+        # `CONVENTIONS.md` §6.4, and once a root doc is a source, refusing this reading would report
+        # the rulebook's own section numbers as dangling inside every file that cites them. Bounded
+        # to a number-only reference whose own document has no such section, so a spelled name and a
+        # number the document DOES have never leave home.
+        if (not ok and target.endswith(".md") and target != CONVENTIONS
+                and not target.startswith(DOC_DIR + "/") and bare_section_ref(raw)
+                and CONVENTIONS in tree.headings):
+            rule_ok, rule_kind, rule_hits, rule_used = resolve_ref(raw, tree.headings[CONVENTIONS])
+            if rule_ok:
+                target, headings = CONVENTIONS, tree.headings[CONVENTIONS]
+                ok, kind, hits, used = rule_ok, rule_kind, rule_hits, rule_used
+                notes.append("%s:%d bare %s read against %s, not against %s"
+                             % (path, line_no, SECTION + raw, CONVENTIONS, path))
         cite = SECTION + used
         if ok:
             refs += 1
@@ -682,17 +762,23 @@ def git_files():
 
 
 def sources_and_targets(files):
-    """Sources of references: docs/**.md and comments under IaC/**. Targets: every tracked .md
-    plus every tracked IaC file, because CONVENTIONS.md, todo.md, spark/**.md and a role's own
-    comment banners are all pointed at by name."""
+    """Sources of references: docs/**.md, comments under IaC/**, every root-level .md and
+    scripts/** (HD-1156). Targets: every tracked .md plus every tracked IaC and scripts file,
+    because CONVENTIONS.md, todo.md, spark/**.md and a role's own comment banners are all pointed
+    at by name."""
     docs = [f for f in files if f.startswith(DOC_DIR + "/") and f.endswith(".md")
             and not f.endswith(GENERATED)]
     iac = [f for f in files if f.startswith(IAC_DIR + "/") and f.endswith(IAC_EXTS)
            and not f.endswith(GENERATED)]
     scripts = [f for f in files if f.startswith("scripts/") and f.endswith((".py", ".yml",
                                                                               ".sh", ".md"))]
+    # HD-1156: the source set is not `docs/` plus IaC comments. A root-level doc and a script
+    # comment both write `§`-cites, and while they were not sources, every pointer written from
+    # `CONVENTIONS.md`, `deployment-manual.md`, `scripts/README.md` or `todo.md` was unchecked in
+    # BOTH directions — its anchor never resolved, and renaming a heading never reddened it.
+    roots = [f for f in files if "/" not in f and f.endswith(".md") and not f.endswith(GENERATED)]
     targets = sorted(set(f for f in files if f.endswith(".md")) | set(iac) | set(scripts))
-    return sorted(set(docs) | set(iac)), targets
+    return sorted(set(docs) | set(iac) | set(roots) | set(scripts)), targets
 
 
 def load(paths):
@@ -893,26 +979,88 @@ def self_test():
                   % shown(findings))
             ok = False
 
-        # (h) NOT a claim of correctness, a limitation on the record. The numeric boundary above
-        # does reject the window `\u00a7Phase 0` against `Phase 0.5 -- VPS`; resolve_ref then retries
-        # the shorter window `Phase`, which is a unique prefix ending at a space, so the pointer
-        # resolves anyway and the boundary never decides it. Anyone who changes that degradation
-        # order has to re-argue it here, not discover it in a corpus.
+        # (h) The retried token window, in BOTH directions (HD-1156 closed the half that used to be
+        # a limitation on the record). A pointer with a PROSE tail must still degrade to the heading
+        # it names -- that is what makes `\u00a7Admission gate proves nothing` a legal cite and what
+        # the row means by keeping the retried window green. And a pointer whose tail is a LETTERED
+        # sub-number the target does not have must NOT resolve: the retry used to throw `99q` away
+        # and land on `Phase index`, which is how a wrong lettered ref read as a correct one.
+        prose = dict(base, **{"docs/prose.md": "# Doc\n\n## Admission gate\n\ntext\n",
+                              "docs/proseref.md": "# Ref\n\nsee [p](prose.md) "
+                                                  "\u00a7Admission gate proves the point\n"})
+        findings = check({"docs/proseref.md": prose["docs/proseref.md"]}, tree_of(prose))[0]
+        if not findings:
+            print("  OK    (h) a retried window still resolves a pointer with a PROSE tail "
+                  "(`\u00a7Admission gate proves the point` -> `## Admission gate`)")
+        else:
+            print("  FAIL  (h) the prose-tail degradation is gone: %s" % shown(findings))
+            ok = False
+        lettered = dict(base, **{"docs/phase.md": "# Doc\n\n## Phase index (true-zero order)\n",
+                                 "docs/phaseref.md": "# Ref\n\nsee [p](phase.md) "
+                                                     "\u00a7Phase index 99q\n"})
+        findings = check({"docs/phaseref.md": lettered["docs/phaseref.md"]},
+                         tree_of(lettered))[0]
+        if len(findings) == 1:
+            print("  OK    (h) a retried window may NOT drop a LETTERED sub-number the target "
+                  "lacks -- %s" % findings[0])
+        else:
+            print("  FAIL  (h) `\u00a7Phase index 99q` still resolves by throwing `99q` away: %s"
+                  % shown(findings))
+            ok = False
+        # The bare-number case keeps its own arm: `\u00a7Phase 0` against `Phase 0.5 -- VPS` is a
+        # degradation the row keeps green, so a change to the retry has to say which half moved.
         phase = dict(base, **{"docs/phase.md": "# Doc\n\n## Phase 0.5 -- VPS "
                                               "(re-)provisioning\n",
                               "docs/phaseref.md": "# Ref\n\nsee [p](phase.md) \u00a7Phase 0\n"})
-        notes = []
-        findings = check({"docs/phaseref.md": phase["docs/phaseref.md"]}, tree_of(phase),
-                         notes)[0]
-        window = [n for n in notes if "\u00a7Phase ->" in n and "[prefix]" in n]
-        if not findings and window:
-            print("  OK    (h) KNOWN LIMITATION still true, `\u00a7Phase 0` resolves "
-                  "`Phase 0.5 -- VPS` through the retried window `Phase`, not through the "
-                  "boundary rule -- %s" % window[0])
+        findings = check({"docs/phaseref.md": phase["docs/phaseref.md"]}, tree_of(phase))[0]
+        if not findings:
+            print("  OK    (h) the kept half: `\u00a7Phase 0` still reaches `Phase 0.5 -- VPS` "
+                  "through the retried window `Phase`")
         else:
-            print("  FAIL  (h) the token-window degradation changed: findings=%s notes=%s"
-                  % (shown(findings), notes))
+            print("  FAIL  (h) the kept half moved, `\u00a7Phase 0` now dangles: %s"
+                  % shown(findings))
             ok = False
+
+        # (j) HD-1156: a BARE number must not land on a LETTERED sub-number, and the spelled-name
+        # letter-internal tie-break must survive the rule that bounds it.
+        bare = dict(base, **{"docs/lettered.md": "# L\n\n## 1b. Why the harness does not "
+                                                "go through the gateway\n",
+                             "docs/bareref.md": "# R\n\nsee [l](lettered.md) \u00a71\n",
+                             "docs/nameref.md": "# R\n\nsee [t](target.md) \u00a7Admission\n"})
+        findings = check({"docs/bareref.md": bare["docs/bareref.md"]}, tree_of(bare))[0]
+        if len(findings) == 1:
+            print("  OK    (j) `\u00a71` does NOT match `## 1b. ...` -- %s" % findings[0])
+        else:
+            print("  FAIL  (j) a bare number reached a lettered sub-number: %s" % shown(findings))
+            ok = False
+        findings = check({"docs/nameref.md": bare["docs/nameref.md"]}, tree_of(bare))[0]
+        if not findings:
+            print("  OK    (j) the spelled-name tie-break is intact: `\u00a7Admission` still names "
+                  "`## Admission gate`")
+        else:
+            print("  FAIL  (j) the letter-internal tie-break for a WORD is gone: %s"
+                  % shown(findings))
+            ok = False
+
+        # (k) HD-1156: the source set. A root-level document and a script comment are SOURCES now,
+        # so a pointer written from either one is resolved, and renaming its heading reddens it.
+        for src_name, body in ((CONVENTIONS, "# C\n\nsee [t](docs/target.md) "
+                                             "\u00a7Admission gate\n"),
+                               ("scripts/tool.py", "# see docs/target.md \u00a7Admission gate\n")):
+            pair = dict(base, **{src_name: body})
+            before = check({src_name: body}, tree_of(pair))[0]
+            after_files = dict(pair)
+            after_files["docs/target.md"] = target_doc.replace(
+                "## Admission gate", "## Gatekeeping, renamed")
+            after = check({src_name: body}, tree_of(after_files))[0]
+            if not before and len(after) == 1:
+                print("  OK    (k) %s is a SOURCE: its pointer resolves, and renaming the heading "
+                      "dangles it" % src_name)
+            else:
+                print("  FAIL  (k) %s is not a source (before=%s after=%s)"
+                      % (src_name, shown(before), shown(after)))
+                ok = False
+
     finally:
         shutil.rmtree(root, ignore_errors=True)
 
