@@ -122,7 +122,7 @@ tags: [services, utilities, tools, automation]
 **Purpose:** public temporary file bin (phone↔PC transfers via short link), URL shortener + QR codes; private persistent storage secondary (OpenCloud stays the family file cloud).
 
 **Architecture decisions:**
-- **Image/pin:** `zipline_version` = `v4.7.0` (`group_vars/all/versions.yml`);**local filesystem datasource** on VPS NVMe (no S3).
+- **Image/pin:** `zipline_version` in `group_vars/all/versions.yml` — read the pin, do not quote a version here; 4.8.0 crashes on its Prisma migration ledger, so a bump is data-format work, not a renovate commit;**local filesystem datasource** on VPS NVMe (no S3).
 - **Exposure:** ONE public host `bin.kogler.si`, middleware `crowdsec-only@file` (never zero edge protection). Viewer/shortener routes + guest upload API are anonymous BY DESIGN — no auth middleware on this host's public paths.
 - **Auth:** dashboard gated by Zipline NATIVE OIDC — provider declared in the `ks-oidc.yml` Authentik blueprint (family-group binding only), `FEATURES_USER_REGISTRATION=false`, OAuth-registration off, local login bypassed. Forward-Auth deliberately NOT stacked (double-auth avoided; Immich/OpenCloud precedent).
 - **Guestbin split (anonymous uploads):** dedicated Zipline-local user `guestbin` (no Authentik identity, never logs in) owns a `dropzone` folder with `allowUploads=true`. Guests upload unauthenticated via `POST /api/upload` with headers `x-zipline-folder: <id>` + hardcoded `x-zipline-deletes-at: 6h` — global default expiration stays UNSET so private uploads default permanent. Files attribute to guestbin and consume ITS small quota.
