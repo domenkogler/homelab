@@ -39,7 +39,8 @@
 #      converge — HD-397);
 #   3. the Mgmt plane (VLAN 99) is a same-site plane: its aliases are jump-less, and a `ProxyJump`
 #      on a `10.10.99.x` alias converts a fast failure into a ~90 s banner timeout. Never add one;
-#   4. the `-vps` twins are emitted on the LAPTOP classes only. A host seat lives in the house, and
+#   4. the `-vps` twins are emitted on the LAPTOP classes only. A host seat (the `host` and
+#      `cockpit` classes) lives in the house, and
 #      a jumped path from oldsrv to a node on its own subnet is a hairpin through the internet that
 #      nothing has ever measured.
 
@@ -71,7 +72,7 @@ Host pi @PI_PAT@
   User @PI_USER@
   IdentityFile @PI_ID@
   IdentitiesOnly yes
-#% seat: cockpit
+#% seat: host cockpit
   AddressFamily inet
 #% end
 #% seat: laptop-win11 laptop-wsl
@@ -90,7 +91,7 @@ Host nas @NAS_PAT@
   User ansible-admin
   IdentityFile @ADMIN@
   IdentitiesOnly yes
-#% seat: cockpit
+#% seat: host cockpit
   AddressFamily inet
 #% end
 #% seat: laptop-win11 laptop-wsl
@@ -108,7 +109,7 @@ Host spark @SPARK_PAT@
   User ansible-admin
   IdentityFile @ADMIN@
   IdentitiesOnly yes
-#% seat: cockpit
+#% seat: host cockpit
   AddressFamily inet
 #% end
 #% seat: laptop-win11 laptop-wsl
@@ -142,6 +143,9 @@ Host oldsrv-vps
 # the box's own key and offered a key `domen` is not authorized for. The self-alias is the fix:
 # the human identity, direct, no jump (a jump here would hairpin through the VPS to reach the box
 # the shell is already on).
+# COCKPIT-ONLY, never `host`: this region stamps the box it NAMES as itself, so a host seat that is
+# not oldsrv rendering it would declare a host that is not it (OQ-17's ruling; the renderer
+# REFUSES the combination, so the tag cannot widen by accident).
 Host @OLDSRV_PAT@
   HostName @OLDSRV_HN@
   User domen

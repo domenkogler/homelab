@@ -851,10 +851,12 @@ op read "op://Homelab-ansible/op_api/credential" | \
 #     effect of setup. --no-sudoers: ansible-admin already holds its grant; the script
 #     verifies sudo instead and fails loud if it is absent.
 
-# 2 — the canonical runner key: the vault `ansible-admin_ssh` pair, expected fingerprint `SHA256:1uKzmwf…`.
-#     An existing key that is not the vault key is a REFUSAL that prints both fingerprints — name the
-#     displaced key before anything moves. `--force-throwaway` is the path for a box whose id_ed25519 is
-#     bootstrap-runner.sh's throwaway, and it keeps what it displaced as id_ed25519.pre-restore-<stamp>.
+# 2 — the canonical runner key: the vault `ansible-admin_ssh` pair installed at the canonical
+#     ~/.ssh/ansible-admin_ssh, expected fingerprint `SHA256:1uKzmwf…`. An existing key at that path
+#     that is not the vault key is a REFUSAL that prints both fingerprints — name the displaced key
+#     before anything moves. `--force-throwaway` is the deliberate override for that case, and it
+#     keeps what it displaced as ansible-admin_ssh.pre-restore-<stamp>; a box that merely still holds
+#     the same key at the DEFAULT path needs no flag — the canonical pair is placed beside it.
 #     A `#`-commented line in an authorized_keys is NOT a grant — never count one as evidence in a
 #     fingerprint sweep:
 ssh oldsrv 'cd ~/source/homelab && bash scripts/ansible/restore-runner-key.sh --force-throwaway'

@@ -1,26 +1,40 @@
 #!/usr/bin/env bash
 # =====================================================================
-# restore-runner-key.sh — restore the canonical ansible-admin_ssh key into
-# ANY runner's ~/.ssh/id_ed25519[.pub] (1Password = source of truth).
+# restore-runner-key.sh — restore the vault-canonical ansible-admin_ssh key INTO
+# ANY runner's ~/.ssh/ansible-admin_ssh[.pub] (1Password = source of truth).
+#
+# THE TARGET IS THE CANONICAL NAME, NOT SSH'S DEFAULT PATH. The installer never
+# writes ~/.ssh/id_ed25519: that path is the superseded NAME the retirement list
+# retires (docs/network-vpn.md §The Win11 `~/.ssh` retirement list, step 6), and a
+# runner's legs resolve their identity from the alias-plane blocks — seeded at
+# Phase 0 by bootstrap-runner.sh via scripts/harness/seed-seat-ssh-config.sh —
+# which name this file (§The runner's alias plane). On a box whose default path
+# already holds this same key, this script PLACES the canonical pair beside it and
+# touches nothing else — the default-path copy retires with its own per-seat
+# rename, not from here.
 #
 # Run AFTER bootstrap-runner.sh (and after any true-zero rebuild, deployment-tasks
-# Phase 0): bootstrap-runner.sh generates a THROWAWAY key, which no managed host
-# authorizes. Needs only the read-scope SA token file, so it works on a headless
-# runner (oldsrv, HD-407) exactly as on the laptop. Verifies the pair is consistent
-# and prints the fingerprint — the public half only, never the private (CONVENTIONS §6).
+# Phase 0): bootstrap-runner.sh generates a THROWAWAY key at the default path,
+# which no managed host authorizes and which the blocks never name. Needs only the
+# read-scope SA token file, so it works on a headless runner (oldsrv, HD-407)
+# exactly as on the laptop. Verifies the pair is consistent, prints the path it
+# installed at and the fingerprint — the public half only, never the private
+# (CONVENTIONS §6).
 #
 # Expected fingerprint: SHA256:1uKzmwf… — a mismatch means the vault rotated: re-check
 # the item rather than shipping a key nothing authorizes.
 #
-# It will NOT quietly replace a key that is already there. On a runner that has been
-# alive for a while, ~/.ssh/id_ed25519 is not necessarily the throwaway: measured on
-# oldsrv (HD-407 prep, 2026-09-20) it held `oldsrv-rsync` — a hand-made key with no
-# vault item and no IaC reference, i.e. something on the OTHER end of an ssh/rsync
-# may authorize it and nothing in this repo would notice its absence until a backup
-# silently stopped arriving. Replacing it is a deliberate act, so it takes a flag:
-#   --force-throwaway   the existing key is bootstrap-runner.sh's throwaway (the
-#                       Phase-0 / true-zero path): replace it, keeping a timestamped
-#                       backup of what was there.
+# It will NOT quietly replace a key that is already at the canonical path. What a
+# long-lived box taught this rule (HD-407 prep): the file under the OLD target on
+# oldsrv was not the throwaway but a hand-made `oldsrv-rsync` key with no vault
+# item and no IaC reference — something on the OTHER end of an ssh/rsync may
+# authorize exactly such a key and nothing in this repo would notice its absence
+# until a backup silently stopped arriving. Replacing a differing key is a
+# deliberate act, so it takes a flag:
+#   --force-throwaway   the existing key at the canonical path is this script's own
+#                       earlier install or a hand-moved throwaway (the Phase-0 /
+#                       true-zero case): replace it, keeping a timestamped backup
+#                       of what was there.
 # Without the flag an existing, differing key is a REFUSAL with both fingerprints
 # printed, so the operator can identify it before anything moves.
 #
@@ -57,8 +71,11 @@ esac
 
 umask 077
 mkdir -p "$HOME/.ssh"
-PRV="$HOME/.ssh/id_ed25519"
-PUB="$HOME/.ssh/id_ed25519.pub"
+# The canonical name (docs/network-vpn.md §Canonical identity file names). SSH's default path is
+# deliberately NOT a target — installing the fleet key there is what kept the retirement rename
+# blocked (§The runner's alias plane).
+PRV="$HOME/.ssh/ansible-admin_ssh"
+PUB="$HOME/.ssh/ansible-admin_ssh.pub"
 
 # --- refuse to destroy a key someone else may depend on -------------------------------
 # Fingerprints only (public half), never key material (CONVENTIONS §6).
@@ -77,7 +94,7 @@ op read "op://Homelab-ansible/ansible-admin_ssh/public_key"  > "$TMP/id_ed25519.
 VAULT_FP="$(ssh-keygen -lf "$TMP/id_ed25519.pub" | awk '{print $2}')"
 
 if [ -n "$EXISTING_FP" ] && [ "$EXISTING_FP" = "$VAULT_FP" ]; then
-    echo "already canonical: $EXISTING_FP ($EXISTING_CMT) — nothing to do"
+    echo "already canonical: $EXISTING_FP ($EXISTING_CMT) at $PRV — nothing to do"
     exit 0
 fi
 
@@ -115,5 +132,6 @@ else
     echo "FAIL: private/public mismatch" >&2
     exit 1
 fi
+echo "-- installed at $PRV (+ .pub) — the canonical name; ssh's default path (~/.ssh/id_ed25519) was NOT written"
 echo "-- installed fingerprint (expect SHA256:1uKzmwfO8ljfYMX+nOuFPqFlxzGMF4LZa/0kZCdz7rU):"
 ssh-keygen -lf "$PUB"

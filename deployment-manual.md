@@ -101,7 +101,9 @@ source ~/.bashrc
 When prompted, paste the 1Password Service Account token = item `op_api.credential`. The idempotent
 script installs system prerequisites + the `op` CLI, creates the `~/ansible-venv` virtualenv with
 ansible + collections from `requirements.yml`, stores the token at `~/.config/op/homelab-sa-token`
-(0600), grants passwordless sudo, and generates a throwaway SSH key.
+(0600), grants passwordless sudo, generates a throwaway SSH key, and seeds the box's ssh alias plane
+(`scripts/harness/seed-seat-ssh-config.sh`; the blocks are what resolve a runner's identity —
+[docs/network-vpn.md](docs/network-vpn.md) §The runner's alias plane).
 
 ✔ Script prints `FULL BOOTSTRAP COMPLETED SUCCESSFULLY`; `ansible --version` and `op --version` respond.
 
@@ -158,8 +160,9 @@ bash scripts/ansible/ansible-run.sh IaC/ansible/test-1password.yml
 ```
 
 `restore-runner-key.sh` pulls `ansible-admin_ssh.private_key` / `public_key` from the vault into
-`~/.ssh/id_ed25519[.pub]` (bootstrap's throwaway key is discarded — the vault is the source of
-truth); `test-1password.yml` then proves the lookup path end-to-end.
+the canonical `~/.ssh/ansible-admin_ssh[.pub]` — ssh's default path is not written: bootstrap's
+throwaway there is named by nothing, the alias-plane blocks name the canonical file, and the vault
+is the source of truth; `test-1password.yml` then proves the lookup path end-to-end.
 
 ✔ `restore-runner-key.sh` prints `pair-consistent: yes` with the fingerprint matching the canonical
 one it prints · `test-1password.yml` ends `PLAY RECAP: ok=2 failed=0` (reads `kopia_password`).

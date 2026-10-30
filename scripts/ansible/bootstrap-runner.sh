@@ -216,6 +216,35 @@ else
     echo "ℹ Sudo rules for user $USER already configured, skipping."
 fi
 
+echo "=== 7. Alias plane: a runner's automation identity must resolve from a BLOCK ==="
+# OQ-17 (docs/network-vpn.md §The runner's alias plane): every behind-NAT leg authenticates at the
+# FINAL hop, and that hop offers ssh's DEFAULT identity (~/.ssh/id_*) unless the typed address
+# matches a block. restore-runner-key.sh no longer installs anything at that default path, so a
+# runner without the plane would simply have no identity at the target. The plane is the same one
+# the human seats use (ssh/aliases.tmpl via scripts/harness/seed-seat-ssh-config.sh); the SEEDING
+# is what is Phase 0 here.
+# WSL detects its laptop class by itself; any other Debian box must NAME its class — the seeder
+# cannot tell the cockpit seat from a bare runner, and guessing would stamp the oldsrv self-alias
+# onto a box that is not oldsrv. `host` is the class that means host seat: the cockpit legs minus
+# that self-alias.
+plane_cls=""
+if ! ( [ -r /proc/version ] && grep -qi microsoft /proc/version 2>/dev/null ); then
+    plane_cls="host"
+fi
+plane_rc=0
+if [ -n "$plane_cls" ]; then
+    bash "$REPO/scripts/harness/seed-seat-ssh-config.sh" --seat "$plane_cls" --push || plane_rc=$?
+else
+    bash "$REPO/scripts/harness/seed-seat-ssh-config.sh" --push || plane_rc=$?
+fi
+if [ "$plane_rc" != 0 ]; then
+    echo "⚠ alias plane NOT written (rc $plane_rc) — nothing else in this bootstrap changed, but until"
+    echo "  the verdict above is reconciled, every behind-NAT leg from this box authenticates at the"
+    echo "  FINAL hop out of ssh's default identity search, which holds no fleet key. A REFUSAL(class)"
+    echo "  is expected on a box that already carries another seat's plane (oldsrv: cockpit) — one HOME"
+    echo "  is one seat class; read the seeder's remedy line above."
+fi
+
 echo "========================================================================="
 echo " ✔ FULL BOOTSTRAP COMPLETED SUCCESSFULLY!"
 echo " Please run the following command to refresh the environment:"
@@ -224,7 +253,9 @@ echo "-------------------------------------------------------------------------"
 echo " Still owed before this runner can drive anything:"
 echo "   1. bash scripts/ansible/restore-runner-key.sh"
 echo "      The key generated above is THROWAWAY. The managed hosts authorize the"
-echo "      vault-canonical ansible-admin_ssh key — that is the one to pull."
+echo "      vault-canonical ansible-admin_ssh key — that is the one to pull, and it lands"
+echo "      at the canonical ~/.ssh/ansible-admin_ssh, which is the file the alias-plane"
+echo "      blocks name (NOT the default-path throwaway)."
 echo "   2. To make this machine AUTHOR commits, run:"
 echo "        bash scripts/git/git-bootstrap.sh --ssh-auth"
 echo "      HD-265 signs every commit with github_signing; since HD-495 that item lives in"

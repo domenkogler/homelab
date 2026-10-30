@@ -66,6 +66,7 @@ tags: [network, rejected, decision-log]
 | Mgmt-access plus single-VLAN port model | superseded | Dual-home instead: untagged access VLAN, tagged Mgmt 99, same port |
 | Mgmt VLAN 99 reachable over the VPS site-to-site tunnel | rejected | A compromised VPS would gain admin-plane reach toward router, switch, oldsrv |
 | n8n firmware workflow: temporary iot-wan-allow toggles | superseded | The per-device wan_allow flag already gives cloud-IoT permanent WAN |
+| Name the runner's automation identity in the inventory (`ansible_ssh_private_key_file` in `group_vars/all`) | rejected | An IaC value would decide a seat-local file layout |
 | Narrowing the NAT reconcile's restrict: scope | rejected | Unlisted srcnat/dstnat rows must still come off — the fix for the unlisted live row is listing it on both sides, not narrowing the reconcile |
 | NAS as a third tailnet node | rejected | Scope stays the two home nodes; owner decision |
 | Netplan | rejected | Ubuntu default plus an extra python3/libnetplan layer; NM for Debian hosts |
@@ -91,6 +92,7 @@ tags: [network, rejected, decision-log]
 | RecursionNetworkACL as the only recursion gate | rejected | The network-level gate is authoritative; the ACL alone does not enforce |
 | Remote desktop over the relayed tailnet path | dropped | Relayed 70–240 ms; a direct session is required first |
 | Reordering the Home resolver chain for latency | rejected | HA-independence: Home must resolve with oldsrv down; forwarding closed the gap |
+| `restore-runner-key.sh` installing the fleet key at ssh's default path | rejected | Installs the superseded NAME, so step 6 never becomes a rename |
 | Self-hosted DERP on the VPS | rejected | Another relay leg; latency sits on the phone leg |
 | Single shared WireGuard keypair on both wg-s2s ends | rejected | WireGuard silently refuses to handshake with your own key |
 | Spark tailnet node under another node's tag | rejected | By-tag widening; spark's grant names its own address |

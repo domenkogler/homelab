@@ -42,11 +42,15 @@
 #   bash scripts/harness/seed-seat-ssh-config.sh                    # detect the seat class, report (--check)
 #   bash scripts/harness/seed-seat-ssh-config.sh --push             # write the block
 #   bash scripts/harness/seed-seat-ssh-config.sh --seat cockpit --check
+#   bash scripts/harness/seed-seat-ssh-config.sh --seat host --push # a host seat that is not oldsrv (a runner)
 #   bash scripts/harness/seed-seat-ssh-config.sh --render           # print the block, write nothing
 #   bash scripts/harness/seed-seat-ssh-config.sh --self-test        # fixture HOMEs, no network, no $HOME
 # Detection: a Windows seat is `laptop-win11`, WSL is `laptop-wsl`; any other host must name its
 # class, because "a Debian box" is exactly as likely to be a runner as the cockpit seat, and a guess
-# would rewrite the wrong file.
+# would rewrite the wrong file. `host` is the class that means HOST SEAT — the cockpit legs without
+# the cockpit's oldsrv self-alias, which stamps the box it names as itself (HD-1125: a runner's
+# automation identity resolves from these blocks, so a bare runner needs the plane and must not
+# declare a host that is not it).
 #
 # Env (for the self-test's fixtures): SEAT_SSH_CONFIG (the target file), SEAT_ALIASES_TMPL (the
 # template). `sha256sum` is required: no digest, no verdict — fail loud rather than guess.
@@ -81,7 +85,8 @@ CANON_IDENT_FILES="domen_ssh domen_ssh.pub ansible-admin_ssh ansible-admin_ssh.p
 usage() {
   cat <<'EOF'
 usage: seed-seat-ssh-config.sh [--check] | --push | --render | --self-test [--seat CLASS] [--force]
-  CLASS = laptop-win11 | laptop-wsl | cockpit     (auto-detected on the two laptop seats)
+  CLASS = laptop-win11 | laptop-wsl | cockpit | host  (auto-detected on the two laptop seats)
+  `host` = host seat (a runner): the cockpit legs minus the oldsrv self-alias.
   --check  report only, write nothing  ·  --push  write the marker block, backing the file up first
   --render print the rendered block    ·  --self-test  fixture HOMEs, offline
 exit: 0 in sync · 1 missing or stale · 2 usage / a render that failed its assertions ·
@@ -114,8 +119,8 @@ while [ $# -gt 0 ]; do
   esac
   shift
 done
-case "$WANT_CLASS" in ""|laptop-win11|laptop-wsl|cockpit) ;; *)
-  err "--seat must be laptop-win11 | laptop-wsl | cockpit, got '$WANT_CLASS'"; exit 2 ;;
+case "$WANT_CLASS" in ""|laptop-win11|laptop-wsl|cockpit|host) ;; *)
+  err "--seat must be laptop-win11 | laptop-wsl | cockpit | host, got '$WANT_CLASS'"; exit 2 ;;
 esac
 command -v sha256sum >/dev/null 2>&1 || { err "sha256sum is required — the digest verdict cannot be computed"; exit 2; }
 [ -r "$TMPL" ] || { err "template not readable: $TMPL"; exit 2; }
@@ -143,7 +148,11 @@ seat_vars() {
     # The two laptop classes take the same identity FORM; the private half is on disk on both
     # (HD-492 option C). They render byte-identically — arm 8a holds that down.
     laptop-win11|laptop-wsl) V_ADMIN='~/.ssh/ansible-admin_ssh' ;;
-    cockpit)
+    # `host` is the class that means HOST SEAT: a Debian box on the Home VLAN that runs playbooks.
+    # `cockpit` is that class PLUS the oldsrv self-alias, which is cockpit-tagged in
+    # ssh/aliases.tmpl because it stamps the box it names as itself — a runner that is not oldsrv
+    # rendering it would declare a host that is not it. The legs below are common to both.
+    host|cockpit)
       V_ADMIN='~/.ssh/ansible-admin_ssh'
       # On-site: no jump anywhere, the FQDN+address spellings ride the alias line, no Mgmt set.
       V_PI_PAT='pi.kogler.si 10.10.1.20'; V_PI_HN='pi.kogler.si'; V_PI_USER='ansible-admin'
@@ -239,17 +248,20 @@ assert_body() {
   if ! awk '/^Host /{for(i=2;i<=NF;i++) if ($i=="vps.kogler.si") found=1} END{exit !found}' "$f"; then
     err "FAIL: no block names the typed FQDN vps.kogler.si — a leg that types it authenticates through ssh's default identity instead of the canonical file (docs/network-vpn.md §The Win11 ~/.ssh retirement list, step 6)"; bad=1
   fi
-  if [ "$class" = cockpit ] && [ "$njump" != 0 ]; then
-    err "FAIL: the cockpit class carries $njump ProxyJump line(s) — it sits ON the Home VLAN, so a jump hairpins through the VPS to reach a box the shell is already on"; bad=1
-  fi
-  if [ "$class" != cockpit ]; then
+  case "$class" in
+    host|cockpit)
+      [ "$njump" = 0 ] || { err "FAIL: the $class class carries $njump ProxyJump line(s) — it sits ON the Home VLAN, so a jump hairpins through the VPS to reach a box the shell is already on"; bad=1; } ;;
+  esac
+  case "$class" in
+    laptop-win11|laptop-wsl)
     # RULE 1, enforced (owner ruling 2026-10-12: the LAN form is the default, the hop is opt-in).
     # A hop belongs to a `-vps` NAME and to nothing else: plain names and typed addresses go direct,
     # because on site the seat and the nodes share 10.10.1.0/24. A jump surviving on a plain name is
     # the old contract standing — a hairpin through the internet to reach a box on your own subnet,
     # plus a second identity loaded on the way, which is where the LibreSSL-cannot-parse-PKCS#8 class
     # hides: it dies on hop 1 and reads like a VPS auth fault. Provable in BOTH directions, so arm 7g
-    # poisons a jump onto a plain name and arm 7h strips a twin's jump.
+    # poisons a jump onto a plain name and arm 7h strips a twin's jump. The twins themselves are a
+    # LAPTOP feature (ssh/aliases.tmpl rule 4), so this whole block is laptop-only, not "not cockpit".
     local pjb
     pjb="$(awk '
       /^Host /{ if (n && pj && !allvps) print names
@@ -263,11 +275,16 @@ assert_body() {
       grep -q "^Host $v\$" "$f" || { err "FAIL: the $class class has no -vps hop twin for '$v' — the away case would have no name at all"; bad=1; }
     done
     [ "$njump" -ge 5 ] || { err "FAIL: the $class class carries only $njump ProxyJump lines (expect >= 5: one per -vps twin, and nothing else carries one)"; bad=1; }
-  fi
+    ;;
+  esac
   if [ "$class" = cockpit ]; then
     grep -qE '^Host oldsrv' "$f" || { err "FAIL: the cockpit class has no self-alias — the missing block that made "ssh oldsrv" die on its own box"; bad=1; }
-    if grep -qE '^Host (pi99|oldsrv99|nas99|router|switch|ap-)' "$f"; then
-      err "FAIL: the cockpit class declares a Mgmt alias — measured absent on that seat and unrouted (HD-487); do not add it from a laptop's config"; bad=1
+  elif [ "$class" = host ]; then
+    # The class rule OQ-17's ruling named, written where it is read: the self-alias region is
+    # cockpit-tagged in ssh/aliases.tmpl, and this assertion is the teeth — if the tag ever widens,
+    # the render fails instead of stamping a self-alias for a box this runner is not.
+    if grep -qE '^Host( [^[:space:]]+)* oldsrv([ .]|$)' "$f"; then
+      err "FAIL: the host class declares an oldsrv alias — the self-alias stamps the box it names as itself, and a host seat that is NOT oldsrv must not declare a host that is not it"; bad=1
     fi
   else
     grep -qE '^Host ap-spare$' "$f" || { err "FAIL: the $class class has no ap-spare (missing from the Windows copy, measured 2026-10-09)"; bad=1; }
@@ -280,6 +297,12 @@ assert_body() {
       err "FAIL: Host pi99 does not log in as the domen account — the Pi's 'admin' account is neutralized (HD-443), so a User admin there is a dead alias that reads like a live one"; bad=1
     fi
   fi
+  case "$class" in
+    host|cockpit)
+      if grep -qE '^Host (pi99|oldsrv99|nas99|router|switch|ap-)' "$f"; then
+        err "FAIL: the $class class declares a Mgmt alias — measured absent on that seat and unrouted (HD-487); do not add it from a laptop's config"; bad=1
+      fi ;;
+  esac
   return "$bad"
 }
 
@@ -541,7 +564,7 @@ FIX
   run "5c with the shadow removed the push succeeds (rc 0)" 0 "$h" --seat cockpit --push
 
   # 6. PER-SEAT-CLASS correctness, and the class-mismatch guard.
-  for cls in laptop-win11 laptop-wsl cockpit; do
+  for cls in laptop-win11 laptop-wsl cockpit host; do
     h="$(mkhome "class-$cls")"
     run "6a $cls renders, writes, and reads IN SYNC" 0 "$h" --seat "$cls" --push
   done
@@ -561,6 +584,7 @@ FIX
   else fails=$((fails+1)); echo "FAIL 6e2 laptop hops are not twin-scoped: $npj6 ProxyJump lines vs $nvps6 -vps blocks (want 5 and equal)"; fi
   lacks "6f the cockpit class jumps nothing (the directive, not the word in a comment)" "$root/class-cockpit/.ssh/config" '^[[:space:]]*ProxyJump'
   has   "6g the cockpit class owns a self-alias as dome" "$root/class-cockpit/.ssh/config" '^Host oldsrv oldsrv\.kogler\.si 10\.10\.1\.30$'
+  lacks "6g2 the host class declares no self-alias — the self-alias stamps the box it names as itself, so a host seat that is not oldsrv must not name a host that is not it (arm 7j proves the assertion's teeth)" "$root/class-host/.ssh/config" '^Host( [^[:space:]]+)* oldsrv([ .]|$)'
   lacks "6h the cockpit class declares no Mgmt alias" "$root/class-cockpit/.ssh/config" '^Host (pi99|oldsrv99|nas99|router|switch|ap-)'
   lacks "6i no class logs into the Pi as the neutralized admin" "$root/class-laptop-win11/.ssh/config" '^  User admin$'
   has   "6j ap-spare is declared (it was missing on Windows)" "$root/class-laptop-win11/.ssh/config" '^Host ap-spare$'
@@ -627,9 +651,20 @@ FIX
   [ "$(probe 2 "$h" "$pt")" = 2 ] && grep -q 'names the typed FQDN' "$root/out" \
     && { pass=$((pass+1)); echo "ok   7i a render that dropped the typed FQDN vps.kogler.si is CAUGHT (an unlisted spelling would authenticate through ssh's default identity)"; } \
     || { fails=$((fails+1)); echo "FAIL 7i the typed-FQDN assertion did not fire:"; sed 's/^/     | /' "$root/out" | head -5; }
+  # 7j: the host class's no-self-alias rule. Widening the self-alias region's tag is the ONE
+  # template edit that would give a bare runner an alias for a box it is not — invisible to every
+  # other assertion, so it needs its own poison. The remaining lone `#% seat: cockpit` line in the
+  # template IS that region (the shared host/cockpit regions are tagged `host cockpit`), so this
+  # sed poisons exactly it.
+  sed 's/^#% seat: cockpit$/#% seat: cockpit host/' "$TMPL" > "$pt"
+  h="$(mkhome poison-selfalias)"
+  rc=0; SEAT_ALIASES_TMPL="$pt" HOME="$h" bash "$SELF" --seat host --push >"$root/out" 2>&1 || rc=$?
+  [ "$rc" = 2 ] && grep -q 'must not declare a host that is not it' "$root/out" \
+    && { pass=$((pass+1)); echo "ok   7j a self-alias region widened to the host class is CAUGHT (arm 6g2's rule has teeth)"; } \
+    || { fails=$((fails+1)); echo "FAIL 7j the no-self-alias assertion did not fire:"; sed 's/^/     | /' "$root/out" | head -5; }
 
-  # 8. the three renders differ ONLY where the seat class says they may.
-  for cls in laptop-win11 laptop-wsl cockpit; do
+  # 8. the renders differ ONLY where the seat class says they may.
+  for cls in laptop-win11 laptop-wsl cockpit host; do
     h="$(mkhome "render-$cls")"
     HOME="$h" bash "$SELF" --seat "$cls" --render > "$root/render-$cls.txt" 2>/dev/null
   done
@@ -655,6 +690,14 @@ FIX
   if [ "$ncockpit" -lt "$nlaptop" ]; then
     pass=$((pass+1)); echo "ok   8b the cockpit render is a strict subset of the laptop one ($ncockpit < $nlaptop blocks — the Mgmt set is the delta)"
   else fails=$((fails+1)); echo "FAIL 8b cockpit $ncockpit vs laptop $nlaptop blocks — the seat-class axis did not shrink anything"; fi
+  # 8c: the host class is the cockpit class minus ONE block — the self-alias. If they ever diverge
+  # by more, the "host means host seat" claim in the header is standing while the template grew a
+  # second, undocumented host delta.
+  local nhost
+  nhost="$(grep -c '^Host ' "$root/render-host.txt")"
+  if [ "$nhost" = "$((ncockpit-1))" ] && ! grep -qE '^Host( [^[:space:]]+)* oldsrv([ .]|$)' "$root/render-host.txt"; then
+    pass=$((pass+1)); echo "ok   8c the host render is the cockpit render minus exactly the self-alias ($nhost = $ncockpit - 1, no oldsrv block)"
+  else fails=$((fails+1)); echo "FAIL 8c host $nhost vs cockpit $ncockpit blocks — the host class is no longer 'cockpit minus the self-alias'"; fi
 
   printf '\nself-test: %s (%d passed, %d failed)\n' \
     "$([ "$fails" -eq 0 ] && echo OK || echo FAILED)" "$pass" "$fails"
@@ -678,7 +721,7 @@ CLASS="$WANT_CLASS"
 if [ -z "$CLASS" ]; then
   CLASS="$(detect_class)"
   if [ -z "$CLASS" ]; then
-    err "cannot detect the seat class on a Debian host — it is either the cockpit seat or a runner; pass --seat cockpit"
+    err "cannot detect the seat class on a Debian host — it is either the cockpit seat or a bare runner; name it: --seat cockpit (the box that IS oldsrv) or --seat host (a host seat that is not)"
     exit 2
   fi
 fi
