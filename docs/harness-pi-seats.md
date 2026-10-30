@@ -174,7 +174,7 @@ Workflow); its arms stay outside the glob in
 self-test deployed into `~/.pi/agent/extensions` is LOADED as an extension by every session on every seat
 and would run its fixtures inside them. Arms: `node --experimental-strip-types
 pi-agent/proposed/vault-mask.selftest.ts` — the file is erasable-syntax-only TypeScript, so node's own
-type-stripping runs the same nine arms, and node is the runtime pi itself runs on (each seat's `pi`
+type-stripping runs the same ten arms, and node is the runtime pi itself runs on (each seat's `pi`
 launcher execs a node binary: Volta's `$basedir/node` on the Windows seat, the pinned
 `~/.local/share/pi-node/current/bin/node` prefix on the Debian ones). The arms therefore have no
 runtime-dependent SKIP: the runner they need is the one pi is already running on.
@@ -190,6 +190,25 @@ a spawned child. Under node, the runtime pi and this repo's JS legs run on, the 
 implicitly and with `env: process.env`; stating the env is what keeps the answer from depending on whoever
 executes the file. The half that actually blocks the silent live read is the arm that plants the fixture
 and proves the fixture was the thing read (the reader's `requests=0` in the load line is that proof).
+
+**The masker resolves its interpreter on the seat that loads it, not on the machine that shipped it.**
+[`../pi-agent/extensions/vault-mask.ts`](../pi-agent/extensions/vault-mask.ts) asks the leak eye for its
+needle map, so that one Python leg is a per-box question like any other: an explicit `HL_LEAK_PY` wins
+(the same knob [`../scripts/git/install-hooks.sh`](../scripts/git/install-hooks.sh) honours, which is how
+an arm aims the eye at a stub), and otherwise the extension runs
+[`../scripts/harness/seat-python.sh`](../scripts/harness/seat-python.sh) and spawns whatever it answers —
+`py -3` on the win11 seat, where a bare `python3` is the Microsoft-Store app-execution alias that reports
+49 from a shell and 9009 from node without running any Python, and `python3` on the `wsl` and `oldsrv`
+seats, where that name IS the interpreter. The extension therefore names no launcher of its own; it asks
+the resolver the seat planes ask, through `bash`, the shell every harness command already names
+([`harness-pi-seats.md`](harness-pi-seats.md) §5, "A plane command is composed on the driver and executed
+in the seat's own shell"). What an OFF says follows from the same rule: the launcher it tried and the rc
+it got, because a masker that goes quiet on a seat whose launcher has a different name is masking switched
+off on exactly that seat while the same commit reads green on the others. Arm 10 of
+[`../pi-agent/proposed/vault-mask.selftest.ts`](../pi-agent/proposed/vault-mask.selftest.ts) is what fails
+then: it plants a `python3` that answers non-zero ahead of PATH and asserts either that the needles arrived
+through the resolver anyway, or — on a seat whose resolver answer IS that name, so there is nothing to
+route around — that the OFF line names the launcher and its rc.
 
 ---
 ## 5. Reference `~/.pi/agent/settings.json` (harness tuning)

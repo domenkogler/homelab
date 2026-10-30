@@ -10,15 +10,20 @@
  *
  * RUN:  node --experimental-strip-types pi-agent/proposed/vault-mask.selftest.ts
  *       node is the runtime pi itself runs on — every seat's `pi` launcher execs a node binary — and this
- *       file is erasable-syntax-only TypeScript, so node's own type-stripping runs the same nine arms on
+ *       file is erasable-syntax-only TypeScript, so node's own type-stripping runs the same ten arms on
  *       every seat. This repo invokes no other JS runtime.
+ * One arm asks a seat question rather than a unit question: it puts a `python3` that answers non-zero
+ * ahead of PATH and checks that the needle map still arrives (or, where the seat's own resolver answers
+ * exactly that name, that the OFF line names the launcher and the rc). The arms therefore fail on a seat
+ * that cannot resolve its interpreter, which is the state a green run on another seat cannot rule out.
  * Exit 0 = every arm green; 1 = at least one arm red. A scenario that could not be reached prints a
  * FAIL line, never a silent skip.
  */
 
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
+import { delimiter } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const SECRET = "LONGSECRETvalue0123456789ab"; // a field the eye calls secret, at or above its floor
@@ -103,6 +108,24 @@ async function main() {
 		return;
 	}
 
+	if (scenario === "stubbed-interpreter") {
+		// The child half of arm (10). PATH here carries a `python3` that answers non-zero ahead of every
+		// real program, and the fixture is still the fixture, so the leg costs zero requests. What prints
+		// is what the masker DID and the OFF reasons it gave — never the value it was shown.
+		const text = `token=${SECRET}`;
+		const r = await handle(event(text), ctx);
+		console.log(
+			JSON.stringify({
+				masked: r !== undefined && !String(r?.content?.[0]?.text ?? "").includes(SECRET),
+				// The marker, not merely a changed result: a handler that returned something else would
+				// still be a masker that never saw the needle map.
+				marker: String(r?.content?.[0]?.text ?? "").includes(`[vault-mask:${ID.slice(0, 8)}]`),
+				off: notifications.filter((n) => n.includes("masking is OFF")),
+			}),
+		);
+		return;
+	}
+
 	// (1) the value in a tool result becomes a marker naming the item prefix, and no value survives.
 	let r = await handle(event(`token=${SECRET} (again ${SECRET})`), ctx);
 	check(
@@ -165,6 +188,44 @@ async function main() {
 		off = String(e);
 	}
 	check("an unreadable vault switches masking OFF and prints why", off.includes("masking is OFF"), off.slice(0, 160));
+
+	// (10) WHICH interpreter reads the needle map is the SEAT's answer, not a name on PATH. The canary
+	// plants a `python3` that answers non-zero in a bin dir ahead of PATH — WRAPPER form, the shape
+	// install-hooks.sh --self-test uses, because `ln` of a Windows binary leaves a copy that exits 127 —
+	// which is what the Microsoft-Store alias stub is on a Windows seat: `command -v` finds it, it is not
+	// an interpreter, and under node (the runtime `pi` itself runs on) it answers 9009 without running a
+	// line of Python. Two seats, two honest outcomes, one assertion: a seat whose resolver answers a
+	// DIFFERENT launcher must still get its needles and must still write the marker, and a seat whose
+	// resolver answers THIS name has nothing to route around, so it must say which launcher it tried and
+	// what rc it got. An OFF line that names no launcher is the defect this arm was written for — masking
+	// switched off on one seat, silently, while the same commit was green on the others.
+	const stubBin = `${dir}/stub-bin`;
+	mkdirSync(stubBin, { recursive: true });
+	writeFileSync(`${stubBin}/python3`, "#!/bin/sh\necho 'python3: the stub answers non-zero' >&2\nexit 49\n", "utf-8");
+	chmodSync(`${stubBin}/python3`, 0o755);
+	let stubRaw = "";
+	try {
+		stubRaw = execFileSync(process.execPath, [fileURLToPath(import.meta.url), "stubbed-interpreter"], {
+			encoding: "utf8",
+			env: { ...process.env, PATH: `${stubBin}${delimiter}${process.env.PATH}` },
+		});
+	} catch (e) {
+		stubRaw = String((e as { stdout?: string }).stdout ?? e);
+	}
+	let stub: { masked?: boolean; marker?: boolean; off?: string[] } = {};
+	try {
+		stub = JSON.parse(stubRaw.trimEnd().split("\n").pop() ?? "");
+	} catch {
+		// not the record the scenario prints: `masked` stays false and the detail below quotes the answer
+	}
+	const offLine = (stub.off ?? []).join(" | ");
+	check(
+		"a python3 that answers non-zero does not switch masking off on a seat whose launcher is another program, and an OFF that cannot route around it names its launcher and rc",
+		(stub.masked === true && stub.marker === true) || (/launcher=\S/.test(offLine) && /(rc=|could not run)/.test(offLine)),
+		stub.masked && stub.marker
+			? "the needle map arrived through the resolver and the marker is in the result"
+			: offLine.slice(0, 220) || "neither the marker nor an OFF line naming a launcher",
+	);
 
 	console.log(`vault-mask.selftest: ${fails} failing arm(s)`);
 	process.exit(fails ? 1 : 0);
