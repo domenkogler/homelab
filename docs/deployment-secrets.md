@@ -392,7 +392,12 @@ hold that, and neither is the leak ledger:
   seat's line, or a store this run could not read). The pair the ledger alone cannot tell apart is the
   reason the checker exists: a pair that LEFT the ledger with its version UNMOVED prints `REFUSED` and
   exits 1 — a redaction, a shredded store or an edited book makes a hit disappear, and in a book of
-  hits that is indistinguishable from a rotation.
+  hits that is indistinguishable from a rotation. The other red word is `UNLEDGERED`: a register line
+  whose pair the ledger names nowhere — in the tree or at `HEAD` — which is the shape a live finding
+  takes when the ledger rightly refuses to mute it (the bullet above: no ledger line for a CURRENT
+  value). The two are told apart by the ledger at `HEAD` (one `git show`, values never touched), and
+  both are red — an unreadable HEAD keeps the harsher word, so the vocabulary can only ever make a run
+  redder, never quieter.
 - **Locality is part of the verdict.** A `run-capture` line is judged per STORE, so a checkout without
   the persistent transcript store cannot close its own lines (the measurement in the bullet above is
   why), and a line is closable only by the seat that recorded it. A seat the book carries no line for

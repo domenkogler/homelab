@@ -26,6 +26,8 @@ THE VERDICTS, and the pair of them that is the whole reason this file exists:
     pair left ledger, version moved     `CLOSED — remove the line` — rotated AND proven absent
     pair left ledger, version unmoved   `REFUSED — the hit left the ledger and the value never
                                         rotated` (exit 1)
+    pair the book never named, value    `UNLEDGERED — a live finding the ledger rightly does not
+    unmoved                             mute` (exit 1)
     the vault answers no such item      `GONE — re-derive, then remove the line`
     a foreign seat's line, or a store   `NOT JUDGED` — nothing known either way, and a line is
     this run could not read             closable only by the seat that recorded it
@@ -34,6 +36,17 @@ The `REFUSED` line is the defect the ledger alone cannot see: a redaction, a shr
 hand-edited book makes a hit disappear, and in the ledger alone that looks EXACTLY like a rotation.
 Only the version tells them apart, and `CONTAINED` is the honest word for the act that lowers the copy
 count and closes nothing (`scripts/secrets/contain-leaked-values.py`, HD-1218).
+
+`UNLEDGERED` is the other half of that same sentence, and it exists because the ledger is NOT the whole
+book: HD-1181's rule is that a CURRENT value sitting in a capture gets NO ledger line, because a ledger
+line for a live value is the mute button that file's own header forbids. So a debt can be honest and
+ledgerless at once — the leak gate stays red on it — and a register that could only hold ledger-muted
+pairs had nowhere to write such a debt down. The two shapes look identical in the working tree, so the
+word is decided by the one cheap fact that separates them: whether the LEDGER AT `HEAD` names the pair
+(one `git show HEAD:<path>` over the book — it reads the book, never a value, and never the vault).
+Named there and gone from the tree ⇒ `REFUSED`, the book was edited under this run. Named nowhere ⇒
+`UNLEDGERED`, a live finding waiting to be rotated. Both are RED, and where HEAD cannot be read the
+harsher word stands, so this vocabulary can only ever make a run redder, never quieter.
 
 THE SECOND FACT THIS FILE HOLDS: the register's `path: none` set is the fleet's machine-readable "no
 rotation path exists", and `NOT_ROTATABLE` in `scripts/secrets/provision-secrets.py` states the same
@@ -51,7 +64,8 @@ class is evidence rather than hope.
 USE:
     python3 scripts/gate/check_secret_debt.py [--self-test] [--register F] [--all-seats]
 Exit: 0 every line judged or honestly NOT JUDGED, and the two no-rotation-path sets agree;
-      1 a `REFUSED` line, a disagreement between the two sets, or a malformed register line;
+      1 a `REFUSED` or `UNLEDGERED` line, a disagreement between the two sets, or a malformed
+        register line;
       2 environment boundary: no vault route, no answer, an unreadable book. Never a green.
 Wired into `validate-all.sh` and listed in `scripts/README.md`.
 """
@@ -97,7 +111,7 @@ REGISTER = Path(os.environ.get("HL_DEBT_REGISTER")
 PROVISIONER = ROOT / "scripts" / "secrets" / "provision-secrets.py"
 PATHS = ("lane", "lane+converge", "human", "none")
 SEATS = ("win11", "wsl", "oldsrv")
-VERDICTS = ("NOT ROTATED", "CANDIDATE", "CLOSED", "REFUSED", "GONE", "NOT JUDGED")
+VERDICTS = ("NOT ROTATED", "CANDIDATE", "CLOSED", "REFUSED", "UNLEDGERED", "GONE", "NOT JUDGED")
 
 
 class Boundary(Exception):
@@ -124,6 +138,55 @@ def register_path() -> Path:
 
 def ledger_path() -> Path:
     return Path(os.environ.get("HL_LEAK_LEDGER") or ROOT / "scripts" / "gate" / "secret_leak_ledger.txt")
+
+
+def ledger_names_at_head(item: str, cls: str, ledger: Path) -> bool | None:
+    """Does the COMMITTED ledger at `HEAD` name this `(item, class)` pair?
+
+    The question separates two shapes a working tree cannot tell apart. A pair HEAD names and the tree
+    does not (`REFUSED` — the book was edited under this run: a redaction, a shredded store, a hand-cut
+    line) and a pair the book simply does not name because HD-1181 rules that a CURRENT value gets no
+    ledger line — a ledger line for a live value is the mute button that file's own header forbids
+    (`UNLEDGERED` — a live finding, correctly left red by the leak gate). One `git show HEAD:<path>`
+    answers it, so the read costs milliseconds, touches no value, no length and no captured line, and
+    never consults the vault.
+
+    `None` means HEAD could not be read — the ledger is outside this checkout (a fixture arm), there is
+    no git here, or the file is untracked. The caller keeps the harsher word in that case, which is what
+    makes this helper incapable of quieting a run. Declared limit: a deletion that was itself COMMITTED
+    reads as the softer word, never as a pass — red is the invariant, the accusation is what softens.
+
+    The rows are read with the leak eye's own `read_ledger_rows`, through a temp copy of HEAD's body,
+    because a second local idea of what a ledger row is would be the twin this family of gates exists
+    to catch — and `check_secret_leak.py` is not this checker's to edit.
+
+    `HL_DEBT_LEDGER_AT_HEAD=absent|present` is a test seam, not a feature: a fixture ledger in a temp
+    directory has no HEAD to read, and an arm that guessed would prove nothing about the word.
+    """
+    seam = os.environ.get("HL_DEBT_LEDGER_AT_HEAD", "").strip().lower()
+    if seam in ("absent", "present"):
+        return seam == "present"
+    try:
+        rel = ledger.resolve().relative_to(ROOT)
+    except (OSError, ValueError):
+        return None
+    try:
+        r = subprocess.run(["git", "-C", str(ROOT), "show", f"HEAD:{rel.as_posix()}"],
+                           capture_output=True, stdin=subprocess.DEVNULL, text=True,
+                           encoding="utf-8", errors="replace", timeout=30, check=False)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if r.returncode != 0:
+        return None
+    with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False,
+                                     encoding="utf-8") as fh:
+        fh.write(r.stdout)
+        snapshot = Path(fh.name)
+    try:
+        return any((row_item, row_cls) == (item, cls)
+                   for row_item, row_cls, _title in leak.read_ledger_rows(snapshot))
+    finally:
+        snapshot.unlink(missing_ok=True)
 
 
 def read_register(path: Path) -> tuple[list[Line], list[str]]:
@@ -255,6 +318,8 @@ def verdicts(lines: list[Line], pairs: set[tuple[str, str]], versions: dict[str,
     version half answers `did the value move`, and only the two together can name a close."""
     known_seat = seat in SEATS
     out: list[tuple[str, Line, str]] = []
+    history: dict[tuple[str, str], bool | None] = {}   # one git read per pair, not per line
+    led = ledger_path()
     for ln in lines:
         if ln.seat != seat:
             out.append(("NOT JUDGED", ln,
@@ -289,11 +354,28 @@ def verdicts(lines: list[Line], pairs: set[tuple[str, str]], versions: dict[str,
                         "the version moved and no run since has hit the pair — rotated and proven "
                         "absent; remove the line"))
         else:
-            out.append(("REFUSED", ln,
-                        "the pair left the ledger and the vault version never moved. A hit that "
-                        "disappears without a rotation is a redaction, a shredded store or an edited "
-                        "book — never a close. Re-derive the ledger on the seat that recorded it, or "
-                        f"name the act in the register's `path:` column (currently {ln.path})"))
+            # The pair is absent from the book AND the value never moved. Two different stories look
+            # identical here and only the book's own history separates them, so the harsher word is
+            # kept wherever that history cannot be read.
+            key = (ln.item, ln.cls)
+            if key not in history:
+                history[key] = ledger_names_at_head(ln.item, ln.cls, led)
+            if history[key] is False:
+                out.append(("UNLEDGERED", ln,
+                            "the ledger names this pair nowhere — not in the tree and not at HEAD — so "
+                            "this is a live finding the book does not mute (HD-1181: a ledger line for a "
+                            "CURRENT value is the mute button that file's header forbids) and the value "
+                            f"has not moved since the line was written; the act that closes it is in "
+                            f"{ln.doc}"))
+            else:
+                note = ("" if history[key] is True else
+                        " — HEAD's ledger could not be read here, so the harsher word stands")
+                out.append(("REFUSED", ln,
+                            "the pair left the ledger and the vault version never moved. A hit that "
+                            "disappears without a rotation is a redaction, a shredded store or an edited "
+                            f"book — never a close. Re-derive the ledger on the seat that recorded it, "
+                            f"or name the act in the register's `path:` column (currently {ln.path})"
+                            + note))
     return out
 
 
@@ -369,16 +451,22 @@ def run(register: Path | None = None, all_seats: bool = False) -> int:
           + ("; the other seats' lines are omitted here, --all-seats prints them"
              if not all_seats and any(g[0] == "NOT JUDGED" and g[1].seat != seat for g in got) else ""))
     refused = [g for g in got if g[0] == "REFUSED"]
+    unledgered = [g for g in got if g[0] == "UNLEDGERED"]
     if refused:
         print("REFUSED is the defect this book exists to catch: a hit that left the ledger without a "
               "rotated value. Nothing was rotated; the copy count may have moved. See "
               "docs/deployment-secrets.md §Creation & Rotation Workflow.")
+    if unledgered:
+        print("UNLEDGERED is the red this book carries on purpose: the ledger names these pairs "
+              "NOWHERE, because a ledger line for a CURRENT value is the mute button HD-1181 forbids, "
+              "and the value has not moved. The leak gate is red on the same finding — check_secret_leak.py "
+              "goes green on this pair only by ROTATING it, never by adding a line here.")
     if [t for t in twin if t.startswith("REFUSED")]:
         print("The two statements of the no-rotation-path ruling disagree — containment would derive "
               "its scope from one of them and the guard from the other.")
     if boundary:
         print("NOTE: the equality arm did not get judged (boundary above) — that is not an agreement.")
-    if refused or [t for t in twin if t.startswith("REFUSED")] or bad:
+    if refused or unledgered or [t for t in twin if t.startswith("REFUSED")] or bad:
         return 1
     return 2 if boundary else 0
 
@@ -430,7 +518,7 @@ def self_test() -> int:
 
     def ask(fixture_rows: list[tuple[str, str, int]], ledger: str, register: str = reg_body,
             provision: set[str] | None = AGREES, seat: str = "wsl", store: bool = True,
-            all_seats: bool = False) -> tuple[int, str]:
+            all_seats: bool = False, history: str | None = None) -> tuple[int, str]:
         with tempfile.TemporaryDirectory() as td:
             tdp = Path(td)
             reg = tdp / "register.txt"
@@ -444,8 +532,11 @@ def self_test() -> int:
             else:
                 home.mkdir()
             keep = {k: os.environ.get(k) for k in
-                    ("HL_VAULT_READ_FIXTURE", "HL_LEAK_LEDGER", "HL_DEBT_REGISTER", "HOME",
-                     "USERPROFILE", "TMPDIR")}
+                    ("HL_VAULT_READ_FIXTURE", "HL_LEAK_LEDGER", "HL_DEBT_REGISTER",
+                     "HL_DEBT_LEDGER_AT_HEAD", "HOME", "USERPROFILE", "TMPDIR")}
+            os.environ.pop("HL_DEBT_LEDGER_AT_HEAD", None)
+            if history is not None:
+                os.environ["HL_DEBT_LEDGER_AT_HEAD"] = history
             old_provisioner, old_seat_fn = PROVISIONER, this_seat
             os.environ.update(HL_VAULT_READ_FIXTURE=str(fx), HL_LEAK_LEDGER=str(led),
                               HL_DEBT_REGISTER=str(reg), HOME=str(home), USERPROFILE=str(home),
@@ -487,6 +578,27 @@ def self_test() -> int:
     rc, out = ask(rows, LED_NO_ROT)
     check("a hit that left the ledger with the version UNMOVED reddens as REFUSED",
           "REFUSED" in out and rc == 1, out[-200:])
+
+    # (1b) UNLEDGERED — the debt the ledger rightly does NOT name. The working tree cannot tell this
+    # shape from `REFUSED` (HD-1181 forbids a ledger line for a CURRENT value, so a live finding has no
+    # pair); HEAD's ledger separates them, so the arms pin that read.
+    rc, out = ask(rows, LED_NO_ROT, history="absent")
+    check("a pair the ledger names nowhere reads UNLEDGERED and reddens the run",
+          "UNLEDGERED" in out and rc == 1, out[-200:])
+    rc, out = ask(rows, LED_NO_ROT, history="absent")
+    check("UNLEDGERED never rides along with a run that could read as green: the other lines are "
+          "judged and the exit is still 1",
+          "UNLEDGERED" in out and "NOT ROTATED" in out and rc == 1, out[-200:])
+    rc, out = ask(rows, LED_ALL, history="absent")
+    check("a pair the ledger DOES name can never read UNLEDGERED, whatever HEAD's book says",
+          "UNLEDGERED" not in out and "NOT ROTATED" in out and rc == 0, out[-200:])
+    rc, out = ask(rows, LED_NO_ROT, history="present")
+    check("a pair HEAD still names still reddens as REFUSED, so the softer word cannot swallow it",
+          "REFUSED" in out and "UNLEDGERED" not in out and rc == 1, out[-200:])
+    rc, out = ask(rows, LED_NO_ROT)
+    check("a ledger whose HEAD body cannot be read (a fixture book) keeps the harsher word",
+          "REFUSED" in out and "UNLEDGERED" not in out and rc == 1
+          and "could not be read" in out, out[-200:])
 
     # (2) THE CHEAP TEST from the row: bump ONE item's version in the fixture and prove exactly one
     # line's verdict moved. Without the version column the two runs print identically.
