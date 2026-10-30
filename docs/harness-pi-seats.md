@@ -172,7 +172,11 @@ it could hide — are written once in [deployment-secrets.md](deployment-secrets
 Workflow); its arms stay outside the glob in
 [`../pi-agent/proposed/vault-mask.selftest.ts`](../pi-agent/proposed/vault-mask.selftest.ts), because a
 self-test deployed into `~/.pi/agent/extensions` is LOADED as an extension by every session on every seat
-and would run its fixtures inside them. Arms: `bun pi-agent/proposed/vault-mask.selftest.ts`.
+and would run its fixtures inside them. Arms: `bun pi-agent/proposed/vault-mask.selftest.ts` where the
+seat's pi release ships `bun` (the laptop classes do, under `~/.local/share/pi-node/current/bin/`), and
+`node --experimental-strip-types pi-agent/proposed/vault-mask.selftest.ts` where it ships only node (the
+`oldsrv` cockpit) — the file is erasable-syntax-only TypeScript, so node's own type-stripping runs the same
+nine arms; a missing `bun` on a seat is therefore never a reason to skip them.
 
 **A seat leg hands its child the environment explicitly, because the implicit form is seat-dependent.** A
 child spawned with no `env:` option gets the environment as it stood when the parent PROCESS started, so an

@@ -8,7 +8,9 @@
  * `$HL_VAULT_READ_FIXTURE`, so a minted fixture stands in for the fleet. Nothing here needs `op`, a
  * credential, or a network.
  *
- * RUN:  bun pi-agent/proposed/vault-mask.selftest.ts   (from a homelab clone; bun ships with pi)
+ * RUN:  bun pi-agent/proposed/vault-mask.selftest.ts        (bun ships with the pi package)
+ *       node --experimental-strip-types pi-agent/proposed/vault-mask.selftest.ts
+ *                                                       (a seat whose pi release ships node only)
  * Exit 0 = every arm green; 1 = at least one arm red. A scenario that could not be reached prints a
  * FAIL line, never a silent skip.
  */
