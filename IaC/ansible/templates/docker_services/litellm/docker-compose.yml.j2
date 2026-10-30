@@ -3,8 +3,9 @@
 #   THE only component holding upstream keys (openrouter_api). Local models
 #   -> Ollama on `llm-backend`; consumers reach LiteLLM on `services-internal`. Joins
 #   services-internal + llm-backend + db-internal (DB below) + tailnet-apps (the
-#   tailnet edge's dedicated app bridge). No public host port binds;
-#   management API reached ONLY via `docker exec` from the bootstrap glue.
+#   tailnet edge's dedicated app bridge). No PUBLIC host port binds; the management API is
+#   reached via `docker exec` from the bootstrap glue. The ONE host bind is the loopback-only
+#   `/metrics` publish below (HD-1121) — 127.0.0.1, behind the endpoint's own auth.
 #
 #   The tailnet edge (traefik-tailnet) joins traefik-public + tailnet-apps — NOT
 #   services-internal — so its file-provider route `litellm-backend ->
@@ -105,6 +106,17 @@ services:
       DATABASE_URL: >-
         postgres://{{ vault['litellm_db'].username | urlencode }}:{{ vault['litellm_db'].password | urlencode }}@litellm-db:5432/litellm
     command: ["--config", "/app/config.yaml"]
+    ports:
+      # HD-1121: loopback-only publish, because this pin serves `/metrics` ON the API port (the
+      # callback mounts it in-process; there is no separate metrics port unless the
+      # `--prometheus_metrics_port` CLI flag separates the worker, which this deploy does not use).
+      # Same discipline as `spark_metrics_publish` / `ai_tier_metrics_publish`: 127.0.0.1 only, never
+      # 0.0.0.0 and never a LAN bind (the sibling `lan-litellm` publishes
+      # `oldsrv_home_ip:4000`, which is why THAT instance must never go unauthenticated). The
+      # endpoint keeps its auth middleware, so what this publish exposes to the host is a 401, not
+      # the spend ledger. Nothing scrapes it yet — the job waits on a scoped metrics key
+      # (todo.md HD-1121), and a target that can only 401 is not a target.
+      - "127.0.0.1:4000:4000"
     healthcheck:
       test: ["CMD-SHELL", "python3 -c \"import urllib.request;urllib.request.urlopen('http://localhost:4000/health/liveliness')\""]
       interval: 10s
