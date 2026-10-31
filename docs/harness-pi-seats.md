@@ -58,7 +58,7 @@ tags: [ai, pi, agent-harness, harness, spark, llm, settings]
   all three seats — converge `oldsrv`, fan out the settings and git identity — it does not certify the tree: the legs that
   shell into a target, need WSL-only tooling, or need a pty a native `ansible-playbook` cannot make (`WinError 87`) print
   `SKIP` naming what was not proven, so the run ends **`PARTIAL`** and a Debian seat is the authority on those classes.
-  Wall clock is not comparable across the two OSes: ~10 ms per leg here against ~0.7 ms there is `fork()` emulation, so the fork-heavy legs of this seat's gate run on the Debian engine of the same box through `/mnt/d/…` — [`../scripts/lib/wsl-route.sh`](../scripts/lib/wsl-route.sh); a leg that reads the checkout through `git`, or needs a seat tool, still runs here, and a Debian seat stays the authority.
+  Wall clock is not comparable across the two OSes: ~110–150 ms per `fork()+exec` here against ~1 ms on the Debian engine of the same box (§1's host-cost bullet says how to re-derive both) is `fork()` emulation, so the fork-heavy legs of this seat's gate run on that engine through `/mnt/d/…` — [`../scripts/lib/wsl-route.sh`](../scripts/lib/wsl-route.sh); a leg that reads the checkout through `git`, or needs a seat tool, still runs here, and a Debian seat stays the authority.
 - **One unfiltered run on this seat, and what its reds were.** `bash scripts/validate-all.sh --time` over the whole item set
   ends at `wall 1518 s`, `Σ item duration 12,953 s`, `Σ/wall 8.53×` — the fork-diet ratio measured on the full set rather
   than a subset, which is the number to read before touching `GATE_WIN_PAR`. The same set with nothing else forking on the
@@ -76,6 +76,7 @@ tags: [ai, pi, agent-harness, harness, spark, llm, settings]
   named boundary at rc 2, never a green. A green set here is still the `PARTIAL` this section means: it prints its named
   SKIPs (tmux, the font plane, `ansible-playbook`, `rsync`, the symlink-requiring venv arms) and a Debian seat stays the
   authority on those classes.
+- **The `ms/exec` figure every run prints is the price of one `fork()+exec` on the seat that printed it — and only from the 2026-10-31 probe fix onward.** The probe that produced every such figure before it resolved its target with `command -v true`, which in bash names the **builtin**, so the "five execs" loop forked once (the `$(seq)` word list) and divided that one fork by five: the printed number was a fifth of the seat's real per-fork price on every seat, and the run's `fast / slow / degraded` word sat with thresholds a fifth-scale below the words they used. The probe now takes `true` as a PATH file (`type -P true`), loops `{1..5}` so no other fork enters the span, and prints `SKIP` on a host with no such binary rather than a zero. Figures from the two scales are each consistent internally and never sit in one sentence; the bands are stated in `../scripts/validate-all.sh`'s launcher comment with the command that re-derives them.
 - **A seat with no `node` on PATH returns a verdict where it should return a boundary.** On the `oldsrv` runner clone the
   same tip read 2 items red — `pi-settings-config.sh --self-test`, `pi-tui-config.sh --self-test` — while their `--check`
   forms printed `SKIP: no usable node`. The repair is the same probe before the same case (CONVENTIONS §6, as for the tmux

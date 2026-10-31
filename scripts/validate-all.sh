@@ -1143,24 +1143,42 @@ _report() {
       fi
     fi
   done
-  # Say how fast the HOST was, not only how long the gate took. WHY: "why is the gate slow?" was
+    # Say how fast the HOST was, not only how long the gate took. WHY: "why is the gate slow?" was
   # answered three different ways on this repo in one day — 31 s quiet, 351 s with a second gate
-  # running — and none of those numbers describe the gate. The per-exec number does: it is 0.66 ms on
-  # WSL Debian, 16–44 ms on a quiet Win11 git-bash seat, and 130–185 ms on that same seat while
-  # another 24-way pool is forking with it (or an AV scan is mid-flight). Five execs to measure it.
-  local _ft0 _ft1 _fc=5 _fe=/bin/true _ms
-  command -v true >/dev/null 2>&1 && _fe="$(command -v true)"
-  _ft0=$EPOCHREALTIME
-  for i in $(seq "$_fc"); do "$_fe" >/dev/null 2>&1 || true; done
-  _ft1=$EPOCHREALTIME
-  _ms="$(echo "$_ft1 $_ft0" | awk -v n="$_fc" '{printf "%.1f", ($1-$2)/n*1000}')"
-  printf '\ngate: %ss wall, %d items, %s ms/exec on this host (WSL Debian: 0.7)\n' \
-    "$(( SECONDS - GATE_T0 ))" "$ran" "$_ms"
-  case "$(echo "$_ms" | awk '{print ($1 > 60) ? "degraded" : (($1 > 2) ? "slow" : "fast")}')" in
-    degraded) echo "      ⚠ process creation is DEGRADED on this host (a quiet Win11 git-bash seat is 16-44 ms)."
-              echo "        Another validate-all is forking with you, or a real-time AV scan is mid-flight: the"
-              echo "        the whole set cost 31 s quiet and 351 s with a second 24-way pool running (2026-10-10)." ;;
-    slow)     if [ "$IS_MSYS" = 1 ]; then
+  # running — and none of those numbers describe the gate. The per-exec number does: ONE fork+exec of
+  # one tiny binary, five times, with nothing else in the span.
+  # ⚠ THE PROBE IS THE INSTRUMENT, SO THE PROBE WAS MEASURED. Before 2026-10-31 this resolved the
+  # target with `command -v true`, and in bash that names the BUILTIN `true` — so the five-iteration
+  # loop forked ONCE (the `$(seq 5)` word list) and divided that single fork by five. Every figure
+  # printed before that date is ONE FIFTH of the seat's real per-fork price, on every seat, and the
+  # thresholds below sat four fifths below the words they used. `type -P` asks for the PATH FILE, and
+  # `{1..5}` is brace expansion, so the span now holds exactly five execs. Bands re-derived here
+  # 2026-10-31, quiet box, no other lane forking:
+  #     Win11 git-bash ~110-150 ms/exec | engine (WSL Debian) ~1.05 cwd /tmp, ~1.26 cwd on the mount
+  #     native:  time ( for i in {1..200}; do "$(type -P true)"; done )        # wall / 200
+  #     engine:  wsl.exe -d Debian --cd <tree> -- /usr/bin/bash -c \
+  #                'date +%s.%N; for ((i=0;i<200;i++)); do /bin/true; done; date +%s.%N'   # Δ / 200
+  # A contended Windows seat (a second pool forking with it, or an AV scan mid-flight) measured
+  # 130-185 on the OLD scale, so ~650-900 on this one — which is why 'degraded' is > 300 here and not
+  # the > 60 the old scale needed. Figures from the two scales never sit in one sentence.
+  local _ft0 _ft1 _fc=5 _fe="" _ms
+  _fe="$(type -P true 2>/dev/null || true)"
+  if [ -z "$_fe" ]; then
+    # A boundary, never a verdict: with no `true` on PATH nothing was timed, so no number prints.
+    printf '\ngate: %ss wall, %d items, ms/exec SKIP (no `true` binary on PATH to time)\n' \
+      "$(( SECONDS - GATE_T0 ))" "$ran"
+  else
+    _ft0=$EPOCHREALTIME
+    for _fi in {1..5}; do "$_fe" >/dev/null 2>&1 || true; done   # five, and _fc divides by the same five
+    _ft1=$EPOCHREALTIME
+    _ms="$(echo "$_ft1 $_ft0" | awk -v n="$_fc" '{printf "%.1f", ($1-$2)/n*1000}')"
+    printf '\ngate: %ss wall, %d items, %s ms/exec on this host (one fork+exec; Linux/WSL ~1, quiet Win11 git-bash ~110-150)\n' \
+      "$(( SECONDS - GATE_T0 ))" "$ran" "$_ms"
+    case "$(echo "$_ms" | awk '{print ($1 > 300) ? "degraded" : (($1 > 2) ? "slow" : "fast")}')" in
+      degraded) echo "      ⚠ process creation is DEGRADED on this host (a quiet Win11 git-bash seat is ~110-150 ms)."
+                echo "        Another validate-all is forking with you, or a real-time AV scan is mid-flight: the"
+                echo "        whole set cost 31 s quiet and 351 s with a second 24-way pool running (2026-10-10)." ;;
+      slow)     if [ "$IS_MSYS" = 1 ]; then
                 echo "      ℹ this host pays for FORKS, not validators — every leg costs ~1 process + its work."
                 echo "        Where forks are cheap the same gate is ~5x faster: wsl -d Debian bash -c"
                 echo "        'cd <clone> && bash scripts/validate-all.sh'  (7.9 s measured on ext4, the same set)."
@@ -1168,7 +1186,8 @@ _report() {
                 echo "      ℹ a Linux seat should be under ~1 ms/exec; at this rate something is intercepting"
                 echo "        process creation here (an AV scan, a heavily loaded host, or I/O on a 9P /mnt/ mount)."
               fi ;;
-  esac
+    esac
+  fi
   # ---- HD-1137 --time: the accounting. Additive: no existing line moves, no verdict changes. ----
   [ "$TIME" = 1 ] && _time_report
   # ---- HD-1137 run-count audit ---------------------------------------------- #
