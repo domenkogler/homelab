@@ -30,6 +30,10 @@ FIND	prompt-external.md/evidence	1
 FIND	prompt-external.md/glyph	0
 FIND	prompt-external.md/phrase	0
 FIND	prompt-external.md/verb-date	0
+FIND	prompt-gate.md/evidence	0
+FIND	prompt-gate.md/glyph	0
+FIND	prompt-gate.md/phrase	0
+FIND	prompt-gate.md/verb-date	0
 FIND	prompt-laptop-legs.md/evidence	2
 FIND	prompt-laptop-legs.md/glyph	0
 FIND	prompt-laptop-legs.md/phrase	0
@@ -78,7 +82,7 @@ FIND	prompt-update.md/evidence	0
 FIND	prompt-update.md/glyph	1
 FIND	prompt-update.md/phrase	0
 FIND	prompt-update.md/verb-date	0
-FIND	todo.md/evidence	8
+FIND	todo.md/evidence	7
 FIND	todo.md/glyph	19
 FIND	todo.md/phrase	1
 FIND	todo.md/verb-date	6
@@ -150,7 +154,7 @@ ROW	HD-1181	11966
 ROW	HD-1182	4318
 ROW	HD-1183	1589
 ROW	HD-1197	1160
-ROW	HD-1202	933
+ROW	HD-1202	1396
 ROW	HD-1203	855
 ROW	HD-1205	1748
 ROW	HD-1206	1851
@@ -160,7 +164,7 @@ ROW	HD-1212	3321
 ROW	HD-1213	1851
 ROW	HD-1214	1220
 ROW	HD-1215	1136
-ROW	HD-1216	1975
+ROW	HD-1216	1884
 ROW	HD-1218	4348
 ROW	HD-1219	1996
 ROW	HD-1220	1806
@@ -261,6 +265,7 @@ ROW	HD-57	670
 BRIEF	prompt-dns-transport.md	106
 BRIEF	prompt-edge-identity.md	87
 BRIEF	prompt-external.md	115
+BRIEF	prompt-gate.md	160
 BRIEF	prompt-laptop-legs.md	81
 BRIEF	prompt-laptop-wsl.md	136
 BRIEF	prompt-litellm-consumers.md	76
