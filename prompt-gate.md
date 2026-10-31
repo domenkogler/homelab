@@ -3,10 +3,10 @@
 > **Role:** dispatch note for **one** session on the laptop's **win11** seat: make `bash scripts/validate-all.sh` there
 > cheap and honest. Two questions, answered leg by leg and never in general: **which engine** should run a leg, and **what a
 > leg must declare** so a tool the far side lacks can never read as a pass. This is a **seat** brief: it claims **legs, not
-> rows** - the rows whose tails this window moves are **ridden, not carried**, and stay owned by whoever §B0 names
+> rows** - the rows whose tails this window moves are **ridden, not carried**, and stay owned by whoever [todo-table.md](todo-table.md) §B0 names
 > (the engine's package act belongs to [prompt-laptop-wsl.md](prompt-laptop-wsl.md)'s seat leg; the pool question sits in
-> §B0's unbriefed tail until the orchestrator wires it). Re-derive every owner and id at your own `HEAD`, CONVENTIONS §4.
-> **Rows it carries:** none. The §B0 row and the [prompt.md](prompt.md) §2 pointer are the orchestrator's own pass (O2), not
+> [todo-table.md](todo-table.md) §B0's unbriefed tail until the orchestrator wires it). Re-derive every owner and id at your own `HEAD`, CONVENTIONS §4.
+> **Rows it carries:** none. The [todo-table.md](todo-table.md) §B0 row and the [prompt.md](prompt.md) §2 pointer are the orchestrator's own pass (O2), not
 > a lane edit.
 > **Linked from:** nothing yet - the owner's entry point for this window.
 > **Seat:** **run this file FROM win11** (Git-Bash, not a WSL launcher: `bash scripts/harness/seat-bash-build.sh --check`
@@ -15,7 +15,7 @@
 > seat under measurement is the Windows one, and inside the engine the route is off by design, so a timing taken there
 > describes a box that has no problem to fix - [docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1.
 
-**Contract:** [docs/orchestration.md](docs/orchestration.md) §4 (O1-O11) + README §4. One session, one worktree, one branch;
+**Contract:** [docs/orchestration.md](docs/orchestration.md) §4 (O1-O11) + [README.md](README.md) §4. One session, one worktree, one branch;
 ⛔ never edit `prompt.md` or `todo-table.md` from a lane (O2). ≤2 children live, `async: true`, the parent's own model
 (O10-O11). No converge and no host act: nothing here touches a deployed box.
 
@@ -33,7 +33,7 @@ bash scripts/harness/seat-python.sh                # the launcher a leg is launc
 wsl.exe -d Debian -- /usr/bin/uname -r             # the engine, on this box, answers a Microsoft kernel
 ```
 
-Then the CONVENTIONS §0 ritual (the outline grep, `git status`, **your own worktree** - the guard refuses edits while the
+Then the [README.md](README.md) §0 ritual (the outline grep, `git status`, **your own worktree** - the guard refuses edits while the
 primary sits on `main`) and the prior-art sweep: this file's own subject has decided predecessors in
 [scripts/lib/wsl-route.sh](scripts/lib/wsl-route.sh) (the header states the eligibility conjunction), its registry row in
 [`scripts/README.md`](scripts/README.md), and the seat's own bullets in
