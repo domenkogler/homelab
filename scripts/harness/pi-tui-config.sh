@@ -92,12 +92,24 @@ done
 # perfectly (measured on the oldsrv cockpit leg 2026-10-09, where this plane answered SKIP while the
 # settings plane on the same leg read the file fine). The pinned seat prefix is searched BEFORE PATH,
 # exactly as pi-settings-config.sh does it.
-NODE="${PI_TUI_NODE:-}"
-if [ -z "$NODE" ]; then
-  for c in "${PI_TUI_NODE_PREFIX:-$HOME/.local/share/pi-node}/current/bin/node" "$(command -v node 2>/dev/null || true)" "$(command -v node.exe 2>/dev/null || true)"; do
-    [ -n "$c" ] && [ -x "$c" ] && { NODE="$c"; break; }
+#
+# find_node is that lookup in ONE place, because the `pinned-node` canary has to STAGE its fixture with
+# the same rule it grades. Measured on the Debian engine behind `hl_wsl_route` 2026-10-31: the canary's
+# staging probe read only PATH, found nothing (the engine's node lives under `$HOME`, and the route's
+# PATH pin deliberately carries no node dir), and printed `SKIP — no node on this host` for a host that
+# has one. rc 0 either way, so the leg looked healthy while one of its arms had gone blind — the
+# seat-locality class docs/harness-pi-seats.md §1 names (a probe that reads only PATH reports "no pi
+# here" for a seat that has one).
+find_node() {
+  local c
+  for c in "${PI_TUI_NODE_PREFIX:-$HOME/.local/share/pi-node}/current/bin/node" \
+           "$(command -v node 2>/dev/null || true)" "$(command -v node.exe 2>/dev/null || true)"; do
+    [ -n "$c" ] && [ -x "$c" ] && { printf '%s' "$c"; return 0; }
   done
-fi
+  return 1
+}
+NODE="${PI_TUI_NODE:-}"                  # the sandbox hook wins outright; it is not a host node
+[ -n "$NODE" ] || NODE="$(find_node)"
 require_node() {
   if [ -z "$NODE" ] || ! "$NODE" -e 'process.exit(0)' >/dev/null 2>&1; then
     info "SKIP: no usable node (looked for '${NODE:-PATH node}', then the pinned seat prefix) — $CONF was NOT read; a SKIP is not a pass"
@@ -275,10 +287,13 @@ self_test() {
   #     must be READ, not SKIPPED. Deleting the pinned-prefix leg from the lookup reddens this arm:
   #     the search finds nothing and the script answers rc 2.
   mkdir -p "$tmp/prefix/current/bin"
-  real_node="$(command -v node 2>/dev/null || command -v node.exe 2>/dev/null || true)"
+  # The host node is found by find_node — the SAME prefix-then-PATH rule this arm grades. A PATH-only
+  # probe here reports "no node on this host" for a host that has one (see find_node's note), and the
+  # arm then SKIPs instead of running: a fast crossed leg whose extra arm became a SKIP.
+  real_node="$(find_node)"
   sysbin="/usr/bin:/bin"
   if [ -z "$real_node" ]; then
-    info "pinned-node      SKIP — no node on this host to stage the fixture with"
+    info "pinned-node      SKIP — no node on this host (pinned prefix or PATH) to stage the fixture with"
   elif env PATH="$sysbin" sh -c 'command -v node' >/dev/null 2>&1; then
     info "pinned-node      SKIP — node is in $sysbin here, the bare-PATH fixture would prove nothing"
   else
