@@ -105,6 +105,12 @@ a row out of the brief that owns it.
 **Model brief (not a seat):** [prompt-external.md](prompt-external.md) — work gated by *which model serves the session*,
 not by the box: the Rule-0 legs a spark-served session may not run, and the whole-corpus rows a 262k context can't hold.
 
+**Gate-cost brief (a seat, not a wave):** [prompt-gate.md](prompt-gate.md) — the win11 seat's gate cost and the engine
+contract of its legs, run FROM win11. The parity harness that authorises a wrap exists and proves its own crossing,
+the engine's tool set is written down and the PATH widening is refused with its reopening condition, and two legs are
+native on purpose; **A3 (declared runtime deps), A2 (the wraps) and A5 (`GATE_WIN_PAR`) are the residue**, each with its
+command in that file. Claims **legs, not rows** — HD-1202's pool tail and HD-1216's interpreter tail stay with their rows.
+
 **Window brief (not a wave):** [prompt-update.md](prompt-update.md) — the fleet pin bump + host-package window: phases
 0–8 driven from the WSL seat, the secret rotations scheduled into it, no rows carried, and it dies with the window.
 

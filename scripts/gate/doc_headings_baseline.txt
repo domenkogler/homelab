@@ -289,7 +289,6 @@
 1	todo-table.md	todo.md	§A
 2	todo-table.md	todo.md	§B9
 1	todo.md	IaC/ansible/playbooks/apply-converge.yml	§Mgmt-plane
-1	todo.md	deployment-manual.md	§1's
 1	todo.md	docs/deployment-secrets.md	§Token
 1	todo.md	docs/deployment-secrets.md	§Unattended
 1	todo.md	docs/harness-pi-seats.md	§5a

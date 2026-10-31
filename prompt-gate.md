@@ -19,6 +19,28 @@
 ⛔ never edit `prompt.md` or `todo-table.md` from a lane (O2). ≤2 children live, `async: true`, the parent's own model
 (O10-O11). No converge and no host act: nothing here touches a deployed box.
 
+**Status — the seat's cost question is answered and the engine's contract is written down; legs A3, A2 and A5 stay
+open and are dispatched at the end of §2.** What exists now, and how to see it:
+
+* **The parity harness** — [`scripts/bench/win/gate-parity.sh`](scripts/bench/win/gate-parity.sh) plus the planted legs
+  in [`scripts/testdata/gate-parity/`](scripts/testdata/gate-parity/): rc 0 parity, rc 1 diff (naming the arm count and
+  the verdict-word difference per side), rc 2 `CANNOT RUN`. **A run whose engine side never crossed answers rc 2** — the
+  route's own testimony is read from the raw corpus, before normalizer rule 2 erases it, because a declined head and a
+  crossed run are otherwise the same bytes. Re-derive: `bash scripts/bench/win/gate-parity.sh --self-test`, and
+  `HL_WSL=off bash scripts/bench/win/gate-parity.sh -- bash scripts/testdata/gate-parity/portable.sh` → rc 2, with the
+  parity word absent. The recognizer counts the words this repo's harness legs actually print (`GREEN`, `caught` among
+  them), which is what makes a crossed self-test comparable at all; the vocabulary is stated in the runner's own header.
+* **What the engine answers, in words** — the route's probe prints the inventory beside the `route:` line, so a leg's
+  `CANNOT RUN` is read against a stated set instead of discovered per leg. Widening the pinned PATH to expose the
+  engine's node is **refused**, with the condition that reopens it in
+  [`docs/harness-rejected.md`](docs/harness-rejected.md); the node exists at `~/.local/share/pi-node/current/bin/node`
+  and is unreachable by name, which is a probe question, not an environment boundary —
+  [`docs/harness-pi-seats.md`](docs/harness-pi-seats.md) §1 carries the seat's own numbers and what they mean.
+* **Two legs are native on purpose.** `pi-seat-sync.sh --self-test` reads THIS checkout through `git` (`self_head()`)
+  and classifies the seat, so a crossed verdict there is an agreement between two runs that read no HEAD; and
+  `scripts/secrets/check-token-holders.sh --self-test` refuses natively by design and belongs wrapped. Both reasons are
+  in their registration lines, which is where a reader meets them.
+
 ---
 
 ## 0. Pre-flight - all of it, in this order, before touching a file
@@ -69,6 +91,27 @@ the lib's header and enforced by the probe, not by a list.
 | A4 | **`[engine]` the engine's own tool set.** Two facts to re-check before deciding anything: the engine's `rsync` (absent, and absent in Git-Bash too, so the two real `--max-delete` fires run on neither seat of this laptop) and its **node**, which IS installed but under `$HOME`, behind the route's deliberately pinned PATH - which is why `pi-tui-config --self-test`'s `pinned-node` arm SKIPs when crossed. ⛔ do not "fix" node by installing into `/usr/local/bin`: the pin exists so a leg cannot run a runtime that is not the seat's. If engine-side node is wanted, it is a declared extra PATH in the route and a line in [docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1 - and if it is refused, it goes to [docs/harness-rejected.md](docs/harness-rejected.md) | `[engine]` (the `apt` act is [prompt-laptop-wsl.md](prompt-laptop-wsl.md) §0's seat leg - ride it, do not re-mint it) | the gate says, per leg and in words, which tools the engine had; the rsync arms run somewhere on this laptop or are named as not running |
 | A5 | **answer HD-1202's `GATE_WIN_PAR` tail.** Alternate 4 / 8 / 16-wide runs of the full set, at least three alternations, quiet box, `ms/exec` per run. The pool sweep already run once reported wall falling as the pool widened while the **sum** of leg durations grew faster than the wall shrank - read `--time`'s `Σ/wall` and the POOL DIAGNOSTIC rather than the headline seconds. The verdict becomes a sentence in [docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1, the numbers go in the commit message, and the `⏳` leaves HD-1202 in the same change | win11 | a default that is no longer marked untested, or an explicit decision to keep the current value with the measurement that justifies it |
 | A6 | ⏳ **the residue the parity harness may find.** If any already-wrapped leg loses arms across the door, it is unwrapped (or its arms are made engine-independent) in the same commit | win11 | every wrapped leg's parity diff is empty, or the leg is native and says why in its registration reason |
+
+**The three legs still open, in the order that costs least.**
+
+* **A3 — declared runtime deps.** A wrapped leg that needs a tool the engine lacks answers `CANNOT RUN` (rc 2), never
+  rc 0; the inventory the probe printed is what its `CANNOT RUN` is read against. The shape to copy is
+  [`scripts/testdata/rsync-max-delete/run.sh`](scripts/testdata/rsync-max-delete/run.sh) — it tests the binary and exits
+  2, and the gate prints the NOTE. The checker still needs a home in `scripts/gate/` with its registry row and its
+  registration, and `check-token-holders --self-test` (native rc 1 by design, crossed rc 0) is the leg this rule and the
+  parity classifier must both classify as a wrong-seat boundary rather than a lost arm.
+* **A2 — wrap what A1 proves**, each wrap citing its own parity output in the commit message:
+  `install-tmux-conf.sh --self-test` gains real verdicts where the native run prints SKIPs, and
+  `check_hd_mint_space.py --self-test` is arm-identical across the door (its tree-scan forms read the checkout through
+  `git` and stay native). `pi-settings-config.sh --self-test` is registered as a shell function, so its wrap belongs
+  inside that function — `hl_wsl_route` routes only a `python|python3|py|bash|sh` head. A wrap that judges fewer arms
+  than the native run is a finding, whatever the stopwatch says.
+* **A5 — `GATE_WIN_PAR`.** The sweep is `for p in 4 8 16; do GATE_WIN_PAR=$p bash scripts/validate-all.sh --time; done`,
+  at least three A/B alternations, on a box with no other lane forking, and the numbers to weigh are `--time`'s `Σ/wall`
+  against wall — not the headline seconds — with the `gate: N items in flight` line attached to every figure, because
+  `GATE_NPAR` is the ansible legs' fan-out and does not move with the pool width. The verdict becomes one sentence in
+  [`docs/harness-pi-seats.md`](docs/harness-pi-seats.md) §1 and the numbers go in the commit message, in the same change
+  that shortens [todo.md](todo.md) HD-1202.
 
 ## 3. What this brief must not do
 
