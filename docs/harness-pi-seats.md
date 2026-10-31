@@ -82,6 +82,13 @@ tags: [ai, pi, agent-harness, harness, spark, llm, settings]
   and ansible probes) and it is in place: a seat that cannot run an item answers rc 2 with that SKIP, never a verdict.
 - **A leg that asks a different question here returns a wrong verdict, not an error** — the shapes that fix it are written
   into [`../scripts/README.md`](../scripts/README.md), each fenced by a self-test that reddens when it regrows.
+- **The Debian engine's node is not on the route's PATH, and widening that pin is declined** ([`harness-rejected.md`](harness-rejected.md)).
+  The pin exists so a leg cannot run a runtime that is not the seat's, so a wrapped seat sees `node`, `npm`, `npx` and `pi` as ABSENT while
+  `~/.local/share/pi-node/current/bin/node` runs perfectly well inside it — which is why the pi scripts resolve node prefix-first, in
+  that pinned dir BEFORE `PATH` (HD-446's non-login-shell lesson, §1's own "a seat with no `node` on PATH" bullet), and why a probe that
+  reads only PATH reports "no node here" for a seat that has one. Re-derive with
+  `bash scripts/bench/win/gate-parity.sh -- bash scripts/harness/pi-tui-config.sh --self-test` (the `pinned-node` arm is GREEN on both sides
+  only while the staging probe uses that same rule), and read what the engine answered at any run's `engine tools: … ABSENT — … node` line.
 - **Where the pi BINARY lives — two layouts, one PATH.** `npm -g` installs it as a symlink at `<pi-node prefix>/bin/pi` next to the pinned node (what
   [`../scripts/harness/install-pi-debian.sh`](../scripts/harness/install-pi-debian.sh) does); pi's own installer writes a
   launcher at `~/.pi/agent/bin/pi` over `~/.pi/agent/install/releases/<ver>/` (`layout: releases-v1`).

@@ -42,3 +42,4 @@ decisions taken since the domain existed.
 | Automatic failover to a hosted model | rejected | External use is owner-authorized per session; no external bench |
 | The gate's validator fleet in C#, file-based apps included | rejected | Warm startup tax exceeds the gate's whole wall clock |
 | TrueForge (open-source agent harness) | rejected | Code execution needs Daytona's cloud sandbox; no self-hosted slot |
+| The WSL route's pinned PATH widened to expose `node` / `npm` / `npx` / `pi` | rejected | The pin is what stops a leg running a runtime that is not the seat's; widening it moves every wrapped leg at once, and a PATH-resolved `node` reports the engine's runtime for a seat that has its own. Reopens on a second leg shown to need PATH-resolved `node` |
