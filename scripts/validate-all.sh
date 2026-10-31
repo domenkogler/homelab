@@ -1662,6 +1662,13 @@ item_q "lib/vault_read.py --self-test (the ONE reader: both route arms, the get_
 item_q "guard-session.sh --self-test (sandboxed guard fixture, HD-253)" hl_wsl_route bash scripts/gate/guard-session.sh --self-test
 item_q "guarded-converge.sh --self-test (post-converge liveness verdict, HD-436)" bash scripts/ansible/guarded-converge.sh --self-test
 item_x "drives every 1Password refusal state through a fake op binary in a sandbox: a CLI-contract self-test, not a tree check — rerun it when the bootstrap script changes" "git-bootstrap.sh --self-test (each 1Password refusal state says the right thing)" hl_wsl_route bash scripts/git/git-bootstrap.sh --self-test
+# A PROCESS is a token holder too, and no file check sees that class (docs/1password.md §Where a token is
+# installed): `lib/vault-env.sh` resolves env → file → door, so a daemon born before a rotation keeps the
+# dead value while every file reads CURRENT. Proved on a fixture /proc — the two verdicts, the unseen-pid
+# and kernel-thread halves told apart, an unwalkable proc root refusing, an absent target never going
+# green, the sweep never reporting its own process tree, and the value-blind canary. 0.4 s, ZERO vault
+# contact, so unlike the re-seat below this one is a real gate item.
+item_q "check-token-holders.sh --self-test (a process is a holder: CURRENT/SUPERSEDED by digest, unseen pids named as unseen, and no value crosses the wire)" hl_wsl_route bash scripts/secrets/check-token-holders.sh --self-test
 # A rotated service-account token has to REACH the seats, and the command that does it
 # (`secrets/reseat-vault-token.sh`) is proved against the REAL fleet, not here: its `--self-test` still
 # fails the two driver→transport→install arms (the sandbox cannot be a target), so wiring it in as a
