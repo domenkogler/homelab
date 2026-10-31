@@ -50,9 +50,24 @@
 # THE EXIT CONTRACT — rc 2 OUTRANKS BOTH parity and diff, and that precedence is the whole design.
 #   0  PARITY        same rc (0), same arm count, same verdict words
 #   1  PARITY DIFF   the two answers differ; both arm counts are printed
-#   2  CANNOT RUN    either side exited 2 (a boundary, the shape testdata/rsync-max-delete/run.sh uses
-#                    for a tool this seat lacks), or a side produced ZERO recognizable arms, or a side
-#                    produced NO BYTES.
+#   2  CANNOT RUN    the engine side never crossed the door, or either side exited 2 (a boundary, the
+#                    shape testdata/rsync-max-delete/run.sh uses for a tool this seat lacks), or a side
+#                    produced ZERO recognizable arms, or a side produced NO BYTES.
+#
+# THE CROSSING IS PROVED, NOT ASSUMED. `hl_wsl_route` has THREE exits (lib/wsl-route.sh:308-334) and TWO
+# of them run the argv at home: `HL_WSL_ON != 1` — which is what `HL_WSL=off` means, and the state every
+# Debian seat is in — and an argv head with no engine-side launcher, whose refusal it writes to STDERR.
+# Both leave this runner holding two copies of ONE run, and normalizer rule 2 deletes the refusal line, so
+# the verdict used to be a PARITY printed about a comparison that never left this seat. Every line of the
+# verdict block therefore says WHERE its side ran (`ran native` vs `ran in Debian (/mnt/d/…)`), and a run
+# whose engine side did not cross answers rc 2 with `the engine side did not cross (<why>)`. Two commands
+# measured at the previous tip, both reaching a verdict about ONE seat:
+#   bash scripts/bench/win/gate-parity.sh -- scripts/gate/check_hd_mint_space.py --self-test
+#     — a `.py` head is DECLINED, so nothing crossed; the run answered rc 2 but blamed the RECOGNIZER
+#       ("a side hit a boundary of its own seat, or a side judged nothing") for a run that never left home.
+#   any run under `HL_WSL=off`, and any declined head whose leg does run here — the same runner against
+#     `scripts/testdata/gate-parity/path-spelling.sh` (a declined head) answered, verbatim:
+#     `PARITY: native and engine agree — 3 arm(s), rc 0 both sides` — about two copies of one native run.
 # rc 2 is the answer whenever nothing was judged, because "0 arms vs 0 arms" is not parity: a runner that
 # called that green would certify any leg that never started, and would call the seat-classifier class a
 # pass — a leg that asks which seat it is on answers for the WRONG SEAT, so its diff comes back empty
@@ -64,6 +79,9 @@
 # git-reading leg in a worktree is worthless evidence, whatever it prints.
 #
 # SELF-TEST: bash scripts/bench/win/gate-parity.sh --self-test
+#   Plus one invariant that is not about a fixture: an un-crossed run answers rc 2 and prints no parity
+#   word, proved from both un-crossed shapes — the route OFF (`HL_WSL=off`) and a DECLINED argv head.
+#
 #   Each fixture in scripts/testdata/gate-parity/ plants ONE difference, in the open, so every verdict is
 #   graded against a known difference and not against the luck of a real leg. The crossed side is reached
 #   through a STUB door injected at the lib's own `HL_WSL_EXE` seam; that stub is the ONLY thing outside a
@@ -206,12 +224,16 @@ recognized arm count and the verdict words (CR / drive-letter / temp-path noise 
 
 exit 0  PARITY        same rc (0), same arm count, same verdict words
 exit 1  PARITY DIFF   the answers differ; both arm counts are printed
-exit 2  CANNOT RUN    either side exited 2, or a side printed no bytes, or a side produced
-                      zero recognizable arms — nothing was judged, so no parity is claimed
+exit 2  CANNOT RUN    the engine side did not cross the door, or either side exited 2, or a side printed
+                      no bytes, or a side produced zero recognizable arms — nothing was judged on two
+                      seats, so no parity is claimed
+
+Every printed line names where its side ran: `ran native`, or `ran in Debian (/mnt/d/…)`.
 
 The argv head matters: hl_wsl_route knows an engine-side launcher for a python|python3|py|bash|sh head
-only, so pass the leg as `bash <path>` (or `python3 <path>`) — any other head is DECLINED and runs at
-home twice, which makes the parity verdict vacuous rather than wrong.
+only, so pass the leg as `bash <path>` (or `python3 <path>`). Any other head is DECLINED, both halves
+then run at home, and the answer is rc 2 — a run that never crossed the door cannot establish parity
+about one seat.
 USAGE
 }
 
@@ -229,19 +251,70 @@ capture() {
   return $?
 }
 
+# _cross_witness <raw-guest-corpus> — WHERE the side labelled "engine" actually ran, as
+# "<state>\t<where>\t<why>". The states are the three exits of hl_wsl_route (lib/wsl-route.sh:308-334):
+#   crossed    it printed `route: this leg ran in <distro> (<mnt>)` — the leg ran behind the door
+#   declined   it printed `route: declined … ran native` — no engine-side launcher for that argv head,
+#              so the "engine" half is a SECOND copy of the native run
+#   home       it printed no route line at all — the run path catches this one before the runs (the
+#              `HL_WSL_ON != 1` test in run_parity); this is the witness for a run that reached the
+#              corpus without testimony, e.g. a capture whose `cd` failed and left no bytes
+# WHY THE SCAN IS RAW, BEFORE normalize: normalizer rule 2 deletes every `route: ` line, which is right
+# for the comparison — the banner says WHERE a leg ran, not WHAT it judged — and fatal for THIS question.
+# After normalization a crossing, a refusal and a silence are the same bytes, and a declined run looks
+# exactly like parity. The check deliberately sits OUTSIDE the MUTABLE region below: muting a comparison
+# rule is a self-test seam, and no seam may licence reporting a verdict about a run that never crossed.
+_cross_witness() {
+  local _line="" _where='native (no route line)'
+  local _why='the route printed no line at all — HL_WSL_ON is not 1, so hl_wsl_route ran the argv at home'
+  [ -s "$1" ] && _line="$(sed -e 's/\r$//' "$1" | grep -m1 -E '^[[:space:]]*[Rr]oute: ' || true)"
+  case "$_line" in
+    *'ran in '*)     # the door's own testimony, `route: this leg ran in Debian (/mnt/d/x)`
+      printf 'crossed\tin %s\t%s' "${_line#*ran in }" ""; return 0 ;;
+  esac
+  if printf '%s\n' "$_line" | grep -Eq '^[[:space:]]*[Rr]oute: (declined|.*ran native)'; then
+    printf 'declined\tnative (declined head)\t%s' "$(printf '%s' "$_line" | sed -e 's/^[[:space:]]*//')"
+    return 0
+  fi
+  printf 'home\t%s\t%s' "$_where" "$_why"
+}
+
 # run_parity <crossed-label> <out> <mode> <argv…> — the two runs, the printed record, one verdict.
 run_parity() {
   local _lbl="$1" _out="$2" _mode="$3"; shift 3
   local _nf="$_out.native" _gf="$_out.guest" _na="$_out.native-arms" _ga="$_out.guest-arms"
-  local _nrc _grc _vrc _ninfo _ginfo _ncount _gcount _nwords _gwords
+  local _nrc _grc _vrc _ninfo _ginfo _ncount _gcount _nwords _gwords _cw _gst _gwhr _gwhy _rest
+  # The route is asked BEFORE either run, and only for a run that claims to have crossed: with
+  # HL_WSL_ON != 1 there is no second side, and hl_wsl_route says nothing while it runs the argv at home
+  # — the shape `HL_WSL=off bash scripts/bench/win/gate-parity.sh -- <argv>` produces. Running the leg
+  # twice to reach the same rc 2 would just cost the leg's own runtime.
+  if [ "$_mode" = route ] && [ "${HL_WSL_ON:-0}" != 1 ]; then
+    printf '  CANNOT RUN — the engine side did not cross (%s)\n' "${HL_WSL_WHY:-HL_WSL_ON is not 1 — no probe ran}"
+    return 2
+  fi
   capture "$_nf" native "$@"; _nrc=$?
   capture "$_gf" "$_mode" "$@"; _grc=$?
+  _cw=""; _gst=crossed; _gwhr="native"; _gwhy=""
+  if [ "$_mode" = route ]; then
+    _cw="$(_cross_witness "$_gf")"
+    _gst="${_cw%%$'\t'*}"; _rest="${_cw#*$'\t'}"; _gwhr="${_rest%%$'\t'*}"; _gwhy="${_rest#*$'\t'}"
+  fi
   _ninfo="$(_arm_scan "$_nf" "$_na")"
   _ginfo="$(_arm_scan "$_gf" "$_ga")"
   _ncount="${_ninfo%%$'\t'*}"; _nwords="${_ninfo#*$'\t'}"
   _gcount="${_ginfo%%$'\t'*}"; _gwords="${_ginfo#*$'\t'}"
-  printf '  native    rc %-2s · %2s arm(s) · %s\n' "$_nrc" "$_ncount" "${_nwords:-no verdict word recognized}"
-  printf '  %-9s rc %-2s · %2s arm(s) · %s\n' "$_lbl" "$_grc" "$_gcount" "${_gwords:-no verdict word recognized}"
+  printf '  native    rc %-2s · %2s arm(s) · %s · ran native\n' "$_nrc" "$_ncount" "${_nwords:-no verdict word recognized}"
+  printf '  %-9s rc %-2s · %2s arm(s) · %s · ran %s\n' "$_lbl" "$_grc" "$_gcount" "${_gwords:-no verdict word recognized}" "$_gwhr"
+  # rc 2 outranks the comparison, and an un-crossed run outranks everything: both halves were one seat,
+  # so there is nothing to call parity OR diff, and the reader is told which half never left home.
+  if [ "$_gst" != crossed ]; then
+    printf '  CANNOT RUN — the engine side did not cross (%s)\n' "$_gwhy"
+    printf '      Both halves of this were the SAME native run: whatever they agree on, they agree\n'
+    printf '      about ONE seat. Fix the route or the argv head, not the comparison — hl_wsl_route\n'
+    printf '      names an engine-side launcher for a python|python3|py|bash|sh head only, so pass the\n'
+    printf '      leg as `bash <path>` (or `python3 <path>`) and read the route line above this block.\n'
+    return 2
+  fi
   parity_of "$_nf" "$_na" "$_ga" "$_nrc" "$_grc"; _vrc=$?
   if [ "$_vrc" = 2 ]; then
     printf '      CANNOT RUN — nothing was compared: a side hit a boundary of its own seat, or a side\n'
@@ -544,6 +617,63 @@ PARITY_STRICT_WORDS=0')" route        bash scripts/testdata/gate-parity/loses-an
     _st_ok "the native side drops HL_PARITY_GUEST and the stub door sets it — both arms, both sides, seen as a diff"
   else
     _st_no "HL_PARITY_GUEST did not arrive through the door as declared"
+    sed 's/^/      | /' <"$_st_tmp/stub-flav.log"
+  fi
+
+  printf '== an un-crossed run answers rc 2 and prints no parity word ==\n'
+  # Everything above grades the COMPARISON; these arms grade the claim underneath it, that a SECOND SEAT
+  # was involved. hl_wsl_route has three exits (lib/wsl-route.sh:308-334) and two of them run the argv at
+  # home: HL_WSL_ON != 1 — what HL_WSL=off means, and the state every Debian seat is in — and an argv head
+  # with no engine-side launcher, whose refusal it writes to STDERR, where it lands in the captured guest
+  # corpus and normalizer rule 2 deletes it. Both shapes are two copies of ONE run, and this runner used to
+  # grade them anyway: under `HL_WSL=off`, and for a declined head whose leg runs here, it printed a full
+  # PARITY line; for the DECLINED `.py` shape below it answered rc 2 but blamed the recognizer for a
+  # crossing that never happened.
+  #   bash scripts/bench/win/gate-parity.sh -- scripts/gate/check_hd_mint_space.py --self-test
+  # (1) THE ROUTE OFF, asked through the real probe rather than faked: HL_WSL=off is this repo's
+  # engine-independence mode, so the lib spawns nothing and both halves are the native run.
+  _out="$_st_tmp/off-run"
+  if ( HL_WSL=off _HL_WSL_PROBED=0 hl_wsl_probe "$REPO" >/dev/null 2>&1
+       run_parity engine "$_out" route bash "$_ctl0" ) >"$_st_tmp/off-run.log" 2>&1
+  then _rc=0; else _rc=$?; fi
+  if [ "$_rc" != 2 ]; then
+    _st_no "the route-off run answered rc $_rc, want 2 — a run that never crossed the door graded a verdict"
+    sed 's/^/      | /' <"$_st_tmp/off-run.log"
+  elif grep -qw PARITY "$_st_tmp/off-run.log"; then
+    _st_no "the route-off run answered rc 2 AND printed the parity word — a crossing was claimed that did not happen"
+  elif ! grep -q 'did not cross' "$_st_tmp/off-run.log"; then
+    _st_no "the route-off run answered rc 2 without naming the crossing as the reason"
+    sed 's/^/      | /' <"$_st_tmp/off-run.log"
+  else
+    _st_ok "HL_WSL=off (both halves native) answers rc 2 with no parity word — the route is asked before either side runs"
+  fi
+  # (2) THE DECLINED HEAD, with the route UP and the stub door raised: `env` is not a launcher the lib can
+  # name, so it declines, says so on stderr, and runs the leg a SECOND time here. The leg is an rc-0
+  # fixture, so without the crossing check the pair comes back byte-identical and GREEN — the worse half of
+  # the hole, because the refusal is invisible in the corpus by the time the verdict is printed.
+  _out="$_st_tmp/declined-run"
+  if run_parity engine "$_out" route env bash scripts/testdata/gate-parity/path-spelling.sh \
+       >"$_st_tmp/declined-run.log" 2>&1
+  then _rc=0; else _rc=$?; fi
+  if [ "$_rc" != 2 ]; then
+    _st_no "the declined-head run answered rc $_rc, want 2 — two native runs were reported as parity"
+    sed 's/^/      | /' <"$_st_tmp/declined-run.log"
+  elif grep -qw PARITY "$_st_tmp/declined-run.log"; then
+    _st_no "the declined-head run answered rc 2 AND printed the parity word"
+  elif ! grep -q 'declined' "$_st_tmp/declined-run.log"; then
+    _st_no "the declined-head run answered rc 2 without quoting the route's refusal"
+    sed 's/^/      | /' <"$_st_tmp/declined-run.log"
+  else
+    _st_ok "a declined argv head answers rc 2 and quotes the route's own refusal — the RAW corpus is read, before rule 2 erases it"
+  fi
+  # (3) WHERE each side ran is PRINTED, not implied by the word PARITY: the crossed pair above ran in the
+  # stub's tree, and a reader must be able to SEE the crossing rather than trust one printed word.
+  if grep -q 'ran native' "$_st_tmp/stub-flav.log" \
+     && grep -q 'ran in Debian (/mnt/M/tree)' "$_st_tmp/stub-flav.log";
+  then
+    _st_ok "the verdict block names where each side ran (native vs /mnt/M/tree), so a replay cannot pose as a crossing"
+  else
+    _st_no "the verdict block did not say where each side ran — a reader cannot tell a crossing from a replay"
     sed 's/^/      | /' <"$_st_tmp/stub-flav.log"
   fi
 
