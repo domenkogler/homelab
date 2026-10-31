@@ -44,9 +44,10 @@ see §Proving which service account an install holds.
 | **control node (rescue)** — this WSL Debian laptop; not the only place `ansible-playbook` is run interactively, and it stays installed as the door you open when the on-site runner is the thing that is broken ([deployment-ansible.md](deployment-ansible.md) §Runner placement) | `op_api` | `~/.config/op/homelab-sa-token` (0600) |
 | **`vps` — the VPS control account** (`ansible-admin`) | `op_api` | `~/.config/op/homelab-sa-token` (0600), sourced from `~/.bashrc` — the same shape and the same pipe-form re-seat as the on-site control node, so `op` on that box reads the vault headless. An `op_api` rotation reaches this host by **two** paths: this file, and the `/etc/op/provision-token` render below (different item, so one rotation does not cover the other). It is the install a seat-side sweep cannot see — `~` and `/home/*` are the paths of the host the sweep runs on, so enumerating it means running the sweep there (§Proving which service account an install holds) |
 | **`oldsrv` — the `root` account** | **none** | `/root/.config/op/` holds only `config` and the daemon socket — no token file, no `/root/.bashrc` line. A root shell there reaches the vault only with an explicit token in the child env (`OP_SERVICE_ACCOUNT_TOKEN=$(sudo cat /etc/op/provision-token) op …`). A hand-planted home-token copy is the failure mode worth naming: **nothing re-seats `root`**, so it goes stale at the first rotation and answers `(403) Forbidden (Service Account Deleted)` while every real seat reads the vault fine |
-| CI (GitHub Actions / Forgejo Actions) | — | **no holder**: the homelab repo is GitHub-hosted with no runner registered at the repo, the `vps` Forgejo instance hosts no homelab repo (and no `.forgejo/` workflow exists in the tree), so nothing renews this token in CI |
+| **Every running process on an `op_api` host** — a holder class, not a host | `op_api` | the process environment, i.e. `route=env`: `op daemon`, an IDE server, an agent session and any login shell keep the value each was EXEC'd with, so a process stays a holder of the **superseded** generation after every file on the plane is CURRENT — `scripts/lib/vault-env.sh` resolves **env → file → door**, so a dead environment beats a live file. Closing one is a restart of that process from a shell that re-sources the file, proved by digest; `op daemon stop` does not reach an instance re-parented to `ppid 1`, and an IDE-server restart closes every terminal in it (§Proving which service account an install holds) |
+| CI (GitHub Actions / Forgejo Actions) | — | **no holder**: the homelab repo is GitHub-hosted with no runner registered at the repo, the `vps` Forgejo instance hosts no homelab repo (and no `.forgejo/` workflow exists in the tree); the one workflow file the tree does carry, `spark/.github/workflows/ansible-ci.yml`, runs every job `runs-on: ubuntu-latest` and names no vault credential — so nothing renews this token in CI |
 | **vps** — the Authentik secret-egress glue + `kopia-fingerprint-sync.yml` | `op-write_api` | `/etc/op/provision-token`, 0600 root, deployed by the docker_services pre-pass |
-| home hosts | `op-write_api` | same path, but ONLY where a `bootstrap_keys` service converges (`deploy-service.yml`) |
+| home hosts | `op-write_api` | same path, but ONLY where the token task or a `bootstrap_keys` service converges (`op-provision-token.yml`, gated `docker_services_op_provision_token` — set for `home_servers` = `oldsrv` — or `deploy-service.yml`); `nas` and `spark` carry no `/etc/op/` at all and have no writer |
 | **spark** | none | it has no token at all — that is exactly why every spark playbook runs through the `pi` jump host ([deployment-ansible.md](deployment-ansible.md)) |
 | **Win11 desktop** | **none installed, by design** | No token file sits on that disk and the seat installs none of its own. It IS a vault *reader*: the vault legs resolve the credential through [`../scripts/lib/vault-env.sh`](../scripts/lib/vault-env.sh), which reads the Debian engine's install across the WSL door (`route=door:Debian`) — the same `op_api` bytes, never a copy, so a rotation reaches this seat with no second re-seat. Git auth stays on the desktop app over `\\.\pipe\openssh-ssh-agent` (`scripts/git/git-bootstrap-win11.sh` reads the auth item (`OP_AUTH_ITEM`) through the lib ONLY when it raises the transport key; the desktop-app route reads neither `OP_SIGN` nor `OP_AUTH`). The CLI is installed there (`op.exe`, winget `AgileBits.1Password.CLI`); with no resolved credential it must NOT be called — that is the desktop-app route, one consent dialog per read (see [`deployment-secrets.md`](deployment-secrets.md) §What actually raises a 1Password prompt) |
 
@@ -184,13 +185,15 @@ passes — so scope a seat only from `op_api/credential`, and prove it by Integr
 
 | Item / install | value | service account |
 |---|---|---|
-| `op_api` — **current** | `d633b4f9190e` | Integration `QO3TQ6IMYJF5LFB5EUERCEGJEY` — **read scope** (the read item's own integration, read off the console's scope page) |
-| `op_api` — superseded, live until ~2026-10-30 | `6a1342f44e65` | Integration `DUW6UPKY5JGG3MM6WF3HBHQWGQ` (read) |
+| `op_api` — **current** | `eb648a15d2a5` | Integration `FF4B6NAH3JH2FAREPDM75GS75U` — **read scope** (the read item's own integration, read off the console's scope page) |
+| `op_api` — superseded, grace window closed ~2026-10-30 | `d633b4f9190e` | Integration `QO3TQ6IMYJF5LFB5EUERCEGJEY` (read) |
+| `op_api` — superseded, the generation before that | `6a1342f44e65` | Integration `DUW6UPKY5JGG3MM6WF3HBHQWGQ` (read) |
 | `op-write_api` — **current** | `c387f297133f` | Integration `RBULV4SW7JDKLDXRG25LC44VVI` (read+write) |
 
-Each minted generation of these items answers with **its own Integration ID** — `op_api`'s superseded
-generation answers `DUW6UPKY5JGG3MM6WF3HBHQWGQ` and its current one `QO3TQ6IMYJF5LFB5EUERCEGJEY`, and
-the write item's measured generations answered `PR4Z2FGWW5BRXNL6OR3FNYL3R4`, then
+Each minted generation of these items answers with **its own Integration ID** — the `op_api` generations
+answer `DUW6UPKY5JGG3MM6WF3HBHQWGQ`, then `QO3TQ6IMYJF5LFB5EUERCEGJEY`, then
+`FF4B6NAH3JH2FAREPDM75GS75U` in that order, and the write item's measured generations answered
+`PR4Z2FGWW5BRXNL6OR3FNYL3R4`, then
 `WN7FJT54IVHDDC4XR3YJ73R2CY`, then `RBULV4SW7JDKLDXRG25LC44VVI`. So an ID that matches no row here is a generation this table has not
 recorded, and the value hash (the sweep below) settles which item it belongs to — the current `op_api`
 value hashes apart from `op-write_api`'s AND answers an ID apart from its integration, which is what
@@ -202,9 +205,9 @@ not resolve dies at **name resolution**, not at the write permission — so neit
 The verdict is a write that reaches the API and fails, or the console's own scope page.
 
 The grace window on a superseded `op_api` value is **owner-set at the rotation**, not a product
-default: the superseded generation expires **~2026-10-30**, and every holder must re-seat inside that
-window (§Rotating the control-node token). A re-seat proven after that date is a re-seat of a dead
-token. The two facts are not interchangeable: the **value hash** is what identifies a holder (the
+default: the console decides when a retired generation stops answering, and every holder must re-seat
+inside that window (§Rotating the control-node token). A re-seat proven after that date is a re-seat of
+a dead token. The two facts are not interchangeable: the **value hash** is what identifies a holder (the
 sweep below), the **Integration ID** is what proves scope. An install whose `op whoami` answers a
 write-scoped ID other than the row above is running a superseded credential.
 
@@ -254,7 +257,7 @@ transcript that captured only a prefix names neither the item nor the generation
 matches every holder of a different credential too.
 
 ### Rotating the control-node token
-**The re-seat is a command now: `bash scripts/secrets/reseat-vault-token.sh --check`, then `--apply`** — run it on the Debian engine (`wsl.exe -d Debian -- bash -lc 'cd ~/source/homelab && …'` from the Windows seat), because the proof it prints is a file mode plus a chmod-gated verify and NTFS carries neither. It reads the item once, pipes it into each target's stdin, and there proves the value answers the vault BEFORE swapping, so a typo or an expired token leaves the seat byte-identical. The hand forms below stay documented: they are what a seat with no repo clone, or a pasted token, still needs.
+**The re-seat is a command now: `bash scripts/secrets/reseat-vault-token.sh --check`, then `--apply`** — run it on the Debian engine (`wsl.exe -d Debian -- bash -lc 'cd ~/source/homelab && …'` from the Windows seat), because the proof it prints is a file mode plus a chmod-gated verify and NTFS carries neither. **Away from the LAN** its default targets are the plain aliases, which time out off-network and print `UNREACHABLE` for the two home seats while `wsl` and `vps` stay green — the jump plane answers instead: `RESEAT_TARGETS="wsl oldsrv-domen-vps vps oldsrv-vps" bash scripts/secrets/reseat-vault-token.sh --check` ([network-vpn.md](network-vpn.md) §Reaching LAN nodes when away). It reads the item once, pipes it into each target's stdin, and there proves the value answers the vault BEFORE swapping, so a typo or an expired token leaves the seat byte-identical. The hand forms below stay documented: they are what a seat with no repo clone, or a pasted token, still needs.
 
 `scripts/ansible/bootstrap-runner.sh` is **create-only** — `if [ ! -f "$OP_TOKEN_FILE" ]` — so after a
 rotation it prints *"token already stored"* and changes nothing. Prefer the **pipe form**, which needs
@@ -422,6 +425,8 @@ Each of these produces an auth-shaped error with a non-auth cause:
 | `error: could not find session token for account` | `OP_SERVICE_ACCOUNT_TOKEN` not exported in this shell — source `~/.bashrc` (interactive shell only) |
 | `"<item>" isn't an item in the "Homelab-ansible" vault` | Item missing (not an auth failure) — create it in 1Password, or check the exact name/field |
 | `Unable to sign in to 1Password. Missing required parameters` | Token absent — install/export `OP_SERVICE_ACCOUNT_TOKEN` |
+| **`(403) Forbidden: You aren't authorized to access this resource` while the token FILE is current** | A **running process** still exports the superseded generation and the environment beats the file: `scripts/lib/vault-env.sh` resolves env → file → door, so `route=env` wins with a dead credential while a file-level `--check` stays green. Fix: re-`source` `~/.config/op/homelab-sa-token` in that shell, or restart that process from a shell that sources it (§Where a token is installed, the process-environment row) — and prove the restart by digest, never by `op whoami` alone. The same line from a **root** shell is a different cause: a hand-planted root-side copy, which nothing re-seats |
+| `reseat-vault-token.sh --check` prints `CURRENT … BUT the vault does NOT answer` / `LIVENESS FAIL` | The liveness half is an outbound vault request made **by that host**, so it fails for transport as well as for auth — a path to the 1Password edge that times out on IPv6 while IPv4 answers produces exactly this line on a correct credential. Re-run before believing it, and read it beside the digest: a digest matching the current value means the credential is right and the **leg** is the suspect; `UNREACHABLE` on the same run is the alias plane, not the vault (§Rotating the control-node token) |
 | `op vault list` only shows some vaults | Service account lacks read grant on the needed vault |
 | `Permission denied (publickey)` to a host | Runner's SSH key not authorized in that host's `authorized_keys` |
 | `invalid JSON provided` / `invalid JSON in piped input` on `op item create/edit` | Non-TTY stdin: op interprets piped input as a JSON item template. Run with `< /dev/null` in scripts, ansible shell tasks, ssh one-liners, cron (provisioner + secret-egress glue precedents) |
