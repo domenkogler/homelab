@@ -17,4 +17,6 @@ runner itself clears on the native side — so a flavour cannot be taken by acci
 | `cannot-run.sh` | the engine side exits 2 with one `SKIP` (the shape `testdata/rsync-max-delete/run.sh` uses for a tool this seat lacks) | rc 2, no parity word |
 | `no-tool-here.sh` | BOTH sides exit 2 | rc 2 |
 | `silent.sh` | a side that produced no bytes and exited 0 | rc 2 |
+| `no-verdict-words.sh` | rc 0 and three lines of prose that carry no verdict word | rc 2, with the recognizer printed so the reader EXTENDS it instead of muting the leg |
+| `exit-codes-differ.sh` | three identical arms on both sides, the engine side exits 1 — only the rc moves | rc 1, both exit codes named (`native 0, engine 1`); the rc rule has no other witness, so deleting it turns THIS fixture green |
 | `portable.sh` | nothing — it spells its own tree and temp paths as wherever it runs | rc 0 across the real door |

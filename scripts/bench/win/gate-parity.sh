@@ -49,7 +49,7 @@
 #
 # THE EXIT CONTRACT — rc 2 OUTRANKS BOTH parity and diff, and that precedence is the whole design.
 #   0  PARITY        same rc (0), same arm count, same verdict words
-#   1  PARITY DIFF   the two answers differ; both arm counts are printed
+#   1  PARITY DIFF   the two answers differ; both sides' arm counts, or their exit codes, are printed
 #   2  CANNOT RUN    the engine side never crossed the door, or either side exited 2 (a boundary, the
 #                    shape testdata/rsync-max-delete/run.sh uses for a tool this seat lacks), or a side
 #                    produced ZERO recognizable arms, or a side produced NO BYTES.
@@ -459,6 +459,15 @@ st_fixture() { # st_fixture <name> <want-rc> <why>
       || _st_no "$name reddened without naming both arm counts (native 3, engine 2)"
     return 0
   fi
+  if [ "$name" = "exit-codes-differ" ]; then
+    # Same claim for the rc rule: three equal arms on both sides satisfy the count rule AND the word
+    # rule, so if the exit-code comparison is deleted this fixture goes GREEN rather than red — the one
+    # fixture in the list whose deletion test bites. The named codes are what say which rule answered.
+    grep -q 'the exit codes differ' "$_out.log" && grep -q 'native 0, engine 1' "$_out.log" \
+      && _st_ok "$name → rc $_rc ($why)" \
+      || _st_no "$name reddened without naming both exit codes (native 0, engine 1) - which rule answered?"
+    return 0
+  fi
   _st_ok "$name → rc $_rc ($why)"
 }
 
@@ -537,7 +546,8 @@ PAIRS
                "cannot-run|2|the engine side exits 2 with a SKIP — a boundary, not a diff" \
                "no-tool-here|2|neither side could run — two silences are not an agreement" \
                "silent|2|rc 0 and no bytes — did not run, not parity" \
-               "no-verdict-words|2|rc 0 and zero recognized arms — nothing to compare"; do
+               "no-verdict-words|2|rc 0 and zero recognized arms — nothing to compare" \
+               "exit-codes-differ|1|identical arms, the engine exits 1 — the rc rule, which no other fixture reddens"; do
     _rest="${_name#*|}"; _want="${_rest%%|*}"; _why="${_rest#*|}"
     st_fixture "${_name%%|*}" "$_want" "$_why"
   done
@@ -682,20 +692,22 @@ PARITY_STRICT_WORDS=0')" route        bash scripts/testdata/gate-parity/loses-an
   HL_WSL_GIT=0; HL_WSL_GIT_WHY=""; HL_WSL_MNT=""; HL_WSL_GUEST=(); HL_WSL_EXE=wsl.exe
   hl_wsl_probe "$REPO" >/dev/null 2>&1
   if [ "$HL_WSL_ON" = 1 ]; then
-    if run_parity engine "$_st_tmp/live" route bash scripts/testdata/gate-parity/portable.sh \
-         >"$_st_tmp/live.log" 2>&1; then
-      _st_ok "portable.sh agrees across the REAL door ($HL_WSL_MNT) — the normalizer was graded on this box"
+    run_parity engine "$_st_tmp/live" route bash scripts/testdata/gate-parity/portable.sh \
+      >"$_st_tmp/live.log" 2>&1; _rc=$?
+    # rc 2 is NOT a pass here, whatever it printed. portable.sh exits 2 only if it could not make a temp
+    # dir, and an engine that never ran the leg at all answers rc 2 through the crossing check — so an rc
+    # 2 from this arm means the live door is unproven, and calling it a boundary named as one would be.
+    # The arms above already grade a named boundary; this arm grades the DOOR.
+    if [ "$_rc" != 0 ]; then
+      _st_no "portable.sh across the REAL door answered rc $_rc, want 0 — the live door is unproven, and nothing here may be wrapped on a stub alone"
+      sed 's/^/      | /' <"$_st_tmp/live.log"
+    elif ! grep -q 'ran in ' "$_st_tmp/live.log"; then
+      _st_no "the live-door verdict printed without naming the engine it crossed to — a real PARITY must show the crossing"
+      sed 's/^/      | /' <"$_st_tmp/live.log"
+    else
+      _st_ok "portable.sh agrees across the REAL door ($HL_WSL_MNT) — the normalizer was graded on this box, and the crossed line names where it ran"
       printf '%s' "$HL_WSL_WHY" | grep -qi 'git=unavailable' \
         && printf '      NOTE: git=unavailable here, so a verdict about a git-READING leg is worthless\n'
-    else
-      _rc=$?
-      if [ "$_rc" = 2 ]; then
-        _st_ok "portable.sh across the real door answered rc 2 and named the boundary instead of a parity"
-        sed 's/^/      | /' <"$_st_tmp/live.log"
-      else
-        _st_no "portable.sh disagrees across the real door (rc $_rc) — read the diff before wrapping anything"
-        sed 's/^/      | /' <"$_st_tmp/live.log"
-      fi
     fi
   else
     printf '  SKIP: live-door arm skipped — this seat has no route (%s); the stub arms still ran\n' "$HL_WSL_WHY"
