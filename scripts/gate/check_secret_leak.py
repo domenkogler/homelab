@@ -59,7 +59,10 @@ as carried, naming the seat that recorded it; a pair recorded on two seats is tw
 single-seat run closes that line, and a box that is none of the three seats closes none of them. The
 register is read with its owner's own parser (`check_secret_debt.py`) rather than re-spelled here, and
 an unreadable or malformed register is a REFUSAL — a book that reads shorter names no seat, and a debt
-with no seat is a debt any seat may delete
+with no seat is a debt any seat may delete. The PRINT side asks the same question of the same two books:
+a `run-capture` line a foreign seat recorded prints `CARRIED` naming that seat, and only the recording
+seat's OWN absent hit prints `STALE` — so a one-seat scan no longer invites the deletion of a debt another
+store still holds, and the `STALE` block is the set a ledger commit may drop FROM THIS SEAT
 (docs/deployment-secrets.md §Creation & Rotation Workflow item 9).
 
 (e) **History is a class, not a blind spot.** `spark-llm_api` sat in a tracked bench capture for 13
@@ -733,6 +736,38 @@ def seat_block(row: tuple[str, str, str], seats: dict[tuple[str, str], set[str]]
     return ""
 
 
+def stale_split(keys: list[tuple[str, str]]) -> tuple[list[tuple[str, str]], list[tuple[tuple[str, str], str]]]:
+    """Split the ledger lines this run did NOT hit into (may print `STALE`, must print `CARRIED` + why).
+
+    The READ side asks the question the WRITE side already asks before it deletes, because the answer is
+    one fact and not two: a `run-capture` line is evidence about the store this run opened and about no
+    other box's, while the book is keyed `(item, class)`. Deciding that block from the CLASS alone made a
+    one-seat run print a foreign seat's live debt under the word that invites deletion. So the split goes
+    through `recording_seats()` and `seat_block()` — the drop guard's own mechanism, not a second idea of
+    the rule. A `run-capture` line THIS seat recorded alone prints STALE; a line a foreign seat recorded,
+    a pair two seats carry, a line the register names no seat for, and every such line when the register
+    cannot be read at all, print CARRIED with the seat named. Nothing in the carried half reddens
+    anything: it is a debt that still stands in a store this run never opened, and a line this run may
+    neither close nor delete. The other two classes keep the class rule alone."""
+    other = [k for k in keys if k[1] != "run-capture"]
+    mine = [k for k in keys if k[1] == "run-capture"]
+    if not mine:
+        return sorted(other), []
+    seats, why = recording_seats()
+    if why:
+        # An unreadable book is not a book that names nobody: with no recorder nothing is provably
+        # closed, so the whole run-capture half is carried rather than printed with the deletion word.
+        return sorted(other), [(k, f"the register that carries the seat is unreadable ({why[:120]}) — "
+                                   "no run-capture line here has a known recorder, so none of them may be "
+                                   "called closed") for k in mine]
+    seat = _debt().this_seat()
+    may, carried = list(other), []
+    for k in mine:
+        blocked = seat_block((k[0], k[1], "?"), seats, seat)
+        carried.append((k, blocked)) if blocked else may.append(k)
+    return sorted(may), carried
+
+
 def containment_receipt() -> Path:
     """Where a seat records the redactions it has performed. Resolved PER CALL, like `$HL_LEAK_LEDGER`,
     so a fixture arm can aim it at a temp tree instead of a real seat's state."""
@@ -956,12 +991,25 @@ def report(res: ScanRun, n_values: int, n_items: int, short: list[str], errs: li
                       f"{row.get('ts', '?')} at vault version {row.get('vault_version', '?')}, "
                       f"{len(row.get('paths', []) or [])} path(s) on seat {row.get('seat', '?')}")
     hit_keys = {ledger_key(f) for f in res.findings}
-    stale = sorted(k for k in known - hit_keys if k[1] in res.scanned)
+    # The seat half of the print: an absent hit in a store this run read says nothing about the store
+    # that recorded the debt, so a foreign `run-capture` line never gets the deletion word. One rule,
+    # asked through the drop guard's own mechanism — see `stale_split`.
+    stale, carried = stale_split(sorted(k for k in known - hit_keys if k[1] in res.scanned))
     if stale:
         print(f"STALE ledger lines (no hit this run — rotate-and-remove, or the book becomes a "
               f"standing free pass): {len(stale)}")
-        for k in stale[:10]:
+        for k in stale[:MAX_PRINTED]:
             print(f"  {k[0]} {k[1]}")
+        if len(stale) > MAX_PRINTED:
+            print(f"  … {len(stale) - MAX_PRINTED} more line(s) of the same book, not listed")
+    if carried:
+        print(f"CARRIED ledger lines: {len(carried)} — `run-capture` debt whose recording seat's store this "
+              "run did not read, so its absence here proves NOTHING: not stale, not closed, and not a line "
+              "this seat may delete (the fleet-wide close is per seat and additive):")
+        for (item, cls), why in carried[:MAX_PRINTED]:
+            print(f"  {item} {cls} — {why}")
+        if len(carried) > MAX_PRINTED:
+            print(f"  … {len(carried) - MAX_PRINTED} more line(s) of the same book, not listed")
     unjudged = sorted(k for k in known - hit_keys if k[1] not in res.scanned)
     if unjudged:
         print(f"NOT JUDGED ledger lines: {len(unjudged)} — their class was not scanned this run, so they "
@@ -1042,12 +1090,33 @@ def self_test() -> int:
         fails += not ok
         print(f"  arm {label}: {'ok' if ok else 'FAIL'}{(' — ' + detail) if (detail and not ok) else ''}")
 
-    def verdict(res: ScanRun, ledger: Path, errs: list[str] | None = None) -> tuple[int, str]:
+    def verdict(res: ScanRun, ledger: Path, errs: list[str] | None = None, seat: str = "wsl",
+                register: Path | None = None) -> tuple[int, str]:
         """Ask the reporter and keep its text: several arms are about what the run PRINTS, and a verdict
-        nobody can read is not an instrument."""
-        buf = io.StringIO()
-        with redirect_stdout(buf):
-            rc = report(res, 1, 1, [], list(errs or []), ledger, False, DEFAULT_MAX_FILE_MB, [])
+        nobody can read is not an instrument.
+
+        The reporter asks the SEAT the way `--update-ledger` does, so a report-side arm stands on a seat
+        and reads a register instead of the fleet's own books: with no register given the fixture records
+        EVERY run-capture pair of the book on `seat`, which is the precondition for such a line to print
+        STALE at all. That aim is also what keeps an arm's verdict from depending on which box ran it."""
+        debt = _debt()
+        if register is None:
+            register = register_fixture(ledger.parent,
+                                        [(r[0], r[1], seat) for r in read_ledger_rows(ledger)
+                                         if r[1] == "run-capture"])
+        old_seat_fn, old_reg = debt.this_seat, os.environ.get("HL_DEBT_REGISTER")
+        debt.this_seat = lambda: seat
+        os.environ["HL_DEBT_REGISTER"] = str(register)
+        try:
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rc = report(res, 1, 1, [], list(errs or []), ledger, False, DEFAULT_MAX_FILE_MB, [])
+        finally:
+            debt.this_seat = old_seat_fn
+            if old_reg is None:
+                os.environ.pop("HL_DEBT_REGISTER", None)
+            else:
+                os.environ["HL_DEBT_REGISTER"] = old_reg
         return rc, buf.getvalue()
 
     register_seq = [0]
@@ -1228,7 +1297,7 @@ def self_test() -> int:
     # (9) a PARTIAL sweep may never read as a full green, and may not judge what it did not read.
     with tempfile.TemporaryDirectory() as td:
         led = Path(td) / "led.txt"
-        led.write_text("# book\naaaa\trun-capture\titem_a\nbbbb\tgit-history\titem_b\n", encoding="utf-8")
+        led.write_text("# book\naaaaaaaa\trun-capture\titem_a\nbbbb\tgit-history\titem_b\n", encoding="utf-8")
         res = ScanRun([], zero_counts(), 3, {"repo-tree"},
                       {"run-capture": "--tree-only: no capture file was opened",
                        "git-history": "--no-history: no blob was read"}, [])
@@ -1391,7 +1460,7 @@ def self_test() -> int:
     with tempfile.TemporaryDirectory() as td:
         prev_tmp = os.environ.get("TMPDIR")
         led = Path(td) / "led.txt"
-        book = "# book\naaaa\trun-capture\titem_a\n"
+        book = "# book\naaaaaaaa\trun-capture\titem_a\n"
         tmp_root = Path(td) / "tmp"
         tmp_root.mkdir()
         os.environ["TMPDIR"] = str(tmp_root)
@@ -1435,7 +1504,7 @@ def self_test() -> int:
         led.write_text(book, encoding="utf-8")
         rc, out = verdict(ScanRun([], zero_counts(), 1, judged, not_scanned, [stores_note(stores)]), led)
         check("a store-READ run with the hit gone still prints the debt STALE (the guard has teeth both ways)",
-              rc == 0 and "STALE" in out and "aaaa run-capture" in out, out[-160:])
+              rc == 0 and "STALE" in out and "aaaaaaaa run-capture" in out, out[-160:])
         if prev_tmp is None:
             os.environ.pop("TMPDIR", None)
         else:
@@ -1565,6 +1634,86 @@ def self_test() -> int:
             else:
                 os.environ["HL_VAULT_READ_FIXTURE"] = prev_fx_env27
 
+    # (28) HD-1228: the PRINT side asks the seat too. A `run-capture` line is a debt of the STORE that
+    # recorded it, so a one-seat report may give the deletion word to its OWN absent hits and to nobody
+    # else. Both directions are proved on one book: a print that only ever says STALE deletes another
+    # seat's debt, and a print that never says it hides the set Phase 7 may drop. The split decides from
+    # the two books, so an arm requires the vault reader to stay untouched.
+    with tempfile.TemporaryDirectory() as td:
+        led = Path(td) / "led.txt"
+        led.write_text("# book\naaaaaaaa\trun-capture\there\nbbbbbbbb\trun-capture\telsewhere\n"
+                       "cccccccc\trun-capture\tboth\ndddddddd\trun-capture\tunrecorded\n"
+                       "eeeeeeee\tgit-history\tpublished\n", encoding="utf-8")
+        reg = register_fixture(Path(td), [("aaaaaaaa", "run-capture", "wsl"),
+                                         ("bbbbbbbb", "run-capture", "oldsrv"),
+                                         ("cccccccc", "run-capture", "wsl"),
+                                         ("cccccccc", "run-capture", "win11")])
+
+        def block(out: str, header: str) -> list[str]:
+            """The item prefixes printed UNDER one ledger block. A STALE row and a CARRIED row are the same
+            characters until their reason, so the word only counts as evidence when the block it sits in
+            is read — grepping the whole report for an id proves nothing about which verdict printed it."""
+            got, keep = [], False
+            for ln in out.splitlines():
+                if ln.startswith(header):
+                    keep = True
+                    continue
+                if keep:
+                    if not ln.startswith("  "):
+                        break
+                    got.append(ln.strip().split()[0])
+            return got
+
+        # A clean run of THIS seat's stores: nothing hit, so the book is all "absent".
+        rc, out = verdict(ScanRun([], zero_counts(), 1, {"run-capture", "git-history"}, {}, []), led,
+                          register=reg)
+        stale, carried = block(out, "STALE ledger lines"), block(out, "CARRIED ledger lines")
+        check("the recording seat's OWN absent hit still prints STALE — the print keeps its teeth",
+              rc == 0 and "aaaaaaaa" in stale and "eeeeeeee" in stale, f"rc {rc}: {stale} {out[-200:]}")
+        check("a line a FOREIGN seat recorded, a pair TWO seats recorded, and a line the register names no "
+              "seat for are CARRIED, never STALE, and redden nothing",
+              rc == 0 and {"bbbbbbbb", "cccccccc", "dddddddd"} == set(carried)
+              and not ({"bbbbbbbb", "cccccccc", "dddddddd"} & set(stale)) and "oldsrv" in out
+              and "FAIL" not in out, f"rc {rc}: stale={stale} carried={carried} {out[-200:]}")
+        # The same book from the OTHER seat: the guard is per seat, not a blanket ban on the word.
+        rc2, out2 = verdict(ScanRun([], zero_counts(), 1, {"run-capture"}, {}, []), led, seat="oldsrv",
+                           register=reg)
+        st2, cr2 = block(out2, "STALE ledger lines"), block(out2, "CARRIED ledger lines")
+        check("the seat that DID record a line closes the verdict on it — the split follows the seat, "
+              "not the book", rc2 == 0 and st2 == ["bbbbbbbb"]
+              and {"aaaaaaaa", "cccccccc", "dddddddd"} == set(cr2), f"rc {rc2}: stale={st2} carried={cr2}")
+        # No register at all is not "no recorder named": it is no KNOWN recorder, which is not absence.
+        rc3, out3 = verdict(ScanRun([], zero_counts(), 1, {"run-capture"}, {}, []), led,
+                            register=Path(td) / "no-such-register.txt")
+        check("an unreadable register carries every run-capture line instead of calling it closed",
+              rc3 == 0 and set(block(out3, "CARRIED ledger lines")) == {"aaaaaaaa", "bbbbbbbb",
+                                                                      "cccccccc", "dddddddd"}
+              and not (set(block(out3, "STALE ledger lines")) & {"aaaaaaaa", "bbbbbbbb", "cccccccc",
+                                                                "dddddddd"}), f"rc {rc3}: {out3[-200:]}")
+        # The zero-request half: a print that reached the vault to answer a book question is a gate that
+        # costs the fleet. The readers RAISE, so an arm that passes proves the route was never taken.
+        debt = _debt()
+        old_lv, old_rv = globals()["_read_vault"], globals()["load_values"]
+        old_dn, old_dv = getattr(debt, "read_names", None), getattr(debt, "read_vault", None)
+
+        def _no_vault(*_a, **_k):
+            raise AssertionError("the READ side reached the vault — the seat split decides from two books")
+
+        globals()["_read_vault"] = globals()["load_values"] = _no_vault
+        debt.read_names = debt.read_vault = _no_vault
+        try:
+            rc4, out4 = verdict(ScanRun([], zero_counts(), 1, {"run-capture"}, {}, []), led, register=reg)
+            quiet, note4 = rc4 == 0 and "CARRIED ledger lines" in out4, f"rc {rc4}"
+        except AssertionError as exc:
+            quiet, note4 = False, str(exc)
+        finally:
+            globals()["_read_vault"], globals()["load_values"] = old_lv, old_rv
+            if old_dn is not None:
+                debt.read_names = old_dn
+            if old_dv is not None:
+                debt.read_vault = old_dv
+        check("the seat-aware print reads ZERO vault requests: it decides from the two books", quiet, note4)
+
     print(f"check_secret_leak.py --self-test: {fails} failing arm(s)")
     if fails:
         return 1
@@ -1632,8 +1781,8 @@ MUTATIONS = [
      '    tail = ""',
      "the PARTIAL arm"),
     ("an unread class's debt is reported as STALE",
-     "    stale = sorted(k for k in known - hit_keys if k[1] in res.scanned)",
-     "    stale = sorted(k for k in known - hit_keys)",
+     "    stale, carried = stale_split(sorted(k for k in known - hit_keys if k[1] in res.scanned))",
+     "    stale, carried = stale_split(sorted(k for k in known - hit_keys))",
      "the NOT JUDGED arm"),
     ("an empty scan set still counts as a judged class",
      "        if n:\n            judged.add(cls)",
@@ -1653,6 +1802,10 @@ MUTATIONS = [
      "seat_block(row, seats, seat)",
      '""',
      "the seat-carried arms"),
+    ("the print side never asks the seat, so a foreign line prints STALE",
+     '        blocked = seat_block((k[0], k[1], "?"), seats, seat)',
+     '        blocked = ""',
+     "the seat-aware print arms"),
     ("the register is never consulted before dropping a run-capture line",
      "    if by_seat:",
      "    if False:",

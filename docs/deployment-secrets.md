@@ -468,11 +468,15 @@ hold that, and neither is the leak ledger:
   whose pair is carried by two seats is two debts, closed once per store. The fleet-wide act is per-seat
   and additive: on each seat derive into a temp book through the tool's own `$HL_LEAK_LEDGER` seam, then
   commit the UNION of those books — never a single seat's derivation over the committed file. The READ
-  side keeps a blind spot of its own: a one-seat scan prints a foreign line under `STALE ledger lines
-  (no hit this run)`, which invites somebody to delete a debt another store still holds — a class the
-  run did read is evidence about one store, not about every one, and what stands between that invitation
-  and a lost debt is `check_secret_debt.py`, which prints a pair that LEFT the ledger with its version
-  UNMOVED as `REFUSED`.
+  side asks the same question of the same two books, so the word a report prints is decided by the store,
+  not by the class alone: a `run-capture` line whose recording seat's store this run did not read prints
+  under `CARRIED ledger lines` naming that seat, and only the recording seat's OWN absent hit prints
+  `STALE ledger lines (no hit this run)`. What that buys is a deletion list the tree can stand behind —
+  the `STALE` block of a run IS the set that one seat may drop, and the carried half names who still has
+  to run it — and what it does not buy is a fleet verdict: a pair two seats carry is two debts, a box that
+  answers no seat carries all of them, an unreadable register carries the whole `run-capture` half rather
+  than calling it closed, and `check_secret_debt.py` still prints `REFUSED` for a close no version move
+  backs.
 - **The no-rotation-path ruling lives in two places and an arm holds them equal**: the register's
   `path: none` column, and `NOT_ROTATABLE` in
   [`scripts/secrets/provision-secrets.py`](../scripts/secrets/provision-secrets.py). It is NOT
