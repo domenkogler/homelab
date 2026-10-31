@@ -226,8 +226,8 @@ not this list, holds the steps, the file ownership and the converge host. Waves,
    one download-client entry (the seed-in-IaC question); Aurral → Lidarr is a **browser** leg (the add is a click on a
    recommendation card; its URL+key are encrypted inside `aurral.db` and the API 404s on the obvious routes). ⛔ probe
    slskd with `docker exec slskd /slskd/slskd --envars`, never by grepping a rendered compose; the Soulseek **network**
-   login is **not rotatable from a seat** — the upstream reset e-mail never arrives — risk accepted, do not re-open. **HD-1090** owes one grab started in
-   Prowlarr's own UI. **HD-1091** is authored and **ARMED**: one vault item (`soulseek-internal_api`) renders into BOTH
+   login is **not rotatable from a seat** — the upstream reset e-mail never arrives — risk accepted, do not re-open.
+   **HD-1091** is authored and **ARMED**: one vault item (`soulseek-internal_api`) renders into BOTH
    ends, so neither side can be armed alone; what it owes is **one album crossed end-to-end**, which needs a peer to
    finish one inside the poll window, and the **`lidarr_api` rotation** (`NOT_AUTO_ROTATABLE` — parked below).
    **HD-1088** renders on oldsrv with its guard proven before any push (⚠ `--max-delete` is a **CAP, not an abort** —
