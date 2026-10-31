@@ -273,6 +273,9 @@ exit 1
 EOS
   chmod +x "$TMP/bin/op"
   fails=0
+  # Arm count DERIVED from the run, never typed (§2): an arm added here cannot leave a stale number
+  # standing in the OK line, which is the one line a reader quotes as evidence of coverage.
+  ARMS=0
 
   # Arm 1 — THE RAISE (HD-495's Win11 leg): a seat that has never had the transport key gets it from
   # the vault, with the token arriving as the FILE the lib reads (no ambient env, and the WSL door
@@ -282,6 +285,7 @@ EOS
   TOKF="$TMP/home/op-sa-token"
   printf 'export OP_SERVICE_ACCOUNT_TOKEN=%s\n' "sat-$(printf 'x%.0s' $(seq 1 60))" > "$TOKF"
   chmod 600 "$TOKF"
+  ARMS=$((ARMS+1))
   out=$(HL_FIXTURE_KEY="$TMP/vault_auth" HL_VAULT_CLASS=win11 HL_VAULT_STUB_FAIL=1 \
         HL_VAULT_FILE="$TOKF" \
         SRC="$TMP/src" REPOPATH="$TMP/repo" NIGHTLY_SRC="$TMP/nope" USERPROFILE="$TMP/home" \
@@ -301,6 +305,7 @@ EOS
   # them byte-identical, proveing the raise is a fill-in and not a re-plant that can truncate.
   head -c 200 /dev/zero | tr '\0' 'Z' > "$TMP/home/.ssh/github_auth"
   cp -p "$TMP/home/.ssh/github_auth" "$TMP/before"
+  ARMS=$((ARMS+1))
   out=$(HL_FIXTURE_KEY="$TMP/vault_auth" HL_VAULT_CLASS=win11 HL_VAULT_STUB_FAIL=1 \
         HL_VAULT_FILE="$TOKF" \
         SRC="$TMP/src" REPOPATH="$TMP/repo" USERPROFILE="$TMP/home" HOME="$TMP/home" \
@@ -313,8 +318,16 @@ EOS
 
   # Arm 3a — no credential AND no key: the refusal names the item, and NOTHING is created (the shape a
   # Phase-0 gap looks like; an empty key file is worse than no key, because it fails as a dead key).
+  # ⚠ "No credential" is TWO places, and scripts/lib/vault-env.sh ranks a
+  # token already in the ENVIRONMENT above the FILE (`route=env`), so deleting `$TOKF` alone leaves a
+  # seat whose own environment carries the credential answering INSIDE this sandbox: the stub `op`
+  # signs in, the key gets raised, and the arm that exists to prove the refusal proves nothing while
+  # the run still prints a verdict. ONE array clears it for both arms below — delete it and arm 3a
+  # reddens on a token-carrying seat while arm 3a2 reddens on EVERY seat.
+  NO_CRED=(-u OP_SERVICE_ACCOUNT_TOKEN)
   rm -f "$TOKF" "$TMP/home/.ssh/github_auth"
-  out=$(HL_FIXTURE_KEY="$TMP/vault_auth" HL_VAULT_CLASS=win11 HL_VAULT_STUB_FAIL=1 \
+  ARMS=$((ARMS+1))
+  out=$(env "${NO_CRED[@]}" HL_FIXTURE_KEY="$TMP/vault_auth" HL_VAULT_CLASS=win11 HL_VAULT_STUB_FAIL=1 \
         HL_VAULT_FILE="$TOKF" \
         SRC="$TMP/src" REPOPATH="$TMP/repo" USERPROFILE="$TMP/home" HOME="$TMP/home" \
         KEYDIR="$TMP/home/.ssh" PATH="$TMP/bin:$PATH" \
@@ -324,12 +337,34 @@ EOS
   printf '%s' "$out" | grep -qi "could not read '$OP_AUTH_ITEM'" \
     || { echo "SELFTEST FAIL [no-credential]: the refusal never named the item that failed (got: $(printf '%s' "$out" | tail -2))"; fails=$((fails+1)); }
 
+  # Arm 3a2 — the TEETH half of arm 3a: the same fixture with the environment PLANTING a credential,
+  # and the proof that the clear above reaches it. Arm 3a alone is not evidence on a seat whose
+  # environment holds no token — it stays green with `NO_CRED` deleted — so this arm plants one in the
+  # child's environment and asserts the sandbox saw NONE of it: no key raised, no `route=env` in the
+  # verdict, and the refusal printed. A test that cannot fail is not evidence; this is the arm that
+  # makes the fix fail-checkable on every seat rather than only on the one that happens to be signed in.
+  rm -f "$TOKF" "$TMP/home/.ssh/github_auth"
+  ARMS=$((ARMS+1))
+  out=$(OP_SERVICE_ACCOUNT_TOKEN="sat-$(printf 'q%.0s' $(seq 1 60))" \
+        env "${NO_CRED[@]}" HL_FIXTURE_KEY="$TMP/vault_auth" HL_VAULT_CLASS=win11 HL_VAULT_STUB_FAIL=1 \
+        HL_VAULT_FILE="$TOKF" \
+        SRC="$TMP/src" REPOPATH="$TMP/repo" USERPROFILE="$TMP/home" HOME="$TMP/home" \
+        KEYDIR="$TMP/home/.ssh" PATH="$TMP/bin:$PATH" \
+        bash "$SELF" --raise-key 2>&1 || true)
+  [ -e "$TMP/home/.ssh/github_auth" ] \
+    && { echo "SELFTEST FAIL [env-cleared]: a planted token survived the clear and raised a key — the sandbox is not a sandbox"; fails=$((fails+1)); }
+  printf '%s' "$out" | grep -qi 'route=env' \
+    && { echo "SELFTEST FAIL [env-cleared]: the sandbox resolved route=env — it read the runner's environment, not its absent fixture"; fails=$((fails+1)); }
+  printf '%s' "$out" | grep -qi "could not read '$OP_AUTH_ITEM'" \
+    || { echo "SELFTEST FAIL [env-cleared]: no refusal was printed for a planted-then-cleared token (got: $(printf '%s' "$out" | tail -2))"; fails=$((fails+1)); }
+
   # Arm 3b — a ZERO-LENGTH key (the shape a previous `op read > file` failure leaves) plus a working
   # read: the old bytes get a backup, the key is replaced, and the PUB half is derived. What each half
   # catches: no backup = a hygiene run destroying seat state; no pub = a raise that leaves the seat
   # unable to prove which key it holds; both = the truncation shape this branch exists to clean up.
   printf '' > "$TMP/home/.ssh/github_auth"
   printf 'export OP_SERVICE_ACCOUNT_TOKEN=%s\n' "sat-$(printf 'z%.0s' $(seq 1 60))" > "$TOKF"
+  ARMS=$((ARMS+1))
   out=$(HL_FIXTURE_KEY="$TMP/vault_auth" HL_VAULT_CLASS=win11 HL_VAULT_STUB_FAIL=1 \
         HL_VAULT_FILE="$TOKF" \
         SRC="$TMP/src" REPOPATH="$TMP/repo" USERPROFILE="$TMP/home" HOME="$TMP/home" \
@@ -346,6 +381,7 @@ EOS
 
   # Arm 4 — the verdict matrix, through the seam. Line by line, because the defect this closed was ONE
   # cell: a keyless-but-unsigned seat accused of being INCOMPLETE.
+  ARMS=$((ARMS+1))
   v=$(bash "$SELF" --route-verdict "" "$TMP/absent" "ssh -o IdentityAgent=none" "false")
   [ "$v" = "UNATTENDED" ] || { echo "SELFTEST FAIL [verdict]: unsigned + no sign key reads $v — WANT UNATTENDED"; fails=$((fails+1)); }
   v=$(bash "$SELF" --route-verdict "" "$TMP/absent" "ssh -o IdentityAgent=none" "")
@@ -358,7 +394,7 @@ EOS
   [ "$v" = "PARTIAL" ] || { echo "SELFTEST FAIL [verdict]: an agent-reaching transport reads $v — WANT PARTIAL"; fails=$((fails+1)); }
 
   if [ "$fails" = 0 ]; then
-    echo "SELFTEST OK: git-bootstrap-win11 raises the seat payload safely and verdicts the route by the modal question (5 arms, sandboxed)"
+    echo "SELFTEST OK: git-bootstrap-win11 raises the seat payload safely and verdicts the route by the modal question ($ARMS arms, sandboxed)"
     exit 0
   fi
   exit 1
