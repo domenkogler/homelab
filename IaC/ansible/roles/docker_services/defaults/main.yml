@@ -165,9 +165,6 @@ bazarr_seed_port: 6767                      # the container's own port; the seed
 bazarr_seed_pvr:
   radarr: {ip: radarr, port: 7878}
   sonarr: {ip: sonarr, port: 8989}
-# The ONE leg Bazarr dials over HTTPS by name (the container name does not resolve in its network), so it
-# is the edge name and not `jellyfin_url`.
-bazarr_seed_jellyfin_url: "https://media.{{ domain_local }}"
 # ⚠ REPLACE-all fields: what is declared here is the COMPLETE set, not an addition. `sh` is in the
 # language list because it is enabled live (and is what the `cro/srb` profile asks for); dropping it from
 # here would silently stop hunting Serbo-Croatian subtitles. `enabled_providers` is replace-all the same
@@ -175,7 +172,9 @@ bazarr_seed_jellyfin_url: "https://media.{{ domain_local }}"
 bazarr_seed_languages: [sl, en, hr, sh, sr]
 bazarr_seed_providers: [opensubtitlescom]
 bazarr_seed_provider_item: opensubtitles_login   # username + password; an external account, never rotated by IaC
-bazarr_seed_jellyfin_item: jellyfin-bazarr_api   # the read-only Jellyfin key minted FOR Bazarr
+# No `bazarr_seed_jellyfin_*` defaults: Bazarr has no Jellyfin integration in this stack — the two PVRs
+# above are its only upstreams and the item that carried the leg (`jellyfin-bazarr_api`) is deleted
+# (tasks/bazarr-seed.yml; the ruling and its date are in docs/services-media.md §Credential rotation).
 
 # ---- SABnzbd host_whitelist — what tasks/sabnzbd-seed.yml reconciles ----# SABnzbd rejects any `Host:` it does not recognise with 403 "Hostname verification failed". The shipped
 # value holds only the container's short id, so BOTH doors are closed: the UI behind Traefik (which
@@ -419,11 +418,12 @@ _template_vault_items:
   lidarr: {'qbittorrent_api'}
   prowlarr: {'qbittorrent_api'}   # same reason and same item as the three arrs — tasks/arr-client-torrent.yml
                                   # writes this client too, and derive mode fetches per service IN SCOPE
-  # Bazarr takes no compose secret, but tasks/bazarr-seed.yml writes two app-state legs from the vault:
-  # the Jellyfin key Jellyfin minted for Bazarr, and the OpenSubtitles account. Derive mode fetches per
-  # enabled service IN SCOPE, so with no row here a `docker_services_scope=bazarr` converge would seed
-  # against an empty `vault` and the include's own assert would fail it closed.
-  bazarr: {'jellyfin-bazarr_api', 'opensubtitles_login'}
+  # Bazarr takes no compose secret, but tasks/bazarr-seed.yml writes one app-state leg from the vault: the
+  # OpenSubtitles account. The Jellyfin key it also wrote is gone with the leg — see the `bazarr_seed_*`
+  # defaults above. Derive mode fetches per enabled service IN SCOPE, so with no row here a
+  # `docker_services_scope=bazarr` converge would seed against an empty `vault` and the include's own assert
+  # would fail it closed.
+  bazarr: {'opensubtitles_login'}
   aurral: []   # config is all IN-UI (Lidarr API, Last.fm, ListenBrainz in first-run setup); no 1P items for the compose. lastfm_login/metabrainz_login stay as owner-reference items + docs rows. An empty set is `[]`: a bare `set()` is a Python literal YAML parses as the STRING "set()", which pollutes the derive item set with per-char fake items and op-vault-export fails on '('.
   lidarr-ydl: {'lidarr_api'}   # Lidarr API key (compose). Its Web-UI login has NO vault item — first-run setup, not fetched/required by compose.
   slskd: {'slskd_login', 'soulseek_api', 'soulseek-internal_api', 'privado-vpn_api'}   # Soulseek login + slskd UI password (JWT) + the slskd HTTP API key (x-api-key, read by soularr) + VPN client key (gluetun sidecar)

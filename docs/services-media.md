@@ -217,7 +217,7 @@ issuers are the apps, not the vault — and one surface has no machine path at a
 | `soulseek-internal_api`, `soulseek_api` | the vault; the slskd render **is** the far end | converge recreates `slskd` (bounded restart, no persistent state to lose) + soularr `[Slskd] api_key` | yes |
 | `privado-vpn_api` | the provider, by the owner | re-read the non-secret WG fields into `home_servers.yml` (`privado_vpn_endpoint_ip/_port/_public_key/_address`), then converge the two gluetun renders | yes — and the item's notes carry an `[Interface] PrivateKey` line, so read it **field-wise**, never by dumping or printing the body |
 | `jellyfin-seer_api`, `jellyfin-seerng_api` | **the Jellyfin admin UI** | each Seerr's own `settings.json` `jellyfin.apiKey` + restart, then the vault copy | **none**: this Jellyfin answers `GET /api/ApiKeys` and `GET /ApiKeys` with **404** and `GET /Users` with **401** unsigned. A vault-only write mints a value the server never issued and breaks request approval |
-| `jellyfin-bazarr_api` | **the Jellyfin admin UI**, same issuer as the two rows above | `bazarr-seed.yml` writes the vault copy into Bazarr's settings DB — the one Jellyfin leg the seed writes rather than reads, so a re-pointed vault item plus that converge re-teaches Bazarr | **none**, measured with an authenticated key rather than inferred: the same token that gets **200** from `/Users` and `/Devices` gets **404** from `GET /ApiKeys`, `GET /api/ApiKeys` and `POST /api/ApiKeys/New`, so this build has no key surface to mint or revoke at all; the value is one plaintext row in Jellyfin's own `ApiKeys` table (3 rows, one per key) and the only mechanical alternative is that table with the server stopped |
+| `jellyfin-bazarr_api` — **retired: the item is deleted (owner ruling, 2026-10-30)** | none any more — the item is gone from the vault | **nothing to re-teach: Bazarr has no Jellyfin integration in this stack.** Its upstreams are Radarr and Sonarr (`bazarr_seed_pvr`) and `bazarr-seed.yml` declares `general.use_jellyfin` **false**, with no `jellyfin.url` / `jellyfin.apikey` field managed | **n/a** — the captured value is **revoked, not rotated**: a deletion with no consumer owes no propagation and no re-render, so the debt closes on the deletion. ⛔ **Do not add a Bazarr → Jellyfin leg**; this row is where that ruling lives |
 | `admin @radarr.kogler.si` | the Radarr instance's **user store** (`<AuthenticationMethod>Forms</AuthenticationMethod>`, the password held hashed in the app's DB) | ⚠ it is **not** `radarr_api`: the two were provisioned equal and are separate stores, so rotating the API key leaves this login working — measured as `POST /login` → **302** with the session root answering **200** after an `<ApiKey>` rotation. Changing the login itself needs `AuthMethod=None` or a stopped Radarr. `/api/v3/user` → **404**: this build has no user store to PUT | no clean path |
 | `admin @media.kogler.si` | the Jellyfin user store | `POST /Users/<id>/Password` → **403** on the shapes probed (`NewPassword`, and `NewPassword`+`Password`); `GET /Users` is 200 once a bearer is issued by `POST /Users/AuthenticateByName` **with** the `X-Emby-Authorization` device header (without it: 400) | UI path |
 
@@ -241,7 +241,8 @@ is a render-path fix, never a rotation.
 
 ## Subtitles — Bazarr app-state wiring
 
-> **Status: 🟢 live + seeded** — Radarr + Sonarr + Jellyfin connected, provider and languages
+> **Status: 🟢 live + seeded** — Radarr + Sonarr connected (no Jellyfin leg — see §Credential rotation),
+> provider and languages
 > set, `.srt` sidecars landing next to the media. The wiring is IaC: `compose` owns the container and
 > **`roles/docker_services/tasks/bazarr-seed.yml`** owns the app state (converge
 > `--tags docker_services,bazarr_seed -e docker_services_scope=bazarr`). Bazarr keeps its settings in
@@ -267,7 +268,7 @@ then measured):
 | `GET /api/providers` | the honest provider-auth read — the per-provider `status` is what separates "configured" from "working" (`AuthenticationError` is the credential, not the network) |
 | `PATCH /api/movies/subtitles?radarrid=<n>&language=<code2>&forced=false&hi=false` | automatic search, one movie × one language. **All four params are required**; the 400 names exactly the one missing |
 | `GET /api/providers/movies?radarrid=<n>` | the UI's Manual Search; 500s without an assigned profile (`int() argument … not 'NoneType'`) |
-| `POST /api/jellyfin/test-connection` (`url`, `apikey`) | run it before saving the Jellyfin leg — it is the only thing that separates a wrong URL from a wrong key |
+| `POST /api/jellyfin/test-connection` (`url`, `apikey`) | the only thing that separates a wrong URL from a wrong key — for whoever ever configures a Jellyfin leg, which this stack does not (see §Credential rotation) |
 
 ⚠ **The profile-shape trap.**
 `GET /api/system/languages/profiles` renders each item's `language` as an **object**
@@ -286,7 +287,7 @@ host), with exactly one exception.** Measured from inside the Bazarr container:
 |---|---|---|
 | Bazarr → Radarr | `radarr:7878` + the key read from `/srv/docker/radarr/config/config.xml` | `GET /api/v3/system/status` → `200` with that key, while the key Bazarr had stored answered `401`; the seed writes the `config.xml` value |
 | Bazarr → Sonarr | `sonarr:8989` + its own `config.xml` key (the `arr-seed.yml` rule: instance key, never the vault copy) | the same `401`-vs-`200` pair |
-| Bazarr → Jellyfin | **`https://media.kogler.si`** — the container name fails (`HTTPSConnectionPool(host='media', port=443) … NameResolutionError`), because Bazarr dials this one over HTTPS by name | `test-connection` → `{"success": true, "server_name": "media", "version": "10.11.11"}`; `Movies` library + refresh-on-download on |
+| Bazarr → Jellyfin | **no such leg here** — the two arrs above are Bazarr's only upstreams, and `bazarr-seed.yml` declares `general.use_jellyfin` false. If one is ever added it dials **`https://media.kogler.si`**, never the container name | the container name fails (`HTTPSConnectionPool(host='media', port=443) … NameResolutionError`) while `test-connection` on the edge name answers `{"success": true, "server_name": "media", "version": "10.11.11"}` |
 | Bazarr → provider | `opensubtitlescom` with `opensubtitles_login` | ❌ `Throttling opensubtitlescom … AuthenticationError … 'Login failed'`, retried hourly — and the stored login is **byte-equal to the vault item**, so this is the credential itself, not a propagation failure or the network |
 
 **The PVR legs are the propagation gap this seed closes.** A rotated arr API key reaches
@@ -301,9 +302,10 @@ instance issues it, so a rotation goes there first**: `auth.apikey` in
 `/srv/docker/bazarr/config/config/config.yaml`, edited with the container STOPPED — a running Bazarr
 rewrites that file on a graceful exit and would restore the old value — then Bazarr starts, then the vault
 copy is written. `bazarr-seed.yml` READS that file (as `X-Api-Key`) and never writes it, so no converge
-propagates a rotate and `--rotate` on the item alone writes a value the app never issued. Jellyfin's
-read-only key minted for Bazarr is `jellyfin-bazarr_api` → [deployment-secrets.md](deployment-secrets.md);
-that one leg the seed DOES write, because Jellyfin mints it and there is no instance file to read.
+propagates a rotate and `--rotate` on the item alone writes a value the app never issued. **There is no
+Jellyfin key here**: `general.use_jellyfin` is declared false in `bazarr-seed.yml`, no `jellyfin.*` setting
+is managed, and the item that would back such a leg (`jellyfin-bazarr_api`) is deleted — owner ruling
+2026-10-30, §Credential rotation above → [deployment-secrets.md](deployment-secrets.md).
 
 **App state read over the API:** languages enabled
 `sl, en, hr, sr, sh` (`bazarr_seed_languages`; `sh` is what the `cro/srb` profile asks for, so dropping it

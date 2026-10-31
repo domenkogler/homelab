@@ -36,8 +36,9 @@
       settings-sonarr-ip: "{{ bz_live_json.sonarr.ip | default('') | string }}"
       settings-sonarr-port: "{{ bz_live_json.sonarr.port | default(0) | string }}"
       settings-sonarr-apikey: "{{ bz_live_json.sonarr.apikey | default('') | string }}"
-      settings-jellyfin-url: "{{ bz_live_json.jellyfin.url | default('') | string }}"
-      settings-jellyfin-apikey: "{{ bz_live_json.jellyfin.apikey | default('') | string }}"
+      # No `settings-jellyfin-*` rows: the Jellyfin leg is not managed (see bazarr-seed.yml). The
+      # `general.use_jellyfin` switch IS read, one block up, because the declared OFF there has to be
+      # compared with something.
       # ⚠ `password` is in the app's `str_keys`, so it is never int-cast on the way in — the reason an
       # all-digit OpenSubtitles password survives a write at all.
       settings-opensubtitlescom-username: "{{ bz_live_json.opensubtitlescom.username | default('') | string }}"

@@ -1,5 +1,5 @@
 ---
-# bazarr-seed.yml — seed Bazarr's PVR links, Jellyfin leg, languages and subtitle provider.
+# bazarr-seed.yml — seed Bazarr's PVR links, languages and subtitle provider.
 # Included ONCE from docker_services/main.yml, gated on `svc.template_dir == 'bazarr'` + the deploy scope
 # + `not ansible_check_mode` (every task here drives the live API — deployment-ansible.md §Dry-run).
 #
@@ -16,9 +16,11 @@
 #     apps answered 200 to the key in their own `config.xml`. A rotate of an arr key propagates to
 #     `lidarr-ydl`, soularr and SeerrNG through their renders, and to Bazarr through NOTHING — so the
 #     instance file is the only place the current truth lives.
-#   * `jellyfin.url` + `jellyfin.apikey` — `jellyfin-bazarr_api` from the vault: Jellyfin mints that key
-#     FOR Bazarr, so there is no instance file to read it from. The URL is the ONE leg Bazarr dials over
-#     HTTPS by name; the container name does not resolve in its network (docs/services-media.md).
+#   * NO Jellyfin leg. Bazarr's upstreams in this stack are the two PVRs above and nothing else — it never
+#     dials Jellyfin. `general.use_jellyfin` is declared OFF and no vault item backs it: the item that
+#     carried the leg (`jellyfin-bazarr_api`) is deleted, and `jellyfin.url` / `jellyfin.apikey` are not
+#     managed here — with the switch off they are inert app state. ⛔ Do not re-add the leg: there is no
+#     consumer to re-teach (docs/services-media.md §Credential rotation carries the ruling and its date).
 #   * the provider login — `opensubtitles_login` from the vault. It is an external account, not a machine
 #     credential: nothing mints it and no converge rotates it.
 #
@@ -52,16 +54,13 @@
       - bazarr_seed_pvr | length > 0
       - bazarr_seed_providers | length > 0
       - bazarr_seed_languages | length > 0
-      - bazarr_seed_jellyfin_url | trim | length > 0
-      - bazarr_seed_jellyfin_item in (vault | default({}))
       - bazarr_seed_provider_item in (vault | default({}))
-      - vault[bazarr_seed_jellyfin_item].credential | default('') | length >= 16
       - vault[bazarr_seed_provider_item].username | default('') | length > 0
       - vault[bazarr_seed_provider_item].password | default('') | length > 0
     fail_msg: >-
-      A bazarr_seed_* default is empty, or one of the two vault items
-      ({{ bazarr_seed_jellyfin_item }}, {{ bazarr_seed_provider_item }}) was not fetched by the 1P
-      pre-pass. Neither has a fallback on purpose: an empty provider list DISABLES every provider (the
+      A bazarr_seed_* default is empty, or the vault item
+      ({{ bazarr_seed_provider_item }}) was not fetched by the 1P
+      pre-pass. There is no fallback on purpose: an empty provider list DISABLES every provider (the
       field is replace-all) and an empty language list disables every language, which is the app
       answering 200 and fetching nothing — the exact state this file exists to prevent.
   tags: [docker_services, bazarr_seed]
@@ -170,7 +169,11 @@
     _bz_want_body:
       settings-general-use_radarr: "true"
       settings-general-use_sonarr: "true"
-      settings-general-use_jellyfin: "true"
+      # OFF by ruling, not by omission: the two PVRs above are Bazarr's only upstreams, so `true` here would
+      # have the seed dial an edge endpoint nothing credentials. Declared rather than dropped, so an instance
+      # that still has the switch on is reconciled back to off. The date and the reason are in
+      # docs/services-media.md §Credential rotation.
+      settings-general-use_jellyfin: "false"
       settings-general-enabled_providers: "{{ bazarr_seed_providers | sort | list }}"
       settings-radarr-ip: "{{ bazarr_seed_pvr.radarr.ip }}"
       settings-radarr-port: "{{ bazarr_seed_pvr.radarr.port | string }}"
@@ -178,8 +181,6 @@
       settings-sonarr-ip: "{{ bazarr_seed_pvr.sonarr.ip }}"
       settings-sonarr-port: "{{ bazarr_seed_pvr.sonarr.port | string }}"
       settings-sonarr-apikey: "{{ _bz_pvr_keys.sonarr }}"
-      settings-jellyfin-url: "{{ bazarr_seed_jellyfin_url }}"
-      settings-jellyfin-apikey: "{{ vault[bazarr_seed_jellyfin_item].credential }}"
       settings-opensubtitlescom-username: "{{ vault[bazarr_seed_provider_item].username }}"
       settings-opensubtitlescom-password: "{{ vault[bazarr_seed_provider_item].password }}"
   no_log: true

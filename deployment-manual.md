@@ -1921,31 +1921,27 @@ field `credential` — there is no `litellm_master_key` item). Exact payloads:
    succeeds; and `docker exec metabase id` shows uid **0** (the image's entrypoint `chown`s runtime dirs —
    a non-root `user:` here makes the container exit at `Permission denied`).
 
-### P3.8 Jellyfin API keys — a hand mints them, the converge only carries them `[MANUAL — owner browser]`
+### P3.8 Jellyfin API keys — a hand mints them and a hand re-teaches the holder `[MANUAL — owner browser]`
 
 > Which end issues each media key, what each leg propagates through, and why this door has no machine
 > path: [services-media.md](docs/services-media.md) §Credential rotation. This section is the order of
 > hands only.
 
 1. **Mint** — on the Jellyfin admin UI's **API Keys** page, add a key named for the app that will hold it
-   (`bazarr`, `seerr`, `seerrng`). The API has no mint on the pinned build: it answers `404` at
+   (`seerr`, `seerng`). The API has no mint on the pinned build: it answers `404` at
    `GET /api/ApiKeys`, `GET /ApiKeys` and `POST /api/ApiKeys/New` for a bearer that gets `200` from
    `/Users`, so a value put into the vault without this step is one the server never issued.
 2. **Revoke the superseded row** on the same page, in the same sitting. A vault write never revokes its
    predecessor, and a row left behind is a key that still works.
-3. **Write the item** that app's credential is — `jellyfin-bazarr_api` for Bazarr, `jellyfin-seer_api` /
-   `jellyfin-seerng_api` for the two request portals — with the value the UI issued, in the round-trip
+3. **Write the item** that app's credential is — `jellyfin-seer_api` / `jellyfin-seerng_api` for the two
+   request portals — with the value the UI issued, in the round-trip
    form of [deployment-secrets.md](docs/deployment-secrets.md) §Creation & Rotation Workflow item 7.
    ⛔ never `--rotate`: that mints a second value the server never saw and the app never got, and a
    key the server does not hold breaks request approval.
-4. **Re-teach the consumer.** Bazarr is the one Jellyfin leg a converge owns — `bazarr-seed.yml` writes
-   the vault copy into Bazarr's own settings DB:
-   ```bash
-   bash scripts/ansible/ansible-run.sh playbooks/home_servers.yml --limit oldsrv.kogler.si \
-        --tags docker_services,bazarr_seed -e docker_services_scope=bazarr
-   ```
-   The two Seerr keys are app state, not a render: paste each into its own `settings.json`
-   `jellyfin.apiKey` and restart that container.
+4. **Re-teach the consumer.** Both holders are app state, not a render: paste each key into its own
+   `settings.json` `jellyfin.apiKey` and restart that container. **Bazarr holds no Jellyfin key** — it has
+   no Jellyfin leg in this stack (`bazarr-seed.yml` declares `general.use_jellyfin` false), so there is
+   nothing to seed and no converge that carries one here.
 5. **Verify in both directions** — the consumer's stored key hashes to the same `sha256[:12]` as the
    vault item, one live Jellyfin call answers **200** with the new key and the superseded one answers
    **401**, and `python3 scripts/gate/check_secret_leak.py` stops reporting the pair. The debt book then
