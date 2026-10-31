@@ -24,6 +24,20 @@
 # answer is that NO comparison happened, and the reader must be handed the command to EXTEND rather than
 # a reason to mute the leg.
 #
+# THE VOCABULARY, in words, because rc 2 must never be read as a boundary when it is really a blind spot:
+#   ok · not ok · PASS · FAIL · ERROR · SKIP · NOTE · WARNING · WARN · FATAL · CANNOT   the verdict-word idiom
+#   GREEN · caught                                                                     what THIS repo's harness
+#                                                                                      self-tests answer with
+# A word is a verdict only when the character BEFORE it is a space or the line's start and the one AFTER
+# it is `:` `!` `?` a space or the line's end — so `uncaught` and `GREENHOUSE` are not arms. Without
+# `GREEN` and `caught` the runner answers rc 2 with `0 arm(s)` on BOTH sides of a leg that printed 17
+# verdict lines each (measured 2026-10-31 on `bash scripts/bench/win/gate-parity.sh -- bash
+# scripts/harness/pi-tui-config.sh --self-test`). That answer
+# is not a boundary, it is blindness, and it makes a leg unwrappable-as-specified: a wrap is authorised
+# by a parity line, and a blind recognizer can print only rc 2. Re-derive what is in force with either:
+#   bash scripts/bench/win/gate-parity.sh --self-test | head -1    # the recognizer, as every run prints it
+#   grep -n '^HL_PARITY_ARM_RE=' scripts/bench/win/gate-parity.sh  # the expression itself
+#
 # WHAT IS NOISE — one rule per line of the normalizer, each with the difference it removes, and never a
 # blanket `grep -v`, because a rule that drops a whole class of lines is how a lost arm gets muted:
 #   CR              the Windows side ends a line with \r, the engine does not
@@ -80,10 +94,13 @@ done
 # a different reason.                                                           #
 # --------------------------------------------------------------------------- #
 
-# An arm is a line the leg OFFERS as a verdict, so the head list is kept honest to this tree's legs (the
-# fixtures and the wrapped self-tests print `ok  `, `PASS:`, `FAIL:`, `SKIP:`). A leg that reports in
-# prose has NO arms, and that is an rc 2 — nothing to compare — never a free green.
-HL_PARITY_ARM_RE='(^|[[:space:]])(ok|not ok|PASS|FAIL|SKIP|NOTE|ERROR|WARNING|WARN|FATAL|CANNOT)[!?:[:space:]]'
+# An arm is a line the leg OFFERS as a verdict, so the head list is kept honest to this tree's legs: the
+# fixtures and the wrapped self-tests print `ok  `, `PASS:`, `FAIL:`, `SKIP:`, and the harness self-tests
+# (pi-tui-config, install-tmux-conf, pi-settings-config) answer `… GREEN` / `… caught`. The tail class
+# accepts the END OF THE LINE as well as punctuation, because `  file-untouched   GREEN` is a verdict
+# too — and an arm nobody reads is an rc 2 that reads as a boundary (see the header's VOCABULARY block).
+# A leg that reports ONLY in prose has NO arms, and that is an rc 2 — nothing to compare — never a free green.
+HL_PARITY_ARM_RE='(^|[[:space:]])(ok|not ok|PASS|FAIL|SKIP|NOTE|ERROR|WARNING|WARN|FATAL|CANNOT|GREEN|caught)([!?:[:space:]]|$)'
 
 PARITY_STRICT_ARMS=1     # MUTATION SEAM (self-test): 0 = stop comparing the arm COUNTS
 PARITY_STRICT_WORDS=1    # MUTATION SEAM (self-test): 0 = stop comparing the normalized verdict WORDS
@@ -125,6 +142,13 @@ _arm_scan() {
       else if (s ~ /^(NOTE|WARNING|WARN)([ !?:]|$)/)         w = "NOTE"
       else if (s ~ /(^|[[:space:]])not ok/)                  w = "not-ok"
       else if (s ~ /(^|[[:space:]])(ok|PASS)([ !?:]|$)/)     w = "ok"
+      # The harness-leg idiom — `foreign-probe     GREEN`, `noms-canary     caught`. It sits LAST among
+      # the ok tests, so a severity word elsewhere on the line still owns the LABEL, and an arm that
+      # merely EXPLAINS a skip (`… GREEN (rc 2 = SKIP, not a pass)` — the comma keeps the severity test
+      # away, since it wants a word boundary after its own word) keeps its ok. An arm that stopped
+      # running changes the COUNT, and the COUNT rule is what catches a lost arm. The VOCABULARY block
+      # in the header owns the word list; the recognizer line every run prints is what a reader extends.
+      else if (s ~ /(^|[[:space:]])(GREEN|caught)([ !?:]|$)/) w = "ok"
       if (w == "") w = "?"
       if (!(w in c)) { i++; o[w] = i }
       c[w]++
@@ -366,7 +390,7 @@ st_fixture() { # st_fixture <name> <want-rc> <why>
 }
 
 self_test() {
-  local _name _rest _want _why _out _rc _got _in _pi _ps
+  local _name _rest _want _why _out _rc _got _in _pi _ps _vi
   _st=0; _st_n=0
   _st_tmp="$(mktemp -d "${TMPDIR:-/tmp}/gate-parity-st-XXXXXX")" || return 1
   # Scratch the self-test owns, cleaned on the way out: its corpus and mutant files, and the stub door's
@@ -392,6 +416,24 @@ self_test() {
   [ "${_ps%%$'\t'*}" = 0 ] \
     && _st_ok "prose yields ZERO arms — the shape the rc-2 rule exists to refuse" \
     || _st_no "prose was counted as arms"
+  # THE HARNESS VOCABULARY — the words this repo's harness self-tests actually answer with. Without them
+  # the runner answers rc 2 with `0 arm(s)` on BOTH sides of a leg that printed 17 verdict lines each
+  # (measured 2026-10-31 on `bash scripts/bench/win/gate-parity.sh -- bash
+  # scripts/harness/pi-tui-config.sh --self-test`). A recognizer blind to those words reports "nothing
+  # was compared" about a leg that compared everything it has: blindness wearing a boundary's face, and
+  # it makes a leg unwrappable, because a wrap is authorised by a parity line and rc 2 never prints one.
+  # Pinned HERE so narrowing the expression reddens an arm instead of returning rc 2 from every harness
+  # leg, one lane at a time.
+  # Line 4 is the canary that keeps the widening a WORD rule: `uncaught` and `GREENHOUSE` contain the
+  # words and carry no verdict. Lines 5 and 6 pin the labelling rule stated in _arm_scan: a real SKIP
+  # verdict keeps its label even beside a GREEN-carrying line, and an explanatory word does not steal one.
+  printf 'foreign-probe    GREEN\nnoms-canary      caught\nchecked the tree, rewrote nothing in prose\nuncaught exception in a fixture, GREENHOUSE gas\nforeign-probe    SKIP (no tmux) — install ran, the load probe cannot\nskip-arm         GREEN (rc 2 = SKIP, not a pass)\n' >"$_st_tmp/vocab"
+  _vi="$(_arm_scan "$_st_tmp/vocab" "$_st_tmp/vocab.arms")"
+  if [ "${_vi%%$'\t'*}" = 4 ] && [ "${_vi#*$'\t'}" = "ok x3 · SKIP x1" ]; then
+    _st_ok "the words a harness leg answers with are ARMS — 4 of 6 lines counted (GREEN, caught; not uncaught/GREENHOUSE), and the severity label survives them"
+  else
+    _st_no "the harness vocabulary gave ${_vi%%$'\t'*} arm(s) and the histogram '${_vi#*$'\t'}' — want 4 and 'ok x3 · SKIP x1'; the recognizer no longer reads what this repo's legs print"
+  fi
 
   printf '== the normalizer: each rule on a planted literal ==\n'
   local _before_fail=$_st
