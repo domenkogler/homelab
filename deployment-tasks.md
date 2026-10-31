@@ -561,11 +561,11 @@ HD-358 (Seerr → \*arr link — IaC-seeded by `roles/docker_services/tasks/arr-
 - [ ] **HD-04 tail** — **[MANUAL, owner]** second failover drill: exercise **Pi→oldsrv→Pi** and the oldsrv→Pi
       **reverse** takeover (the 2026-09-09 drill proved forward + reported Pi→oldsrv only; the reverse direction is
       untested and the manual runbook has a documented gap). · [smart-home-failover.md](docs/smart-home-failover.md)
-- [ ] **HD-17** — **[MANUAL, owner]** visual pass on the rendered failover cards: the `Smart Home
-      Failover` group on the launchpad must show both cards, each href pointing at the oldsrv Home address
-      (the render + the IP-only wording landed with the `homepage_failover_button: true` flip; the
-      `ha-failover-api` service itself is live since 2026-09-08). Click only in a supervised window — a
-      click is a real takeover. · [smart-home-failover.md](docs/smart-home-failover.md)
+- [x] **HD-17** — **[MANUAL, owner]** ✅ **done 2026-10-30** — visual pass on the rendered failover cards: the
+      `Smart Home Failover` group on the launchpad shows both cards, each href pointing at the oldsrv Home address
+      (no doubled `http://`, no empty host). ⛔ **Nothing was clicked — deliberately:** a click is a real takeover,
+      and this row's acceptance is the eyeball, not the trigger. The standby itself is still undeployed, which is
+      **HD-1109**'s cold create, not a card defect. · [smart-home-failover.md](docs/smart-home-failover.md)
 - [ ] **HD-318(g)** — the HA **ZHA** radio on the Pi (the one serial device no converge can reach — it is host
 - [ ] **HD-319** — **[MANUAL, owner]** confirm the 3 rekuperator group addresses (12/1/*) answer on the KNX bus
       (some `GroupValueRead` warnings remain); the render-from-`.knxproj` + dashboard are live. · [smart-home.md](docs/smart-home.md)
@@ -836,12 +836,14 @@ on the VPS, Pi and oldsrv ship Alloy + network-clients + syslog, Grafana is the 
 
 1. Homematic full-local (HmIP-RFUSB + RaspberryMatic, local XML-RPC; human moves/fits the stick) — **HD-13**
    (**parked**; the stick is unpurchased, the CCU rows in `network_static_hosts` stay dormant)
-2. Single failover button + `ha-failover.sh` — **HD-17** (tracked in Phase 4)
-3. KNX render + dashboard tail — **HD-319** (Phase 4)
+2. KNX render + dashboard tail — **HD-319** (Phase 4)
 
 > Retired from this list on 2026-09-19 because the rows no longer exist: **HD-15** (HACS confirm),
 > **HD-16** (Authentik OIDC for downstreams — superseded by the HD-141 epic on the VPS), **HD-18** (the HmIP-RFUSB
 > stick was REJECTED), **HD-27** (voice pipeline — superseded by the pinned-AI stack, `docs/smart-home-voice.md`).
+> **HD-17** (single failover button + `ha-failover.sh`) joined them on 2026-10-30: rendered, converged and read on
+> the launchpad, so the row is gone and the mechanism plus the click risk stay in
+> [smart-home-failover.md](docs/smart-home-failover.md).
 > HA local login, not SSO, is also settled here (owner declined OIDC for HA — `todo.md` §2.1a Pkg E).**
 7. Office AI stack (Ollama models, n8n, Office MCP path per HD-108/111 — AnythingLLM/LocPilot retired, ONLYOFFICE) — **HD-28**
 

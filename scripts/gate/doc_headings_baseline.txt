@@ -293,7 +293,6 @@
 1	todo.md	docs/deployment-secrets.md	§Token
 1	todo.md	docs/deployment-secrets.md	§Unattended
 1	todo.md	docs/harness-pi-seats.md	§5a
-1	todo.md	docs/harness-pi-terminal.md	§6
 1	todo.md	docs/network-addresses-generated.md	§8.2
 1	todo.md	docs/network-addresses-generated.md	§8.5
 1	todo.md	docs/network-vlans.md	§Firewall

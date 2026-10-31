@@ -52,6 +52,11 @@ tags: [smart-home, homeassistant, failover, ha, vip, standby]
 > and they are the same `/usr/local/sbin/ha-failover.sh` trigger behind root's `sudo … forward`, reachable
 > from the home network only (§Forward Takeover, *Who fires it*) — so the launchpad currently offers a real,
 > untested cold-create-under-pressure, not a standby start.
+>
+> **The rendered cards, live-verified 2026-10-30 (owner, at the launchpad):** the `Smart Home Failover` group shows
+> BOTH cards and each href resolves to oldsrv's Home-VLAN address on `failover_api_port` — no doubled `http://`, no
+> empty host. The read is deliberately an eyeball: a card IS the real trigger, so neither card was clicked and nothing
+> here claims a click result. ⛔ The first forward click stays a cold create, not a standby start, until (1) runs.
 > Homematic has no local RF path; the HmIP-HAP stays cloud-mode
 > ([smart-home-rejected.md](smart-home-rejected.md)). Runbooks below are the spec to be executed at
 > takeover time.

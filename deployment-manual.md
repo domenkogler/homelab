@@ -2026,7 +2026,7 @@ Pi `docker_services` = `home-assistant-primary`, `technitium-secondary`, `traefi
 - HA web login is **local** (owner account, `ha` route). Authentik OIDC for HA was **declined by the owner** —
   do not wire it. The SSO dashboard links HA, HA does not authenticate to Authentik.
 - Manual failover Pi→oldsrv and back passes ([smart-home-failover.md](docs/smart-home-failover.md) runbook; the
-  Homepage button + `ha-failover_api` gate are tracked as HD-17 / HD-217).
+  Homepage cards render only when the `homepage_failover_button` gate is true, and their hrefs are IP-only).
 - NUT client shutdown path (master = nas) · monitoring scrape of the HA exporter (Phase 6, gated behind HD-14).
 
 > Open items on this host are the ledger's Phase 4 block ([deployment-tasks.md](deployment-tasks.md)) and

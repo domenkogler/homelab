@@ -1005,6 +1005,14 @@ Both routes were exercised on `Domen_P14s` and both authenticate; the row that m
 an unattended seat is the last one. `scripts/git/git-bootstrap-win11.sh --check` prints which route the seat
 is on without changing anything.
 
+The verdict is ONE function (`route_verdict()`), answered identically by `--check`, by `--git-identity`'s
+fail-closed assertion and by the `--self-test` seam — `--route-verdict` feeds it fixture values precisely so the
+verdict can be canaried. What it asks is whether a git call on that box can ever **WAIT** for a human, never whether
+the retired signing key exists. ⚠ The Debian sibling [`../scripts/git/git-bootstrap.sh`](../scripts/git/git-bootstrap.sh)
+prints **no** route verdict, so on a Debian seat the route is a config-resolution read (`gpg.ssh.program` absent, and
+the modal-free include still present under the `includeIf` key) rather than a scripted verdict — after a reimage, a
+restored `~/.gitconfig` `.bak-*`, or one `--1password` run nothing there reports the seat off the modal-free route.
+
 | requirement | modal-free seat default (`--git-identity`) | 1Password route (`--1password`) |
 |---|---|---|
 | transport | **Git for Windows' own ssh** — `C:/PROGRA~1/Git/usr/bin/ssh.exe` (OpenSSH 10.5p1 / OpenSSL) | **Windows OpenSSH** — `C:/Windows/System32/OpenSSH/ssh.exe` (9.5p2 / LibreSSL), because that client is what resolves `\\.\pipe\openssh-ssh-agent` |

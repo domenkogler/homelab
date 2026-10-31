@@ -36,8 +36,9 @@
   and `--tags hygiene` is the leg that bakes a host's pin map — a `differ` row is a statement about a render, never
   about packages ([docs/observability.md](docs/observability.md) §Pin-lag report).
 - **Phase 5 (router/switch) and Phase 6 (spark) have not run**, Phase 7 ran its re-seats but not its ledger commit,
-  Phase 8 is owed. The `wsl` delegation plane is still unverified (HD-1180), and a spark-served sitting bars its own
-  Phase 6 (Rule 0).
+  Phase 8 is owed. The `wsl` delegation plane is answered FROM that seat (HD-1180: background children launched there
+  yield child session files), so lanes launched from `wsl` run `async: true`; `win11` still owes its own launch. A
+  spark-served sitting bars its own Phase 6 (Rule 0).
 - **Rotated — ⛔ do not rotate again inside this window:** `radarr_api`, `sonarr_api`, `lidarr_api`, `bazarr_api`,
   `soulseek_api` + `soulseek-internal_api`, `qbittorrent_api`, `op_api`, `entrim_api`, `openrouter_api`,
   `opencode-go_api`, `litellm_api`, the NUT pair (`nut_password` + `nut-exporter_password`, one act across the three
@@ -277,7 +278,7 @@ closed by definition, not by a change. ⛔ Never shred or delete a transcript (H
 - [x] `echo "seat=$(uname -n) provider=$PI_PROVIDER"` — the sittings read **spark**, so Phase 6 could not run in them
   (Rule 0: no engine restart, no `spark-ai` re-render): take it in an externally-served session, stated by the owner
   in-session (README §3).
-- [ ] Delegation plane: `wsl` is unverified (HD-1180) ⇒ lanes run **foreground-sequential**, or pay the two acts (push the `settings` plane + `pi install npm:pi-subagents@0.80.0` FROM this seat, accepted by its own `async: true` launch).
+- [x] Delegation plane: `wsl` is answered FROM this seat — background children launched here yield their child session files, so lanes run `async: true` (HD-1180). `win11` is the one seat that still owes its own `async: true` launch.
 - [x] ⏭ `python3 scripts/gate/check_secret_leak.py` **from this seat** — read taken (HD-1181 leg 3); with the oldsrv and win11 reads it is the rotation list for Phase 2.
 - [x] **The model-path verdict, read before every converge act in this window:** `bash scripts/harness/seat-llm-path.sh --check`.
   This window read **`path=lan`** ⇒ a VPS edge/sidecar act cannot cut the session's own inference lane (the §7 trap is

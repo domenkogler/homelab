@@ -114,7 +114,16 @@ End-to-end by hand, the way a person notices it: select text with the mouse in a
 it on the machine you are sitting at. If nothing arrives, the seat's config is fine and the **outer
 terminal is refusing OSC 52** — `xterm` needs the `allowWindowOps: true` resource; VTE ≥ 0.60, kitty,
 wezterm, foot and alacritty accept by default. Nothing inside tmux can fix that leg, which is why it is
-an ⏳ owner-gated tail and not a bug in the script.
+an ⏳ owner-gated tail and not a bug in the script. That leg is **live-verified 2026-10-30 (owner, at a Debian
+seat)**: the drag selects inside the pane and the text arrives when pasted on the machine that typed it.
+
+**The seats are not symmetric, and that is a defect rather than a fact of nature.** This config reaches the
+**Debian** seats — `oldsrv` and the WSL laptop seat — because those are the two that run tmux; the Win11 seat
+runs none, by design. So the same keystrokes do different things depending on which machine you typed from: a
+drag on a Debian seat is captured by tmux and travels as OSC 52, while on the Win11 host the outer terminal's own
+selection is the only thing there. Closing the gap means taking the mouse + OSC-52 legs **off** the two seats that
+carry them — ⛔ not authoring a tmux config for the Win11 host, which would add a third shape instead of parity.
+Until that happens the SSOT is what a Debian seat gets, and no seat gets a private variant of it.
 
 **Seat state (WSL Debian laptop; live-verified marker):** tmux 3.5a is installed on this seat and the config is
 *effective*, not just in place — `install-tmux-conf.sh --check --strict` prints `load probe OK — the SSOT parses AND

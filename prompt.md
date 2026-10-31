@@ -34,8 +34,8 @@ that ends seat by seat as **HD-1180**'s fix lands, never a new rule, and never t
 | seat | delegation-plane verdict | the one act left |
 |------|--------------------------|------------------|
 | `oldsrv` | lanes launched from oldsrv run `async: true` | none |
-| `win11` | not verified from that seat | ⏳ owner: push the `settings` plane and `pi install npm:pi-subagents@0.80.0` FROM the seat, then accept it with **its own** `async: true` launch |
-| `wsl` | not verified from that seat | ⏳ owner: the same two acts, run FROM that seat |
+| `wsl` | ✅ verified FROM the seat — background children launched here yield their child session files (`~/.pi/agent/sessions/--home-domen-source-homelab--/subagent-artifacts/`), so lanes launched from the WSL seat run `async: true` | none |
+| `win11` | not verified from that seat | ⏳ owner: the `settings` plane and `npm:pi-subagents@0.80.0` are already in place there, so ONE act remains — accept it with **its own** `async: true` launch, run FROM that seat |
 
 ⛔ Never by npm-installing chord under a managed seat tree. Mechanism and legs: **HD-1180** in [todo.md](todo.md) and
 [prompt-seat-cockpit-grants.md](prompt-seat-cockpit-grants.md).
@@ -237,8 +237,8 @@ not this list, holds the steps, the file ownership and the converge host. Waves,
    written — the Authentik→NAS glue is gone from BOTH sides and `op` on the NAS is unwanted rather than missing; what
    remains is one credential-bearing leg on a second host (`smbclient //nas/domen -A creds`), parked. (**HD-1089**,
    the SABnzbd locality read, is in the unbriefed list below.) → [prompt-media-arrs.md](prompt-media-arrs.md)
-5. ⏳ **Cockpit, the coding seats, grants** — the cluster (**HD-361 · 411 · 442 · 443 · 465 · 495 · 1085 ·
-   1110 · 1161**) with its owner-gated tails intact, plus **HD-1180** (unbriefed). ⚠ **Pull the DRIVER clone first: at
+5. ⏳ **Cockpit, the coding seats, grants** — the cluster (**HD-361 · 411 · 442 · 443 · 465 · 495 · 1227 ·
+   1110 · 1161 · 1126**) with its owner-gated tails intact, plus **HD-1180** (unbriefed). ⚠ **Pull the DRIVER clone first: at
    `main~2` the pre-flight calls two current seats `STALE-CLONE`.** **HD-495**: `git-bootstrap.sh --git-identity` (and
    `--git-identity --check`, read-only) owns the three lines a Debian seat needs OUTSIDE any clone; what is left is the
    two hand-planted `~/.ssh` keys — `--ssh-auth` raises them, so no converge asserts the payload exists. ⛔ Never
@@ -298,7 +298,7 @@ not this list, holds the steps, the file ownership and the converge host. Waves,
    host that owns the unit. **HD-1101** — the fail-loud resolver guard is keyed on `host_resolver_dns` alone with a
    per-host `set_fact`, and it is fixed and applied on both hosts. ⚠ On a keyfile host the write leg is **`nm-pi`**;
    `--tags nm-resolver` there selects the guard and proves the check, and writes nothing.
-   Plus **HD-04 · 434 · 438 · 439 · 319 · 17 · 1205**. → [prompt-smart-home.md](prompt-smart-home.md)
+   Plus **HD-04 · 434 · 438 · 439 · 319 · 1205**. → [prompt-smart-home.md](prompt-smart-home.md)
 8. ⏳ **Edge and identity** — **HD-147**'s browser-login tail, **HD-457** (the SSO seat owns the family library —
    ruled; what is left is the per-user/shared-album shape, read at implementation time), **HD-458 · 459** (zipline, the
    published names), **HD-112**, and **HD-357** — the launchpad tiles. ⏸ **HD-47** stays an owner act: the
