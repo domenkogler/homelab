@@ -27,8 +27,9 @@ the legs only that box may drive: [prompt-laptop-wsl.md](prompt-laptop-wsl.md) �
 
 **One gate item is red on a seat whose environment carries the vault credential:** `git-bootstrap-win11.sh --self-test`'s
 `[no-credential]` arm clears the token FILE but not the inherited variable, so `route=env` resolves inside its own
-sandbox and the arm finds a working credential. It passes with `OP_SERVICE_ACCOUNT_TOKEN` unset, is not a regression, and
-no row owns the sandbox fix yet — read it as that one line, not as a broken tip.
+sandbox and the arm finds a working credential (reproduced on the oldsrv station, whose environment carries the token).
+It passes with `OP_SERVICE_ACCOUNT_TOKEN` unset, is not a regression, and **HD-1229** owns the sandbox fix — read the
+grade as that one line, not as a broken tip.
 
 **The delegation-plane check — run it BEFORE routing any lane, on the seat you are on**: launch ONE `async: true` child
 and require it to **yield a child session file**; no `--check` substitutes for it, and a pass certifies only the seat it
@@ -140,7 +141,7 @@ most; a rank is not an order. Only step 3 needs an external model, and it is the
 | # | step | from | why it sits there |
 |---|---|---|---|
 | 0 | the seat pre-flight + that seat's delegation plane (HD-1180) — [prompt-laptop-wsl.md](prompt-laptop-wsl.md) §0 | the WSL Debian station | every converge in the window is driven **off-box** from there; an unverified delegation plane makes the whole run foreground-sequential |
-| 1 | the in-repo leak tools (HD-1219 → HD-1216 → HD-1218, the order is a dependency) and the whole-corpus gates — [prompt-secrets.md](prompt-secrets.md) §3, [prompt-external.md](prompt-external.md) | any seat, no converge host | they stop the *next* run-capture debt before the next window creates one — the last window created several. **WIP**: **HD-1216**'s launcher fix sits unaccepted on `session/hd1216-masker-fix` (`5b6fab75`) — not merged, seat pair never run under node |
+| 1 | the in-repo leak tools (HD-1219 → HD-1216 → HD-1218, the order is a dependency) and the whole-corpus gates — [prompt-secrets.md](prompt-secrets.md) §3, [prompt-external.md](prompt-external.md) | any seat, no converge host | they stop the *next* run-capture debt before the next window creates one — the last window created several. **HD-1216**'s launcher fix is IN `main` (`d1e909a7`, then `38fbd65b` for the shell half), so what is owed is two seat acts and no merge: the `wsl` seat's own `acceptance-pair` read, then `sync-extensions.sh --push` per seat (the `5b6fab75` branch is superseded, absorbed by `d1e909a7`, and its remote ref is deleted) |
 | 2 | the rotations a ledger re-derive cannot go past — the residue of [prompt-update.md](prompt-update.md) Phase 3, driven from the briefs that own each item | one converge per host | Phase 7 is ONE commit and it drops only the lines whose **far end** moved |
 | 3 | **[prompt-update.md](prompt-update.md) Phase 6 — spark, last and solo** (OTA → pin converge → the third tailnet node → the engine-key rotation → HD-1206's flips) | an externally-served session on the station, owner present | the only Rule-0-gated step in the fleet; its legs are the card's order + HD-1206's row order, and its boot windows are ~20 min each |
 | 4 | Phase 7 (re-derive the leak ledger) → Phase 8 (the docs pass, then `prompt-update.md` dies) | the station | that one commit is what turns `check_secret_leak.py` green again |
