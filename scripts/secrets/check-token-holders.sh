@@ -189,7 +189,9 @@ human() { # seconds → 45d3h / 9h53m / 12m / 9s ; anything non-numeric stays li
 # names the COST, because the two shapes that turn up are the two an agent must not pay alone.
 hint() {
   case "$1" in
-    op) printf 'op daemon stop, run as uid %s — a stop from another account does not reach it' "$2" ;;
+    # The CLI has NO daemon-stop verb: `op daemon stop` parses as `op daemon <arg>`, prints the daemon
+    # help and exits 0 — a rotation that "stopped" a daemon stopped nothing. Measured on op 2.39 and 2.40.
+    op) printf "kill pid %s as uid %s — there is no op daemon-stop verb, so a stop that exits 0 stopped nothing; the next op call respawns it from the environment of whoever calls it" "$2" "$3" ;;
     node|Code|code|Electron|vscode*) printf 'IDE/agent server: restarting it closes EVERY terminal in it' ;;
     pi|tmux|screen|bash|sh|zsh) printf 'restart the session from a shell that sources the file' ;;
     *) printf 'restart this process from a shell that sources the file' ;;
@@ -213,7 +215,7 @@ target_check() { # 0 nothing superseded · 1 a superseded holder (or an unmeasur
     if [ "$dg" = "$WANT" ]; then verdict="CURRENT"; cur=$((cur+1))
     else verdict="SUPERSEDED"; dead=$((dead+1)); fi
     printf '    pid %-8s uid %-6s %-14s %6s  %s  %s\n' "$pid" "$uid" "$comm" "$(human "$age")" "$dg" "$verdict"
-    [ "$verdict" = SUPERSEDED ] && printf '        → %s\n' "$(hint "$comm" "$uid")"
+    [ "$verdict" = SUPERSEDED ] && printf '        → %s\n' "$(hint "$comm" "$pid" "$uid")"
   done <<<"$(printf '%s\n' "$out" | grep '^H ' || true)"
   local tot k2 unread sudo sn skipped
   read -r k2 tot unread sudo sn skipped <<<"$(printf '%s\n' "$out" | awk '/^C /{print; exit}')"
@@ -283,8 +285,10 @@ self_test() {
     || { echo "SELFTEST FAIL [superseded]: a holder at a dead value was not SUPERSEDED"; fails=$((fails+1)); }
   printf '%s' "$out" | grep -q 'holders 3 · CURRENT 1 · SUPERSEDED 2' \
     || { echo "SELFTEST FAIL [count]: the summary miscounted (got: $(printf '%s' "$out" | grep 'holders [0-9]' | head -1))"; fails=$((fails+1)); }
-  printf '%s' "$out" | grep -q 'op daemon stop' \
+  printf '%s' "$out" | grep -q 'kill pid 100 as uid' \
     || { echo "SELFTEST FAIL [hint]: a superseded op daemon did not say how it closes"; fails=$((fails+1)); }
+  printf '%s' "$out" | grep -q 'op daemon stop' \
+    && { echo "SELFTEST FAIL [hint]: the advice named a CLI verb that does not exist"; fails=$((fails+1)); }
   printf '%s' "$out" | grep -q 'EVERY terminal' \
     || { echo "SELFTEST FAIL [hint]: an IDE-server holder did not name the terminal cost"; fails=$((fails+1)); }
   printf '%s' "$out" | grep -q '1d21h' \
