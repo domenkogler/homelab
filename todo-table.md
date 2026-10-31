@@ -419,7 +419,7 @@ these rows are *queued behind a slot*, which is waiting work, not missing work.
 > `observability-alerting` + `storage-backup` pair only host-by-host: HD-450 reads the units HD-191's clients write.
 >
 > **Unbriefed but still open — not lost, just unassigned** (derived from [todo.md](todo.md) at this `HEAD`; §B and
-> §B9 stay the index, this is the honest count: **64** open rows carry no brief (re-derived with the command below at
+> §B9 stay the index, this is the honest count: **65** open rows carry no brief (re-derived with the command below at
 > this commit — the ids that left the tail because a wave put them on a §B0 cell AND on the matching brief's header
 > (**357** → edge-identity · **1131 · 1133** → dns-transport · **1089 · 1172** → media-arrs · **1129 · 1183** →
 > storage-backup · **1182 · 14** → observability-alerting · **1126 · 1180** → seat-cockpit-grants · **1127** →
@@ -436,7 +436,7 @@ these rows are *queued behind a slot*, which is waiting work, not missing work.
 > **412** · **440** (§D hands and plain rows), and the long tail: **28 · 32 · 34 · 45 ·
 > 57 · 101 · 104 · 111 · 133 · 141 · 159 · 160 · 194 · 248 · 250 · 251 · 264 · 268 · 280 · 287 · 288 · 316 · 318 ·
 > 335 · 336 · 337 · 366 · 369 · 397 · 401 · 404 · 421 · 472 · 491 · 1123 · 1128 · 1130 · 1136 · 1137 · 1139 · 1140 ·
-> 1142 · 1143 · 1151 · 1154 · 1159 · **1173 · 1175 · 1176** (the shape that mints tail rows — ids written by the parent's own cleanup commits after an earlier §B0 re-derive: an id written after the last re-derive belongs to no row-list until somebody puts it there — held honest by [`scripts/gate/check_view_registry_sync.py`](scripts/gate/check_view_registry_sync.py), which compares §B9's id set with the registry's in both directions so the seam cannot reopen quietly again). Note the tail's
+> 1142 · 1143 · 1151 · 1154 · 1159 · **1173 · 1175 · 1176 · 1228** (the shape that mints tail rows — ids written by the parent's own cleanup commits after an earlier §B0 re-derive: an id written after the last re-derive belongs to no row-list until somebody puts it there — held honest by [`scripts/gate/check_view_registry_sync.py`](scripts/gate/check_view_registry_sync.py), which compares §B9's id set with the registry's in both directions so the seam cannot reopen quietly again). Note the tail's
 > shape: the two rows a 2026-10-19 lane proved **un-runnable as written** sat unbriefed — `1143`'s privileged probe
 > still does, and `1152`'s prune leg was named in a §B0 cell whose own brief never cited it, which is the same failure
 > wearing the view's clothes: a row no brief carries is read by nobody.
@@ -755,6 +755,7 @@ truncated on purpose. The ROW stays the authority; `⏳` shown here is the row's
 | HD-1218 | 2 | AI + owner | 2.8 Security & Secrets | containment for the values this fleet cannot rotate: overwrite the copies, keep the debt open — exposure reduction, never closure | ⏳ author `scripts/secrets/contain-leaked-values.py` (to be written) — manual only, scope derived from `NOT_AUTO_ROTATABLE` ∩ the register — plus the receipt leg that makes `check_secret_leak.py` print `CONTAINED` where it would otherwise print `STALE` | — (no brief) |
 | HD-1219 | 2 | AI + gate | 2.8 Security & Secrets | nothing mechanical stands between a commit and the remote, and the leg that could stand there costs vault reads — so it runs at a push, not a commit | ⏳ author `scripts/git/install-hooks.sh` (to be written) for a `pre-push` leg of `check_secret_leak.py --tree-only --no-history`, declare the `git-hooks` seat plane in `scripts/lib/seat-planes.yml`, self-test the canary arms | — (no brief) |
 | HD-1225 | 2 | AI + gate | 2.3 Platform & Deploy | a scratch instrument can become tree content unless `.scratch/` is ignored, and an untracked `.scratch/` in the PRIMARY checkout hard-fails the merge station's own `validate-all` gate | ⏳ the leg in a worktree: plant an instrument under `.scratch/`, `git add -A`, require it in NEITHER `git status --porcelain` nor `git diff --cached --name-only` (the FAIL half is only reachable against a `.gitignore` without the entry) · ⛔ never `git add -f` a scratch path | — (no brief) |
+| HD-1228 | 1 | AI + gate | 2.8 Security & Secrets | the ledger's READ side asks a CLASS question where a `run-capture` debt is a SEAT question, so a one-seat run prints another seat's live debt under `STALE ledger lines (no hit this run — rotate-and-remove…)` | ⏳ make the PRINT seat-aware through the seat mechanism the write guard already has (`recording_seats()`/`seat_block()`) — carry a foreign line naming its seat, print STALE only for the recording seat's own absent hit — plus `check_secret_leak.py --self-test` arms both ways at zero vault requests and the `scripts/README.md` + docs/deployment-secrets.md item 9 sentences; then re-derive the STALE block, because the genuinely CLOSED lines are the deletion commit, which is [prompt-update.md](prompt-update.md) Phase 7's ledger act | — (no brief) |
 
 ## C. Standing rules that gate all of the above
 
