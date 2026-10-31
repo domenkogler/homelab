@@ -10,12 +10,17 @@
  *
  * RUN:  node --experimental-strip-types pi-agent/proposed/vault-mask.selftest.ts
  *       node is the runtime pi itself runs on — every seat's `pi` launcher execs a node binary — and this
- *       file is erasable-syntax-only TypeScript, so node's own type-stripping runs the same ten arms on
- *       every seat. This repo invokes no other JS runtime.
- * One arm asks a seat question rather than a unit question: it puts a `python3` that answers non-zero
- * ahead of PATH and checks that the needle map still arrives (or, where the seat's own resolver answers
- * exactly that name, that the OFF line names the launcher and the rc). The arms therefore fail on a seat
- * that cannot resolve its interpreter, which is the state a green run on another seat cannot rule out.
+ *       file is erasable-syntax-only TypeScript, so node's own type-stripping runs the same eleven arms
+ *       on every seat. This repo invokes no other JS runtime.
+ * Two arms ask a SEAT question rather than a unit question, one per program the extension must find
+ * before it can read the needle map. Arm 10 puts a `python3` that answers non-zero ahead of PATH and
+ * checks that the needle map still arrives (or, where the seat's own resolver answers exactly that name,
+ * that the OFF line names the launcher and the rc). Arm 11 puts a `bash` there instead, because the
+ * extension needs a SHELL to ask that resolver its question and
+ * [`docs/harness-pi-seats.md`](../docs/harness-pi-seats.md) §1 calls the bare name ambiguous on the
+ * Windows seat — there a `bash` off PATH can be the WSL launcher, a different box's shell that reads no
+ * Windows path. Both arms therefore fail on a seat that cannot resolve what the needles need, which is
+ * the state a green run on another seat cannot rule out.
  * Exit 0 = every arm green; 1 = at least one arm red. A scenario that could not be reached prints a
  * FAIL line, never a silent skip.
  *
@@ -33,7 +38,7 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -58,6 +63,12 @@ try {
 
 const dir = mkdtempSync(`${tmpdir()}/vault-mask-fixture-`);
 const fixture = `${dir}/vault.json`;
+// Arm 11's decoy shell lives here and records the SHAPE of every invocation that reached it — `probe`
+// for a `-c` question, `exec` for a script handed over. Nothing but that word is written: the log is
+// the arm's proof of WHETHER the extension took the PATH name, and a log of argv would be a log of paths.
+// The log outlives the child on purpose — the parent arm reads it, since each process mints its own dir.
+const decoyBin = `${dir}/decoy-bin`;
+const decoyLog = `${dir}/decoy-bash.log`;
 process.env.HL_VAULT_READ_FIXTURE = fixture; // zero vault requests, and the child python inherits it
 writeFileSync(
 	fixture,
@@ -127,6 +138,25 @@ async function main() {
 		process.env.HL_VAULT_READ_FIXTURE = `${dir}/does-not-exist.json`;
 		await handle(event(`text mentioning ${SECRET}`), ctx);
 		console.log(JSON.stringify(notifications));
+		return;
+	}
+
+	if (scenario === "decoy-shell") {
+		// The child half of arm (11): PATH answers `bash` with a program that is not this seat's shell, and
+		// the fixture is still the fixture, so the leg costs zero requests. What prints is what the masker
+		// DID and the OFF reasons it gave — never a value. The decoy's own record is read by the PARENT arm,
+		// because the decoy was written with the parent's log path in it and this process mints its own dir.
+		const text = `token=${SECRET}`;
+		const r = await handle(event(text), ctx);
+		console.log(
+			JSON.stringify({
+				masked: r !== undefined && !String(r?.content?.[0]?.text ?? "").includes(SECRET),
+				marker: String(r?.content?.[0]?.text ?? "").includes(`[vault-mask:${ID.slice(0, 8)}]`),
+				off: notifications.filter((n) => n.includes("masking is OFF")),
+				// The load line, so "this leg cost zero vault requests" is an arm rather than a footnote.
+				load: statuses.filter((s) => s?.includes("requests=")),
+			}),
+		);
 		return;
 	}
 
@@ -294,6 +324,64 @@ async function main() {
 		stub.masked && stub.marker
 			? "the needle map arrived through the resolver and the marker is in the result"
 			: offLine.slice(0, 220) || "neither the marker nor an OFF line naming a launcher",
+	);
+
+	// (11) the same question one level DOWN: WHICH SHELL the extension needs in order to ask the resolver
+	// which interpreter to run. The interpreter is resolved per seat; a bare `bash` was taken by PATH name,
+	// and [`docs/harness-pi-seats.md`](../docs/harness-pi-seats.md) §1 names that exact answer ambiguous on
+	// the Windows seat — there a `bash` off PATH can be `C:\WINDOWS\system32\bash.exe`, the WSL launcher,
+	// which keeps the Windows cwd but reads the script as ANOTHER BOX sees it and answers `No such file or
+	// directory` for a file sitting on disk. This arm plants that program: a decoy named `bash`, ahead of
+	// every real one, that records the shape of what reached it and can read no script at all. Two honest
+	// outcomes, one assertion, the same shape as arm (10): a seat that resolves its shell never execs the
+	// decoy and still writes the marker, and a seat that ends up at the PATH name must say WHICH shell
+	// route it took and what that shell answered. Silent is the defect — masking off on one seat while the
+	// complaint blames the PYTHON resolver, in a commit that reads green on the seats whose PATH answers
+	// their own bash.
+	mkdirSync(decoyBin, { recursive: true });
+	writeFileSync(
+		`${decoyBin}/bash`,
+		[
+			"#!/bin/bash",
+			"kind=exec",
+			'[ "$1" = "-c" ] && kind=probe',
+			`printf 'kind=%s\\n' "$kind" >> ${JSON.stringify(decoyLog)}`,
+			"printf '%s\\n' 'decoy bash: the script you handed me is not a file where I stand' >&2",
+			"exit 127",
+			"",
+		].join("\n"),
+		"utf-8",
+	);
+	chmodSync(`${decoyBin}/bash`, 0o755);
+	let decoyRaw = "";
+	try {
+		decoyRaw = execFileSync(process.execPath, [fileURLToPath(import.meta.url), "decoy-shell"], {
+			encoding: "utf8",
+			env: { ...process.env, PATH: `${decoyBin}${delimiter}${process.env.PATH}` },
+		});
+	} catch (e) {
+		decoyRaw = String((e as { stdout?: string }).stdout ?? e);
+	}
+	let decoy: { masked?: boolean; marker?: boolean; off?: string[]; load?: (string | undefined)[] } = {};
+	try {
+		decoy = JSON.parse(decoyRaw.trimEnd().split("\n").pop() ?? "");
+	} catch {
+		// not the record the scenario prints: the flags stay false and the detail below quotes the answer
+	}
+	const decoyOff = (decoy.off ?? []).join(" | ");
+	// The decoy's record, read where it was written: `kind=probe` lines are the extension asking a shell
+	// whether it can read the resolver, `kind=exec` lines are it handing the resolver to a shell unasked.
+	const decoyLogText = existsSync(decoyLog) ? readFileSync(decoyLog, "utf8") : "";
+	const decoyLines = decoyLogText.split("\n").filter((l) => l.startsWith("kind="));
+	const decoyProbed = decoyLines.filter((l) => l === "kind=probe").length;
+	const decoyExeced = decoyLines.filter((l) => l === "kind=exec").length;
+	check(
+		"a bash on PATH that is not this seat's shell is either never handed the resolver, or the OFF names the shell it exec'd and what that shell answered",
+		(decoy.masked === true && decoy.marker === true && decoyExeced === 0 && (decoy.load ?? []).some((s) => s?.includes("requests=0"))) ||
+			(decoyOff.length > 0 && /shell=\S/.test(decoyOff) && /(rc=|could not run|cannot read)/.test(decoyOff)),
+		decoy.masked && decoy.marker && decoyExeced === 0
+			? `the decoy was asked ${decoyProbed} question(s) and never handed the resolver: the needles arrived through a shell this seat named`
+			: `the decoy was asked ${decoyProbed} question(s) and handed the resolver ${decoyExeced} time(s) — ${decoyOff.slice(0, 200) || "no OFF line at all"}`,
 	);
 
 	console.log(`vault-mask.selftest: ${fails} failing arm(s)`);
