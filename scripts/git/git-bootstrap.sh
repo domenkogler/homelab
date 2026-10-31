@@ -95,7 +95,12 @@ if [ "${1:-}" = "--self-test" ]; then
     $ACCT
     \"read\") exit 1;;"
   fails=0
+  # ARMS is DERIVED from the run, never typed: a hand-counted number in the OK line is the one figure a
+  # reader quotes as coverage and nothing else re-derives it. One increment per graded CHILD RUN (the
+  # sandbox postcondition below rides those runs rather than being one of its own).
+  ARMS=0
   check() { # <fixture> <expected> <must-not-say>
+    ARMS=$((ARMS+1))
     out=$(run "$TMP/$1" "" "${3:-}")
     printf '%s' "$out" | grep -qi "$2" \
       || { echo "SELFTEST FAIL [$1]: expected /$2/ — got: $(printf '%s' "$out" | tail -3)"; fails=$((fails+1)); }
@@ -110,6 +115,7 @@ if [ "${1:-}" = "--self-test" ]; then
   # Without it the arm tested a string BOTH sides wrote: deleting the `op:` echo line from the
   # signed-out branch left the self-test GREEN (measured 2026-10-19), i.e. an operator would get
   # "an account IS configured, but this context has no session" with nothing naming why.
+  ARMS=$((ARMS+1))
   out=$(run "$TMP/signedout" "" "")
   printf '%s' "$out" | grep -qF "$REFUSAL_SIGNEDOUT" \
     || { echo "SELFTEST FAIL [signedout-handoff]: the refusal the fixture was handed never reached the output — the arm proves the branch but not the hand-off"; fails=$((fails+1)); }
@@ -125,7 +131,7 @@ if [ "${1:-}" = "--self-test" ]; then
   #   present at …"). The `dirname` of the real `git` is `/usr/bin` on Debian, so this adds nothing
   #   there; when `git` is absent it degrades to `/usr/bin` rather than `.` (no CWD on the PATH).
   GITDIR=$(dirname "$(command -v git 2>/dev/null || echo /usr/bin/git)")
-  out=$(run "$TMP/noop" "" "")
+  ARMS=$((ARMS+1))
   out=$(PATH="$TMP/noop:/usr/bin:/bin:$GITDIR" HOME="$TMP/home" SRC="$TMP/src" XDG_RUNTIME_DIR="/run/user/999999" \
         bash "$SELF" --ssh-auth 2>&1 || true)
   printf '%s' "$out" | grep -qi "XDG_RUNTIME_DIR is" \
@@ -134,6 +140,7 @@ if [ "${1:-}" = "--self-test" ]; then
     && { echo "SELFTEST FAIL [xdg-guard]: the guard let the script reach op first"; fails=$((fails+1)); }
   # canary: with the target vault visible the refusal must DISAPPEAR (a check that always fires
   # would pass all three assertions above while checking nothing)
+  ARMS=$((ARMS+1))
   out=$(run "$TMP/vaultok" "" "Homelab-ansible")
   if printf '%s' "$out" | grep -qi "vault is NOT among"; then
     echo "SELFTEST FAIL [canary]: the vault check refuses a vault it can see — the check is dead"
@@ -163,6 +170,7 @@ esac
 exit 1
 EOS
   chmod +x "$TMP/authonly/op"
+  ARMS=$((ARMS+1))
   out=$(run "$TMP/authonly" "" "Homelab-ansible")
   if printf '%s' "$out" | grep -qi "could not read 'GitHub sign'"; then
     echo "SELFTEST FAIL [deleted-sign-item]: a deleted signing item still kills the TRANSPORT setup"
@@ -201,9 +209,20 @@ EOS
   chmod +x "$TMP/satoken/op"
   printf 'export OP_SERVICE_ACCOUNT_TOKEN=%s\n' "sat-$(printf 'x%.0s' $(seq 1 60))" > "$TOKF"
   chmod 600 "$TOKF"
-  out=$(PATH="$TMP/satoken:$PATH" HOME="$TMP/home" SRC="$TMP/src" \
+  # ⚠ "No credential" and "the file's credential" are TWO places, and scripts/lib/vault-env.sh ranks a
+  # token already in the ENVIRONMENT above the FILE (`route=env`). So a run of this arm in a shell that
+  # carries the token resolves `route=env`, never opens the fixture file, and still sees the vault —
+  # the arm would assert a FILE it never read and go green for the wrong reason. ONE array spells the
+  # clear for both arms below (the shape `lib/vault-env.sh` uses in its own arms), and each arm then
+  # names the ROUTE it was proved on. ⛔ The clear belongs to these two arms only: every other leg of
+  # this self-test asks the seat what credential it has, and a cleared environment answers about nothing.
+  NO_CRED=(-u OP_SERVICE_ACCOUNT_TOKEN)
+  ARMS=$((ARMS+1))
+  out=$(env "${NO_CRED[@]}" PATH="$TMP/satoken:$PATH" HOME="$TMP/home" SRC="$TMP/src" \
         XDG_RUNTIME_DIR="/run/user/$(id -u)" OP_VAULT="Homelab-ansible" \
         HL_VAULT_FILE="$TOKF" HL_VAULT_STUB_FAIL=0 bash "$SELF" --ssh-auth 2>&1 || true)
+  printf '%s' "$out" | grep -qi 'route=file' \
+    || { echo "SELFTEST FAIL [seat-token-file]: the arm resolved something OTHER than route=file, so the FILE it asserts was never the credential — what answered was the runner's own environment (the verdict prints route/len/hash, never a value)"; fails=$((fails+1)); }
   if ! grep -q 'OP-SAW-CREDENTIAL' "$TMP/home/.ssh/github_auth" 2>/dev/null; then
     echo "SELFTEST FAIL [seat-token-file]: the seat's 0600 token file never reached op — the scripted key recovery still needs a hand-run export (got: $(printf '%s' "$out" | tail -2))"
     fails=$((fails+1))
@@ -214,8 +233,30 @@ EOS
   fi
   rm -f "$TOKF" "$TMP/home/.ssh/github_auth"
 
+  # THE CLEARED-ENVIRONMENT CASE — the teeth half of the arm above. That arm runs in a shell that may
+  # carry no token at all, so on such a seat it stays green with the `NO_CRED` clear DELETED, which
+  # makes it evidence about the seat rather than about the fix. This arm plants a synthesised token in
+  # the CHILD's environment, applies the same clear, and leaves the token file absent — so the sandbox
+  # must resolve NOTHING. If the clear is ever dropped, the planted value outranks the absent file,
+  # `route=env` answers, this fixture signs in and the key gets raised, so EVERY assertion here reddens
+  # on any seat. No vault is contacted — the planted value is synthesised and `op` is the fixture above.
+  ARMS=$((ARMS+1))
+  out=$(OP_SERVICE_ACCOUNT_TOKEN="sat-$(printf 'q%.0s' $(seq 1 60))" \
+        env "${NO_CRED[@]}" PATH="$TMP/satoken:$PATH" HOME="$TMP/home" SRC="$TMP/src" \
+        XDG_RUNTIME_DIR="/run/user/$(id -u)" OP_VAULT="Homelab-ansible" \
+        HL_VAULT_FILE="$TOKF" HL_VAULT_STUB_FAIL=0 bash "$SELF" --ssh-auth 2>&1 || true)
+  [ -e "$TMP/home/.ssh/github_auth" ] \
+    && { echo "SELFTEST FAIL [env-cleared]: a planted token survived the clear and raised a key — the sandbox read the runner's environment, not its absent fixture"; fails=$((fails+1)); }
+  printf '%s' "$out" | grep -qi 'route=env' \
+    && { echo "SELFTEST FAIL [env-cleared]: the sandbox resolved route=env — it read the runner's environment, not its absent fixture"; fails=$((fails+1)); }
+  printf '%s' "$out" | grep -qi 'no vault credential resolved' \
+    || { echo "SELFTEST FAIL [env-cleared]: the sandbox resolved a credential it was never given — the planted token survived the clear (got: $(printf '%s' "$out" | tail -2))"; fails=$((fails+1)); }
+  printf '%s' "$out" | grep -qi "not currently signed in\|has no session" \
+    || { echo "SELFTEST FAIL [env-cleared]: no refusal was printed for a planted-then-cleared token (got: $(printf '%s' "$out" | tail -2))"; fails=$((fails+1)); }
+  rm -f "$TOKF" "$TMP/home/.ssh/github_auth"
+
   if [ "$fails" = 0 ]; then
-    echo "SELFTEST OK: git-bootstrap refuses each state with the right message (7 cases, sandboxed)"
+    echo "SELFTEST OK: git-bootstrap refuses each state with the right message ($ARMS arms, sandboxed)"
     exit 0
   fi
   exit 1
