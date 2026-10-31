@@ -118,13 +118,13 @@ _arm_scan() {
     | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | normalize >"$2"
   awk 'BEGIN { i = 0 }
     { s = $0; w = ""
-      if      (s ~ /CANNOT([ !?]|$)/)                       w = "CANNOT"
-      else if (s ~ /FAIL([ !?]|$)/)                         w = "FAIL"
-      else if (s ~ /ERROR([ !?]|$)/)                        w = "ERROR"
-      else if (s ~ /SKIP([ !?]|$)/)                         w = "SKIP"
-      else if (s ~ /^(NOTE|WARNING|WARN)([ !?]|$)/)         w = "NOTE"
-      else if (s ~ /(^|[[:space:]])not ok/)                 w = "not-ok"
-      else if (s ~ /(^|[[:space:]])(ok|PASS)([ !?]|$)/)     w = "ok"
+      if      (s ~ /CANNOT([ !?:]|$)/)                       w = "CANNOT"
+      else if (s ~ /FAIL([ !?:]|$)/)                         w = "FAIL"
+      else if (s ~ /ERROR([ !?:]|$)/)                        w = "ERROR"
+      else if (s ~ /SKIP([ !?:]|$)/)                         w = "SKIP"
+      else if (s ~ /^(NOTE|WARNING|WARN)([ !?:]|$)/)         w = "NOTE"
+      else if (s ~ /(^|[[:space:]])not ok/)                  w = "not-ok"
+      else if (s ~ /(^|[[:space:]])(ok|PASS)([ !?:]|$)/)     w = "ok"
       if (w == "") w = "?"
       if (!(w in c)) { i++; o[w] = i }
       c[w]++
@@ -257,7 +257,7 @@ mutate_parity() {
 }
 
 # --------------------------------------------------------------------------- #
-# SELF-TEST — the stub door, the live door, and the two mutations.              #
+# SELF-TEST — the stub door, the live door, and the four mutations.                    #
 # --------------------------------------------------------------------------- #
 
 # The stub wsl.exe, echoed as a path. It answers the lib's probe (door, distro, tree, launcher,
@@ -369,7 +369,11 @@ self_test() {
   local _name _rest _want _why _out _rc _got _in _pi _ps
   _st=0; _st_n=0
   _st_tmp="$(mktemp -d "${TMPDIR:-/tmp}/gate-parity-st-XXXXXX")" || return 1
-  trap "rm -rf '$_st_tmp'" EXIT
+  # Scratch the self-test owns, cleaned on the way out: its corpus and mutant files, and the stub door's
+  # directory. Nothing here writes inside the checkout, which is the rule that matters — an untracked file
+  # left in the primary hard-fails the merge station's own gate, and a gate item that litters the tree is
+  # a lane's bug, not the tree's.
+  trap "rm -rf '$_st_tmp' \"${HL_PARITY_STUB%/*}\"" EXIT
 
   printf '== the recognizer: what counts as an arm ==\n'
   printf 'ok  one\nSKIP: two\nchecked the tree in prose\n' >"$_st_tmp/probe"
@@ -377,6 +381,12 @@ self_test() {
   [ "${_pi%%$'\t'*}" = 2 ] \
     && _st_ok "two verdict lines out of three recognized; the prose line is not an arm" \
     || _st_no "the recognizer does not read this tree's verdict lines"
+  # The words HALF of the same scan, pinned: `ok  ` carries no colon and `SKIP:` does, so one expression
+  # that forgets the colon reports the shape of this repo's legs as `? x2` — an unhelpful label at best,
+  # and a reason a reader would stop trusting the printed histogram.
+  [ "${_pi#*$'\t'}" = "ok x1 · SKIP x1" ] \
+    && _st_ok "the histogram reads the verdict words it is shown (ok x1 · SKIP x1), not a question mark" \
+    || _st_no "the verdict-word histogram printed '${_pi#*$'\t'}' for an ok line and a SKIP line"
   printf 'checked the tree\nrewrote nothing\n' >"$_st_tmp/prose"
   _ps="$(_arm_scan "$_st_tmp/prose" "$_st_tmp/prose.arms")"
   [ "${_ps%%$'\t'*}" = 0 ] \
@@ -563,4 +573,6 @@ if [ "$HL_WSL_ON" = 1 ] && [ "$HL_WSL_GIT" != 1 ]; then
   printf '      leg is WORTHLESS here (two runs over a checkout neither side could read still agree)\n'
 fi
 printf 'recognizer: %s\n' "$(_recognizer_line)"
-run_parity engine "${TMPDIR:-/tmp}/gate-parity-run-$$" route "$@"
+_run_out="${TMPDIR:-/tmp}/gate-parity-run-$$"
+trap 'rm -f "$_run_out".*' EXIT
+run_parity engine "$_run_out" route "$@"
