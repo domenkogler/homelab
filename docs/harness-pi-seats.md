@@ -85,7 +85,8 @@ tags: [ai, pi, agent-harness, harness, spark, llm, settings]
 - **The Debian engine's node is not on the route's PATH, and widening that pin is declined** ([`harness-rejected.md`](harness-rejected.md)).
   The pin exists so a leg cannot run a runtime that is not the seat's, so a wrapped seat sees `node`, `npm`, `npx` and `pi` as ABSENT while
   `~/.local/share/pi-node/current/bin/node` runs perfectly well inside it — which is why the pi scripts resolve node prefix-first, in
-  that pinned dir BEFORE `PATH` (HD-446's non-login-shell lesson, §1's own "a seat with no `node` on PATH" bullet), and why a probe that
+  that pinned dir BEFORE `PATH` — a leg run over `ssh seat '…'` is non-interactive and non-login and reads no profile, so its PATH
+  may carry no node at all (§1's own "a seat with no `node` on PATH" bullet carries that lesson) — and why a probe that
   reads only PATH reports "no node here" for a seat that has one. Re-derive with
   `bash scripts/bench/win/gate-parity.sh -- bash scripts/harness/pi-tui-config.sh --self-test` (the `pinned-node` arm is GREEN on both sides
   only while the staging probe uses that same rule), and read what the engine answered at any run's `engine tools: … ABSENT — … node` line.
