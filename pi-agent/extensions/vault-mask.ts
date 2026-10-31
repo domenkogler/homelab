@@ -35,6 +35,16 @@
  * one platform's answer to the other, which is the mis-placed decision
  * [`docs/harness-pi-seats.md`](../docs/harness-pi-seats.md) §5 exists to forbid.
  *
+ * THE SHELL that runs that resolver is the same kind of question and was answered the wrong way: it was
+ * the bare name `bash`, and §1 of the seats doc says a bare `bash` on a Windows-native PATH can be the
+ * WSL launcher — another box's shell, reading this box's script through a filesystem view where that
+ * file does not exist. A seat could therefore mask nothing while the complaint blamed the interpreter.
+ * So the shell is resolved the way the interpreter is: an explicit `HL_BASH` (the knob
+ * `scripts/lib/repo_root.py` already honours for this same question) wins, then `BASH`, and the PATH
+ * name is only the LAST candidate — and every candidate is PROVED by asking it to read the resolver
+ * before it is ever trusted to run it. A shell that cannot read the script is refused, named, with the
+ * repair in the same line; that is a loud OFF on one seat, never a silent one.
+ *
  * THE BYPASS exists because a masker that rewrote the value a rotation is about to WRITE would break
  * the act. It is `HL_VAULT_MASK_BYPASS=1`, it prints one loud line the first time it fires, and it is an
  * environment variable — so it dies with the process and cannot survive into the next command.
@@ -79,12 +89,26 @@ const BYPASS_ENV = "HL_VAULT_MASK_BYPASS";
 /** The override that pins the interpreter: the same knob the pre-push hook honours, so one variable
  *  answers "which python runs the leak eye" for the whole seat. */
 const PY_ENV = "HL_LEAK_PY";
+/** The override that pins the SHELL that execs the resolver — the same name
+ *  `scripts/lib/repo_root.py` honours for the same question, so one variable answers "which bash runs a
+ *  repo script on this seat" for the whole seat, the way PY_ENV answers it for the leak eye. */
+const SHELL_ENV = "HL_BASH";
+/** The session's own shell, on the seats that export it. Usually absent (bash does not export BASH by
+ *  default), which is why the PATH name stays a candidate — but last, because a PATH name may be answered
+ *  by a different box. */
+const SHELL_SESSION_ENV = "BASH";
+/** The token a candidate shell must echo to prove it can READ the resolver. `test -f` is the one question
+ *  that cannot lie about the WSL launcher: the script it was handed is not a file where it stands. */
+const SHELL_CANARY = "hl-shell-canary-ok";
 /** The per-box launcher resolver, by repo-relative path. This file names no interpreter of its own. */
 const RESOLVER = "scripts/harness/seat-python.sh";
 
 type Needle = { value: string; id8: string; title: string };
 /** The program the needle-map leg runs under, and which rule chose it — both belong in an OFF reason. */
 type Launcher = { argv0: string; via: typeof PY_ENV | typeof RESOLVER };
+/** A shell proposal and the rule that proposed it — an OFF reason names both, because "which bash" is
+ *  exactly the question a seat with two bash-shaped programs on PATH cannot answer from a name. */
+type Shell = { argv0: string; via: typeof SHELL_ENV | typeof SHELL_SESSION_ENV | "PATH" };
 type Ready = { needles: Needle[]; short: string[]; items: number; requests: string };
 type State = { kind: "unloaded" } | { kind: "ready"; ready: Ready } | { kind: "off"; why: string };
 
@@ -104,6 +128,44 @@ function repoRoot(): string | null {
 }
 
 /**
+ * WHICH shell execs the resolver script. Candidates best-informed first, PATH name LAST, and none of
+ * them trusted until proved: `hl_bash` in `scripts/lib/repo_root.py` is this file's twin on the Python
+ * side and states the rule — a NAME is never the answer, the probe is the one question that cannot lie.
+ */
+function shellCandidates(): Shell[] {
+	const out: Shell[] = [];
+	const cands: [string | undefined, Shell["via"]][] = [
+		[process.env[SHELL_ENV], SHELL_ENV],
+		[process.env[SHELL_SESSION_ENV], SHELL_SESSION_ENV],
+		["bash", "PATH"],
+	];
+	for (const [argv0, via] of cands) {
+		if (argv0 && !out.some((s) => s.argv0 === argv0)) out.push({ argv0, via });
+	}
+	return out;
+}
+
+/**
+ * The shell that can actually READ `file`, or a refusal naming every shell tried and how it answered.
+ * Asking is one spawn; the answer decides whether a wrong `bash` gets obeyed or reported.
+ */
+function resolveShell(file: string): { shell: Shell } | { why: string } {
+	const tried: string[] = [];
+	for (const c of shellCandidates()) {
+		const res = spawnSync(c.argv0, ["-c", `test -f "$1" && echo ${SHELL_CANARY}`, "x", file], { encoding: "utf8", env: process.env });
+		const answer = (res.stdout || "").trimEnd().split("\n").pop()?.trim() ?? "";
+		if (!res.error && res.status === 0 && answer === SHELL_CANARY) return { shell: c };
+		tried.push(`shell=${c.argv0} shell-via=${c.via} ${res.error ? `— ${res.error.code ?? res.error.message}` : `rc=${res.status ?? "?"}`}`);
+	}
+	return {
+		why:
+			`no bash on this seat can read ${file} — tried: ${tried.join("; ") || "no candidate"}. A bare ` +
+			"`bash` on a Windows-native PATH can be answered by the WSL launcher, which reads no Windows path " +
+			"at all; name the shell that owns this session with " + SHELL_ENV + "=",
+	};
+}
+
+/**
  * WHICH interpreter asks the needle-map question. Rule 1 is the override, because a seat (or an arm)
  * that already knows its answer should not be asked twice; rule 2 is the seat's own resolver, because
  * this extension is ONE file deployed to seats that disagree — `py -3` has no Debian box to be found
@@ -119,13 +181,18 @@ function resolvePython(root: string): { launcher: Launcher } | { why: string } {
 	if (!existsSync(resolver)) {
 		return { why: `no interpreter resolver at ${resolver} (via ${RESOLVER}) — this extension asks the seat, it does not take a name from PATH` };
 	}
+	// The resolver is a shell script, so WHICH shell runs it is the same per-box question the resolver
+	// itself answers for Python — and a shell that cannot read the resolver must be reported, not obeyed.
+	const pickedShell = resolveShell(resolver);
+	if ("why" in pickedShell) return { why: pickedShell.why };
+	const shell = pickedShell.shell;
 	const probe = "import pathlib, sys; print(pathlib.Path(sys.executable).as_posix())";
-	const res = spawnSync("bash", [resolver, "-c", probe], { encoding: "utf8", env: process.env });
-	if (res.error) return { why: `the interpreter resolver could not run: launcher=${resolver} via=${RESOLVER} — ${res.error.code ?? res.error.message}` };
+	const res = spawnSync(shell.argv0, [resolver, "-c", probe], { encoding: "utf8", env: process.env });
+	if (res.error) return { why: `the interpreter resolver could not run: shell=${shell.argv0} shell-via=${shell.via} launcher=${resolver} via=${RESOLVER} — ${res.error.code ?? res.error.message}` };
 	// The resolver's own noise rides on the same stream, so the answer is the LAST line.
 	const answer = (res.stdout || "").trimEnd().split("\n").pop()?.trim() ?? "";
 	if (res.status !== 0 || !answer) {
-		return { why: `the interpreter resolver named no interpreter: launcher=${resolver} via=${RESOLVER} rc=${res.status ?? "?"} — ${(res.stderr || "").trim().slice(0, 160)}` };
+		return { why: `the interpreter resolver named no interpreter: shell=${shell.argv0} shell-via=${shell.via} launcher=${resolver} via=${RESOLVER} rc=${res.status ?? "?"} — ${(res.stderr || "").trim().slice(0, 160)}` };
 	}
 	return { launcher: { argv0: answer, via: RESOLVER } };
 }
