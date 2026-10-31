@@ -53,8 +53,9 @@
 #   interpreter or git that cannot answer switches the route OFF with the engine's own words as the
 #   reason; `py -3` collapses to the engine's one interpreter with no `-3` left in the guest argv; the
 #   far rc is the caller's rc; a refused route runs the argv HERE (a marker file proves it, because
-#   "it ran at home" and "nothing ran" look identical in a log); and an argv head with nothing to
-#   substitute runs at home even while the route is up.
+#   "it ran at home" and "nothing ran" look identical in a log); an argv head with nothing to
+#   substitute runs at home even while the route is up; and the tool inventory the probe prints once per
+#   run states BOTH halves — what the engine answered with and what it answered NOTHING for.
 # =====================================================================
 
 : "${HL_WSL:=auto}"                                       # auto | on | off (off = every leg native)
@@ -69,6 +70,14 @@ HL_WSL_MNT=""
 HL_WSL_PY=""
 HL_WSL_BASH=""
 HL_WSL_GUEST=()                                           # per-leg guest prefix: env PATH=…
+HL_WSL_TOOLS=""              # what the engine ANSWERED for, in words — printed once per run by the probe
+_HL_WSL_TOOL_NAMES_SHIPPED="rsync rg sqlite3 gawk jq git tmux op script ssh curl sudo ansible-playbook node npm npx pi"
+HL_WSL_TOOL_NAMES="${HL_WSL_TOOL_NAMES:-$_HL_WSL_TOOL_NAMES_SHIPPED}"
+# The names come from the legs this repo actually wraps and from the tool classes the route's PATH pin
+# is known to hide (docs/harness-pi-seats.md §1); the probe asks them because a leg's `CANNOT RUN` is
+# only readable against a stated inventory, and asking once per run is what keeps it out of the legs.
+# A fixture narrows the list the way `HL_WSL_PYTHONS` narrows the interpreter: planted answers need a
+# planted question.
 _HL_WSL_PROBED=0
 
 # hl_wsl_class [uname] [launcher] [proc-version] — the seat, classified on BEHAVIOUR. Every argument is
@@ -112,6 +121,42 @@ hl_wsl_mntpath() {
 hl_wsl_exec() {
   MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' \
     "$HL_WSL_EXE" -d "$HL_WSL_DISTRO" --cd "$HL_WSL_MNT" -- "$@"
+}
+
+# hl_wsl_tools — WHAT THE ENGINE HAS, in words, asked under the SAME PATH the legs are launched with.
+# WHY THIS EXISTS: a wrapped leg that shells out to `rsync`/`tmux`/`node` and finds nothing prints a
+# SKIP or a CANNOT RUN that reads like the leg's own problem. The engine's inventory is a fact about the
+# seat, and asking it once here is what stops every leg rediscovering it — and the one question is asked
+# in the probe, never in `hl_wsl_route`, so a run pays one spawn and a leg pays none.
+# rc 0 with HL_WSL_TOOLS set; rc 1 when the engine answered nothing, which is said rather than shown as
+# an empty inventory (an empty list here would read as "the engine has no tools at all").
+hl_wsl_tools() {
+  local out="" t p answered="" absent="" found=""
+  HL_WSL_TOOLS=""
+  # ONE spawn, and `which` rather than a shell loop, for two reasons that were measured here rather
+  # than assumed: (a) `wsl.exe -- /bin/sh -c '<script>'` arrives on the far side as a JOINED command
+  # line, so a `$var` written in that script is expanded by an outer guest shell before the inner one
+  # sees it — `for t in a b; do echo "T=$t"; done` comes back as `T=` twice — and (b) no tool is
+  # EXECUTED here, which is what keeps the probe out of the side effects the leg contract refuses (an
+  # `op` or `ssh` that reached the network would answer about the wrong seat and cost the wrong
+  # account). `which` resolves its arguments against the PATH this spawn carries, which is the SAME
+  # pinned PATH the legs are launched with, so the inventory describes the environment a leg sees.
+  out="$(hl_wsl_exec "${HL_WSL_GUEST[@]}" /usr/bin/which $HL_WSL_TOOL_NAMES 2>/dev/null)" || true
+  while IFS= read -r p; do
+    case "$p" in /*) found="$found $p" ;; esac     # `no jq in …` went to stderr; only paths are rows
+  done <<EOF
+$out
+EOF
+  [ -n "$found" ] || return 1                      # no row at all = the engine answered NOTHING
+  for t in $HL_WSL_TOOL_NAMES; do                  # the asking order, so two runs diff by eye
+    for p in $found; do
+      [ "${p##*/}" = "$t" ] && { answered="$answered $t=$p"; continue 2; }
+    done
+    absent="$absent $t"
+  done
+  HL_WSL_TOOLS="$(printf 'answered —%s' "${answered:- none}")"
+  [ -n "$absent" ] && HL_WSL_TOOLS="$HL_WSL_TOOLS$(printf ' · ABSENT —%s' "$absent")"
+  return 0
 }
 
 # hl_wsl_probe <repo> [class] — ask the engine, ONCE, whether it can grade this tree, and build what
@@ -217,6 +262,17 @@ EOF
   HL_WSL_ON=1
   HL_WSL_WHY="wrapped legs run in $HL_WSL_DISTRO at $HL_WSL_MNT (python3=$HL_WSL_PY bash=$HL_WSL_BASH)"
   [ "$HL_WSL_GIT" = 1 ] || HL_WSL_WHY="$HL_WSL_WHY — git=unavailable: a wrapped leg may not read this checkout through git ($HL_WSL_GIT_WHY)"
+
+  # (4) WHAT THE ENGINE HAS, printed once for the whole run, on stderr beside the route line. A leg's
+  # `CANNOT RUN`/`SKIP` naming a missing tool is only evidence when the reader can see the inventory it
+  # was missing, and the alternative — every leg discovering it — is the per-leg rediscovery this file
+  # exists to stop. Only on the way OUT of a probe that raised the route, so a seat with no route prints
+  # no inventory about a seat it never asked.
+  if hl_wsl_tools; then
+    printf 'engine tools (%s at %s): %s\n' "$HL_WSL_DISTRO" "$HL_WSL_MNT" "$HL_WSL_TOOLS" >&2
+  else
+    printf 'engine tools (%s at %s): the inventory probe answered NOTHING — treat a wrapped leg that needs a tool as unproven, not as absent\n' "$HL_WSL_DISTRO" "$HL_WSL_MNT" >&2
+  fi
   return 0
 }
 
@@ -322,6 +378,13 @@ case "${1:-}" in
     else
       mark BASH-RAN "$*"
     fi ;;
+  */which)
+    # The tool-inventory probe (hl_wsl_tools): `which` asked BY NAME, never a shell loop, because a
+    # `$var` inside a `-c` script is expanded by the wrong shell across this door (measured). Like the
+    # real binary it prints PATHS for the names it found and NOTHING for the rest, so an arm plants the
+    # paths and grades the formatter: an unplanted name must come out ABSENT, a planted one as name=path.
+    # `%b` because a planted set arrives as one value with \n between the paths.
+    printf '%b\n' "${HL_STUB_TOOLS:-/usr/bin/jq}" ;;
   */bash)
     mark BASH-RAN "$*" ;;
   */git|git)
@@ -356,8 +419,9 @@ STUB
   _probe() {
     local _a _cls=win11 _exe="$_tmp/wsl-stub" _mnt=/mnt/M/tree _repo="$_tmp/tree"
     HL_STUB_MODE=ok; HL_STUB_PYEXE=''; HL_STUB_BASH=''; HL_STUB_GIT=''; HL_STUB_RC=0; HL_STUB_UNAME=Linux
-    HL_STUB_PY=''; HL_PYTHONS_UNSET=1
-    HL_WSL=auto; HL_WSL_PYTHONS=''
+    HL_STUB_PY=''; HL_PYTHONS_UNSET=1; HL_STUB_TOOLS=''
+    HL_WSL=auto; HL_WSL_PYTHONS=''; HL_WSL_TOOLS=''
+    HL_WSL_TOOL_NAMES="$_HL_WSL_TOOL_NAMES_SHIPPED"   # a planted question is one arm's, not the run's
     for _a in "$@"; do
       case "$_a" in
         class=*) _cls="${_a#class=}" ;;
@@ -367,7 +431,7 @@ STUB
         *=*)     export "${_a%%=*}=${_a#*=}" ;;
       esac
     done
-    export HL_STUB_MODE HL_STUB_PYEXE HL_STUB_BASH HL_STUB_GIT HL_STUB_RC HL_STUB_UNAME HL_STUB_PY HL_WSL
+    export HL_STUB_MODE HL_STUB_PYEXE HL_STUB_BASH HL_STUB_GIT HL_STUB_RC HL_STUB_UNAME HL_STUB_PY HL_STUB_TOOLS HL_WSL
     HL_WSL_EXE="$_exe"
     _HL_WSL_PROBED=0
     HL_WSL_ON=0; HL_WSL_GIT=0; HL_WSL_WHY=""; HL_WSL_GIT_WHY=""; HL_WSL_PY=""; HL_WSL_BASH=""
@@ -387,6 +451,7 @@ STUB
     elif [ -e "$_tmp/local-marker" ]; then printf 'home'
     else printf 'nowhere'; fi
   }
+  local _inv_print="" _inv_off=""
   _ok() { printf '  ok: %s\n' "$1"; }
   _no() { printf 'SELFTEST FAIL: %s\n' "$1"; _st=$((_st + 1)); }
 
@@ -485,6 +550,34 @@ PAIRS
   _probe
   [ "$HL_WSL_ON" = 1 ] && _ok "control — with every half answering, the route is up ($HL_WSL_PY)" \
                        || _no "the healthy stub did not raise the route ($HL_WSL_WHY)"
+
+  # THE TOOL INVENTORY the probe prints once per run, so a wrapped leg's CANNOT RUN names a stated
+  # absence instead of a surprise. Graded on planted rows: the ABSENT half and the answered half must
+  # both reach the line, and a seat with no route must print nothing at all about an engine it never
+  # asked. The question is asked in the PROBE, never in hl_wsl_route, which is what keeps the cost one
+  # spawn per run rather than one per leg. `_probe` swallows the probe's own output, so the two arms
+  # that read a printed line re-run the probe directly — the memo cleared first, because "it printed
+  # nothing" and "it was never asked" are otherwise the same observation.
+  _probe HL_WSL_TOOL_NAMES='jq tmux rsync node' HL_STUB_TOOLS='/usr/bin/jq\n/usr/bin/tmux'
+  printf '%s' "$HL_WSL_TOOLS" | grep -q 'ABSENT — rsync node' \
+    && printf '%s' "$HL_WSL_TOOLS" | grep -q 'answered — jq=/usr/bin/jq tmux=/usr/bin/tmux' \
+    && _ok "the inventory states both halves in words: answered jq=/usr/bin/jq tmux=/usr/bin/tmux · ABSENT rsync node" \
+    || _no "the inventory line came out as '${HL_WSL_TOOLS:-<empty>}'"
+  _HL_WSL_PROBED=0
+  _probe HL_WSL_TOOL_NAMES='jq rsync' HL_STUB_TOOLS='/usr/bin/jq'
+  _HL_WSL_PROBED=0
+  _inv_print="$( { hl_wsl_probe "$_tmp/tree" win11 /mnt/M/tree; } 2>&1 >/dev/null )"
+  printf '%s' "$_inv_print" | grep -q '^engine tools' \
+    && _ok "and the probe PRINTS it (once, on stderr, beside the route line a run already reads)" \
+    || _no "the probe raised the route but printed no engine-tools line: ${_inv_print:-<none>}"
+  _probe class=wsl
+  _HL_WSL_PROBED=0
+  _inv_off="$( { hl_wsl_probe "$_tmp/tree" wsl /mnt/M/tree; } 2>&1 >/dev/null )"
+  printf '%s' "$_inv_off" | grep -q '^engine tools' \
+    && _no "a seat with no route printed an engine inventory it never asked for: $_inv_off" \
+    || _ok "a seat with no route prints no inventory — no question asked, no answer claimed"
+  _probe
+
   : >"$_tmp/mark"
   HL_STUB_MARK="$_tmp/mark" hl_wsl_route py -3 scripts/gate/check_doc_size.py --self-test >/dev/null 2>&1
   if grep -q 'PY-RAN' "$_tmp/mark" && ! grep -q -- ' -3 ' "$_tmp/mark"; then
