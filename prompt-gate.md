@@ -19,8 +19,9 @@
 ⛔ never edit `prompt.md` or `todo-table.md` from a lane (O2). ≤2 children live, `async: true`, the parent's own model
 (O10-O11). No converge and no host act: nothing here touches a deployed box.
 
-**Status — the seat's cost question is answered and the engine's contract is written down; legs A3, A2 and A5 stay
-open and are dispatched at the end of §2.** What exists now, and how to see it:
+**Status — the seat's cost question is answered, the engine's contract is written down, and the pool question now has a
+number to be read against; legs A3, A2 and A5 stay open and are dispatched at the end of §2.** What exists now, and how to
+see it:
 
 * **The parity harness** — [`scripts/bench/win/gate-parity.sh`](scripts/bench/win/gate-parity.sh) plus the planted legs
   in [`scripts/testdata/gate-parity/`](scripts/testdata/gate-parity/): rc 0 parity, rc 1 diff (naming the arm count and
@@ -36,6 +37,21 @@ open and are dispatched at the end of §2.** What exists now, and how to see it:
   [`docs/harness-rejected.md`](docs/harness-rejected.md); the node exists at `~/.local/share/pi-node/current/bin/node`
   and is unreachable by name, which is a probe question, not an environment boundary —
   [`docs/harness-pi-seats.md`](docs/harness-pi-seats.md) §1 carries the seat's own numbers and what they mean.
+* **The `ms/exec` figure every run prints is the seat's real per-fork price from 2026-10-31 on, and a fifth of it before.**
+  The host-cost probe resolved its target with `command -v true`, which in bash names the **builtin**, so the "five execs"
+  loop forked once (the `$(seq)` word list) and divided that fork by five — on every seat. `type -P true` + `{1..5}` is the
+  fix, `SKIP` prints where no `true` binary exists, and `degraded` moved to > 300. Re-derive both sides: native
+  `t0=$EPOCHREALTIME; for i in {1..200}; do "$(type -P true)" >/dev/null; done; echo $(( (t1-t0)/200 ))`, and the engine's
+  `date +%s.%N` around 200 forks of `/bin/true` (its cwd on the mount costs slightly more than `/tmp`). §1's older figures
+  and every number in this brief's history are pre-fix scale — multiply by five to compare them with a loop measurement.
+* **The wall has a floor, and it is a leg rather than the pool.** List-scheduling one run's `--time` durations predicts
+  the observed wall within ~10 % at every width, and it says the run stops getting faster once the pool is wider than the
+  legs that can run at once: from there `wall ≈ the heaviest leg`, not `Σ/pool`. Launching the heavy legs *first* reaches
+  that floor at a much narrower pool than registration order does — registration order starts the expensive block first
+  but scatters the heaviest legs through the middle of it. So a `GATE_WIN_PAR` sweep is a small knob (read: it buys
+  nothing past that width, and excludes nothing worth excluding), and the two knobs that move the wall are **order** and
+  **making the heavy legs cheaper** — which is A2. Re-derive on any run: `bash scripts/validate-all.sh --time`, then read
+  `--time slowest`'s top entry against the printed `wall`, and `--list | wc -l` for the leg count.
 * **Two legs are native on purpose.** `pi-seat-sync.sh --self-test` reads THIS checkout through `git` (`self_head()`)
   and classifies the seat, so a crossed verdict there is an agreement between two runs that read no HEAD; and
   `scripts/secrets/check-token-holders.sh --self-test` refuses natively by design and belongs wrapped. Both reasons are
@@ -86,10 +102,10 @@ the lib's header and enforced by the probe, not by a list.
 | # | leg | where | done when |
 |---|---|---|---|
 | A1 | **the parity harness** - a leg's native and crossed runs must agree on more than their exit code. A reusable runner lands under `scripts/bench/`: run the argv here, run the same argv through `hl_wsl_route`, compare the **arm counts and verdict words** after stripping CR, `/mnt/...`, drive-letter and temp-path noise; rc 2 when either side could not run. Registry row + registration + `--self-test` in the same commit (one row per tracked file is `check_script_layout.py`'s rule) | win11 | the runner reddens on a planted leg that loses an arm across the door, and greens on one that only differs by path spelling |
-| A2 | **wrap what A1 proves.** Candidates worth the measurement first: `scripts/gate/check_hd_mint_space.py --self-test`, `scripts/harness/install-tmux-conf.sh --self-test`, `scripts/harness/pi-settings-config.sh --self-test`, `scripts/harness/pi-tui-config.sh --self-test` | win11 | each wrap cites its parity output in the commit message; a crossed leg that judges **fewer** arms than the native one is a finding regardless of how fast it is |
+| A2 | **wrap what A1 proves.** Take the candidates from the top of `bash scripts/validate-all.sh --time`'s slowest list, then keep only what the conjunction permits: `check_string_twins.py --self-test` and `check_net_manager.py --self-test` (fixture trees, no seat state, no door-facing dep), `install-tmux-conf.sh --self-test` (the engine has `tmux`, this seat prints SKIPs, so the wrap buys verdicts as well as time), `check_hd_mint_space.py --self-test` (arm-identical; its checkout-reading tree-scan forms stay native), `pi-settings-config.sh --self-test` / `pi-tui-config.sh --self-test` (wrap inside the registration function — `hl_wsl_route` routes only a `python|python3|py|bash|sh` head), and `install-hooks.sh --self-test` ONLY once its vault leg has a seam, since as written it opens a vault trip and is ineligible. The rest of the heavy list is ineligible by design: seat-classifying (`pi-seat-sync`, `lib/pi-seat`, `lib/wsl-route`, `seat-*-build`) or vault/ssh (`lib/vault-env`, `git-bootstrap-win11`) | win11 | each wrap cites its parity output in the commit message; a crossed leg that judges **fewer** arms than the native one is a finding regardless of how fast it is |
 | A3 | **declared runtime deps.** A wrapped leg that needs a tool the engine lacks must answer `CANNOT RUN` (rc 2), never rc 0. The shape to copy already exists: `scripts/testdata/rsync-max-delete/run.sh` tests the binary and exits 2, and the gate prints the NOTE. Make the engine's tool inventory visible once per run from `hl_wsl_probe` rather than discovered per leg, and give the leg-contract checker a home in `scripts/gate/` with its registry row and registration | win11 + `[engine]` | an arm proves rc 2 for a named missing tool on a seat that lacks it, and the same arm proves the tool's presence is not assumed anywhere else |
 | A4 | **`[engine]` the engine's own tool set.** Two facts to re-check before deciding anything: the engine's `rsync` (absent, and absent in Git-Bash too, so the two real `--max-delete` fires run on neither seat of this laptop) and its **node**, which IS installed but under `$HOME`, behind the route's deliberately pinned PATH - which is why `pi-tui-config --self-test`'s `pinned-node` arm SKIPs when crossed. ⛔ do not "fix" node by installing into `/usr/local/bin`: the pin exists so a leg cannot run a runtime that is not the seat's. If engine-side node is wanted, it is a declared extra PATH in the route and a line in [docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1 - and if it is refused, it goes to [docs/harness-rejected.md](docs/harness-rejected.md) | `[engine]` (the `apt` act is [prompt-laptop-wsl.md](prompt-laptop-wsl.md) §0's seat leg - ride it, do not re-mint it) | the gate says, per leg and in words, which tools the engine had; the rsync arms run somewhere on this laptop or are named as not running |
-| A5 | **answer HD-1202's `GATE_WIN_PAR` tail.** Alternate 4 / 8 / 16-wide runs of the full set, at least three alternations, quiet box, `ms/exec` per run. The pool sweep already run once reported wall falling as the pool widened while the **sum** of leg durations grew faster than the wall shrank - read `--time`'s `Σ/wall` and the POOL DIAGNOSTIC rather than the headline seconds. The verdict becomes a sentence in [docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1, the numbers go in the commit message, and the `⏳` leaves HD-1202 in the same change | win11 | a default that is no longer marked untested, or an explicit decision to keep the current value with the measurement that justifies it |
+| A5 | **answer HD-1202's `GATE_WIN_PAR` tail — against the floor, not against the headline seconds.** Alternate 4 / 8 / 16-wide runs of the full set, at least three alternations, quiet box, `ms/exec` per run (real scale since 2026-10-31; see the status bullet). Read each run's `--time slowest` top entry against its `wall`: past the width where the heaviest leg sets the wall, the pool buys nothing, and no leg is excluded from the pool to make the number look better (a leg outside the pool runs serially and lands whole on the critical path, and a per-leg pool exception would need the second queue this repo declined). If the sweep comes back flat, the finding is **launch order**, not width: the heavy legs are launched first as a block but the heaviest of them mid-block, and starting them first reaches the floor at a narrower pool — that question goes to the runner/registration design and needs its own measurement, not a ruling here | win11 | a default that is no longer marked untested, or an explicit decision to keep the current value with the measurement that justifies it, and the floor named as the reason a wider pool was not taken |
 | A6 | ⏳ **the residue the parity harness may find.** If any already-wrapped leg loses arms across the door, it is unwrapped (or its arms are made engine-independent) in the same commit | win11 | every wrapped leg's parity diff is empty, or the leg is native and says why in its registration reason |
 
 **The three legs still open, in the order that costs least.**
@@ -108,8 +124,10 @@ the lib's header and enforced by the probe, not by a list.
   than the native run is a finding, whatever the stopwatch says.
 * **A5 — `GATE_WIN_PAR`.** The sweep is `for p in 4 8 16; do GATE_WIN_PAR=$p bash scripts/validate-all.sh --time; done`,
   at least three A/B alternations, on a box with no other lane forking, and the numbers to weigh are `--time`'s `Σ/wall`
-  against wall — not the headline seconds — with the `gate: N items in flight` line attached to every figure, because
-  `GATE_NPAR` is the ansible legs' fan-out and does not move with the pool width. The verdict becomes one sentence in
+  against wall **and the top entry of `--time slowest` against wall** — the second one is the bound: past the width where
+  the heaviest leg sets the wall, a wider pool buys nothing, so a flat sweep is a finding about the leg and the launch
+  order rather than about the number. Attach the `gate: N items in flight` line to every figure, because `GATE_NPAR` is
+  the ansible legs' fan-out and does not move with the pool width. The verdict becomes one sentence in
   [`docs/harness-pi-seats.md`](docs/harness-pi-seats.md) §1 and the numbers go in the commit message, in the same change
   that shortens [todo.md](todo.md) HD-1202.
 

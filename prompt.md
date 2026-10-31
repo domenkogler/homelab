@@ -107,9 +107,13 @@ not by the box: the Rule-0 legs a spark-served session may not run, and the whol
 
 **Gate-cost brief (a seat, not a wave):** [prompt-gate.md](prompt-gate.md) — the win11 seat's gate cost and the engine
 contract of its legs, run FROM win11. The parity harness that authorises a wrap exists and proves its own crossing,
-the engine's tool set is written down and the PATH widening is refused with its reopening condition, and two legs are
-native on purpose; **A3 (declared runtime deps), A2 (the wraps) and A5 (`GATE_WIN_PAR`) are the residue**, each with its
-command in that file. Claims **legs, not rows** — HD-1202's pool tail and HD-1216's interpreter tail stay with their rows.
+the engine's tool set is written down and the PATH widening is refused with its reopening condition, two legs are
+native on purpose, and the run's own `ms/exec` line has been measuring one real `fork()+exec` since 2026-10-31 (older
+figures in the docs are a fifth of that scale — the brief says how to tell them apart). **A3 (declared runtime deps),
+A2 (the wraps) and A5 (`GATE_WIN_PAR`) are the residue**, each with its command in that file; A5 is the small knob —
+past the width where the run's heaviest leg sets the wall, pool size buys nothing, so read the sweep against
+`--time slowest`'s top entry and leave the ordering question measured rather than ruled. Claims **legs, not rows** —
+HD-1202's pool tail and HD-1216's interpreter tail stay with their rows.
 
 **Window brief (not a wave):** [prompt-update.md](prompt-update.md) — the fleet pin bump + host-package window: phases
 0–8 driven from the WSL seat, the secret rotations scheduled into it, no rows carried, and it dies with the window.
