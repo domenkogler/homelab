@@ -64,13 +64,35 @@ Subdomains are relative to `kogler.si`. Network codes: see [Docker Networks](ser
 
 ## Landing & Import
 
-- Downloads land in `bulk/media/downloads/{complete,incomplete}` (TRaSH per-category save paths) — see
+- Downloads land in `bulk/media/downloads/{complete,incomplete}`; which folder inside it a release lands in
+  is decided by the client that takes the job (the three views below) — see
   [Media Stack → Storage & Import](services-media.md#storage-import-media-arr).
 - **Hardlink import** into `media/` is performed by Sonarr/Radarr/Lidarr in the media stack; downloads
   dir is transient scratch and pruned after import.
   ⚠ **On oldsrv it is a MOVE, not a hardlink** — see §Hardlink import is impossible while the two
   trees are separate bind mounts. The distinction is not cosmetic: a moved torrent stops seeding the
   moment it is imported, which is a problem on a private tracker.
+- **The three views of a landing path — and the one that does not exist.** A grab started in Prowlarr's own
+  search UI is served by **Prowlarr's own** client list (§Which half of Prowlarr to trust), so the client that
+  takes the job decides the folder:
+  - **container path:** a torrent → `/downloads/complete/prowlarr/<release>`, the `prowlarr` entry in
+    `qbit_categories` and the Default Category on Prowlarr's qBittorrent client — the directory is empty
+    between grabs because an import moves the release out of it, so its timestamp reads as the last import,
+    never as whether the path works. A usenet release → `/downloads/complete/<release>` **flat**: Prowlarr's
+    SAB client carries no per-app category (its Default Category is SAB's `*` default), and no
+    `[[category]] dir` in the live `sabnzbd.ini` is set, so SAB writes under `complete_dir` whatever `cat`
+    the job carries.
+  - **host path:** `/mnt/nas/media/downloads/complete/<…>` on **oldsrv**, which is `/bulk/media/downloads/complete/<…>`
+    on **nas**. The identity that mounts it: `storage_nfs_mounts` automounts `nas.kogler.si:/bulk/media` on
+    `/mnt/nas/media` (`roles/storage/defaults/main.yml`), and both downloaders bind it through as
+    `/mnt/nas/media/downloads:/downloads`.
+  - **UNC path: none exists.** `testparm -s` on nas (live-verified 2026-10-30) lists exactly three shares —
+    `\\nas\media` → `/tank/data/shared`, `\\nas\music` → `/bulk/media/media/music`, `\\nas\<user>` →
+    `/tank/data/users/<user>` — and none of them contains `bulk/media/downloads`, which is NFS-exported to
+    oldsrv only ([storage.md](storage.md) §Samba (SMB) shares on the NAS). A download is therefore
+    Windows-visible only once an arr has imported it into a shared tree; for the music library that is
+    `\\nas\music\<Artist>\<Album>`. ⛔ `\\nas\media` is **not** that door — it is `tank/data/shared`, a
+    different pool from the download dataset.
 - ⚠ **SABnzbd's first-run wizard defaults BOTH folder fields to its own config bind** — `/config/Downloads/{incomplete,complete}`.
   That path is writable and looks harmless, but it is `/srv/docker/sabnzbd/config` on
   the **local NVMe**, while the \*arrs mount the NAS share at `/downloads`; so the grab succeeds, the
@@ -81,7 +103,16 @@ Subdomains are relative to `kogler.si`. Network codes: see [Docker Networks](ser
   as `storage_uid`, and `/downloads/complete` is writable by it — tested), then give each category a
   **relative** dir (`movies`, `tv`, `music`) so files land in `/downloads/complete/<cat>`, which is what
   the arrs read. Proof it is right: a completed grab is visible from the host at
-  `/mnt/nas/media/downloads/complete/<cat>` and the arr imports without the "path does not exist" error.
+  `/mnt/nas/media/downloads/complete/…` and the arr imports without the "path does not exist" error.
+  ⚠ **The relative per-category dir is the recipe, not the live state:** every `[[category]] dir` in the
+  `sabnzbd.ini` is empty — live-verified 2026-10-30 — so a completed SAB job lands **flat** at
+  `/downloads/complete/<release>` whatever `cat` it arrives with, and the empty per-release husks in
+  §End-to-end path: the Usenet leg are the same flat shape. Nothing is lost by it — an arr reads the
+  completed path back from SAB's API rather than rebuilding it — but do not use the folder layout as
+  evidence of a category. **The per-category dirs are owned by nothing:** `sabnzbd_folder_ini` owns the two
+  `[misc]` keys only, and the seed deliberately stays off `dir` because a line-based edit on `^dir *=` hits
+  every category's line (see `templates/sabnzbd-folders.py.j2`). The qBittorrent side has no such gap —
+  `qbit_categories` owns one path per category there.
   ⚠ **The ini keys are `complete_dir` and `download_dir` — NOT `dir` / `temp_dir`.** Writing the old names
   "succeeds" (the lines sit in the file, SAB never reads them) and downloads keep landing on the local
   disk — see §SABnzbd 5's folder options below. Both keys are owned in IaC by
@@ -502,11 +533,12 @@ prowlarr: OK already: unchanged host=gluetun:8080 category=prowlarr    · arr cl
 ```
 
 The `not exposed by this build: apiKey` suffix is the optional-field path reporting itself rather than
-skipping quietly. **What this section does NOT claim:** that a grab started in Prowlarr's own search UI has
-landed in `/downloads/complete/prowlarr` — the category and its save path are configured
-(`categories.json` carries `prowlarr → /downloads/complete/prowlarr`, `UseCategoryPathsInManualMode=true`)
-and the directory does not exist until qBittorrent first writes into it, but the grab itself needs a real
-indexer result, so it stays an owner-witnessed leg.
+skipping quietly. **What the grab path does:** a job started in Prowlarr's own search UI is served by
+**Prowlarr's own** client list, so its landing folder is that client's, never an arr's (§Landing & Import).
+The torrent leg lands in `/downloads/complete/prowlarr/<release>` — the category and its save path are
+configured (`categories.json` carries `prowlarr → /downloads/complete/prowlarr`,
+`UseCategoryPathsInManualMode=true`) and the directory reads empty between grabs because the import moves the
+release out of it. A usenet job lands **flat** in `complete/`, because no SAB category carries a `dir`.
 
 ### SABnzbd 5's folder options are `complete_dir` / `download_dir` — the old names are inert
 
@@ -537,7 +569,7 @@ grab ever shows only `.rar`s, that is SAB's unpack step failing, not a missing m
   plus `sabnzbd_folder_ini_drop = [dir, temp_dir]`, so dead keys cannot shadow live ones. Removal is
   scoped to `[misc]`, because `dir` legitimately appears per category (`[[movies]]`, `[[tv]]`, …).
 - The proof of the shape: a completed grab walks
-  `/downloads/incomplete` → `/downloads/complete/movies/…` and imports.
+  `/downloads/incomplete` → `/downloads/complete/<release>` and imports — flat, while no category carries a `dir`.
 - ⚠ **Diagnostic trap:** reading the ini **inside** the container needs `docker exec -u 1005`
   (it is `0600`, owned by `media`). As root you get `Permission denied` → an empty key variable → and a
   keyless `/api` call then logs `API key missing, please enter the API key …` in SAB and fires a
@@ -547,7 +579,7 @@ grab ever shows only `.rar`s, that is SAB's unpack step failing, not a missing m
 
 ### End-to-end path: the Usenet leg
 
-`Seerr request → Radarr add + search → Prowlarr → NZBGeek → SABnzbd (Eweka) → /downloads/complete/movies
+`Seerr request → Radarr add + search → Prowlarr → NZBGeek → SABnzbd (Eweka) → /downloads/complete
 → import → /media/movies`: 24.4 GB in ~10 min at ~50 MB/s, `hasFile=true`, queue drained.
 
 The imported file ends with **one link**, because SAB's completed copy is cleaned up after Radarr links

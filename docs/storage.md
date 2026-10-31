@@ -52,7 +52,7 @@ bulk   (6 TB RAIDZ2 — WD Red + 3× Toshiba P300, consumer disks)  → MIXED RO
 │   │   └── music/       the FLAC MASTER — a directory inside this dataset, snapshotted by Kopia and pushed to the live Box (see §Kopia Policy, §Service ↔ Storage Placement)
 │   └── downloads/       transient scratch (hardlink-import → media/, then prune)
 │       ├── incomplete/{usenet,torrent}
-│       └── complete/{movies,tv,music}   # TRaSH per-category (SABnzbd / qBittorrent)
+│       └── complete/{movies,tv,music,prowlarr}   # qBittorrent category paths; a SAB job lands flat in complete/
 ├── data/                syncoid replicas of tank/data/* — same names, same snapshot schedules
 │   ├── services/
 │   └── db-dumps/

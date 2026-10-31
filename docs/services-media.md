@@ -82,7 +82,7 @@ bulk/media/                       # ONE dataset — ACTIVE library; the movies/T
 │   └── music/                    # the FLAC MASTER — backed up (Kopia) + pushed to the Box as Navidrome's serving copy, see §Navidrome
 └── downloads/                    # transient scratch (hardlink-import → media/, then prune)
     ├── incomplete/{usenet,torrent}
-    └── complete/{movies,tv,music}   # TRaSH per-category (SABnzbd / qBittorrent save paths)
+    └── complete/{movies,tv,music,prowlarr}   # qBittorrent category paths (`qbit_categories`); a SAB job lands flat in complete/
 ```
 
 - **Three NFS exports:** `bulk/media` → oldsrv **`/mnt/nas/media`** (the *arr share), `tank/data` →
