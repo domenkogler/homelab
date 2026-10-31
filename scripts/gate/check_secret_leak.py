@@ -1050,12 +1050,48 @@ def self_test() -> int:
             rc = report(res, 1, 1, [], list(errs or []), ledger, False, DEFAULT_MAX_FILE_MB, [])
         return rc, buf.getvalue()
 
+    register_seq = [0]
+
+    def register_fixture(dirpath: Path, rows: list[tuple[str, str, str]], name: str = "") -> Path:
+        """A register the drop guard can read: one `<item>TAB<class>TAB<seat>TAB<version>TAB<path>
+        TAB<doc>` line per (item, class, seat) the arm names, with the three columns the guard does not
+        read filled with legal placeholders. No value, no length — the same budget as the real book."""
+        register_seq[0] += 1
+        p = dirpath / (name or f"register-{register_seq[0]}.txt")
+        p.write_text("# fixture register — the guard reads the seat column and nothing else\n"
+                     + "".join(f"{item}\t{cls}\t{seat}\t1\tlane\tdocs/deployment-secrets.md\n"
+                               for item, cls, seat in rows), encoding="utf-8")
+        return p
+
     def rewrite(path: Path, findings: list[Finding], judged: set[str],
                 scope: list[str] | None = None,
-                partial: list[str] | None = None) -> tuple[int, str]:
-        buf = io.StringIO()
-        with redirect_stdout(buf):
-            rc = update_ledger(path, findings, judged, scope, partial)
+                partial: list[str] | None = None,
+                seat: str = "wsl",
+                register: Path | None = None) -> tuple[int, str]:
+        """Ask the drop guard FROM a seat, against a register. `this_seat` is patched for the call and
+        `$HL_DEBT_REGISTER` is aimed at the fixture — the same two handles `check_secret_debt.py` and
+        `contain-leaked-values.py` use in their own arms — so the guard runs down its real default path
+        rather than around it. With no register given, the fixture records EVERY run-capture pair of the
+        book on `seat`: that is the precondition for a drop, and an arm that wants one of the other
+        shapes names its own register."""
+        debt = _debt()
+        if register is None:
+            register = register_fixture(path.parent,
+                                        [(r[0], r[1], seat) for r in read_ledger_rows(path)
+                                         if r[1] == "run-capture"])
+        old_seat_fn, old_reg = debt.this_seat, os.environ.get("HL_DEBT_REGISTER")
+        debt.this_seat = lambda: seat
+        os.environ["HL_DEBT_REGISTER"] = str(register)
+        try:
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rc = update_ledger(path, findings, judged, scope, partial)
+        finally:
+            debt.this_seat = old_seat_fn
+            if old_reg is None:
+                os.environ.pop("HL_DEBT_REGISTER", None)
+            else:
+                os.environ["HL_DEBT_REGISTER"] = old_reg
         return rc, buf.getvalue()
 
     # (1) a clean tree reads GREEN — a check that cannot say so cannot be trusted to say otherwise.
@@ -1214,25 +1250,26 @@ def self_test() -> int:
     # (10) --update-ledger across seats: a run may only delete a line it PROVED absent.
     with tempfile.TemporaryDirectory() as td:
         led = Path(td) / "led.txt"
-        book = ("# book\naaaa\trun-capture\titem_a\nbbbb\tgit-history\titem_b\n"
-                "cccc\trun-capture\titem_c\n")
+        book = ("# book\naaaaaaaa\trun-capture\titem_a\nbbbbbbbb\tgit-history\titem_b\n"
+                "cccccccc\trun-capture\titem_c\n")
         led.write_text(book, encoding="utf-8")
         rc, out = rewrite(led, [], {"repo-tree"})
         pairs = {k for k in read_ledger(led)}
         check("a tree-only run cannot delete the classes it could not see",
-              rc == 0 and {("aaaa", "run-capture"), ("bbbb", "git-history"), ("cccc", "run-capture")}
-              <= pairs and "carried through" in out, f"rc {rc}: {sorted(pairs)}")
+              rc == 0 and {("aaaaaaaa", "run-capture"), ("bbbbbbbb", "git-history"),
+                           ("cccccccc", "run-capture")} <= pairs and "carried through" in out,
+              f"rc {rc}: {sorted(pairs)}")
         led.write_text(book, encoding="utf-8")
         rc, out = rewrite(led, [], {"repo-tree"}, ["git-history"])
         check("--class naming a class this run did not scan REFUSES, and the file does not move",
-              rc == 1 and led.read_text() == book and "would remove bbbb git-history" in out,
+              rc == 1 and led.read_text() == book and "would remove bbbbbbbb git-history" in out,
               f"rc {rc}: {out[-140:]}")
         led.write_text(book, encoding="utf-8")
-        hit = [("p", 1, "aaaa", "item_a", "run-capture")]
+        hit = [("p", 1, "aaaaaaaa", "item_a", "run-capture")]
         rc, out = rewrite(led, hit, {"run-capture"})
         pairs = {k for k in read_ledger(led)}
         check("a pair this run PROVED absent does drop, with the reason printed",
-              rc == 0 and pairs == {("aaaa", "run-capture"), ("bbbb", "git-history")}
+              rc == 0 and pairs == {("aaaaaaaa", "run-capture"), ("bbbbbbbb", "git-history")}
               and "proven ABSENT" in out, f"rc {rc}: {sorted(pairs)} {out[-120:]}")
         # and the history leg has to have RUN to clear a git-history line
         led.write_text(book, encoding="utf-8")
@@ -1284,7 +1321,7 @@ def self_test() -> int:
                   len(e_p) == 1 and len(n_p) == 2 and "op-fanout" in out_p,
                   f"errors={e_p} needles={len(n_p)} out={out_p[:120]!r}")
             led = Path(td) / "led.txt"
-            book = "# book\naaaa\trun-capture\titem_a\n"
+            book = "# book\naaaaaaaa\trun-capture\titem_a\n"
             led.write_text(book, encoding="utf-8")
             rc, out = verdict(ScanRun([], zero_counts(), 1, {"run-capture"}, {}, []), led, errs=e_p)
             check("a run that read part of the vault prints that on its own report",
@@ -1445,6 +1482,89 @@ def self_test() -> int:
             else:
                 os.environ["HL_CONTAINMENT_RECEIPT"] = keep_rec
 
+    # (27) HD-1224: the ledger is keyed `(item, class)` and a `run-capture` derivation is keyed by SEAT,
+    # so a one-seat rewrite may shorten the book only by a line the register records on THIS seat. Both
+    # directions are proved, because a guard that only ever drops is the erasure this row is about and a
+    # guard that only ever carries is the same defect pointing the other way. The guard decides from the
+    # two books, so it reads ZERO vault requests.
+    with tempfile.TemporaryDirectory() as td:
+        fx = Path(td) / "vault-fixture.json"
+        fx.write_text(json.dumps({"items": {"aaaaaaaa" + "a" * 18: {
+            "title": "item_here", "version": 3, "fields": [
+                {"id": "password", "label": "password", "value": _mint(),
+                 "type": "Concealed", "section": ""}]}}}), encoding="utf-8")
+        led = Path(td) / "led.txt"
+        book = ("# book\naaaaaaaa\trun-capture\there\nbbbbbbbb\trun-capture\telsewhere\n"
+                "cccccccc\trun-capture\tboth\ndddddddd\tgit-history\tpublished\n")
+        reg = register_fixture(Path(td), [("aaaaaaaa", "run-capture", "wsl"),
+                                         ("bbbbbbbb", "run-capture", "oldsrv"),
+                                         ("cccccccc", "run-capture", "wsl"),
+                                         ("cccccccc", "run-capture", "win11")])
+        led.write_text(book, encoding="utf-8")
+        rc, out = rewrite(led, [], {"run-capture"}, ["run-capture"], seat="wsl", register=reg)
+        pairs = read_ledger(led)
+        check("a line ANOTHER seat recorded survives a one-seat rewrite and prints as carried",
+              rc == 0 and ("bbbbbbbb", "run-capture") in pairs
+              and "carried bbbbbbbb run-capture" in out and "oldsrv" in out,
+              f"rc {rc}: {sorted(pairs)} {out[-160:]}")
+        check("a pair TWO seats recorded survives one seat's clean derivation, and names the other store",
+              ("cccccccc", "run-capture") in pairs and "carried cccccccc run-capture" in out
+              and "win11" in out, f"{sorted(pairs)} {out[-160:]}")
+        check("a line THIS seat's store proves absent still drops, and the reason names the seat",
+              ("aaaaaaaa", "run-capture") not in pairs and "dropped aaaaaaaa run-capture" in out
+              and "this seat alone" in out, f"{sorted(pairs)} {out[-160:]}")
+        check("every other class keeps today's rule: an out-of-scope git-history line is carried",
+              ("dddddddd", "git-history") in pairs and "carried through unchanged" in out,
+              f"{sorted(pairs)}")
+        led.write_text(book, encoding="utf-8")
+        rc, out = rewrite(led, [], {"run-capture"}, ["run-capture"], seat="oldsrv", register=reg)
+        pairs = read_ledger(led)
+        check("the seat that recorded a line still closes it — the guard is not a blanket ban",
+              rc == 0 and ("bbbbbbbb", "run-capture") not in pairs
+              and "dropped bbbbbbbb run-capture" in out, f"rc {rc}: {sorted(pairs)}")
+        check("and that run cannot delete the line the FIRST seat recorded",
+              ("aaaaaaaa", "run-capture") in pairs and "carried aaaaaaaa run-capture" in out
+              and "wsl" in out, f"{sorted(pairs)} {out[-160:]}")
+        # A register that says nothing about a pair leaves the pair's recorder unknown — unknown is not
+        # absent, and it is certainly not a free pass.
+        led.write_text(book, encoding="utf-8")
+        rc, out = rewrite(led, [], {"run-capture"}, ["run-capture"], seat="wsl",
+                          register=register_fixture(Path(td), [("bbbbbbbb", "run-capture", "oldsrv")]))
+        check("a run-capture line the register says nothing about is carried, never dropped",
+              rc == 0 and {("aaaaaaaa", "run-capture"), ("cccccccc", "run-capture")}
+              <= read_ledger(led) and "names no seat" in out, f"rc {rc}: {out[-160:]}")
+        # The two shapes where the guard cannot ask the question at all: no book, and a book whose lines
+        # do not parse. Both refuse the rewrite outright rather than default to "nobody recorded it".
+        led.write_text(book, encoding="utf-8")
+        rc, out = rewrite(led, [], {"run-capture"}, ["run-capture"], seat="wsl",
+                          register=Path(td) / "no-such-register.txt")
+        check("an unreadable register REFUSES a run-capture rewrite and the book does not move",
+              rc == 1 and led.read_text(encoding="utf-8") == book and "REFUSED" in out,
+              f"rc {rc}: {out[-140:]}")
+        broken = Path(td) / "broken-register.txt"
+        broken.write_text("aaaaaaaa\trun-capture\twsl\t1\tlane\tdocs/deployment-secrets.md\n"
+                          "oops\trun-capture\twsl\t1\tlane\tdocs/deployment-secrets.md\n",
+                          encoding="utf-8")
+        led.write_text(book, encoding="utf-8")
+        rc, out = rewrite(led, [], {"run-capture"}, ["run-capture"], seat="wsl", register=broken)
+        check("a malformed register line REFUSES the rewrite — a debt with no seat is a debt any seat "
+              "could delete", rc == 1 and led.read_text(encoding="utf-8") == book,
+              f"rc {rc}: {out[-140:]}")
+        prev_fx_env27 = os.environ.get("HL_VAULT_READ_FIXTURE")
+        os.environ["HL_VAULT_READ_FIXTURE"] = str(fx)
+        try:
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                load_values()
+            cost = buf.getvalue()
+            check("the seat guard reads ZERO vault requests: it decides from the two books",
+                  "route=fixture" in cost and "requests this leg: 0" in cost, cost[:120])
+        finally:
+            if prev_fx_env27 is None:
+                os.environ.pop("HL_VAULT_READ_FIXTURE", None)
+            else:
+                os.environ["HL_VAULT_READ_FIXTURE"] = prev_fx_env27
+
     print(f"check_secret_leak.py --self-test: {fails} failing arm(s)")
     if fails:
         return 1
@@ -1527,6 +1647,16 @@ MUTATIONS = [
      "    if blind:",
      "    if False:",
      "the refusal arm"),
+    # The seat half of the `run-capture` rule (HD-1224): the ledger is seat-blind, so the register is
+    # the only thing that says WHOSE store a line came from. Both halves of that are claims.
+    ("a run-capture line is dropped on the class question alone (the seat guard is blind)",
+     "seat_block(row, seats, seat)",
+     '""',
+     "the seat-carried arms"),
+    ("the register is never consulted before dropping a run-capture line",
+     "    if by_seat:",
+     "    if False:",
+     "the seat-guard arms"),
     # The partial-read plumbing (docs/1password.md §What a gate run costs the vault): both halves
     # made the NOTE unreachable prose and the ledger unsafe to re-derive.
     ("the reader's partial read never reaches the leg (errs empty again)",
