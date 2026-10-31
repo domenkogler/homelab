@@ -1647,6 +1647,18 @@ item_x "its pin() half resolves every real plane with grep|head|sed|tr PER pin �
 # than the distro installed on it, and it runs in a tenth of a second. It is excluded from quick
 # because it tests the router, not the tree — rerun it when the routing or the seat classes change.
 item_x "a router self-test over a stub engine, not a tree check: rerun it when the routing, the seat classes, or the eligibility rule changes" "lib/wsl-route.sh --self-test (the win11 seat's hybrid route: which legs cross to the Debian engine, and what makes a leg ineligible)" bash scripts/lib/wsl-route.sh --self-test
+# The parity half of that route. A crossed leg that loses an arm to a tool the engine lacks, a path it
+# cannot open, or a seat test it early-returns on STILL comes back rc 0 — `hl_wsl_route` passes the far rc
+# straight through, which is exactly why rc alone cannot certify a wrap. `bench/win/gate-parity.sh` runs
+# one argv HERE and the same argv through the route and compares the ARM COUNTS and the verdict words,
+# with rc 2 outranking both whenever a side could not run (a boundary, or a side that judged nothing).
+# The SELF-TEST is what is registered: it grades every verdict on the planted legs in
+# testdata/gate-parity/ over a stub door, crosses one leg through the real door, and mutates its own
+# decision region four ways so a weakened rule cannot pass unnoticed. NOT registered is a full-leg parity
+# sweep over the wrapped registrations — that sweep is the act behind wrapping a leg, it doubles the gate
+# to answer a question that only changes when a wrap changes, and in a Windows worktree it would report
+# parity for every git-reading leg from two runs that read nothing. The runner prints that caveat itself.
+item_x "one argv twice per arm across a stub door plus ONE live-door leg: the parity harness's own verdicts, not a tree check — the full-leg parity sweep over the wrapped legs is deliberately NOT registered here (it is the act that authorises a wrap, not a per-keystroke measurement); rerun it when a leg is wrapped or the normalizer changes" "bench/win/gate-parity.sh --self-test (a wrapped leg must judge the SAME arms on both sides of the door: rc, arm counts, verdict words — and rc 2 outranks a parity diff when either side could not run)" bash scripts/bench/win/gate-parity.sh --self-test
 # The credential rule the vault legs share. Sandboxed: a stub door, a throwaway HOME, synthesised
 # fixture values — it reads no vault and needs no token, and its ratchet arm reads the tree, so it
 # runs NATIVE (a wrapped leg must not read this checkout through a Linux git).
