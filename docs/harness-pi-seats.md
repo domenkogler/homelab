@@ -183,7 +183,7 @@ Workflow); its arms stay outside the glob in
 self-test deployed into `~/.pi/agent/extensions` is LOADED as an extension by every session on every seat
 and would run its fixtures inside them. Arms: `node --experimental-strip-types
 pi-agent/proposed/vault-mask.selftest.ts` — the file is erasable-syntax-only TypeScript, so node's own
-type-stripping runs the same ten arms, and node is the runtime pi itself runs on (each seat's `pi`
+type-stripping runs the same eleven arms, and node is the runtime pi itself runs on (each seat's `pi`
 launcher execs a node binary: Volta's `$basedir/node` on the Windows seat, the pinned
 `~/.local/share/pi-node/current/bin/node` prefix on the Debian ones). The arms therefore have no
 runtime-dependent SKIP: the runner they need is the one pi is already running on. Green arms are a UNIT
@@ -229,12 +229,13 @@ bash scripts/harness/seat-python.sh -c 'import sys,pathlib; print(pathlib.Path(s
 node --experimental-strip-types pi-agent/proposed/vault-mask.selftest.ts acceptance-pair
 ```
 
-The pair does not follow from the arms and is not a formality: the ten arms answer a unit question, so a
-seat that resolves no interpreter can print ten greens while every tool result reaches the capture whole.
-Arm 10 is what fails there — it plants a `python3` that answers non-zero ahead of PATH and asserts either
-that the needles arrived through the resolver anyway, or, on a seat whose resolver answer IS that name and
-so has nothing to route around, that the OFF line names its launcher and rc. To read the pair on the Debian
-**engine** of a Windows box rather than on a Debian seat, two pins are owed, both stated above: the engine's
+The pair does not follow from the arms and is not a formality: the eleven arms answer a unit question, so a
+seat that resolves no interpreter can print eleven greens while every tool result reaches the capture whole.
+Arms 10 and 11 are what fail there — arm 10 plants a `python3` that answers non-zero ahead of PATH and arm
+11 a `bash` there, each asserting either that the needles arrived anyway, or, on a seat whose own answer IS
+that name and so has nothing to route around, that the OFF line names the program it tried and the rc it
+got. To read the pair on the Debian **engine** of a Windows box rather than on a Debian seat, two pins are
+owed, both stated above: the engine's
 node is off the route's pinned PATH so the leg names the binary, and the engine's git cannot open a Windows
 linked worktree (`rc 128`: the `.git` file's drive path, joined as a relative one), which is a fact about
 the checkout's spelling and not about the seat — so `HL_REPO` names the root, the seam the extension itself
