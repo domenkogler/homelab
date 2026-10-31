@@ -452,23 +452,27 @@ hold that, and neither is the leak ledger:
   the persistent transcript store cannot close its own lines (the measurement in the bullet above is
   why), and a line is closable only by the seat that recorded it. A seat the book carries no line for
   prints `NOT RECORDED`: a debt in a store nobody read is unknown, not absent.
-- **The ledger is seat-blind and the derivation is not, so a one-seat re-derive cannot be trusted with
-  another seat's `run-capture` line.** [`secret_leak_ledger.txt`](../scripts/gate/secret_leak_ledger.txt)
+- **The ledger is seat-blind and the derivation is not, so the drop guard asks the register whose
+  `run-capture` line a run may delete — never the ledger.**
+  [`secret_leak_ledger.txt`](../scripts/gate/secret_leak_ledger.txt)
   is keyed `<item-id-prefix>\t<class>\t<title>` with no
-  seat column, while `--update-ledger --class run-capture` derives from ONE seat's capture stores. The
-  drop guard therefore asks a class question where the debt is a seat question: it prints
-  `dropped <item> run-capture … — proven ABSENT this run` for a pair that is live in a store this run
-  never read (measured: a `win11` re-derive drops 4 lines whose debt sits in `wsl`'s stores), and what
-  it actually proved is that THIS seat's stores do not hold it. The same blindness shows on the read
-  side: a one-seat scan prints those foreign lines under `STALE ledger lines (no hit this run)`, which
-  invites somebody to delete a debt another store still holds — a class the run did read is treated as
-  evidence about every store, and it is evidence about one. The correct act is per-seat and
-  additive: on each seat derive into a temp book through the tool's own `$HL_LEAK_LEDGER` seam, then
-  commit the UNION of those books — never a single seat's derivation over the committed file. ⛔ A
-  `run-capture` line leaves this book only on the seat that recorded it, and a line whose pair is
-  carried by two seats is two debts, closed once per store. Making the drop guard seat-aware — so a
-  one-seat run cannot drop a line another seat recorded — is the machine half carried by the row that
-  links here.
+  seat column, while `--update-ledger --class run-capture` derives from ONE seat's capture stores, so
+  what such a run proves about a `run-capture` pair is only that THIS seat's stores do not hold it. The
+  register carries the seat — its key is `(item, class, seat)` — and the guard reads it: a
+  `run-capture` line drops only when the register records that pair on THIS seat alone and this run read
+  the store that seat names. A line a foreign seat recorded, and a pair two seats recorded, are carried
+  through the rewrite and printed as carried with the recording seat named; a box that answers no seat
+  carries every one of them; a register that cannot be read, or whose lines do not parse, is a REFUSAL
+  rather than a default of "nobody recorded it", because a debt with no seat would be a debt any seat
+  could delete. ⛔ A `run-capture` line leaves this book only on the seat that recorded it, and a line
+  whose pair is carried by two seats is two debts, closed once per store. The fleet-wide act is per-seat
+  and additive: on each seat derive into a temp book through the tool's own `$HL_LEAK_LEDGER` seam, then
+  commit the UNION of those books — never a single seat's derivation over the committed file. The READ
+  side keeps a blind spot of its own: a one-seat scan prints a foreign line under `STALE ledger lines
+  (no hit this run)`, which invites somebody to delete a debt another store still holds — a class the
+  run did read is evidence about one store, not about every one, and what stands between that invitation
+  and a lost debt is `check_secret_debt.py`, which prints a pair that LEFT the ledger with its version
+  UNMOVED as `REFUSED`.
 - **The no-rotation-path ruling lives in two places and an arm holds them equal**: the register's
   `path: none` column, and `NOT_ROTATABLE` in
   [`scripts/secrets/provision-secrets.py`](../scripts/secrets/provision-secrets.py). It is NOT
