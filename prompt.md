@@ -27,9 +27,9 @@ the legs only that box may drive: [prompt-laptop-wsl.md](prompt-laptop-wsl.md) �
 
 **One gate item is red on a seat whose environment carries the vault credential:** `git-bootstrap-win11.sh --self-test`'s
 `[no-credential]` arm clears the token FILE but not the inherited variable, so `route=env` resolves inside its own
-sandbox and the arm finds a working credential (reproduced on the oldsrv station, whose environment carries the token).
-It passes with `OP_SERVICE_ACCOUNT_TOKEN` unset, is not a regression, and **HD-1229** owns the sandbox fix — read the
-grade as that one line, not as a broken tip.
+sandbox and the arm finds a working credential — so the red shows wherever the environment carries the token
+(`OP_SERVICE_ACCOUNT_TOKEN` exported, which is how the oldsrv station runs). It passes with the variable unset, is not a
+regression, and **HD-1229** owns the sandbox fix — read the grade as that one line, not as a broken tip.
 
 **The delegation-plane check — run it BEFORE routing any lane, on the seat you are on**: launch ONE `async: true` child
 and require it to **yield a child session file**; no `--check` substitutes for it, and a pass certifies only the seat it
