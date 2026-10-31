@@ -151,6 +151,10 @@ Live-verified on the WSL Debian seat 2026-10-30: pi 1.4.0 with `pi-subagents@0.8
 produced a child session file and ran; the same seat's host-peer alias read answers with NO missing specifier, because
 that release's manifest names the optional peer in neither `dependencies` nor `optionalDependencies` — the manifest-test
 shape above, which is why the runner starts there at all.
+Live-verified on the win11 seat 2026-10-31: `pi list` reads `npm:pi-subagents@0.80.0` with an installed path under it
+(declaration and bytes both present), and one background launch produced its child session file, ran, and returned its
+result. Lanes launched from that seat therefore run `async: true`, and the foreground-sequential deviation binds only the
+seats that still owe their own launch.
 
 **A leg must ask the same question on both seat planes, down to the bytes.** A Python `subprocess` capture with `text=True`
 and no explicit `encoding=` decodes with the LOCALE default — UTF-8 on the Debian plane, cp1252 on the Win11 Git-Bash one —
@@ -218,6 +222,12 @@ chosen where this file was written ships one platform's answer to the other. On 
 prints `launcher=`, `via=` (which of the two rules chose it) and `rc=`: a masker that goes quiet on a seat
 whose launcher has another name is masking switched OFF on exactly that seat while the same commit reads
 green on the others.
+**Seat state of the pair** (each read on its own seat, at ZERO vault requests): live-verified on the win11 seat
+2026-10-31 — `PAIR OK`, `requests=0`, under Volta's `$basedir/node`, with
+`bash scripts/harness/seat-python.sh` resolving `py -3` to a real interpreter and `sync-extensions.sh --check --strict`
+then reading `OK` — and live-verified on the oldsrv seat 2026-10-31. A seat whose OWN pair has not run is certified by
+neither of those, and the Debian **engine** of a Windows box answering `PAIR OK` over the door form certifies the engine,
+not its `wsl` seat.
 
 Two commands re-derive the claim on the seat being asked, at ZERO vault requests:
 
