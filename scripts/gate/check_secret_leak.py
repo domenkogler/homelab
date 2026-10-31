@@ -50,6 +50,18 @@ drops a line only when THIS run read that line's class and did not hit that pair
 every line of a class it could not see, and `--class` scopes the rewrite to the one class a lane was
 actually looking at. A ledger line in a class this run did not read prints `NOT JUDGED`, never `STALE`.
 
+A `run-capture` line carries a SECOND key, and it is not in the ledger: the debt belongs to the SEAT
+whose capture store holds the hit, while the book is keyed `(item, class)` and one run's scan set is
+the stores of the one box it stands on. So the drop guard asks `secret_debt_register.txt`, which does
+carry the seat, and a one-seat rewrite may shorten the book ONLY by a `run-capture` line the register
+records on THIS seat and this run's stores proved absent. Every other such line is CARRIED and printed
+as carried, naming the seat that recorded it; a pair recorded on two seats is two debts, so no
+single-seat run closes that line, and a box that is none of the three seats closes none of them. The
+register is read with its owner's own parser (`check_secret_debt.py`) rather than re-spelled here, and
+an unreadable or malformed register is a REFUSAL — a book that reads shorter names no seat, and a debt
+with no seat is a debt any seat may delete
+(docs/deployment-secrets.md §Creation & Rotation Workflow item 9).
+
 (e) **History is a class, not a blind spot.** `spark-llm_api` sat in a tracked bench capture for 13
     days; `git rm` of the artifact made the TREE scan go clean while the blob stayed reachable from
     `origin/main` forever, and both scanners read `git ls-files` — so the suite read green over a
@@ -658,6 +670,69 @@ def read_ledger(path: Path) -> set[tuple[str, str]]:
     return {(item, cls) for item, cls, _t in read_ledger_rows(path)}
 
 
+def _debt():
+    """`check_secret_debt` — the owner of the register's row grammar and of the seat arm.
+
+    Imported when it is needed, never at load: that file imports THIS module at load time (the ledger
+    row grammar and the capture-store set are owned here), so a module-level import in both directions
+    is a cycle. The path is spelled through the resolved root rather than this file's own directory so
+    a `--self-test` mutant running from a temp checkout still reaches the real register owner."""
+    sys.path.insert(0, str(ROOT / "scripts" / "gate"))
+    import check_secret_debt
+    return check_secret_debt
+
+
+def recording_seats() -> tuple[dict[tuple[str, str], set[str]], str]:
+    """`(item-id-prefix, class)` -> the seats whose capture store the register says holds the hit, and
+    a REFUSAL reason (empty when there is none). The book is resolved through `$HL_DEBT_REGISTER`, the
+    register's own seam, so a fixture arm aims it without a parameter a production run could set.
+
+    The register — not the ledger — carries the seat, and it is read with its owner's own parser
+    because a second idea of a register line is the twin this family of gates exists to catch. A line
+    the parser rejects, and a book that cannot be read at all, are returned as a refusal instead of a
+    shortened map: a register that quietly reads shorter names no seat for a debt, and a debt with no
+    seat is a debt every seat may delete."""
+    try:
+        debt = _debt()
+    except ImportError as exc:
+        return {}, f"scripts/gate/check_secret_debt.py does not import ({exc})"
+    try:
+        lines, bad = debt.read_register(debt.register_path())
+    except debt.Boundary as exc:
+        return {}, str(exc)
+    if bad:
+        return {}, bad[0]
+    seats: dict[tuple[str, str], set[str]] = {}
+    for ln in lines:
+        seats.setdefault((ln.item, ln.cls), set()).add(ln.seat)
+    return seats, ""
+
+
+def seat_block(row: tuple[str, str, str], seats: dict[tuple[str, str], set[str]],
+               seat: str) -> str:
+    """Why this run may NOT drop this `run-capture` line — or "" when it may.
+
+    The three shapes that stop a drop are the same rule seen from each side: the register names a
+    DIFFERENT seat (this run read no store of that box), it names this seat AND another (a pair
+    carried by two stores is two debts, and closing one says nothing about the other), or it names
+    neither (a line whose recorder is unknown cannot be proven absent by anybody). A box that is not
+    one of the three seats falls into the first shape and judges nothing, which is what
+    `check_secret_debt.py` prints as `NOT JUDGED` for the same lines."""
+    recorders = seats.get((row[0], row[1]), set())
+    if not recorders:
+        return ("the register names no seat that recorded it — a line with no recorder is not a line "
+                "any run may delete; add the register row, then re-derive on the seat it names")
+    if seat not in recorders:
+        return (f"recorded on {', '.join(sorted(recorders))} and this run stands on {seat}, which read "
+                "no store of theirs — a seat may not close a debt it did not record")
+    others = sorted(recorders - {seat})
+    if others:
+        return (f"this seat ({seat}) proved it ABSENT in its own stores, but the register also records "
+                f"it on {', '.join(others)} — a pair carried by two seats is two debts, closed once "
+                "per store")
+    return ""
+
+
 def containment_receipt() -> Path:
     """Where a seat records the redactions it has performed. Resolved PER CALL, like `$HL_LEAK_LEDGER`,
     so a fixture arm can aim it at a temp tree instead of a real seat's state."""
@@ -728,6 +803,14 @@ def update_ledger(path: Path, findings: list[Finding], judged: set[str],
     unknown to it — so the rewrite is refused, not narrowed. (The unread item's own id is not carried
     here on purpose: the SDK's `individual_responses` do not promise the order the IDs went in, and a
     ledger pruned by a guess is the erasure this function exists to prevent.)
+
+    A `run-capture` line is decided twice: by its class, as above, and by its SEAT, because the
+    derivation reads one box's stores while the debt sits in whichever box recorded it. The seat comes
+    from the register, which is the book that carries it; see `recording_seats`/`seat_block`. The other
+    classes are decided exactly as before. The seat and the register are read through their own seams
+    (`this_seat`, `$HL_DEBT_REGISTER`) rather than taken as arguments: a parameter a caller can set is a
+    parameter a run could use to claim another seat's store.
+
     Returns 0 when the file was written, 1 when the rewrite was refused (the file is then untouched).
     """
     if partial:
@@ -754,17 +837,46 @@ def update_ledger(path: Path, findings: list[Finding], judged: set[str],
         print("Refusing to write: the file is unchanged. Name only the classes actually scanned "
               "(--class), or drop --update-ledger.")
         return 1
+    # The seat half, asked only when a `run-capture` line is about to be dropped — a rewrite of the
+    # other classes has no use for the register and does not read it.
+    held: list[tuple[tuple[str, str, str], str]] = []
+    seat = ""
+    by_seat = [r for r in dropped if r[1] == "run-capture"]
+    if by_seat:
+        seats, why = recording_seats()
+        if why:
+            print(f"REFUSED: --update-ledger cannot judge {len(by_seat)} run-capture line(s) without "
+                  f"the register they are keyed on ({why[:120]})")
+            print("Refusing to write: the file is unchanged. Without a seat column a run-capture line "
+                  "has no recorder, and any of the three seats could then delete a debt sitting in a "
+                  "store this run never opened. Fix the register, then re-derive.")
+            return 1
+        seat = _debt().this_seat()
+        answers: list[tuple[tuple[str, str, str], str]] = [(row, seat_block(row, seats, seat))
+                                                           for row in by_seat]
+        held = [(row, blocked) for row, blocked in answers if blocked]
+        dropped = ([r for r in dropped if r[1] != "run-capture"]
+                   + [row for row, blocked in answers if not blocked])
     derived = sorted({(f[2][:8], f[4], f[3]) for f in findings if f[4] in scope})
-    final = sorted(set(carried) | set(derived))
+    final = sorted(set(carried) | {row for row, _why in held} | set(derived))
     body = "\n".join(f"{a}\t{b}\t{c}" for a, b, c in final)
     comments = extra_comments(path)
     path.write_text("\n".join(LEDGER_HEADER + comments) + (("\n" + body) if body else "") + "\n",
                     encoding="utf-8")
     print(f"ledger rewritten: {len(final)} line(s) in {path.name}, derived from {sorted(scope)}"
-          + (f" ({len(comments)} explanatory comment line(s) kept)" if comments else ""))
+          + (f" ({len(comments)} explanatory comment line(s) kept)" if comments else "")
+          + (f" — the run-capture lines are judged from seat {seat}" if held or seat else ""))
     for item, cls, title in dropped:
-        print(f"  dropped {item} {cls} ({title}) — proven ABSENT this run: the class was scanned with a "
-              "corpus and did not hit that pair")
+        # The seat clause is only true of the class the register speaks for.
+        seat_clause = (", and the register records the pair on this seat alone"
+                       if cls == "run-capture" else "")
+        print(f"  dropped {item} {cls} ({title}) — proven ABSENT this run: the class was scanned with "
+              f"a corpus and did not hit that pair{seat_clause}")
+    if held:
+        print(f"  carried by seat: {len(held)} line(s) this run's stores cannot judge — a run-capture "
+              "debt closes only on the seat whose store holds it")
+        for (item, cls, title), why in held:
+            print(f"  carried {item} {cls} ({title}) — {why}")
     if carried:
         print(f"  carried through unchanged: {len(carried)} line(s) of class(es) this run did not "
               f"rewrite ({sorted({r[1] for r in carried})})")
