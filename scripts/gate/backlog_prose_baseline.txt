@@ -256,7 +256,7 @@ ROW	HD-487	2230
 ROW	HD-489	3246
 ROW	HD-491	670
 ROW	HD-494	2696
-ROW	HD-495	2699
+ROW	HD-495	2697
 ROW	HD-57	670
 BRIEF	prompt-dns-transport.md	106
 BRIEF	prompt-edge-identity.md	87
@@ -268,8 +268,8 @@ BRIEF	prompt-media-arrs.md	87
 BRIEF	prompt-observability-alerting.md	105
 BRIEF	prompt-scripts.md	150
 BRIEF	prompt-seat-cockpit-grants.md	92
-BRIEF	prompt-secrets.md	406
+BRIEF	prompt-secrets.md	410
 BRIEF	prompt-smart-home.md	83
 BRIEF	prompt-spark-llm.md	110
 BRIEF	prompt-storage-backup.md	93
-BRIEF	prompt-update.md	522
+BRIEF	prompt-update.md	526

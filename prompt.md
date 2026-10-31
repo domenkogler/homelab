@@ -25,6 +25,11 @@ the legs only that box may drive: [prompt-laptop-wsl.md](prompt-laptop-wsl.md) �
 `SEATS`: re-derive a seat's `ok=`/`problems=` count there, never copy it from a handoff, and derive rescue refs with
 `git for-each-ref "refs/*/rescue/*"`.
 
+**One gate item is red on a seat whose environment carries the vault credential:** `git-bootstrap-win11.sh --self-test`'s
+`[no-credential]` arm clears the token FILE but not the inherited variable, so `route=env` resolves inside its own
+sandbox and the arm finds a working credential. It passes with `OP_SERVICE_ACCOUNT_TOKEN` unset, is not a regression, and
+no row owns the sandbox fix yet — read it as that one line, not as a broken tip.
+
 **The delegation-plane check — run it BEFORE routing any lane, on the seat you are on**: launch ONE `async: true` child
 and require it to **yield a child session file**; no `--check` substitutes for it, and a pass certifies only the seat it
 ran on. Where a seat has not passed, lanes run **foreground-sequential, one at a time** — a stated DEVIATION from O11
@@ -53,7 +58,7 @@ the ACL with `git push --dry-run`, then retry, and never conclude the commit is 
 
 **Git identity:** signing is RETIRED — commit plainly, ⛔ never `git commit -s`; `git log -1 --format='%G?'`
 → `N` is the expected value and is not a failure. A Win11 seat signs and pushes without a 1Password window once
-`bash scripts/git/git-bootstrap-win11.sh --git-identity` has run (`--check` shows the route, `--1password` opts back); the **vault** legs are modal-free there too and address items **by ID** (`scripts/lib/vault-env.sh --check`, `--map <vault>`) — a NAME-addressed `op item get` costs 3 of the ACCOUNT's 1000 requests/24 h where the ID form costs 1, so ask `op service-account ratelimit` before chasing transport ([docs/1password.md](docs/1password.md) §What a gate run costs the vault).
+`bash scripts/git/git-bootstrap-win11.sh --git-identity` has run (`--check` shows the route, `--1password` opts back); the **vault** legs are modal-free there too and address items **by ID** (`scripts/lib/vault-env.sh --check`, `--map <vault>`) — a NAME-addressed `op item get` costs 3 of the ACCOUNT's 1000 requests/24 h where the ID form costs 1, so ask `op service-account ratelimit` before chasing transport ([docs/1password.md](docs/1password.md) §What a gate run costs the vault). **Away from the LAN** the two home targets move to the `-vps` jump aliases for the token legs (`RESEAT_TARGETS="wsl oldsrv-domen-vps vps oldsrv-vps"`, and `HOLDERS_TARGETS="…"` for the holder sweep), because the plain home aliases time out off-network and print `UNREACHABLE`. And **`op daemon stop` is not a verb** on this CLI family — `op daemon <arg>` prints the daemon help and exits 0 — so a daemon that has to be restarted is `kill`ed as its owner and respawns on the next `op` call with that caller's value.
 The seat file map and the one vault item left in this area (`GitHub auth`, the transport key):
 [docs/deployment-secrets.md](docs/deployment-secrets.md) §What actually raises a 1Password prompt and
 [docs/1password.md](docs/1password.md) §GitHub signing + auth keys. The two `.env.op` files that reference items and hold
@@ -107,7 +112,9 @@ not by the box: the Rule-0 legs a spark-served session may not run, and the whol
 leak tools (a tool-result masker — enabled on every seat, its row now carries only the acceptance read — a debt
 register that answers *did it rotate*, a containment instrument, a pre-push
 gate), the register read that generates the list, and the rotations that close a capture leak — most of which are
-**lane** work through the item's far end, not owner work. ⚠ Read `NOT_AUTO_ROTATABLE` in
+**lane** work through the item's far end, not owner work. Who holds a value is mechanical now:
+`scripts/secrets/check-token-holders.sh` answers it across the plane in one vault read, digests only, and names the
+restart each superseded holder owes. ⚠ Read `NOT_AUTO_ROTATABLE` in
 [`scripts/secrets/provision-secrets.py`](scripts/secrets/provision-secrets.py) as the auto-rotation guard it is: the
 name means *a vault-only `--rotate` would leave the far end on the old value*, so those items are rotated by AI work
 — far end first, then the vault write, then the converge — and only the no-machine-channel and human-vault ones

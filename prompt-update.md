@@ -193,7 +193,9 @@ is *not* the same thing as "by hand" — those are marked **window** below.
 5. **Prove both directions and print nothing.** New value accepted at the consumer **and** the superseded value refused
    at the same endpoint; where two ends must agree, pull each value into a shell variable and compare `sha256sum |
    cut -c1-12` plus a `wc -c` — never `diff` two rendered files, never `cat` one, never `env` / `set` /
-   `/proc/<pid>/environ` (a diagnostic that lists "interesting" env vars is a secret read wearing a lab coat). Prove a
+   `/proc/<pid>/environ` (a diagnostic that lists "interesting" env vars is a secret read wearing a lab coat). The one
+   sanctioned sweep of that class is `scripts/secrets/check-token-holders.sh`, which hashes each holder's value **on the
+   host that holds it** and prints only `sha256[:12]`. Prove a
    token re-seat by the `op whoami` **Integration ID** + `sha256(token)[:12]`, never by `[ -f ]`.
 6. **Then, and only then, the book:** `python3 scripts/gate/check_secret_leak.py --update-ledger --class run-capture`
    from a seat that has the store, delete the STALE lines by hand, and commit the shrunk ledger — that commit is what
@@ -230,7 +232,9 @@ channel exists in the tree yet — that step is a question, not a plan.
 `op_api` stays the first act of the whole window and is already done: a superseded token stays live through an
 **owner-set** grace window, so every converge here is safe and the four re-seats batch in Phase 7. Prove each
 re-seat the way 5a step 5 says — `bootstrap-runner.sh` is create-only and a running shell's exported value beats the
-file, so a fresh file and a `403` are compatible observations.
+file, so a fresh file and a `403` are compatible observations. `scripts/secrets/check-token-holders.sh` settles that
+class in one vault read (and closes a holder only by restarting it — there is no `op daemon stop` verb), and away from
+the LAN it and the re-seat both need the `-vps` alias plane.
 
 ### 5c. Waits for a human — no machine channel, or the write is in the human vault
 

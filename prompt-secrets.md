@@ -70,7 +70,11 @@
   read-only, the write item is the read+write one, there is no CI holder for either, and the host installs are
   listed in [docs/1password.md](docs/1password.md) §Where a token is installed — so nothing here waits on a
   re-seat, and a `403` with a freshly written token file is the running shell beating the file, not a bad
-  install (§Proving which service account an install holds).
+  install (§Proving which service account an install holds). Which process holds the superseded value is a command now —
+  `scripts/secrets/check-token-holders.sh`, digests only, one vault read, `sudo needed` where an account cannot read a
+  process — and a holder closes by **restarting it**: the op CLI has **no `op daemon stop` verb** (`op daemon <arg>`
+  prints the daemon help and exits 0, so a "stop" that reports success stopped nothing), so a daemon closes with
+  `kill <pid>` as its owner and the next `op` call respawns it with the current value.
 - **This seat is the WSL Debian clone on the laptop**, served by spark — so the spark-served dispatch filter binds
   the whole run: no child against the spark engine brief, and no converge that is not provably engine-safe
   ([docs/orchestration.md](docs/orchestration.md) §4). HD-1170's rotation is neither — it recreates the engine to move
