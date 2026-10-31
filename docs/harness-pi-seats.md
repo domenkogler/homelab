@@ -174,10 +174,14 @@ Workflow); its arms stay outside the glob in
 self-test deployed into `~/.pi/agent/extensions` is LOADED as an extension by every session on every seat
 and would run its fixtures inside them. Arms: `node --experimental-strip-types
 pi-agent/proposed/vault-mask.selftest.ts` — the file is erasable-syntax-only TypeScript, so node's own
-type-stripping runs the same nine arms, and node is the runtime pi itself runs on (each seat's `pi`
+type-stripping runs the same ten arms, and node is the runtime pi itself runs on (each seat's `pi`
 launcher execs a node binary: Volta's `$basedir/node` on the Windows seat, the pinned
 `~/.local/share/pi-node/current/bin/node` prefix on the Debian ones). The arms therefore have no
-runtime-dependent SKIP: the runner they need is the one pi is already running on.
+runtime-dependent SKIP: the runner they need is the one pi is already running on. Green arms are a UNIT
+verdict: the same file answers the SEAT question through `acceptance-pair`, and a crossed run of either
+command must NAME its node, because `~/.local/share/pi-node/current/bin` is deliberately off the route's
+pinned PATH — a probe that reads only PATH reports "no node here" for a seat that has one, the same false
+negative as the pi binary above.
 
 **A JS leg states its child's environment instead of assuming it.** A spawn with no `env:` option leaves
 what the child inherits to the runner, and a runner that snapshots the environment block at process start
@@ -190,6 +194,56 @@ a spawned child. Under node, the runtime pi and this repo's JS legs run on, the 
 implicitly and with `env: process.env`; stating the env is what keeps the answer from depending on whoever
 executes the file. The half that actually blocks the silent live read is the arm that plants the fixture
 and proves the fixture was the thing read (the reader's `requests=0` in the load line is that proof).
+
+**The masker resolves its interpreter on the seat that loads it, not on the machine that shipped it.**
+[`../pi-agent/extensions/vault-mask.ts`](../pi-agent/extensions/vault-mask.ts) asks the leak eye for its
+needle map, so that one Python leg is a per-box question like any other: an explicit `HL_LEAK_PY` wins
+(the same knob [`../scripts/git/install-hooks.sh`](../scripts/git/install-hooks.sh) honours, so ONE
+variable answers "which python runs the leak eye" for a whole seat), and otherwise the extension runs
+[`../scripts/harness/seat-python.sh`](../scripts/harness/seat-python.sh) and spawns the path that resolver
+EXECs — `py -3` where `uname -s` answers MINGW/MSYS/CYGWIN, `python3` everywhere else. The extension
+therefore names no launcher of its own, which is §5's rule about where a per-box decision sits: a launcher
+chosen where this file was written ships one platform's answer to the other. On a Windows seat the name
+`python3` is the Microsoft-Store app-execution alias, which runs no Python and answers **49 to a shell and
+9009 to a node spawn** — one stub seen through the two ways a leg can reach it, and the reason an OFF
+prints `launcher=`, `via=` (which of the two rules chose it) and `rc=`: a masker that goes quiet on a seat
+whose launcher has another name is masking switched OFF on exactly that seat while the same commit reads
+green on the others.
+
+Two commands re-derive the claim on the seat being asked, at ZERO vault requests:
+
+```bash
+# WHICH launcher the masker will spawn here. The resolver EXECs, so the probe prints its own path.
+bash scripts/harness/seat-python.sh -c 'import sys,pathlib; print(pathlib.Path(sys.executable).as_posix())'
+# The acceptance pair: the same fixture value masked, then under `HL_VAULT_MASK_BYPASS=1`. rc 0 says
+# masking is live ON THIS SEAT; rc 1 prints the OFF line that says why it is not.
+node --experimental-strip-types pi-agent/proposed/vault-mask.selftest.ts acceptance-pair
+```
+
+The pair does not follow from the arms and is not a formality: the ten arms answer a unit question, so a
+seat that resolves no interpreter can print ten greens while every tool result reaches the capture whole.
+Arm 10 is what fails there — it plants a `python3` that answers non-zero ahead of PATH and asserts either
+that the needles arrived through the resolver anyway, or, on a seat whose resolver answer IS that name and
+so has nothing to route around, that the OFF line names its launcher and rc. To read the pair on the Debian
+**engine** of a Windows box rather than on a Debian seat, two pins are owed, both stated above: the engine's
+node is off the route's pinned PATH so the leg names the binary, and the engine's git cannot open a Windows
+linked worktree (`rc 128`: the `.git` file's drive path, joined as a relative one), which is a fact about
+the checkout's spelling and not about the seat — so `HL_REPO` names the root, the seam the extension itself
+falls back to:
+
+```bash
+MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' wsl.exe -d Debian --cd <mnt-of-this-checkout> -- \
+  /usr/bin/env PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+  HL_REPO=<mnt-of-this-checkout> /home/<user>/.local/share/pi-node/current/bin/node \
+  --experimental-strip-types pi-agent/proposed/vault-mask.selftest.ts acceptance-pair
+```
+
+(`wsl.exe` from Git-Bash takes the converter pin as a command PREFIX and never as an export, or the seat's
+own legs stop converting the arguments they hand to native programs. The node path is spelled ABSOLUTELY
+because nothing inside `wsl.exe --` expands a tilde — a leading `~` arrives as the Windows HOME converted
+to `/c/…`, which is the interop PATH trap in argv form. And a `seat-python.sh` probe always carries a
+script or `--self-test`: with no argument the resolver EXECs an interactive interpreter, which reads stdin
+and produces a traceback flood rather than an answer.)
 
 ---
 ## 5. Reference `~/.pi/agent/settings.json` (harness tuning)

@@ -28,12 +28,22 @@
  * cost once per child session against the vault's shared request bucket. The count is printed; values
  * are held in memory only and are never logged.
  *
+ * THE INTERPRETER that runs that leg is the SEAT's answer, never a name on PATH. The needle map is
+ * Python, and which program answers it is a fact about the machine that runs it — so the launcher comes
+ * from an explicit `HL_LEAK_PY` when one is set, and otherwise from `scripts/harness/seat-python.sh`,
+ * the resolver the seat planes already use. A launcher chosen where this file was written would ship
+ * one platform's answer to the other, which is the mis-placed decision
+ * [`docs/harness-pi-seats.md`](../docs/harness-pi-seats.md) §5 exists to forbid.
+ *
  * THE BYPASS exists because a masker that rewrote the value a rotation is about to WRITE would break
  * the act. It is `HL_VAULT_MASK_BYPASS=1`, it prints one loud line the first time it fires, and it is an
  * environment variable — so it dies with the process and cannot survive into the next command.
  *
  * FAILURE: a seat that cannot read the vault masks NOTHING and says so once, in a notification, instead
- * of corrupting every tool result. That is deliberately not a silent degradation and deliberately not a
+ * of corrupting every tool result. The reason it prints names the launcher it tried, which rule chose it
+ * and the rc it got — a seat whose launcher has a name this file did not expect must say so, or "masking
+ * is OFF" reads as a vault problem on the seat that merely runs a different program. Launcher, rc and
+ * route: never a value. That is deliberately not a silent degradation and deliberately not a
  * block: the instrument that judges whether a value leaked is `check_secret_leak.py`, and a hook that
  * reddens a session gets worked around the first time it misfires.
  *
@@ -58,6 +68,7 @@
  */
 
 import { execFileSync, spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 /** The marker that replaces a value: it names the item PREFIX so a human can go read it deliberately. */
@@ -65,8 +76,15 @@ const MARKER = (id8: string) => `[vault-mask:${id8}]`;
 /** The vault this seat's IaC reads; the same default the reader itself uses. */
 const VAULT = process.env.HL_VAULT || "Homelab-ansible";
 const BYPASS_ENV = "HL_VAULT_MASK_BYPASS";
+/** The override that pins the interpreter: the same knob the pre-push hook honours, so one variable
+ *  answers "which python runs the leak eye" for the whole seat. */
+const PY_ENV = "HL_LEAK_PY";
+/** The per-box launcher resolver, by repo-relative path. This file names no interpreter of its own. */
+const RESOLVER = "scripts/harness/seat-python.sh";
 
 type Needle = { value: string; id8: string; title: string };
+/** The program the needle-map leg runs under, and which rule chose it — both belong in an OFF reason. */
+type Launcher = { argv0: string; via: typeof PY_ENV | typeof RESOLVER };
 type Ready = { needles: Needle[]; short: string[]; items: number; requests: string };
 type State = { kind: "unloaded" } | { kind: "ready"; ready: Ready } | { kind: "off"; why: string };
 
@@ -86,6 +104,33 @@ function repoRoot(): string | null {
 }
 
 /**
+ * WHICH interpreter asks the needle-map question. Rule 1 is the override, because a seat (or an arm)
+ * that already knows its answer should not be asked twice; rule 2 is the seat's own resolver, because
+ * this extension is ONE file deployed to seats that disagree — `py -3` has no Debian box to be found
+ * on, and `python3` on the Windows one is the Microsoft-Store alias stub that exits without running.
+ * The resolver EXECs, so the way to learn its answer is to ask it to run a probe that prints its own
+ * path. A SPAWN needs that answer as argv[0] and needs it BEFORE the read, so that an OFF reason can
+ * name the interpreter it tried; the pre-push hook execs through the resolver and never needs the path.
+ */
+function resolvePython(root: string): { launcher: Launcher } | { why: string } {
+	const pinned = process.env[PY_ENV];
+	if (pinned) return { launcher: { argv0: pinned, via: PY_ENV } };
+	const resolver = `${root}/${RESOLVER}`;
+	if (!existsSync(resolver)) {
+		return { why: `no interpreter resolver at ${resolver} (via ${RESOLVER}) — this extension asks the seat, it does not take a name from PATH` };
+	}
+	const probe = "import pathlib, sys; print(pathlib.Path(sys.executable).as_posix())";
+	const res = spawnSync("bash", [resolver, "-c", probe], { encoding: "utf8", env: process.env });
+	if (res.error) return { why: `the interpreter resolver could not run: launcher=${resolver} via=${RESOLVER} — ${res.error.code ?? res.error.message}` };
+	// The resolver's own noise rides on the same stream, so the answer is the LAST line.
+	const answer = (res.stdout || "").trimEnd().split("\n").pop()?.trim() ?? "";
+	if (res.status !== 0 || !answer) {
+		return { why: `the interpreter resolver named no interpreter: launcher=${resolver} via=${RESOLVER} rc=${res.status ?? "?"} — ${(res.stderr || "").trim().slice(0, 160)}` };
+	}
+	return { launcher: { argv0: answer, via: RESOLVER } };
+}
+
+/**
  * Ask the leak eye for ITS needle map: `[[value, [item ids…]], …]`, longest first. Everything the
  * masker is allowed to know about what counts as a secret comes from this one call — the field rule,
  * the containment floor and the partial-read boundary included.
@@ -101,7 +146,10 @@ function load(): State {
 		+ "print(json.dumps({'needles':[[k.decode('utf-8','surrogateescape'),v] for k,v in n.items()],"
 		+ "'short':short,'items':len(t),"
 		+ "'titles':{k[:8]:v for k,v in t.items()}}))";
-	const res = spawnSync("python3", ["-c", py, `${root}/scripts/gate`], {
+	const picked = resolvePython(root);
+	if ("why" in picked) return { kind: "off", why: picked.why };
+	const launcher = picked.launcher;
+	const res = spawnSync(launcher.argv0, ["-c", py, `${root}/scripts/gate`], {
 		encoding: "utf8",
 		maxBuffer: 64 * 1024 * 1024,
 		// The child env is STATED rather than assumed. A spawn with no `env:` leaves what the child
@@ -113,11 +161,13 @@ function load(): State {
 		// makes this leg independent of whichever runner is handed the file.
 		env: process.env,
 	});
-	if (res.error) return { kind: "off", why: `python3 could not run: ${res.error.message}` };
+	if (res.error) {
+		return { kind: "off", why: `the needle map could not be read: launcher=${launcher.argv0} via=${launcher.via} — ${res.error.code ?? res.error.message}` };
+	}
 	if (res.status !== 0) {
 		return {
 			kind: "off",
-			why: `the leak eye's read exited ${res.status}: ${(res.stderr || "").trim().slice(0, 160)}`,
+			why: `the leak eye's read exited rc=${res.status} from launcher=${launcher.argv0} via=${launcher.via}: ${(res.stderr || "").trim().slice(0, 160)}`,
 		};
 	}
 	let body: { needles: [string, string[]][]; short: string[]; items: number; titles: Record<string, string> };
