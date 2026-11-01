@@ -171,24 +171,45 @@ echo "graded: $WANT (verified: HEAD and stamp agree)"
 GUEST
 }
 
-# _snap_spawn <script> — the ONE engine touch: timeout-walled, stdin CLOSED (stdin IS the
-# parent's — CONVENTIONS §6 — and a door spawn that inherits a terminal is a frozen lane).
-_snap_spawn() {
-  local _script="$1"
-  if [ "$SNAP_DOOR" = remote ]; then
-    MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' \
-      timeout "$SNAP_LIMIT" "$HL_WSL_EXE" -d "$HL_WSL_DISTRO" -- bash -c "$_script" < /dev/null
-  else
-    timeout "$SNAP_LIMIT" bash -c "$_script" < /dev/null
-  fi
+# _snap_scratch — a directory BOTH seats can read, for the run script and the --carry material. Inside
+# the git dir, so nothing lands in a worktree where the corpus walk would count it as an untracked file;
+# absolute in either spelling, because git-for-windows answers `--git-common-dir` with a drive letter.
+_snap_scratch() {
+  local gk
+  gk="$(git -C "$SNAP_REPO" rev-parse --git-common-dir)" || return 1
+  case "$gk" in /* | [A-Za-z]:[\/]*) : ;; *) gk="$SNAP_REPO/$gk" ;; esac
+  SNAP_TMP="$(mktemp -d "$gk/gate-snap-run.XXXXXX")" || return 1
+  printf '%s\n' "$SNAP_TMP"
 }
 
-# _snap_script <want> <src> <grade 0|1> — the ONE guest script for a run: move the snapshot to the
-# commit, PROVE the HEAD, stamp it, land the carry when one was prepared, and grade the tree face when
-# asked. ONE script because a round trip across the door costs about what a leg costs, so the driver
-# spends ONE `wsl.exe` per run in every mode. Built from a QUOTED heredoc — an unquoted one would
-# command-substitute its own text on the host (the exact fork storm check-leg-contract.sh's arms landed
-# to prove), and `$(dirname …)` belongs to the guest, not to the seat composing the string.
+# _snap_spawn <script> — the ONE engine touch. The script goes to a FILE and the spawn carries ONE argv
+# word, never the script itself: a multi-line program with `"$SNAP"`-shaped quoting inside is exactly
+# what a Windows seat's argv layer mangles on its way through `timeout` and `wsl.exe` into the guest's
+# bash, and the mangled form fails as an empty `git -C` argument several layers away from the cause. A path cannot
+# mangle, and the file is written by the same seat that wrote the checkout recipe. stdin stays CLOSED
+# (stdin IS the parent's — CONVENTIONS §6 — and a door spawn that inherits a terminal is a frozen lane),
+# and every spawn stays walled by HL_SNAP_TIMEOUT.
+_snap_spawn() {
+  local _script="$1" _f="" _rc=0
+  if [ "$SNAP_DOOR" = remote ]; then
+    local _dir _gf
+    _dir="$(_snap_scratch)" || return 1
+    _f="$_dir/run.sh"
+    printf '%s\n' "$_script" >"$_f" || { rm -rf "$_dir"; return 1; }
+    _gf="$(hl_wsl_mntpath "$_f")" || { rm -rf "$_dir"; return 1; }
+    MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*'       timeout "$SNAP_LIMIT" "$HL_WSL_EXE" -d "$HL_WSL_DISTRO" -- bash "$_gf" < /dev/null
+    _rc=$?
+    rm -rf "$_dir"
+    return $_rc
+  fi
+  _f="$(mktemp)" || return 1
+  printf '%s\n' "$_script" >"$_f" || { rm -f "$_f"; return 1; }
+  timeout "$SNAP_LIMIT" bash "$_f" < /dev/null
+  _rc=$?
+  rm -f "$_f"
+  return $_rc
+}
+
 _snap_script() { # -> stdout; $1=want $2=src (both host-resolved already) $3=1 to run the tree face
   local _want="$1" _src="$2" _grade="${3:-0}" _gate
   printf 'set -e\n%s\nSRC=%s\nWANT=%s\n' "$SNAP_ASSIGN" "$(_snap_sq "$_src")" "$(_snap_sq "$_want")"
