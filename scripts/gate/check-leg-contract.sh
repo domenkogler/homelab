@@ -382,6 +382,8 @@ HOME_PY=('Path.home(' 'expanduser(' 'from vault_read import ')   # …and the on
 SAND_WORDS=(mktemp tempfile mkdtemp)                   # a sandbox the leg builds for itself
 SEAT_MARKS=("${SEAT_WORDS[@]}" "${TRIP_WORDS[@]}" "${HOME_SH[@]}" "${HOME_PY[@]}")
 ALL_MARKS=("${SEAT_MARKS[@]}" "${CK_WORDS[@]}" "${CK_PY_WORDS[@]}" "$GIT_WORD" "${SAND_WORDS[@]}")
+_fm_all="${ALL_MARKS[*]}"              # the full set, for the texts too short to prefilter (a line, a block)
+_fm_list="$_fm_all"                    # what face_scan's fast path tests: a whole leg narrows it first
 
 # face_fact <cls|trip|home|ck|sand> - record ONE fact: the count always moves, and the example list stops
 # at three sites. Uncapped, a leg whose every line mentions `repo_root` grows its own fact string on every
@@ -428,7 +430,7 @@ face_scan() {
     # ALL_MARKS, not one long `case` alternation, and it is the measured shape — on the Windows seat, where
     # the price of a builtin is the whole measurement, the alternation cost ~5 min a run and the loop ~12 s.
     _hit=""
-    for _w in "${ALL_MARKS[@]}"; do
+    for _w in $_fm_list; do
       case "$_ln" in *"$_w"*) _hit=1; break ;; esac
     done
     if [ -z "$_hit" ]; then                                    # no marker on the line, so no fact is on
@@ -545,12 +547,18 @@ leg_facts() {
   _fc_cls_x="" _fc_trip_x="" _fc_home_x="" _fc_ck_x="" _fc_sand_x=""
   [ -f "$ROOT/$_p" ] || return 1
   _read_all _c "$ROOT/$_p"
+  # ONE whole-text test per mark, then the line walk tests only what the file can answer for. The line
+  # loop is the whole cost of this checker — 145 registrations over ~80 leg files, on a seat where a
+  # builtin costs what a fork costs elsewhere — and most lines carry none of the thirty markers.
+  _fm_list=""
+  for _w in "${ALL_MARKS[@]}"; do case "$_c" in *"$_w"*) _fm_list="$_fm_list $_w" ;; esac; done
   for _w in "${ALL_MARKS[@]}"; do
     case "$_c" in *"$_w"*) : ;; *) continue ;; esac
     case "$_p" in *.py) _k=py ;; *) _k=sh ;; esac
     face_scan "$_c" "$_k" "${_p##*/}"
     break
   done
+  _fm_list="$_fm_all"
   _face_cache["$_p $_udeep"]="$_fc_cls_n|$_fc_trip_n|$_fc_home_n|$_fc_ck_n|$_fc_sand_n|\
 $_fc_cls_x|$_fc_trip_x|$_fc_home_x|$_fc_ck_x|$_fc_sand_x"
   return 0
@@ -793,7 +801,7 @@ face_walk() {
     case "$_fa_flags" in *--self-test*) _st=1 ;; esac
     _narrow=""                                      # one registration's answer is not the next one's
     _fx_n=0 _fx_x=""
-    if [ "$_st" = 1 ] && [ -n "$_leg" ]; then fixture_evidence "$_leg"; fi
+    if [ "$_st" = 1 ] && [ -n "$_leg" ] && [ -n "$_wrapped" ]; then fixture_evidence "$_leg"; fi
     if [ "$_st" = 1 ]; then
       if [ -n "$_wrapped" ]; then
         if [ "$_fx_n" != 0 ]; then _narrow=1; fi
