@@ -56,6 +56,20 @@
 #   BOUNDARY     the exceptions, in `scripts/gate/leg_contract_boundaries.txt` — one leg, one class, one
 #                argument each. A line whose leg is no longer wrapped, or no longer trips the class it
 #                names, REDDENS: an exception that cannot be invalidated is a mute button.
+#   FACE         the `face tree|seat|joined` word at a registration line, DERIVED rather than read. The
+#                word claims where the leg's SUBJECT lives (the axis is stated once, in `lib/wsl-route.sh`),
+#                and a word nobody can re-derive is a label that rots the moment the leg reads something
+#                new. The facts are the conjunction's own, read off the registration line, the block it
+#                calls and the leg file: a seat classifier, a vault/ssh/network trip or a seat-`$HOME`
+#                read makes the subject SEAT state; a checkout read (`$REPO`, `repo_root`, `git` at
+#                command position) makes it TREE state; both make it JOINED; neither makes it TREE. One
+#                narrowing is allowed — a `--self-test` leg that builds its OWN sandbox planted that
+#                `$HOME` and that socket, so those facts do not count, while a CLASSifier still does
+#                because it asks the question of the engine wherever it runs. A WRAPPED registration is
+#                `tree` by definition: the runner crosses it, and the conjunction it passed to be crossed
+#                says its subject is the tree or a sandbox it builds — so `face seat` on a wrapped line is
+#                a placement lie, and the seat facts under that wrap are already named by SEAT/TRIP.
+#                A registration with NO face word is UNDECIDED, and `--profile quick` refuses the run.
 #
 # A leg that needs no engine tool writes `hl_wsl_needs none`, so "needs nothing" is a STATEMENT rather
 # than an absence a checker cannot tell from "nobody thought about it". A tree that wraps legs while
@@ -69,6 +83,7 @@
 #   bash scripts/gate/check-leg-contract.sh --root DIR   # a planted tree (the canaries, and an audit)
 #   bash scripts/gate/check-leg-contract.sh --self-test  # each rule breeds its finding
 #   bash scripts/gate/check-leg-contract.sh --arms       # the declaring leg, driven by planted answers
+#   bash scripts/gate/check-leg-contract.sh --faces      # the derivation table, one row per registration
 #
 # Exit: 0 clean · 1 finding(s) · 2 could not run (no lib, no registrations, an empty corpus). No stdin
 # is read, and nothing outside a temp directory is written.
@@ -89,6 +104,11 @@
 #   Each rule breeds its finding alone in a planted tree, and the same tree with nothing planted stays
 #   green — so no canary reddens for a reason outside its own rule. Four arms are SILENCE arms: a comment,
 #   an error string, a redirection and a line continuation naming the declaration must answer rc 0.
+#   Six more arms grade the FACE derivation, one per way a word on a registration line can stop matching
+#   the leg: a `tree` leg that reads `$HOME/.pi`, a `tree` leg that opens a socket, a registration with no
+#   face word at all, a `seat` leg whose facts say seat (green, plus the NOTE that it could have been a
+#   tree), a `joined`-capable leg that only reads seat state, and a WRAPPED leg declared `seat` — which is
+#   a finding rather than a note, because the runner crosses the line it is lying about.
 #   `--arms` runs the contract through the ANSWERS instead of through a grep: the declaring leg in the
 #   tree is driven by four planted inventories and answers rc 0 having run, rc 2 naming a tool the
 #   inventory lists as ABSENT and quoting that inventory, unchanged and silent with no answer in hand, and
@@ -122,6 +142,9 @@ BOUNDARIES="scripts/gate/leg_contract_boundaries.txt"   # accepted wrong-seat bo
 find_n=0
 _asked=""
 _note="nothing read"
+SHOW_FACES=0                       # --faces: face_walk prints one row per registration, not just the counts
+_face_note="faces not weighed"
+declare -A _face_cache=()          # leg path -> its five fact lists, for the width of one check_tree run
 
 # _read_all <var> <file> — a whole file in ONE builtin read. `read` is byte-truthful (`$( )` is the shape
 # that loses a CR on a Windows seat — CONVENTIONS §6), and a checker that execs a grep per file would pay
@@ -314,6 +337,382 @@ blk_wrap_line() {
     case "$_l" in *hl_wsl_route*) printf '%s' "$_l"; return 0 ;; esac
   done <<<"$_va"
   return 1
+}
+
+# --------------------------------------------------------------------------- ## THE FACE, DERIVED                                                           #
+# --------------------------------------------------------------------------- #
+# WHY THIS IS DERIVED AND NOT READ: `face tree|seat|joined` at a registration line claims where a leg's
+# SUBJECT lives, and a claim nobody can re-derive is a label — it rots the moment the leg starts reading
+# something new. So the same facts the conjunction is written in are read a second time, off the SUBJECT
+# instead of the launcher: a seat classifier, a vault/ssh/network trip or a seat-`$HOME` read makes the
+# subject SEAT state; a checkout read (`$REPO`, `repo_root`, `require_corpus`, `__file__`, or `git` at
+# command position) makes it TREE state; both make it JOINED; neither makes it TREE. The word lists are
+# the conjunction's own (SEAT_WORDS / TRIP_WORDS above) — a leg cannot be a trip to one rule and prose to
+# the other — and the reading is the same: COMMAND position via at_cmd, array literals are DATA, heredoc
+# bodies and python docstrings are text the leg writes rather than calls it makes.
+#
+# Two asymmetries are the whole design, and both are deliberate:
+#   * a `--self-test` registration whose leg BUILDS ITS OWN SANDBOX (mktemp/tempfile/mkdtemp) has planted
+#     that `$HOME` and opened that socket, so the seat trip/home facts drop out — a fixture is not seat
+#     state. A CLASSIFIER survives the narrowing: a leg that asks which seat it is on asks it of the
+#     engine wherever it runs.
+#   * a WRAPPED registration is `tree` BY DEFINITION: the runner crosses it, and the conjunction it passed
+#     to be crossed says its subject is the tree or a sandbox it builds. `face seat` on such a line is
+#     therefore a placement lie rather than a conservative word — and the seat facts under that wrap are
+#     already named by SEAT / TRIP / NOT JUDGED above, so they are not weighed twice.
+# The mismatch that costs nothing is a NOTE: a NATIVE line that claims MORE seat than the facts show is
+# only refusing a free grading (the direction A7 names — "a leg marked seat that could have crossed only
+# costs a note").
+
+# The markers the derivation reads, beside the conjunction's own two lists at the top of this file — one
+# spelling per class, so a leg cannot be a trip to one rule and prose to the other.
+CK_WORDS=('$REPO' '${REPO}' '${REPO_ROOT')             # this checkout, by the variables that name it
+CK_PY_WORDS=(require_corpus _hl_root repo_root __file__)      # …and the python ways of finding that root
+GIT_WORD='git '                                        # …or reached through git: needs a command test
+HOME_SH=('$HOME' '~/')                                 # seat state, in the two spellings a shell reaches it
+HOME_PY=('Path.home(' 'expanduser(' 'from vault_read import ')   # …and the ones a python leg reaches it with
+SAND_WORDS=(mktemp tempfile mkdtemp)                   # a sandbox the leg builds for itself
+SEAT_MARKS=("${SEAT_WORDS[@]}" "${TRIP_WORDS[@]}" "${HOME_SH[@]}" "${HOME_PY[@]}")
+ALL_MARKS=("${SEAT_MARKS[@]}" "${CK_WORDS[@]}" "${CK_PY_WORDS[@]}" "$GIT_WORD" "${SAND_WORDS[@]}")
+
+# face_fact <cls|trip|home|ck|sand> - record ONE fact: the count always moves, and the example list stops
+# at three sites. Uncapped, a leg whose every line mentions `repo_root` grows its own fact string on every
+# hit and the derivation spends five minutes copying a string: the quadratic cost this file exists to avoid,
+# wearing a different coat. Three sites is also all a finding can quote.
+face_fact() {
+  local _nv="_fc_$1_n" _xv="_fc_$1_x"
+  printf -v "$_nv" '%s' "$(( ${!_nv} + 1 ))"
+  [ "${!_nv}" -le 3 ] && printf -v "$_xv" '%s %s:%s' "${!_xv}" "$_fc_tag" "$_fc_line"
+  return 0
+}
+
+# face_scan <text> <kind: sh|py|blk> <tag> — the face facts of one body of text, as `tag:line` entries in
+# _fc_cls / _fc_trip / _fc_home (the three SEAT facts), _fc_ck (the TREE fact) and _fc_sand (a sandbox the
+# leg builds). `py` reads python spellings and skips the shell-only ones, because a shell word inside a
+# python argv is not a shell; `blk` is a registration line or the block it calls, which is shell text.
+# Assigns rather than prints, for the reason `tail_comment` does — this runs once per line of every leg,
+# and a fork per line is the cost this checker exists to avoid.
+face_scan() {
+  local _txt="$1" _kind="$2" _tag="$3" _ln="" _t="" _w="" _n=0 _hd="" _h="" _pre="" _doc=0 _par=0 _arr=0 _q="" _qn=0 _hit=""
+  _fc_cls_n=0 _fc_trip_n=0 _fc_home_n=0 _fc_ck_n=0 _fc_sand_n=0
+  _fc_cls_x="" _fc_trip_x="" _fc_home_x="" _fc_ck_x="" _fc_sand_x=""
+  _fc_tag="$_tag"
+  local _udeep="$HL_FACE_UNCOND"
+  while IFS= read -r _ln; do
+    _n=$((_n + 1)); _fc_line=$_n
+    # UNCONDITIONAL-ONLY mode: a fact reached from an enclosing branch belongs to that branch, which
+    # is exactly what SEAT / TRIP call a conditional site and hand to gate-parity. Used to grade a
+    # CROSSED registration, where "the subject reads seat state" must mean the same thing the
+    # conjunction says it means — what runs at gate shape, not what might run on some seat.
+    if [ -n "$_udeep" ] && [ "${#_ln}" != "${#_t}" ]; then continue; fi
+    _t="${_ln#"${_ln%%[![:space:]]*}"}"                        # ltrim — the region tests below read it
+    if [ -n "$_hd" ]; then case "$_t" in "$_hd") _hd="" ;; esac; continue; fi     # a heredoc body is DATA
+    if [ "$_par" = 1 ]; then case "$_t" in *')'*) _par=0 ;; esac; continue; fi    # an array literal's tail
+    if [ "$_kind" = py ] && [ "$_doc" = 1 ]; then                                  # a docstring is prose
+      _q="${_t//\"\"\"/}"; _qn=$(( (${#_t} - ${#_q}) / 3 ))
+      [ $((_qn % 2)) = 0 ] || _doc=0
+      continue
+    fi
+    # The fast path: a line carrying no marker holds no fact and opens no data region. This is a loop over
+    # ALL_MARKS, not one long `case` alternation, and it is the measured shape — on the Windows seat, where
+    # the price of a builtin is the whole measurement, the alternation cost ~5 min a run and the loop ~12 s.
+    _hit=""
+    for _w in "${ALL_MARKS[@]}"; do
+      case "$_ln" in *"$_w"*) _hit=1; break ;; esac
+    done
+    if [ -z "$_hit" ]; then                                    # no marker on the line, so no fact is on
+      case "$_ln" in                                           # it — unless a data region OPENS here
+        *'<<'*) : ;;                                           # a heredoc body follows this line
+        *='('*) : ;;                                           # an array literal's tail follows it
+        *'"'*) [ "$_kind" = py ] || continue ;;                # a python docstring may open here
+        *) continue ;;
+      esac
+    fi
+    case "$_t" in '' | '#'*) continue ;; esac
+    tail_comment "$_t"; _t="$_tc"
+    if [ "$_kind" = py ]; then                                 # does a docstring open on this line?
+      _q="${_t//\"\"\"/}"; _qn=$(( (${#_t} - ${#_q}) / 3 ))
+      [ $((_qn % 2)) = 0 ] || _doc=1
+    fi
+    case "$_t" in
+      *'<<'*)                                                  # the heredoc tag is the next word
+        _h="${_t##*<<}"; _h="${_h#-}"; _h="${_h#"${_h%%[A-Za-z_]*}"}"; _hd="${_h%%[!A-Za-z0-9_]*}" ;;
+    esac
+    _arr=0
+    case "$_t" in
+      *[A-Za-z_]='('*) _arr=1; case "$_t" in *')'*) : ;; *) _par=1 ;; esac ;;
+    esac
+    case "$_t" in *'_hl_d/lib/repo-root.sh'*) continue ;; esac  # the root is FOUND, not read
+    for _w in "${SEAT_WORDS[@]}"; do
+      case "$_t" in *"$_w"*) : ;; *) continue ;; esac
+      [ "$_arr" = 1 ] && continue                              # a detector table is DATA, not a call
+      at_cmd "$_t" "$_w" || continue                           # a question asked of the kernel, not of the tree
+      face_fact cls
+    done
+    for _w in "${TRIP_WORDS[@]}"; do
+      case "$_t" in *"$_w"*) : ;; *) continue ;; esac
+      [ "$_arr" = 1 ] && continue
+      at_cmd "$_t" "$_w" || continue
+      par_quote "$_t" "$_w" || continue
+      # In a python leg a shell verb is a string, not a trip — except the names this repo actually runs.
+      if [ "$_kind" = py ]; then
+        case "$_w" in 'ansible-playbook ' | *vault-env.sh | *vault_read.py) : ;; *) continue ;; esac
+      fi
+      face_fact trip
+    done
+    if [ "$_kind" = py ]; then
+      case "$_t" in
+        *'from vault_read import'*) face_fact trip ;;
+        *'Path.home('* | *'expanduser('*) face_fact home ;;
+      esac
+      for _w in "${CK_PY_WORDS[@]}";
+      do case "$_t" in *"$_w"*) face_fact ck ;; esac
+      done
+    fi
+    case "$_t" in
+      *"$GIT_WORD"*)
+        if at_cmd "$_t" "$GIT_WORD" && par_quote "$_t" "$GIT_WORD"; then face_fact ck; fi ;;
+    esac
+    for _w in "${CK_WORDS[@]}"; do
+      case "$_t" in *"$_w"*) face_fact ck ;; esac
+    done
+    if [ "$_kind" != py ]; then
+      for _w in "${HOME_SH[@]}"; do
+        case "$_t" in *"$_w"*) : ;; *) continue ;; esac
+        # A path inside the quote that stops its expansion is a STRING: `$HOME` survives double quotes and
+        # `~/` survives single ones, so each spelling is only a path when its own quote is balanced.
+        _pre="${_t%%"$_w"*}"
+        case "$_w" in
+          '$HOME') _q="${_pre//[!\']}" ;;
+          *) _q="${_pre//[!\"]}" ;;
+        esac
+        [ $(( ${#_q} % 2 )) = 0 ] || continue
+        face_fact home
+      done
+    fi
+    for _w in "${SAND_WORDS[@]}"; do
+      case "$_t" in *"$_w"*) face_fact sand; break ;; esac
+    done
+  done <<<"$_txt"
+  return 0
+}
+
+# par_quote <line> <word> — is <word> outside every quote open where it sits? An ODD number of a quote
+# character before the word puts the word inside it, and a command inside a quote is a string: a printed
+# suggestion of an `op …` command and a printf of `ssh …` are prose, not trips. (The two shell HOME
+# spellings test their own quote above, because which quote stops an expansion depends on what expands.)
+par_quote() {
+  local _pre="${1%%"$2"*}" _q=""
+  _q="${_pre//[!\']}"; [ $(( ${#_q} % 2 )) = 0 ] || return 1
+  _q="${_pre//[!\"]}"; [ $(( ${#_q} % 2 )) = 0 ] || return 1
+  return 0
+}
+
+# blk_body <fn> — the body of a registration block, so a fact that lives IN the block rather than on the
+# line is read by the derivation too. `blk_wrap_line` reads the same shape for the wrap half.
+blk_body() {
+  local _fn="$1" _t="" _end="$_nl}"*        # the pattern: the first line that OPENS with a closing brace
+  _blk_out=""
+  case "$_va" in *"$_nl$_fn() "*) : ;; *) return 1 ;; esac
+  _t="${_va#*"$_nl$_fn() "}"
+  _blk_out="${_t%%$_end}"
+  return 0
+}
+
+# leg_facts <path> — the face facts of one leg FILE, CACHED: a leg is registered more than once (a run and
+# its --self-test are separate registrations, and 145 registrations name 82 files), so re-reading a file per
+# registration is the per-leg rediscovery the probe's one-question-per-run rule exists to avoid. A file whose
+# text carries no marker at all is answered without the line walk.
+leg_facts() {
+  local _p="$1" _k="" _w=""
+  if [ -n "${_face_cache[$_p $_udeep]+x}" ]; then
+    IFS='|' read -r _fc_cls_n _fc_trip_n _fc_home_n _fc_ck_n _fc_sand_n \
+                  _fc_cls_x _fc_trip_x _fc_home_x _fc_ck_x _fc_sand_x <<<"${_face_cache[$_p $_udeep]}"
+    return 0
+  fi
+  _fc_cls_n=0 _fc_trip_n=0 _fc_home_n=0 _fc_ck_n=0 _fc_sand_n=0
+  _fc_cls_x="" _fc_trip_x="" _fc_home_x="" _fc_ck_x="" _fc_sand_x=""
+  [ -f "$ROOT/$_p" ] || return 1
+  _read_all _c "$ROOT/$_p"
+  for _w in "${ALL_MARKS[@]}"; do
+    case "$_c" in *"$_w"*) : ;; *) continue ;; esac
+    case "$_p" in *.py) _k=py ;; *) _k=sh ;; esac
+    face_scan "$_c" "$_k" "${_p##*/}"
+    break
+  done
+  _face_cache["$_p $_udeep"]="$_fc_cls_n|$_fc_trip_n|$_fc_home_n|$_fc_ck_n|$_fc_sand_n|\
+$_fc_cls_x|$_fc_trip_x|$_fc_home_x|$_fc_ck_x|$_fc_sand_x"
+  return 0
+}
+
+# face_args <text> — the ARGV of a registration line or block body: the leg it names (`_fa_leg`), the block
+# it calls (`_fa_fn`) and the flags it passes (`_fa_flags`). Words inside a double-quoted string are the
+# registration's PROSE — an `item_x` reason is a paragraph about a leg and may name `~/ansible-venv`, `git`
+# or a block function without any of that being something the leg runs.
+face_args() {
+  local _txt="$1" _l="" _w="" _q="" _inq=0
+  while IFS= read -r _l; do
+    for _w in $_l; do          # split, never glob (`set -f`); an expansion keeps its words' quotes
+      _q="${_w//[!\"]}"
+      [ $(( ${#_q} % 2 )) = 0 ] || _inq=$(( 1 - _inq ))      # the label opens and closes inside these words
+      [ "$_inq" = 1 ] && continue                             # inside the label: prose, never argv
+      # `item_q` / `item_blk_x` are the registration call itself, and a word carrying `$` is built at run
+      # time — both exist as functions in validate-all.sh, and resolving one as the block would read that
+      # function's own body as the leg.
+      case "$_w" in item* | *'$'*) continue ;; esac
+      case "$_w" in
+        --*) _fa_flags="$_fa_flags $_w" ;;
+        scripts/*/*.sh | scripts/*/*.py) [ -z "$_fa_leg" ] && _fa_leg="$_w" ;;
+        *)
+          if [ -z "$_fa_fn" ]; then
+            case " $_fn_defs " in *" $_w "*) _fa_fn="$_w" ;; esac
+          fi ;;
+      esac
+    done
+  done <<<"$_txt"
+  return 0
+}
+
+# fn_index — the names validate-all.sh DEFINES, read ONCE into the space-delimited set `_fn_defs`. The
+# alternative is a 178 KB substring match per word, a thousand times over, to answer a question the file
+# answers once.
+fn_index() {
+  local _l="" _w=""
+  _fn_defs=""
+  while IFS= read -r _l; do
+    case "$_l" in *'() '*) : ;; *) continue ;; esac
+    _w="${_l%%'() '*}"
+    case "$_w" in '' | *[![:alnum:]_]*) continue ;; esac
+    _fn_defs="$_fn_defs $_w"
+  done <<<"$_va"
+  return 0
+}
+
+# face_walk — THE DERIVATION, over every registration line: the `face` word it declares, weighed against the
+# face its facts show. Prints the line the denominator carries and the list of the legs that are not `tree`;
+# with SHOW_FACES it also prints one row per registration, so the derivation is auditable and not asserted.
+face_walk() {
+  local _nl=$'\n' _line="" _decl="" _d="" _n=0 _leg="" _fn="" _body="" _der="" _why="" _ent=""
+  local _has_seat="" _has_tree="" _st="" _wrapped="" _l1="" _l2="" _blk_out="" _udeep=""
+  local _cls_n=0 _trip_n=0 _home_n=0 _ck_n=0 _sand_n=0 _cls_x="" _trip_x="" _home_x="" _ck_x="" _sand_x=""
+  local _n_tree=0 _n_seat=0 _n_joined=0 _n_und=0 _n_bad=0 _n_tot=0 _n_note=0
+
+  _face_seat="" _face_joined=""
+  fn_index
+  while IFS= read -r _line; do
+    _n=$((_n + 1))
+    _decl=""
+    case "$_line" in
+      'face '*) _d="${_line#face }"; _decl="${_d%%[ ;]*}"; _line="${_line#*; }" ;;
+    esac
+    case "$_line" in item*) : ;; *) continue ;; esac
+    case "${_line%%[[:space:]]*}" in *'('*) continue ;; esac     # `item_q() { …` defines; it registers nothing
+    _n_tot=$((_n_tot + 1))
+
+    # The three places a leg's subject is written down: the line, the block it calls, the leg file.
+    _cls_n=0 _trip_n=0 _home_n=0 _ck_n=0 _sand_n=0
+    _cls_x="" _trip_x="" _home_x="" _ck_x="" _sand_x=""
+    _fa_leg="" _fa_fn="" _fa_flags=""
+    face_args "$_line"
+    _leg="$_fa_leg" _fn="$_fa_fn" _body=""
+    face_scan "$_line" blk "line$_n"
+    _cls_n=$_fc_cls_n _trip_n=$_fc_trip_n _home_n=$_fc_home_n _ck_n=$_fc_ck_n _sand_n=$_fc_sand_n
+    _cls_x="$_fc_cls_x" _trip_x="$_fc_trip_x" _home_x="$_fc_home_x" _ck_x="$_fc_ck_x" _sand_x="$_fc_sand_x"
+    if [ -z "$_leg" ] && [ -n "$_fn" ]; then
+      _blk_out=""
+      blk_body "$_fn" || _blk_out=""
+      _body="$_blk_out"
+      _fa_leg="" _fa_fn="$_fa_fn"
+      face_args "$_body"
+      [ -n "$_fa_leg" ] && _leg="$_fa_leg"
+      face_scan "$_body" blk "line$_n"
+      _cls_n=$((_cls_n + _fc_cls_n)); _trip_n=$((_trip_n + _fc_trip_n)); _home_n=$((_home_n + _fc_home_n))
+      _ck_n=$((_ck_n + _fc_ck_n)); _sand_n=$((_sand_n + _fc_sand_n))
+      _cls_x="$_cls_x $_fc_cls_x" _trip_x="$_trip_x $_fc_trip_x" _home_x="$_home_x $_fc_home_x"
+      _ck_x="$_ck_x $_fc_ck_x" _sand_x="$_sand_x $_fc_sand_x"
+    fi
+    # A CROSSED registration is graded on the leg's UNCONDITIONAL facts, minus what the boundary ledger
+    # accepts for that leg: that is exactly the claim `hl_wsl_route` makes when it returns rc, word for word
+    # the conjunction in lib/wsl-route.sh. A conditional site is not a fact about the crossing — gate-parity
+    # judges those, and the NOT JUDGED line below names them.
+    _udeep=""
+    if [ -n "$_wrapped" ]; then
+      _udeep=1
+      case "$_acc $_acc_leg " in *" $_leg:seat "*) _cls_n=0 _cls_x=""; _home_n=0 _home_x="" ;; esac
+      case "$_acc $_acc_leg " in *" $_leg:trip "*) _trip_n=0 _trip_x="" ;; esac
+    fi
+    HL_FACE_UNCOND="$_udeep"
+    if [ -n "$_leg" ] && leg_facts "$_leg"; then
+      _cls_n=$((_cls_n + _fc_cls_n)); _trip_n=$((_trip_n + _fc_trip_n)); _home_n=$((_home_n + _fc_home_n))
+      _ck_n=$((_ck_n + _fc_ck_n)); _sand_n=$((_sand_n + _fc_sand_n))
+      _cls_x="$_cls_x $_fc_cls_x" _trip_x="$_trip_x $_fc_trip_x" _home_x="$_home_x $_fc_home_x"
+      _ck_x="$_ck_x $_fc_ck_x" _sand_x="$_sand_x $_fc_sand_x"
+    fi
+
+    # The narrowing: a `--self-test` registration whose leg builds its OWN sandbox planted the `$HOME` it
+    # reads and the socket it opens — a fixture is not seat state. A classifier is not planted with them:
+    # it asks which seat it is on wherever it runs, and a crossed answer is an answer about the engine.
+    case "$_line$_body" in *hl_wsl_route*) _wrapped=1 ;; *) _wrapped="" ;; esac
+    _st=""
+    case "$_fa_flags" in *--self-test*) _st=1 ;; esac
+    if [ "$_st" = 1 ] && [ "$_sand_n" != 0 ]; then _trip_n=0 _trip_x=""; _home_n=0 _home_x=""; fi
+
+    _has_seat="" _has_tree=""
+    [ "$_cls_n" = 0 ]  || _has_seat=1
+    [ "$_trip_n" = 0 ] || _has_seat=1
+    [ "$_home_n" = 0 ] || _has_seat=1
+    [ "$_ck_n" = 0 ]   || _has_tree=1
+    if   [ -z "$_has_seat" ]; then _der=tree        # nothing but this checkout, which is what tree MEANS
+    elif [ -n "$_has_tree" ]; then _der=joined      # both, so grading one of them in a snapshot proves neither
+    else _der=seat
+    fi
+
+    case "$_der" in
+      tree) _n_tree=$((_n_tree + 1)) ;;
+      seat) _n_seat=$((_n_seat + 1)); _face_seat="$_face_seat $_n:${_leg:-$_fn}" ;;
+      joined) _n_joined=$((_n_joined + 1)); _face_joined="$_face_joined $_n:${_leg:-$_fn}" ;;
+    esac
+    [ "$SHOW_FACES" = 1 ] && printf '  %-6s %5d  %-40s cls %s trip %s seat %s ck %s\n' \
+      "$_der" "$_n" "${_leg:-${_fn:-a command line}}" "$_cls_n" "$_trip_n" "$_home_n" "$_ck_n"
+
+    if [ -z "$_decl" ]; then
+      _n_und=$((_n_und + 1))
+      fail "FACE: validate-all.sh:$_n carries no face word — \`face tree|seat|joined;\` belongs before the item call, and \`--profile quick\` refuses the run while one is undecided. The axis is stated in lib/wsl-route.sh."
+      continue
+    fi
+    [ "$_decl" = "$_der" ] && continue
+
+    _why=""
+    [ "$_cls_n" = 0 ]  || _why="$_why classifier×$_cls_n${_cls_x:+ ($_cls_x)}"
+    [ "$_trip_n" = 0 ] || _why="$_why trip×$_trip_n${_trip_x:+ ($_trip_x)}"
+    [ "$_home_n" = 0 ] || _why="$_why seat-state×$_home_n${_home_x:+ ($_home_x)}"
+    [ "$_ck_n" = 0 ]   || _why="$_why checkout×$_ck_n${_ck_x:+ ($_ck_x)}"
+    [ "$_sand_n" = 0 ] || _why="$_why sandbox×$_sand_n"
+
+    # The one mismatch that costs nothing: a NATIVE line claiming MORE seat than its facts show. It refuses a
+    # free grading rather than trading in a wrong one — A7's direction, and the reason it is a NOTE. On a
+    # WRAPPED line the same word is a finding, because there the runner crosses it.
+    if [ -z "$_wrapped" ] && [ "$_decl" = seat ] && [ "$_der" = tree ]; then
+      _n_note=$((_n_note + 1))
+      printf 'NOTE: face — validate-all.sh:%s declares `face seat'"'"' while the derivation says `tree'"'"' (%s): no seat fact answers, so the tree face could grade this leg and is not being offered it.\n' \
+        "$_n" "${_leg:-$_fn}"
+      continue
+    fi
+    _n_bad=$((_n_bad + 1))
+    if [ -n "$_wrapped" ]; then
+      fail "FACE: validate-all.sh:$_n declares \`face $_decl' on a line the runner CROSSES, where its facts say \`$_der' ($_why). A crossed leg whose SUBJECT reads seat state is graded in neither face: the snapshot cannot see the seat and the crossing answers the questions about the engine. UNWRAP it (the conjunction in lib/wsl-route.sh already forbids the trip or classifier — SEAT / TRIP name any unconditional one), or, where the facts are tree-and-sandbox only, write \`face tree'."
+    else
+      fail "FACE: validate-all.sh:$_n declares \`face $_decl' and the derivation says \`$_der' ($_why). The face is derived from what the leg reads — the classifier, the trip, the seat-\$HOME path, the checkout read — so the word on the line is a claim being graded and not a label that can rot. Change the word, or change what the leg reads."
+    fi
+  done <<<"$_va"
+
+  _face_note="faces $_n_tot registration(s): $_n_tree tree · $_n_joined joined · $_n_seat seat, undecided $_n_und"
+  printf 'FACE: %s registration(s) derived — %s tree · %s joined · %s seat · %s undecided · %s contradicted · %s note\n' \
+    "$_n_tot" "$_n_tree" "$_n_joined" "$_n_seat" "$_n_und" "$_n_bad" "$_n_note"
+  _l1="${_face_seat# }"; [ -n "$_l1" ] || _l1="none"
+  _l2="${_face_joined# }"; [ -n "$_l2" ] || _l2="none"
+  printf '      seat:   %s\n      joined: %s\n' "$_l1" "$_l2"
+  return 0
 }
 
 # --------------------------------------------------------------------------- #
@@ -522,6 +921,10 @@ check_tree() {
     done
   done
 
+  # THE FACE — every registration line's word, weighed against the derivation. Its own findings print as it
+  # walks; the counts land in the denominator below.
+  face_walk
+
   # NOT JUDGED, in the open: the sites a function body may or may not hide from the registered argv.
   # Guessing either way would be wrong in one direction, so the blind spot is named with the command that
   # closes it, beside what WAS judged.
@@ -538,7 +941,7 @@ check_tree() {
 
   # The honest denominator, printed whether or not anything was found: a rule that read nothing must
   # never look like a pass.
-  _note="declarations $decl_n in $decl_files file(s) · wrapped legs $resolved/$wrapped registration(s) named a leg path · tools the probe asks: $(printf '%s\n' "$_asked" | wc -w)"
+  _note="declarations $decl_n in $decl_files file(s) · wrapped legs $resolved/$wrapped registration(s) named a leg path · tools the probe asks: $(printf '%s\n' "$_asked" | wc -w) · $_face_note"
   if [ "$decl_n" = 0 ]; then
     if [ "$wrapped" != 0 ]; then
       printf 'CANNOT RUN: %s registration(s) cross the door and nothing in this tree declares its\n' "$wrapped"
@@ -864,6 +1267,9 @@ case "${1:-}" in
     exit 1 ;;
   --arms)
     door_arms; exit $? ;;
+  --faces)
+    SHOW_FACES=1
+    check_tree; report $?; exit $? ;;
   "")
     check_tree; report $?; exit $? ;;
   -h | --help)
