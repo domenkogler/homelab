@@ -109,7 +109,9 @@
 #   the leg: a `tree` leg that reads `$HOME/.pi`, a `tree` leg that opens a socket, a registration with no
 #   face word at all, a `seat` leg whose facts say seat (green, plus the NOTE that it could have been a
 #   tree), a `joined`-capable leg that only reads seat state, and a WRAPPED leg declared `seat` — which is
-#   a finding rather than a note, because the runner crosses the line it is lying about.
+#   a finding rather than a note, because the runner crosses the line it is lying about. A seventh arm
+#   grades the ORDER the facts are read in: a native registration sitting after a crossed one, whose leg
+#   reads both faces from inside a branch, must still derive `joined`.
 #   `--arms` runs the contract through the ANSWERS instead of through a grep: the declaring leg in the
 #   tree is driven by four planted inventories and answers rc 0 having run, rc 2 naming a tool the
 #   inventory lists as ABSENT and quoting that inventory, unchanged and silent with no answer in hand, and
@@ -402,12 +404,15 @@ face_scan() {
   local _udeep="$HL_FACE_UNCOND"
   while IFS= read -r _ln; do
     _n=$((_n + 1)); _fc_line=$_n
+    _t="${_ln#"${_ln%%[![:space:]]*}"}"                        # ltrim — the region tests below read it
     # UNCONDITIONAL-ONLY mode: a fact reached from an enclosing branch belongs to that branch, which
     # is exactly what SEAT / TRIP call a conditional site and hand to gate-parity. Used to grade a
     # CROSSED registration, where "the subject reads seat state" must mean the same thing the
-    # conjunction says it means — what runs at gate shape, not what might run on some seat.
+    # conjunction says it means — what runs at gate shape, not what might run on some seat. The ltrim
+    # above is what makes that test the CURRENT line's indentation: comparing the line's length against
+    # the PREVIOUS line's trimmed length is a coin toss, and it was the shape of three real
+    # contradictions that reported no facts at all.
     if [ -n "$_udeep" ] && [ "${#_ln}" != "${#_t}" ]; then continue; fi
-    _t="${_ln#"${_ln%%[![:space:]]*}"}"                        # ltrim — the region tests below read it
     if [ -n "$_hd" ]; then case "$_t" in "$_hd") _hd="" ;; esac; continue; fi     # a heredoc body is DATA
     if [ "$_par" = 1 ]; then case "$_t" in *')'*) _par=0 ;; esac; continue; fi    # an array literal's tail
     if [ "$_kind" = py ] && [ "$_doc" = 1 ]; then                                  # a docstring is prose
@@ -617,9 +622,6 @@ face_walk() {
     _fa_leg="" _fa_fn="" _fa_flags=""
     face_args "$_line"
     _leg="$_fa_leg" _fn="$_fa_fn" _body=""
-    face_scan "$_line" blk "line$_n"
-    _cls_n=$_fc_cls_n _trip_n=$_fc_trip_n _home_n=$_fc_home_n _ck_n=$_fc_ck_n _sand_n=$_fc_sand_n
-    _cls_x="$_fc_cls_x" _trip_x="$_fc_trip_x" _home_x="$_fc_home_x" _ck_x="$_fc_ck_x" _sand_x="$_fc_sand_x"
     if [ -z "$_leg" ] && [ -n "$_fn" ]; then
       _blk_out=""
       blk_body "$_fn" || _blk_out=""
@@ -627,34 +629,47 @@ face_walk() {
       _fa_leg="" _fa_fn="$_fa_fn"
       face_args "$_body"
       [ -n "$_fa_leg" ] && _leg="$_fa_leg"
+    fi
+    # IS THIS LINE CROSSED? Decided BEFORE a single fact is weighed, because both halves of what follows
+    # hang off it: a CROSSED subject is graded on its UNCONDITIONAL facts, and the boundary ledger excuses
+    # facts for a leg the runner crosses. Reading `_wrapped` after the facts read the PREVIOUS
+    # registration's answer, and on the real tree that one-line lag was a contradiction in both directions
+    # — a native line scanned its leg as if crossed and lost the conditional checkout facts a block had
+    # just added (`joined` derived as `seat`), a crossed line counted facts the conjunction had judged.
+    case "$_line$_body" in *hl_wsl_route*) _wrapped=1 ;; *) _wrapped="" ;; esac
+    _udeep=""
+    if [ -n "$_wrapped" ]; then _udeep=1; fi
+    HL_FACE_UNCOND="$_udeep"
+    face_scan "$_line" blk "line$_n"
+    _cls_n=$_fc_cls_n _trip_n=$_fc_trip_n _home_n=$_fc_home_n _ck_n=$_fc_ck_n _sand_n=$_fc_sand_n
+    _cls_x="$_fc_cls_x" _trip_x="$_fc_trip_x" _home_x="$_fc_home_x" _ck_x="$_fc_ck_x" _sand_x="$_fc_sand_x"
+    if [ -z "$_leg" ] && [ -n "$_fn" ] && [ -n "$_body" ]; then
       face_scan "$_body" blk "line$_n"
       _cls_n=$((_cls_n + _fc_cls_n)); _trip_n=$((_trip_n + _fc_trip_n)); _home_n=$((_home_n + _fc_home_n))
       _ck_n=$((_ck_n + _fc_ck_n)); _sand_n=$((_sand_n + _fc_sand_n))
       _cls_x="$_cls_x $_fc_cls_x" _trip_x="$_trip_x $_fc_trip_x" _home_x="$_home_x $_fc_home_x"
       _ck_x="$_ck_x $_fc_ck_x" _sand_x="$_sand_x $_fc_sand_x"
     fi
-    # A CROSSED registration is graded on the leg's UNCONDITIONAL facts, minus what the boundary ledger
-    # accepts for that leg: that is exactly the claim `hl_wsl_route` makes when it returns rc, word for word
-    # the conjunction in lib/wsl-route.sh. A conditional site is not a fact about the crossing — gate-parity
-    # judges those, and the NOT JUDGED line below names them.
-    _udeep=""
-    if [ -n "$_wrapped" ]; then
-      _udeep=1
-      case " $_acc " in *" $_leg:seat "*) _cls_n=0 _cls_x=""; _home_n=0 _home_x="" ;; esac
-      case " $_acc " in *" $_leg:trip "*) _trip_n=0 _trip_x="" ;; esac
-    fi
-    HL_FACE_UNCOND="$_udeep"
+    # A CROSSED registration is graded on the leg's UNCONDITIONAL facts: that is exactly the claim
+    # `hl_wsl_route` makes when it returns rc, word for word the conjunction in lib/wsl-route.sh. A
+    # conditional site is not a fact about the crossing — gate-parity judges those, and the NOT JUDGED
+    # line below names them.
     if [ -n "$_leg" ] && leg_facts "$_leg"; then
       _cls_n=$((_cls_n + _fc_cls_n)); _trip_n=$((_trip_n + _fc_trip_n)); _home_n=$((_home_n + _fc_home_n))
       _ck_n=$((_ck_n + _fc_ck_n)); _sand_n=$((_sand_n + _fc_sand_n))
       _cls_x="$_cls_x $_fc_cls_x" _trip_x="$_trip_x $_fc_trip_x" _home_x="$_home_x $_fc_home_x"
       _ck_x="$_ck_x $_fc_ck_x" _sand_x="$_sand_x $_fc_sand_x"
     fi
+    # The ledger's exemption lands on the WHOLE fact set — line, block and leg file. Excusing the line
+    # and the block before the file was read excused nothing: the site the ledger names lives IN the leg.
+    if [ -n "$_wrapped" ]; then
+      case " $_acc " in *" $_leg:seat "*) _cls_n=0 _cls_x=""; _home_n=0 _home_x="" ;; esac
+      case " $_acc " in *" $_leg:trip "*) _trip_n=0 _trip_x="" ;; esac
+    fi
 
     # The narrowing: a `--self-test` registration whose leg builds its OWN sandbox planted the `$HOME` it
     # reads and the socket it opens — a fixture is not seat state. A classifier is not planted with them:
     # it asks which seat it is on wherever it runs, and a crossed answer is an answer about the engine.
-    case "$_line$_body" in *hl_wsl_route*) _wrapped=1 ;; *) _wrapped="" ;; esac
     _st=""
     case "$_fa_flags" in *--self-test*) _st=1 ;; esac
     if [ "$_st" = 1 ] && [ "$_sand_n" != 0 ]; then _trip_n=0 _trip_x=""; _home_n=0 _home_x=""; fi
@@ -1231,6 +1246,13 @@ CONT
   _st_breed face_wrapped_seat 1 scripts/validate-all.sh \
     'face seat; item_q "a crossed leg called seat (needs rsync)" hl_wsl_route bash scripts/testdata/leg-contract/run.sh --check' \
     "a CROSSED line cannot be a `seat` leg: the runner crosses it, so the snapshot is being asked to grade it" 'FACE:'
+  # The ordering arm, and the one real-tree class the six above cannot reach: a NATIVE registration that
+  # follows a CROSSED one, whose leg reads seat state and this checkout from inside a branch. The mode
+  # the leg file is read in belongs to THIS line — read it from the previous registration and the
+  # conditional facts vanish, which derives a `joined` leg as `seat` on a clean tree.
+  _st_two face_conditional 0 scripts/testdata/leg-contract/run.sh '    DEPLOY="$HOME/.pi/agent/skills"; SKILLS="$REPO/skills"' \
+    scripts/validate-all.sh 'face joined; item_q "the planted leg reads both, from inside a branch (needs rsync)" bash scripts/testdata/leg-contract/run.sh --check' \
+    "a native line reads its leg's conditional facts too — that is where a block's `if` reaches" ''
 
   # The door half, in the tree: the declaring leg driven by four planted answers. Its verdicts print
   # themselves, so a failure here names the arm — and the leg it drives is the same file the real-tree
