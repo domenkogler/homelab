@@ -108,8 +108,8 @@ git diff HEAD | wsl.exe -d Debian -u domen -- bash -c 'cd ~/gate-snap/homelab &&
 git ls-files --others --exclude-standard | tar -cf - -T - | wsl.exe -d Debian -u domen -- tar -xf - -C gate-snap/homelab
 ```
 
-⛔ never `git clone` with the Windows tree as cwd and a relative destination: a lost destination argument put a **178 MB clone
-inside the merge station** on 2026-11-01 and `guard-session.sh` hard-failed the station's own gate. ⛔ never run the full set
+⛔ never `git clone` with the Windows tree as cwd and a relative destination: a lost destination argument can drop a
+**178 MB clone inside the merge station**, where `guard-session.sh` hard-fails the station's own gate. ⛔ never run the full set
 from a `wsl.exe --cd` whose cwd is the mount. The seat face (the legs above that read `~/.pi`, the vault, or another host)
 still runs native, where it can see this box.
 
