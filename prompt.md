@@ -35,7 +35,7 @@ that ends seat by seat as **HD-1180**'s fix lands, never a new rule, and never t
 |------|--------------------------|------------------|
 | `oldsrv` | lanes launched from oldsrv run `async: true` | none |
 | `wsl` | ✅ verified FROM the seat — background children launched here yield their child session files (`~/.pi/agent/sessions/--home-domen-source-homelab--/subagent-artifacts/`), so lanes launched from the WSL seat run `async: true` | none |
-| `win11` | not verified from that seat | ⏳ owner: the `settings` plane and `npm:pi-subagents@0.80.0` are already in place there, so ONE act remains — accept it with **its own** `async: true` launch, run FROM that seat |
+| `win11` | ✅ verified FROM the seat — an `async: true` launch yielded its child session file under `~/.pi/agent/sessions/--D--source-domenkogler-homelab--/`, so lanes launched from the win11 seat run `async: true` | none |
 
 ⛔ Never by npm-installing chord under a managed seat tree. Mechanism and legs: **HD-1180** in [todo.md](todo.md) and
 [prompt-seat-cockpit-grants.md](prompt-seat-cockpit-grants.md).
@@ -104,8 +104,7 @@ not by the box: the Rule-0 legs a spark-served session may not run, and the whol
 contract of its legs, run FROM win11. The parity harness that authorises a wrap exists and proves its own crossing,
 the engine's tool set is written down and the PATH widening is refused with its reopening condition, two legs are
 native on purpose, and the run's own `ms/exec` line has been measuring one real `fork()+exec` since 2026-10-31 (older
-figures in the docs are a fifth of that scale — the brief says how to tell them apart). **A3 (declared runtime deps),
-A2 (the wraps) and A5 (`GATE_WIN_PAR`) are the residue**, each with its command in that file; A5 is the small knob —
+figures in the docs are a fifth of that scale — the brief says how to tell them apart). **A3 is landed**: a leg declares the engine tools it shells out to and an absent one answers `CANNOT RUN` (rc 2) instead of a green, with [`scripts/gate/check-leg-contract.sh`](scripts/gate/check-leg-contract.sh) holding the crossing conjunction — the seat-classifier and vault/ssh/network bans now redden by name — and a ledger of accepted wrong-seat boundaries that **reddens when an entry goes stale**. **A2 (the wraps) and A5 (`GATE_WIN_PAR`) are the residue**, each with its command in that file; A5 is the small knob —
 past the width where the run's heaviest leg sets the wall, pool size buys nothing, so read the sweep against
 `--time slowest`'s top entry and leave the ordering question measured rather than ruled. Claims **legs, not rows** —
 HD-1202's pool tail and HD-1216's interpreter tail stay with their rows.
