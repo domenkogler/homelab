@@ -1743,6 +1743,11 @@ item_q "check_iac_backend_strings.py (HD-404: retired-backend mentions may not r
 item_q "check_iac_backend_strings.py --self-test (HD-404 ratchet canary)" "${PY_CMD[@]}" scripts/gate/check_iac_backend_strings.py --self-test
 item_q "check_script_layout.py (HD-1118 Stage 4: registry ≡ tree, depth ratchet, one-of-each, clean root)" "${PY_CMD[@]}" scripts/gate/check_script_layout.py
 item_q "check_script_layout.py --self-test (HD-1118: each rule seen to fail, corpus floor included)" "${PY_CMD[@]}" scripts/gate/check_script_layout.py --self-test
+# The leg contract is a rule ABOUT the registration lines below, so its self-test is registered FIRST: a
+# checker whose teeth are unproven would otherwise be read as a verdict about a contract it cannot read.
+# Both items are cheap (one file list, the rest builtins) so quick keeps them.
+item_q "check-leg-contract.sh --self-test (one canary per rule — an unasked tool name, a discarded rc, a declaration that names nothing, a name from the environment, none beside a name, a second spelling of the inventory question, a pinned runtime, a wrap that hides its tool, a wrapped leg that is not there — and four shapes that must stay silent: a comment, an error string, a redirection, a backslash continuation)" bash scripts/gate/check-leg-contract.sh --self-test
+item_q "check-leg-contract.sh (every declaration in scripts/ names a tool the probe asks and is guarded; the inventory question is asked in lib/wsl-route.sh alone; each wrapped leg's registration names its tool; no leg declares a runtime the route's PATH pin hides)" bash scripts/gate/check-leg-contract.sh
 item_q "check_iac_identifiers.py (no changelog identifier may live in IaC/)" "${PY_CMD[@]}" scripts/gate/check_iac_identifiers.py
 item_q "check_iac_identifiers.py --self-test (canary)" "${PY_CMD[@]}" scripts/gate/check_iac_identifiers.py --self-test
 # A filtered converge can execute a fraction of a role and still recap `failed=0`: a tag on a playbook
