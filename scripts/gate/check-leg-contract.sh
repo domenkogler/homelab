@@ -639,8 +639,8 @@ face_walk() {
     _udeep=""
     if [ -n "$_wrapped" ]; then
       _udeep=1
-      case "$_acc $_acc_leg " in *" $_leg:seat "*) _cls_n=0 _cls_x=""; _home_n=0 _home_x="" ;; esac
-      case "$_acc $_acc_leg " in *" $_leg:trip "*) _trip_n=0 _trip_x="" ;; esac
+      case " $_acc " in *" $_leg:seat "*) _cls_n=0 _cls_x=""; _home_n=0 _home_x="" ;; esac
+      case " $_acc " in *" $_leg:trip "*) _trip_n=0 _trip_x="" ;; esac
     fi
     HL_FACE_UNCOND="$_udeep"
     if [ -n "$_leg" ] && leg_facts "$_leg"; then
