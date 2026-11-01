@@ -983,7 +983,7 @@ _rc_of() { _read_rc "$1"; printf '%s' "$RC"; }
 # which `--only` cannot address either), and a quick profile that selects nothing — a green that
 # proves nothing (CONVENTIONS §6: a test that cannot fail is not evidence).
 _profile_audit() {
-  local i n_quick=0 n_excl=0 n_und=0 n_empty=0 bad="" dup
+  local i n_quick=0 n_excl=0 n_und=0 n_empty=0 n_face_und=0 bad="" dup
   local -A _seen=()
   for i in "${!labels[@]}"; do
     case "${mems[$i]}" in
@@ -998,6 +998,16 @@ _profile_audit() {
          bad+="        declare it:  item_q / item_blk_q to INCLUDE it, or"$'\n'
          bad+="        item_x \"<the actual reason>\" / item_blk_x to exclude it"$'\n' ;;
     esac
+    # The FACE is the sibling decision, made at the same line for the same reason: a leg whose face nobody
+    # chose would be graded in whichever face happened to run, and a silently-defaulted face is the
+    # HD-1137 failure wearing the other mark. Quick is where both refusals live, because quick SELECTS.
+    if [ -z "${faces[$i]}" ]; then
+      n_face_und=$((n_face_und+1))
+      bad+="  NO FACE DECISION: ${labels[$i]}"$'\n'
+      bad+="        declare it:  'face tree;' (subject = this checkout, or a fixture the leg builds),"$'\n'
+      bad+="        'face seat;' (subject = this host's state) or 'face joined;' (spans both, NATIVE)"$'\n'
+      bad+="        before the item call; scripts/gate/check-leg-contract.sh DERIVES it and reddens a lie"$'\n'
+    fi
     dup="${_seen["${labels[$i]}"]:-}"
     if [ -n "$dup" ]; then
       bad+="  DUPLICATE registration (also item $dup): ${labels[$i]}"$'\n'
@@ -1006,6 +1016,10 @@ _profile_audit() {
       _seen["${labels[$i]}"]=$i
     fi
   done
+  if [ "$n_face_und" -ne 0 ]; then
+    bad+="  $n_face_und registration(s) carry no face word: the quick profile refuses rather than grading"$'\n'
+    bad+="  them in whichever face happens to run (the sibling of the undecided-item refusal above)"$'\n'
+  fi
   if [ "$n_quick" -eq 0 ]; then
     bad+="  the quick profile selects NOTHING — a profile with no items is a green that proves nothing"$'\n'
   fi
@@ -1018,7 +1032,7 @@ _profile_audit() {
     {
       echo "FAIL: the --profile quick registry is not sound (HD-1137) — NOTHING ran."
       echo "      A profile that can quietly drop an item is worse than no profile: it prints a green the"
-      echo "      work never earned. Registry: $n_items item(s), $n_quick in quick, $n_excl excluded."
+      echo "      work never earned. Registry: $n_items item(s), $n_quick in quick, $n_excl excluded, $n_face_und with no face."
       printf '%s' "$bad"
       echo "      The full set is: bash scripts/validate-all.sh --list"
     } >&2
@@ -1952,10 +1966,12 @@ if [ "$LIST" = 1 ]; then
   if [ "$PROFILE" = full ]; then
     for i in "${!labels[@]}"; do printf '%2d  %s\n' "$i" "${labels[$i]}"; done
   else
-    echo "profile '$PROFILE' marks (* in quick, - excluded, ? no decision made) — the FULL set, same order as always" >&2
+    echo "profile '$PROFILE' — two mark columns: PROFILE (* in quick, - excluded, ? no decision) then FACE (tree | seat | joined, ? undecided) — the FULL set, same order as always" >&2
     for i in "${!labels[@]}"; do
       case "${mems[$i]}" in q) _m='*' ;; x) _m='-' ;; *) _m='?' ;; esac
-      printf '%2d %s %s\n' "$i" "$_m" "${labels[$i]}"
+      # The face column is the OTHER decision the same registration line carries — where the leg's SUBJECT
+      # lives — so ONE list answers both questions without a second list.
+      printf '%2d %s %-6s %s\n' "$i" "$_m" "${faces[$i]:-?}" "${labels[$i]}"
     done
   fi
   exit 0
