@@ -20,7 +20,7 @@
 (O10-O11). No converge and no host act: nothing here touches a deployed box.
 
 **Status — the engine's contract is written down and now enforced, and the seat's cost question has a mechanism as its
-answer: the win11 launcher runs the tree legs, and that is the whole wall. A3 is landed; the open legs are
+answer: the win11 launcher runs the tree legs, and that is the whole wall. A3's enforcer is in `scripts/gate/`; the open legs are
 A7 (two-face grading — run it first), A2 (verdicts, not wall) and A5 (one run, not a sweep)**, dispatched at the end of §2.**
 What exists now, and how to see it:
 
@@ -38,13 +38,10 @@ What exists now, and how to see it:
   [`docs/harness-rejected.md`](docs/harness-rejected.md); the node exists at `~/.local/share/pi-node/current/bin/node`
   and is unreachable by name, which is a probe question, not an environment boundary —
   [`docs/harness-pi-seats.md`](docs/harness-pi-seats.md) §1 carries the seat's own numbers and what they mean.
-* **The `ms/exec` figure every run prints is the seat's real per-fork price from 2026-10-31 on, and a fifth of it before.**
-  The host-cost probe resolved its target with `command -v true`, which in bash names the **builtin**, so the "five execs"
-  loop forked once (the `$(seq)` word list) and divided that fork by five — on every seat. `type -P true` + `{1..5}` is the
-  fix, `SKIP` prints where no `true` binary exists, and `degraded` moved to > 300. Re-derive both sides: native
-  `t0=$EPOCHREALTIME; for i in {1..200}; do "$(type -P true)" >/dev/null; done; echo $(( (t1-t0)/200 ))`, and the engine's
-  `date +%s.%N` around 200 forks of `/bin/true` (its cwd on the mount costs slightly more than `/tmp`). §1's older figures
-  and every number in this brief's history are pre-fix scale — multiply by five to compare them with a loop measurement.
+* **The `ms/exec` figure is one real `fork()+exec` on the seat that printed it**, and every older figure in this repo
+  — including the history below — is a fifth of that scale, so multiply before comparing. Re-derive
+  natively with `"$(type -P true)"` in a `{1..200}` loop and in the engine with `date +%s.%N` around 200 `/bin/true` forks;
+  [`docs/harness-pi-seats.md`](docs/harness-pi-seats.md) §1 holds the mechanism and the bands.
 * **The wall has a floor, and it is a leg rather than the pool.** List-scheduling one run's `--time` durations predicts
   the observed wall within ~10 % at every width, and it says the run stops getting faster once the pool is wider than the
   legs that can run at once: from there `wall ≈ the heaviest leg`, not `Σ/pool`. Launching the heavy legs *first* reaches
@@ -162,9 +159,10 @@ the lib's header and enforced by the probe, not by a list.
   stale file and requires it to be gone; (3) one run of each face on the same commit, with both faces' walls and `ms/exec` in
   the commit message. The seat face must name its legs and stay native — a joined leg graded in the snapshot proves neither
   side — and the report ends with the two walls side by side, which is the sentence `docs/harness-pi-seats.md` §1 wants.
-* **A3 — declared runtime deps. ✅ landed:** `hl_wsl_needs`, the conjunction enforcer and the boundary ledger are in
-  `scripts/gate/`; the crossed-pair half of the token-holders boundary is parked as **A6/A1** territory (it needs one live
-  crossing pair, which is the parity instrument's act, not this checker's).
+* **A3 — declared runtime deps** is the enforcer that now lives in `scripts/gate/`: `hl_wsl_needs` at the leg, the
+  conjunction rules, and the boundary ledger whose stale entry reddens. Its crossed-pair half — proving `check-token-holders
+  --self-test` (native rc 1 by design, crossed rc 0) is a wrong-seat boundary rather than a lost arm — needs one live crossing
+  pair, which is the parity instrument's act: that is **A6/A1** territory, parked there, not a hole in this checker.
 * **A2 — wrap what A1 proves — and read it as a verdict leg, not a wall-clock leg.** The eligible fork-heavy legs are already
   routed, so A2 buys the answers this seat cannot print (`install-tmux-conf --self-test` where the native run can only SKIP),
   not minutes; A7 is what moves the clock. Each wrap cites its own parity output in the commit message:
