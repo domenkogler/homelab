@@ -144,7 +144,8 @@ _asked=""
 _note="nothing read"
 SHOW_FACES=0                       # --faces: face_walk prints one row per registration, not just the counts
 _face_note="faces not weighed"
-declare -A _face_cache=()          # leg path -> its five fact lists, for the width of one check_tree run
+declare -A _face_cache=()          # leg path (+ mode) -> its fact counts, for the width of one check_tree run
+HL_FACE_UNCOND=""                  # leg_facts mode: count only column-0 facts, i.e. a CROSSED subject
 
 # _read_all <var> <file> — a whole file in ONE builtin read. `read` is byte-truthful (`$( )` is the shape
 # that loses a CR on a Windows seat — CONVENTIONS §6), and a checker that execs a grep per file would pay
