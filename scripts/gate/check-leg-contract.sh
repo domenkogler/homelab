@@ -90,6 +90,13 @@ INV_VAR='HL_WSL''_TOOLS'
 INV_FN='hl_wsl''_tools'
 NEEDS='hl_wsl_needs'
 PINNED_RUNTIMES="node npm npx pi"    # behind the route's PATH pin; widening that pin is declined
+# The two detectors that read the conjunction off the wrapped legs. They name CALLS: the SEAT list is how a
+# leg asks which seat it is on, the TRIP list is how a leg opens something only the seat it stands on can
+# open. A name inside prose or inside a quoted string is not a call — see at_cmd.
+SEAT_WORDS=(hl_wsl_class hl_wsl_probe this_is_wsl_engine '/proc/version' 'uname -s' 'uname -r' 'uname -m'
+            WSL_DISTRO_NAME hostnamectl)
+TRIP_WORDS=('ssh ' 'curl ' 'wget ' 'op ' 'ansible-playbook ' 'vault-env.sh' 'vault_read.py')
+BOUNDARIES="scripts/gate/leg_contract_boundaries.txt"   # accepted wrong-seat boundaries, one per line
 
 find_n=0
 _asked=""
@@ -188,13 +195,98 @@ has_name() {
 fail() { printf 'FAIL: %s\n' "$*"; find_n=$((find_n + 1)); }
 
 # --------------------------------------------------------------------------- #
+# THE CONJUNCTION, read off the wrapped legs.                                        #
+# --------------------------------------------------------------------------- #
+# WHY THIS IS HERE AT ALL: the rule that a leg may not cross if it classifies the seat it runs on, or
+# opens a vault/ssh/network trip, is stated in `lib/wsl-route.sh`'s header and in the brief's ban list —
+# and nothing in the tree enforced either. The conjunction's first clause is decidable from the text
+# because a seat classifier answers for the WRONG SEAT in every mode, and a top-level vault/ssh trip runs
+# in every mode. A site inside a function body is a different question — whether the REGISTERED argv
+# reaches it is a parity question, not a grep question — so those sites are counted and printed as
+# NOT JUDGED with the instrument that does decide them, `bench/win/gate-parity.sh`, rather than guessed at
+# in either direction. `pi-tui-config --self-test`'s `pinned-node` arm is the sibling case on the tool
+# side: crossed, the engine's node sits behind the PATH pin whose widening docs/harness-rejected.md
+# declines, so the arm SKIPs and the leg still exits 0. No arm here widens that PATH or names a runtime.
+#
+# Both detectors read COMMAND position, not the word: prose about ssh and a printed suggestion of an `op`
+# command are not a trip, and neither is an interpreter call that merely contains the letters.
+at_cmd() { # at_cmd <line> <word> — does <word> sit where a COMMAND may start?
+  local _pre="${1%%"$2"*}"
+  [ "$_pre" != "$1" ] || return 1                          # the word is not in the line at all
+  _pre="${_pre%"${_pre##*[![:space:]]}"}"                  # rtrim
+  case "$_pre" in
+    '' | *';' | *'&' | *'|' | *'(' | *'!' | *'`' | *'{' | *then | *do | *if) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# tail_comment <line> — the line with a balanced trailing ` # …` comment cut off. The balance test is the
+# whole care: `"#ff0000"` and `s/x#y//` are text, `foo  # note` is a comment, and cutting the first would
+# hide a trip that really runs.
+tail_comment() {
+  local _s="$1" _cut="${1%%[[:space:]]#*}" _q=""
+  [ "$_cut" != "$1" ] || { printf '%s' "$1"; return; }
+  _q="${_cut//[!\']/}"
+  [ $(( ${#_q} % 2 )) = 0 ] || { printf '%s' "$1"; return; }
+  _q="${_cut//[!\"]/}"
+  [ $(( ${#_q} % 2 )) = 0 ] || { printf '%s' "$1"; return; }
+  printf '%s' "$_cut"
+}
+
+# wrap_scan <file> — the seat/trip sites of one wrapped leg, split by whether the registered mode can
+# avoid them. Sets _ws_seat / _ws_trip (top-level sites, `file:line`) and _ws_nv (sites inside a function).
+# The depth is tracked the way bash reads the tree's own style: a body opens on a line ending in `{` and
+# closes on a line that is only `}`; an if/for/case keeps its own words and moves nothing.
+wrap_scan() {
+  local _f="$1" _ln="" _t="" _w="" _deep=0 _n=0
+  _ws_seat="" _ws_trip="" _ws_nv=0
+  while IFS= read -r _ln; do
+    _n=$((_n + 1))
+    _ln="${_ln%$'\r'}"
+    _t="${_ln#"${_ln%%[![:space:]]*}"}"                    # ltrim
+    case "$_t" in '' | '#'*) continue ;; esac
+    _t="$(tail_comment "$_t")"
+    for _w in "${SEAT_WORDS[@]}"; do
+      case "$_t" in *"$_w"*) : ;; *) continue ;; esac
+      at_cmd "$_t" "$_w" || continue
+      if [ "$_deep" = 0 ]; then _ws_seat="$_ws_seat $_f:$_n"; else _ws_nv=$((_ws_nv + 1)); fi
+    done
+    for _w in "${TRIP_WORDS[@]}"; do
+      case "$_t" in *"$_w"*) : ;; *) continue ;; esac
+      at_cmd "$_t" "$_w" || continue
+      if [ "$_deep" = 0 ]; then _ws_trip="$_ws_trip $_f:$_n"; else _ws_nv=$((_ws_nv + 1)); fi
+    done
+    case "$_t" in *'{') _deep=$((_deep + 1)) ;; esac
+    case "$_t" in '}'*) [ "$_deep" != 0 ] && _deep=$((_deep - 1)) ;; esac
+  done <<<"$_c"
+  return 0
+}
+
+# blk_wrap_line <fn> — the hl_wsl_route line inside a registration block: a declaring leg's registration
+# MUST take this form (VERDICT), so a wrap hidden in a block is a wrap and has to be weighed.
+blk_wrap_line() {
+  local _fn="$1" _l="" _in=0
+  while IFS= read -r _l; do
+    if [ "$_in" = 0 ]; then
+      case "$_l" in "$_fn"*'() '*) _in=1 ;; esac
+      continue
+    fi
+    case "$_l" in '}'*) return 1 ;; esac
+    case "$_l" in *hl_wsl_route*) printf '%s' "$_l"; return 0 ;; esac
+  done <<<"$_va"
+  return 1
+}
+
+# --------------------------------------------------------------------------- #
 # THE CHECK                                                                   #
 # --------------------------------------------------------------------------- #
 check_tree() {
   local _files="" _f="" _c="" _ln="" _names="" _t=""
-  local _pre="" _rest="" _leg="" _line="" _arg="" _dn="" _va="" _acc="" _df=0
+  local _pre="" _rest="" _leg="" _line="" _arg="" _dn="" _va="" _acc="" _df=0 _s="" _i=""
+  local _wline="" _fn="" _bp="" _bc="" _br="" _known=0 _live=0 _nv_leg=0 _nv_site=0
   local _cont=0
   local decl_files=0 decl_n=0 wrapped=0 resolved=0
+  local nl=$'\n'        # a function definition is found at a LINE start, which is what `case` needs
 
   if [ ! -f "$ROOT/scripts/lib/wsl-route.sh" ]; then
     printf 'CANNOT RUN: no scripts/lib/wsl-route.sh under %s — the lib this contract is written in\n' "$ROOT"
@@ -286,18 +378,29 @@ check_tree() {
     fi
   done <<<"$_files"
 
-  # REGISTRATION — a wrapped leg that declares, declares at its line too. Only `item…` lines are
-  # registrations: the runner's own `= hl_wsl_route` test and a commented-out wiring are not wraps.
+  # REGISTRATION + CONJUNCTION — one pass over the registration lines. A wrap is a wrap whether
+  # `hl_wsl_route` sits on the item line or inside the block the line calls, and a declaring leg has to use
+  # the second form, so both forms are resolved rather than only the one that is easy to grep.
   _read_all _va "$ROOT/scripts/validate-all.sh"
+  _b_leg=(); _b_seat=(); _b_trip=(); _b_nv=(); _b_argv=()
   while IFS= read -r _line; do
     case "$_line" in item*) : ;; *) continue ;; esac
-    case "$_line" in *hl_wsl_route*) : ;; *) continue ;; esac
+    _wline="$_line" _fn=""
+    case "$_line" in
+      *hl_wsl_route*) : ;;
+      *)  for _arg in $_line; do
+            case "$_arg" in item* | *[\"$]*) continue ;; esac
+            case "$_va" in *"$nl$_arg() "*) _fn="$_arg"; break ;; esac
+          done
+          [ -n "$_fn" ] || continue          # a registration that runs a command, not a block
+          _wline="$(blk_wrap_line "$_fn")" || continue ;;
+    esac
     wrapped=$((wrapped + 1))
     _leg=""
-    for _arg in $_line; do
+    for _arg in $_wline; do
       case "$_arg" in scripts/*.sh | scripts/*.py) _leg="$_arg"; break ;; esac
     done
-      [ -n "$_leg" ] || continue
+    [ -n "$_leg" ] || continue
     resolved=$((resolved + 1))
     [ -f "$ROOT/$_leg" ] || { fail "REGISTRATION: $_leg is wrapped in validate-all.sh and does not exist"; continue; }
     _dn=""
@@ -309,10 +412,84 @@ check_tree() {
       done
     done <<<"$_c"
     for _t in $_dn; do
-      has_name "$_line" "$_t" \
-        || fail "REGISTRATION: $_leg declares \`$_t\` but its hl_wsl_route line does not name it — the line is where a reader learns what the engine has to have"
+      has_name "$_line $_wline" "$_t" \
+        || fail "REGISTRATION: $_leg declares \`$_t\` but its registration does not name it — the line is where a reader learns what the engine has to have"
     done
+
+    # VERDICT — a leg that declares a real tool answers rc 2 the moment an engine lists that name ABSENT,
+    # and an item line that reads the leg's rc as its verdict turns that boundary into a FAILED run. The
+    # block is what maps it: same leg, same answer, said in the words the run already prints.
+    if [ "$_line" = "$_wline" ] && [ -n "${_dn// /}" ]; then
+      fail "VERDICT: $_leg declares ($_dn) and its registration reads the leg's rc as the verdict — register a declaring leg through a block that maps rc 2 to a NOTE (the shape of blk_rsync_max_delete), or keep the leg native"
+    fi
+
+    # The conjunction, on this leg.
+    wrap_scan "$_leg"
+    _b_leg+=("$_leg"); _b_seat+=("$_ws_seat"); _b_trip+=("$_ws_trip"); _b_nv+=("$_ws_nv")
+    _b_argv+=("$(printf '%s\n' "$_wline" | sed -e 's/^[[:space:]]*//' -e 's/^hl_wsl_route //')")
   done <<<"$_va"
+
+  # THE BOUNDARY LEDGER — this repo's exception idiom: one accepted wrong-seat boundary per line, each
+  # printed as a named NOTE, each REDEEMED by the tree. A leg no longer wrapped, or one that no longer
+  # trips the class its line names, reddens: that is what keeps an exception file from aging into a mute
+  # button, and why the file holds one line per leg rather than one line per class of leg.
+  _acc=""
+  if [ -f "$ROOT/$BOUNDARIES" ]; then
+    while IFS=$'\t' read -r _bp _bc _br; do
+      case "$_bp" in '' | '#'*) continue ;; esac
+      _known=0 _live=0
+      case "$_bc" in
+        seat | trip) : ;;
+        *) fail "BOUNDARY: $BOUNDARIES names class \`$_bc\` for $_bp — the classes are seat and trip" ;;
+      esac
+      [ "${#_br}" -ge 40 ] \
+        || fail "BOUNDARY: $BOUNDARIES gives $_bp a reason under 40 characters — the reason IS the argument, and a short one is a mute button"
+      for _i in "${!_b_leg[@]-}"; do
+        [ "${_b_leg[$_i]}" = "$_bp" ] || continue
+        _known=1
+        case "$_bc" in
+          seat) case "${_b_seat[$_i]}" in *:*) _live=1 ;; esac ;;
+          trip) case "${_b_trip[$_i]}" in *:*) _live=1 ;; esac ;;
+        esac
+      done
+      [ "$_known" = 1 ] \
+        || { fail "BOUNDARY: $BOUNDARIES accepts $_bp, which no registration wraps any more — delete the line in the change that unwraps the leg"; continue; }
+      [ "$_live" = 1 ] \
+        || { fail "BOUNDARY: $BOUNDARIES accepts a $_bc boundary at $_bp that the leg no longer trips — the line is dead, delete it"; continue; }
+      _acc="$_acc $_bp:$_bc"
+    done <"$ROOT/$BOUNDARIES"
+  else
+    printf 'NOTE: no boundary ledger at %s — every wrapped leg that classifies its seat or opens a vault,\n' "$BOUNDARIES"
+    printf '      ssh or network trip at top level is a finding, and a real accepted boundary has no home.\n'
+  fi
+  for _i in "${!_b_leg[@]-}"; do
+    for _s in ${_b_seat[$_i]}; do
+      case "$_acc" in
+        *"${_b_leg[$_i]}:seat"*) : ;;
+        *) fail "SEAT: $_s — a leg registered through hl_wsl_route classifies the seat it runs on, so crossed it answers about the ENGINE and not about the seat the verdict is for (the conjunction in lib/wsl-route.sh). Unwrap it, or book it in $BOUNDARIES with its reason." ;;
+      esac
+    done
+    for _s in ${_b_trip[$_i]}; do
+      case "$_acc" in
+        *"${_b_leg[$_i]}:trip"*) : ;;
+        *) fail "TRIP: $_s — a leg registered through hl_wsl_route opens a vault/ssh/network trip at top level, where every registered mode reaches it, so it opens it on BOTH sides of the door. Unwrap it, or book it in $BOUNDARIES with its reason." ;;
+      esac
+    done
+  done
+
+  # NOT JUDGED, in the open: the sites a function body may or may not hide from the registered argv.
+  # Guessing either way would be wrong in one direction, so the blind spot is named with the command that
+  # closes it, beside what WAS judged.
+  _nv_leg=0 _nv_site=0
+  for _i in "${!_b_leg[@]-}"; do
+    [ "${_b_nv[$_i]}" != 0 ] || continue
+    _nv_leg=$((_nv_leg + 1))
+    _nv_site=$((_nv_site + ${_b_nv[$_i]}))
+    printf 'NOT JUDGED: %s — %s conditional seat/trip site(s); whether the registered argv reaches them is a parity question, re-derive with: bash scripts/bench/win/gate-parity.sh -- %s\n' \
+      "${_b_leg[$_i]}" "${_b_nv[$_i]}" "${_b_argv[$_i]}"
+  done
+  [ "$_nv_leg" = 0 ] \
+    || printf 'NOT JUDGED: %s site(s) across %s wrapped leg(s). Judged here: every top-level seat/vault/ssh/network site and every declaration. Not judged: one live crossing per leg — a parity instrument, not a grep.\n' "$_nv_site" "$_nv_leg"
 
   # The honest denominator, printed whether or not anything was found: a rule that read nothing must
   # never look like a pass.
