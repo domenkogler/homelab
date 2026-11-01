@@ -632,6 +632,17 @@
 # recorded per registration, a `face` that refuses any other word, and the same fail-closed audit — a
 # leg whose face nobody chose is refused, never defaulted, because a silently-defaulted face is the
 # 223b571b class wearing a different coat.
+#
+# THE FACE IS ALSO A SWITCH, and it stays one list. `--face tree` grades the legs whose subject is this
+# checkout, `--face seat` the legs whose subject is this host (seat and joined, since a leg that spans
+# both belongs with the state it cannot prove from a snapshot), `--face both` the whole registry in one
+# face run, and the default `--face auto` selects nothing so an un-flagged run is byte-identical to the
+# run it replaced. The point of the split is the price of a fork: the tree half is a commit-stamped
+# snapshot's work, so ONE engine invocation runs all of it in the engine's own pool rather than one door
+# trip per leg, and the seat half is the ~19 legs that must answer HERE because their subject is this
+# box. `harness/gate-snapshot.sh --run` is that driver; either face prints the commit it graded and the
+# items it left for the other half, because a run that grades half a registry is a boundary and a
+# boundary prints what it did not look at.
 set -euo pipefail
 # HD-1118 Stage 1/4: find the repo root instead of assuming `$(dirname "$0")/..`. Found, not
 # assumed — the gate that proves the tree is correct must not itself be the one file whose idea of
@@ -698,10 +709,11 @@ echo "launcher: $PY ($("${PY_CMD[@]}" -c 'import sys; print(sys.version.split()[
 # --- CLI: --list (print the items and stop), --only SUBSTR (run a subset),          #
 #     --serial (one at a time, the pre-parallel behaviour, for bisecting an issue),   #
 #     --time (per-item accounting, HD-1137), --profile full|quick (a subset, HD-1137), #
-#     --wsl auto|on|off (whether the legs that cross the door really do, HD-1202).     #
+#     --wsl auto|on|off (whether the legs that cross the door really do, HD-1202),     #
+#     --face tree|seat|both|auto (which HALF of the registry this run grades).          #
 # Items registered with `item_reminder` are REMINDERS (CONVENTIONS §6.4): they run in EVERY profile,             #
 # print their findings, and a non-zero answer is counted and printed but NEVER fails the run.                   #
-ONLY=""; LIST=0; SERIAL=0; PROFILE=full; TIME=0; WSLMODE="${HL_WSL-auto}"
+ONLY=""; LIST=0; SERIAL=0; PROFILE=full; TIME=0; WSLMODE="${HL_WSL-auto}"; FACE="${HL_FACE-auto}"
 while [ $# -gt 0 ]; do
   case "$1" in
     --list)   LIST=1 ;;
@@ -713,7 +725,9 @@ while [ $# -gt 0 ]; do
     --profile=*) PROFILE="${1#--profile=}" ;;
     --wsl)    shift; [ $# -gt 0 ] || { echo "error: --wsl needs auto | on | off" >&2; exit 2; }; WSLMODE="$1" ;;
     --wsl=*)  WSLMODE="${1#--wsl=}" ;;
-    -h|--help) echo "usage: bash scripts/validate-all.sh [--list] [--only SUBSTRING] [--serial] [--time] [--profile full|quick] [--wsl auto|on|off]"; exit 0 ;;
+    --face)   shift; [ $# -gt 0 ] || { echo "error: --face needs a word (tree | seat | both | auto)" >&2; exit 2; }; FACE="$1" ;;
+    --face=*) FACE="${1#--face=}" ;;
+    -h|--help) echo "usage: bash scripts/validate-all.sh [--list] [--only SUBSTRING] [--serial] [--time] [--profile full|quick] [--wsl auto|on|off] [--face tree|seat|both|auto]"; exit 0 ;;
     *) echo "note: ignoring unknown argument '$1'" >&2 ;;
   esac
   shift
@@ -723,6 +737,12 @@ case "$WSLMODE" in
   *) echo "FAIL: --wsl wants auto | on | off, not '$WSLMODE'. Refusing to guess which seat you meant to run." >&2; exit 2 ;;
 esac
 export HL_WSL="$WSLMODE"
+# The face word is SELECTED here and ENFORCED at the registrations: a face that is misspelled would run
+# the whole registry and call it half of one, which is the profile mistake with the labels swapped.
+case "$FACE" in
+  auto | tree | seat | both) ;;
+  *) echo "FAIL: --face wants tree | seat | both | auto, not '$FACE'. Refusing to guess which legs you meant to grade." >&2; exit 2 ;;
+esac
 # An unknown profile must stop here, not quietly run the full set: a flag that is misspelled and
 # obeyed-as-another-flag is the mute-the-gate class, and this one has an opposite to confuse it with.
 case "$PROFILE" in
@@ -904,6 +924,16 @@ _reg() {
   # honest list of what a quick run did not look at, whatever else filtered.
   if [ "$PROFILE" = quick ] && [ "${mems[$i]}" != q ]; then states[$i]=excluded; return 0; fi
   if [ -n "$ONLY" ] && [[ "$label" != *"$ONLY"* ]]; then states[$i]=filtered; return 0; fi
+  # The FACE selects the same way the profile does — a third bucket on the same registration, so one
+  # registry still answers both questions and there is no second item list anywhere to forget. `tree`
+  # is the half a commit-stamped snapshot can grade, `seat` is `seat` plus `joined` because a leg whose
+  # subject spans both sides belongs with the host's own state, and `both` is the whole set in one face
+  # run. `auto` selects nothing, which is what keeps an un-flagged run byte-identical to the old one.
+  case "$FACE" in
+    auto | both) : ;;
+    tree) [ "${faces[$i]}" = tree ] || states[$i]=offface ;;
+    seat) case "${faces[$i]}" in seat | joined) : ;; *) states[$i]=offface ;; esac ;;
+  esac
 }
 
 # item "<label>" <command...>   — one command. The *_q / *_x forms carry its profile decision.
@@ -983,7 +1013,7 @@ _rc_of() { _read_rc "$1"; printf '%s' "$RC"; }
 # which `--only` cannot address either), and a quick profile that selects nothing — a green that
 # proves nothing (CONVENTIONS §6: a test that cannot fail is not evidence).
 _profile_audit() {
-  local i n_quick=0 n_excl=0 n_und=0 n_empty=0 n_face_und=0 bad="" dup
+  local i n_quick=0 n_excl=0 n_und=0 n_empty=0 bad="" dup
   local -A _seen=()
   for i in "${!labels[@]}"; do
     case "${mems[$i]}" in
@@ -998,16 +1028,6 @@ _profile_audit() {
          bad+="        declare it:  item_q / item_blk_q to INCLUDE it, or"$'\n'
          bad+="        item_x \"<the actual reason>\" / item_blk_x to exclude it"$'\n' ;;
     esac
-    # The FACE is the sibling decision, made at the same line for the same reason: a leg whose face nobody
-    # chose would be graded in whichever face happened to run, and a silently-defaulted face is the
-    # HD-1137 failure wearing the other mark. Quick is where both refusals live, because quick SELECTS.
-    if [ -z "${faces[$i]}" ]; then
-      n_face_und=$((n_face_und+1))
-      bad+="  NO FACE DECISION: ${labels[$i]}"$'\n'
-      bad+="        declare it:  'face tree;' (subject = this checkout, or a fixture the leg builds),"$'\n'
-      bad+="        'face seat;' (subject = this host's state) or 'face joined;' (spans both, NATIVE)"$'\n'
-      bad+="        before the item call; scripts/gate/check-leg-contract.sh DERIVES it and reddens a lie"$'\n'
-    fi
     dup="${_seen["${labels[$i]}"]:-}"
     if [ -n "$dup" ]; then
       bad+="  DUPLICATE registration (also item $dup): ${labels[$i]}"$'\n'
@@ -1016,10 +1036,6 @@ _profile_audit() {
       _seen["${labels[$i]}"]=$i
     fi
   done
-  if [ "$n_face_und" -ne 0 ]; then
-    bad+="  $n_face_und registration(s) carry no face word: the quick profile refuses rather than grading"$'\n'
-    bad+="  them in whichever face happens to run (the sibling of the undecided-item refusal above)"$'\n'
-  fi
   if [ "$n_quick" -eq 0 ]; then
     bad+="  the quick profile selects NOTHING — a profile with no items is a green that proves nothing"$'\n'
   fi
@@ -1032,13 +1048,41 @@ _profile_audit() {
     {
       echo "FAIL: the --profile quick registry is not sound (HD-1137) — NOTHING ran."
       echo "      A profile that can quietly drop an item is worse than no profile: it prints a green the"
-      echo "      work never earned. Registry: $n_items item(s), $n_quick in quick, $n_excl excluded, $n_face_und with no face."
+      echo "      work never earned. Registry: $n_items item(s), $n_quick in quick, $n_excl excluded."
       printf '%s' "$bad"
       echo "      The full set is: bash scripts/validate-all.sh --list"
     } >&2
     exit 1
   fi
   N_QUICK=$n_quick
+}
+
+# The FACE audit, the sibling of the profile audit above and DERIVED the same way. It runs on EVERY run,
+# not only a quick one: a face selects which items a run grades, so an undecided face would be graded in
+# whichever face happened to be asked — the same silent default the profile refusal exists to stop, and
+# the reason the word is a claim that `gate/check-leg-contract.sh` re-derives rather than a label.
+_face_audit() {
+  local i n_und=0 bad=""
+  for i in "${!labels[@]}"; do
+    [ -z "${faces[$i]}" ] || continue
+    n_und=$((n_und+1))
+    bad+="  NO FACE DECISION: ${labels[$i]}"$'\n'
+    bad+="        declare it:  'face tree;' (subject = this checkout, or a fixture the leg builds),"$'\n'
+    bad+="        'face seat;' (subject = this host's state) or 'face joined;' (spans both, NATIVE)"$'\n'
+    bad+="        before the item call; scripts/gate/check-leg-contract.sh DERIVES it and reddens a lie"$'\n'
+  done
+  if [ -n "$bad" ]; then
+    {
+      echo "FAIL: $n_und registration(s) carry no face word — NOTHING ran."
+      echo "      A leg whose face nobody chose must REFUSE the run, never default into a face: a face"
+      echo "      selects what a run grades, and a silently-defaulted face grades a leg in whichever"
+      echo "      half happened to be asked. The faces are stated once, with the conjunction, in"
+      echo "      lib/wsl-route.sh; the word on the line is graded by scripts/gate/check-leg-contract.sh."
+      printf '%s' "$bad"
+      echo "      The full set is: bash scripts/validate-all.sh --list"
+    } >&2
+    exit 1
+  fi
 }
 
 # The honest tail of a quick run (CONVENTIONS §6: a boundary PRINTS, it never implies). Walked in queue
@@ -1149,13 +1193,16 @@ _diagnose_fails() {
 }
 
 _report() {
-  local i rc fails=0 rem=0 ran=0 filt=0 excl=0 never=""
+  local i rc fails=0 rem=0 ran=0 filt=0 excl=0 off=0 never=""
   for i in "${!labels[@]}"; do
     local label="${labels[$i]}"
     case "${states[$i]}" in
       listed)   continue ;;
       filtered) filt=$((filt+1)); continue ;;
       excluded) excl=$((excl+1)); continue ;;
+      # Registered, sound, and OUT of this face — the third bucket, counted like the other two so the
+      # run-count audit below cannot agree with a runner that dropped work.
+      offface)  off=$((off+1)); continue ;;
       # HD-1137: registered but NEVER LAUNCHED. Counting it as ran would let the run-count audit agree
       # with a runner that dropped work, so it is NOT counted and the audit says so by name.
       pending) never+="${labels[$i]}"$'\n'; continue ;;
@@ -1236,14 +1283,14 @@ _report() {
   # missing rc file is the shape a dropped accounting line takes — the run looks clean because nothing
   # was ever asked about that item. Silent at rest, like every good assertion.
   local _l
-  local _want=$(( n_items - filt - excl ))
+  local _want=$(( n_items - filt - excl - off ))
   if [ "$ran" -ne "$_want" ] || [ "$rc_missing" -gt 0 ]; then
     {
       echo "FAIL: the gate did not ACCOUNT for its own work (HD-1137) — a defect in the RUNNER, not in the tree."
-      printf '      completed %d item(s); registered %d minus %d filtered by --only minus %d excluded by profile = %d\n' \
-        "$ran" "$n_items" "$filt" "$excl" "$_want"
-      printf '      profile %s%s%s — an item that never launched, or launched and was never reaped, is a check that ran never.\n' \
-        "$PROFILE" "${ONLY:+, --only }" "${ONLY:-}"
+      printf '      completed %d item(s); registered %d minus %d filtered by --only minus %d excluded by profile minus %d outside the %s face = %d\n' \
+        "$ran" "$n_items" "$filt" "$excl" "$off" "$FACE" "$_want"
+      printf '      profile %s face %s%s%s — an item that never launched, or launched and was never reaped, is a check that ran never.\n' \
+        "$PROFILE" "$FACE" "${ONLY:+, --only }" "${ONLY:-}"
       if [ -n "$never" ]; then
         printf '      registered and NEVER LAUNCHED:\n'
         _l=""
@@ -1277,6 +1324,32 @@ _report() {
   # An `if`, not `[ … ] &&`: as the function's LAST statement an AND-list would return 1 on a full run
   # and the whole gate would exit 1 while printing "OK: all validators passed".
   if [ "$PROFILE" = quick ]; then _not_proven; fi
+  # The face's own honest tail, the same rule read off the other axis: a run that grades half the
+  # registry is a boundary, and a boundary prints what it did not look at. `auto` selects nothing, so it
+  # prints nothing new and an un-flagged run stays byte-identical to the one it replaced.
+  if [ "$FACE" != auto ] && [ "$off" -gt 0 ]; then _face_not_proven "$off"; fi
+  return 0
+}
+
+# The NOT PROVEN half of a face run: every item this face left for the other one, in registry order, with
+# the face word that left it out. Counted before it is printed, so the number in the header is the number
+# of lines below it, and named by item index so `--list` and this block agree line for line.
+_face_not_proven() {
+  local i n=0 body="" _n_tree=0 _n_seat=0 _n_joined=0
+  for i in "${!labels[@]}"; do
+    [ "${states[$i]}" = offface ] || continue
+    n=$((n+1))
+    case "${faces[$i]}" in
+      tree) _n_tree=$((_n_tree+1)) ;;
+      seat) _n_seat=$((_n_seat+1)) ;;
+      joined) _n_joined=$((_n_joined+1)) ;;
+    esac
+    body+="  - $i [${faces[$i]:-<none>}] ${labels[$i]}"$'\n'
+  done
+  echo
+  echo "NOT PROVEN on this face: $n item(s) did not run (face: $FACE — $_n_tree tree · $_n_seat seat · $_n_joined joined left out)."
+  echo "This is half a green, not a green: the other face is the run that grades them."
+  printf '%s' "$body"
   return 0
 }
 
@@ -1963,10 +2036,10 @@ if [ "$LIST" = 1 ]; then
   # profile only ADDS a mark column (`*` in quick, `-` excluded with its reason in the NOT PROVEN
   # block, `?` = a decision nobody made), so `--profile quick --list` is the same list, diffed against
   # an earlier commit exactly as CONVENTIONS §2 wants. Plain `--list` keeps its exact historical bytes.
-  if [ "$PROFILE" = full ]; then
+  if [ "$PROFILE" = full ] && [ "$FACE" = auto ]; then
     for i in "${!labels[@]}"; do printf '%2d  %s\n' "$i" "${labels[$i]}"; done
   else
-    echo "profile '$PROFILE' — two mark columns: PROFILE (* in quick, - excluded, ? no decision) then FACE (tree | seat | joined, ? undecided) — the FULL set, same order as always" >&2
+    echo "mark columns: PROFILE (* in quick, - excluded, ? no decision) then FACE (tree | seat | joined, ? undecided) — the FULL set, same order as always; this run selects profile '$PROFILE', face '$FACE'" >&2
     for i in "${!labels[@]}"; do
       case "${mems[$i]}" in q) _m='*' ;; x) _m='-' ;; *) _m='?' ;; esac
       # The face column is the OTHER decision the same registration line carries — where the leg's SUBJECT
@@ -1981,10 +2054,32 @@ fi
 # registry this file just built — never from a list someone typed elsewhere. A full run needs no such
 # audit because it runs whatever is registered; its risk is the opposite one (work silently dropped),
 # and `_report` counts that against the same registry.
+# The FACE audit runs on EVERY run rather than only a quick one, because a face selects: an undecided
+# registration would otherwise be graded in whichever half happened to be asked.
+_face_audit
 if [ "$PROFILE" = quick ]; then
   _profile_audit
   n_excl_launch=$(( n_items - N_QUICK ))   # derived from the audited counts, not typed
   echo "profile: quick — $N_QUICK of $n_items registered item(s) run; $n_excl_launch excluded, each named with its reason in the NOT PROVEN block. Full set: --list" >&2
+fi
+# A face run states WHICH COMMIT it grades, before the first leg launches. WHY the face runs and not an
+# un-flagged one: a snapshot run and a seat run answer to one log, and the only thing that keeps a
+# tree-face green from being read as the seat's verdict is the commit written above it — a verdict that
+# cannot name its own commit can always be read as some other commit's.
+# A working tree that is not clean says so on the same line: the face machinery carries a dirty tree
+# deliberately (gate-snapshot.sh --carry), and a carried tree is graded as a carried tree, not as a commit.
+if [ "$FACE" != auto ]; then
+  _face_n=0
+  for _fi in "${!labels[@]}"; do
+    if [ "${states[$_fi]}" = pending ]; then _face_n=$((_face_n + 1)); fi
+  done
+  _face_sha="$(git rev-parse HEAD 2>/dev/null || echo '<no commit>')"
+  _face_sub="$(git log -1 --format=%s 2>/dev/null || echo '?')"
+  _face_dirty=""
+  if [ -n "$(git status --porcelain 2>/dev/null | head -1)" ]; then
+    _face_dirty=' · the tree is not clean: this run grades carried edits, not a commit'
+  fi
+  echo "face: $FACE — $_face_n of $n_items registered item(s) run here, grading ${_face_sha:0:12} ($_face_sub)$_face_dirty" >&2
 fi
 _launch_all
 wait
