@@ -113,21 +113,20 @@ that owns it.
 not by the box: the Rule-0 legs a spark-served session may not run (**HD-1169 · 1157 · 1156 · 1117 · 1149** are the
 whole-corpus rows a locally-served 262k context cannot hold), and the timed spark legs that belong to one bench window.
 
-**Gate brief (a seat, not a wave):** [prompt-gate.md](prompt-gate.md) — the win11 seat's gate cost and the engine contract
-of its legs, run **FROM win11**. The gate has **two faces**: tree legs grade in a commit-stamped snapshot on the engine's
-ext4 — moved **with git**, because history is a dependency of four of them — seat legs grade native on win11 where
-`~/.pi` and the vault can be seen, and legs whose subject spans both (`sync-skills`, `sync-extensions`,
-`check_secret_leak.py`, `check_placeholders.py`, `install-tmux-conf --check`, the vault/ssh legs) run native because in a
-snapshot they prove neither side; the face is chosen at the registration line, so there is still ONE item list. A leg
-declares the engine tools it shells out to and an absent one answers `CANNOT RUN` (rc 2) rather than a green, with
+**The gate's two faces (a seat fact, not a brief):** the win11 seat grades the same registry in two faces — `face tree`
+legs in a commit-stamped snapshot on the engine's ext4, moved **with git** because history is a dependency of four of
+them, and `face seat` legs native on win11 where `~/.pi` and the vault can be seen; a leg whose subject spans both is
+`face joined` and runs native, because in a snapshot it proves neither side. The face is a word at the registration line
+beside the profile marks, so there is still **ONE item list**, and `--face tree|seat|both|auto` says which half a run
+grades — an un-flagged run grades all of it, exactly as before. Facts, the driver and both re-derive commands are in
+[docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1 and
+[`scripts/harness/gate-snapshot.sh`](scripts/harness/gate-snapshot.sh). A leg declares the engine tools it shells out to
+and an absent one answers `CANNOT RUN` (rc 2) rather than a green, with
 [`scripts/gate/check-leg-contract.sh`](scripts/gate/check-leg-contract.sh) holding the crossing conjunction and
 [`scripts/gate/leg_contract_boundaries.txt`](scripts/gate/leg_contract_boundaries.txt) reddening a stale accepted
-boundary. The parity harness that authorises a wrap ([`scripts/bench/win/gate-parity.sh`](scripts/bench/win/gate-parity.sh))
-proves its own crossing: a run whose engine side never crossed answers rc 2. Attach the run's own `ms/exec` line to every
-timing and read older figures against the scale note in the brief. ⏳ The legs in order: **A7** (build the two-face split),
-then **A2** (give the wrapped legs verdicts instead of buying wall), then **A5** (one `--time` run plus the
-list-scheduling model — only the widths the model says differ run live). Claims **legs, not rows** — HD-1202's pool tail
-and HD-1216's interpreter tail stay with their rows.
+boundary. The parity harness ([`scripts/bench/win/gate-parity.sh`](scripts/bench/win/gate-parity.sh)) proves its own
+crossing: a run whose engine side never crossed answers rc 2. Attach the run's own `ms/exec` line to every timing and read
+older figures against the host-cost note in that doc.
 
 **Window brief (not a wave):** [prompt-update.md](prompt-update.md) — the fleet pin bump + host-package window: phases
 0–8 driven from the runner station, the secret rotations scheduled into it, no rows carried, and it dies with the window.

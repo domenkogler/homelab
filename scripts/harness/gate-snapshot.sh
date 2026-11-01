@@ -15,9 +15,8 @@
 # (check_string_twins.py's baseline rev, check_hd_mint_space.py, check_todo_history.py,
 # check_bench_provenance.py) and a working-tree copy has none of it.
 #
-# THE RECIPE, as the driver runs it (this header is the SSOT; prompt-gate.md §0 pointed
-# here when the driver landed, and the A7 brief that carried the hand-typed form is
-# retiring):
+# THE RECIPE, as the driver runs it (this header is the SSOT: the hand-typed form that
+# A7's brief carried is retired, and nowhere else writes it down):
 #
 #   # first run — a git clone INTO the engine's own filesystem (ext4, not /mnt):
 #   wsl.exe -d Debian -u domen -- bash -c \

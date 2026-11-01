@@ -8,7 +8,7 @@
 # path the engine cannot open, an early return on a seat test — so the crossed run finishes with the
 # SAME exit code having judged FEWER arms. `hl_wsl_route` passes the far rc straight through, which is
 # exactly why rc alone cannot certify a wrap: the parity diff, not the stopwatch, is what authorises a
-# leg to cross (prompt-gate.md §4). This runner is that diff, as a command.
+# leg to cross (docs/harness-pi-seats.md §1). This runner is that diff, as a command.
 #
 # WHAT IT DOES: runs the argv HERE, runs the SAME argv through `hl_wsl_route`, and compares three things
 # per side — the exit code, the RECOGNIZED ARM COUNT, and the verdict words. It mutates nothing and
