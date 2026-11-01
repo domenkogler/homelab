@@ -1704,7 +1704,7 @@ face joined; item_x "face joined — spans this checkout and seat state, so it r
 # what makes Stage 3's folder moves a mechanical sweep instead of a gamble.
 face tree; item_q "lib/repo-root.sh --self-test (HD-1118: the bash root resolves at TWO depths, loud when absent)" bash scripts/lib/repo-root.sh --self-test
 face tree; item_q "lib/repo_root.py --self-test (HD-1118: the python twin + require_corpus + script_path)" "${PY_CMD[@]}" scripts/lib/repo_root.py --self-test
-face tree; item_x "its pin() half resolves every real plane with grep|head|sed|tr PER pin — the fork tail HD-1135 still bills as open, so the fork diet owns this leg, not a pre-commit loop" "lib/pi-seat.sh --self-test (HD-1118: a missing pin STOPS the caller; no subshell pin call site may return)" bash scripts/lib/pi-seat.sh --self-test
+face seat; item_x "face seat — its subject classifies the seat (hl_seat_here at pi-seat.sh:135), so it runs NATIVE and a snapshot has nothing to grade. not a tree check: lib/pi-seat.sh --self-test classifies THIS box and reads its planes, with the pin() half resolving every real plane with grep|head|sed|tr PER pin — the fork tail HD-1135 still bills as open, so the fork diet owns this leg, not a pre-commit loop" "lib/pi-seat.sh --self-test (HD-1118: a missing pin STOPS the caller; no subshell pin call site may return)" bash scripts/lib/pi-seat.sh --self-test
 # The hybrid route's own witness: it drives a STUB engine, so it grades this seat's decisions rather
 # than the distro installed on it, and it runs in a tenth of a second. It is excluded from quick
 # because it tests the router, not the tree — rerun it when the routing or the seat classes change.
