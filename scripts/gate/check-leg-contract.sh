@@ -100,6 +100,9 @@
 # builtins, on the seat whose whole measurement is the price of a fork. A `.ps1` file is out of scope by
 # fact rather than by choice: `hl_wsl_route` names an engine-side launcher for a python|python3|py|bash|
 # sh head only, so a PowerShell leg has nothing to declare.
+# In the Debian engine the walk costs ~6 s of a ~11 s run and 3.3 s of that is the per-line marker test;
+# what used to make this file cost 3m43s was two whole-string substitutions in the body extractors, a
+# class of builtin whose price is quadratic in the text, not the scanning (see `blk_body`).
 #
 # SELF-TEST: bash scripts/gate/check-leg-contract.sh --self-test
 #   Each rule breeds its finding alone in a planted tree, and the same tree with nothing planted stays
@@ -429,6 +432,13 @@ face_scan() {
     # The fast path: a line carrying no marker holds no fact and opens no data region. This is a loop over
     # ALL_MARKS, not one long `case` alternation, and it is the measured shape — on the Windows seat, where
     # the price of a builtin is the whole measurement, the alternation cost ~5 min a run and the loop ~12 s.
+    # And it is LOAD-BEARING, not an optimization: the whole marker walk — every line of every leg, in both
+    # modes — is 3.3 s of the 226 s this checker used to take in the Debian engine. What took the other 221 s
+    # was newline arithmetic (`${_pre//[!$_nl]/}` over a 179 KB string = 3m18s a call) and prefix stripping
+    # (`${_BIG#*X}` = 12s a cut) in the two body extractors below, not scanning. A narrower set of sites
+    # found by a forked pre-pass would trade 3.3 s for a fact-extraction rule that can MISS a fact, which is
+    # the trade this file lost once already (`from vault_read import` sat behind a shell-marker fast path and
+    # a leg whose only seat fact was a python extra silently lost it). Every spelling stays in the loop.
     _hit=""
     for _w in $_fm_list; do
       case "$_ln" in *"$_w"*) _hit=1; break ;; esac
@@ -523,12 +533,29 @@ par_quote() {
 
 # blk_body <fn> — the body of a registration block, so a fact that lives IN the block rather than on the
 # line is read by the derivation too. `blk_wrap_line` reads the same shape for the wrap half.
+#
+# THE SHAPE OF THE EXTRACTOR IS A COST FACT, NOT A STYLE CHOICE. The body is the text from the definition
+# line to the first line that OPENS with a closing brace, and the obvious way to cut that —
+# `${BIG#*"$_nl$_fn() "}` — is quadratic in the length of the text: 12s for one cut out of the 179 KB
+# validate-all.sh on the Debian engine, and 20 such cuts were the whole 4m26s this checker used to cost.
+# A `while IFS= read -r` walk over the same string answers in 11 ms, so the walk is what is here; the
+# first line is not a candidate because a definition is found at a LINE START, which needs a newline.
+# The cut is the same one the substitution made: a `}` at column 0 inside a heredoc body terminates the
+# body too, because heredoc bodies are `face_scan`'s problem, not the extractor's.
 blk_body() {
-  local _fn="$1" _t="" _end="$_nl}"*        # the pattern: the first line that OPENS with a closing brace
+  local _fn="$1" _l="" _nl=$'\n' _n=0 _in=""
   _blk_out=""
-  case "$_va" in *"$_nl$_fn() "*) : ;; *) return 1 ;; esac
-  _t="${_va#*"$_nl$_fn() "}"
-  _blk_out="${_t%%$_end}"
+  while IFS= read -r _l; do
+    _n=$((_n + 1))
+    if [ -z "$_in" ]; then
+      [ "$_n" = 1 ] && continue                       # needs the newline that precedes the definition
+      case "$_l" in "$_fn"'() '*) : ;; *) continue ;; esac
+      _in=1; _blk_out="${_l#"$_fn() "}"; continue       # the body opens on the definition line itself
+    fi
+    case "$_l" in '}'*) break ;; esac
+    _blk_out="$_blk_out$_nl$_l"
+  done <<<"$_va"
+  [ -n "$_in" ] || return 1
   return 0
 }
 
@@ -612,15 +639,25 @@ fn_index() {
 # the line that OPENS it. The shape `blk_wrap_line` and `blk_body` read: the definition at a line start,
 # the body up to the first line that opens with a closing brace. One level deep is the depth the
 # fixture-evidence question needs; a fixture two calls down is a parity question, not a grep question.
+#
+# Counting the lines before the definition with `${_pre//[!$_nl]/}` is the single most expensive builtin
+# call in this file — 3m18s for one 179 KB string, because the substitution rebuilds the text character by
+# character — so the line number comes off the walk, which counts lines by counting them.
 fn_body() {
-  local _t="$1" _fn="$2" _pre="" _nl=$'\n' _nls=""
+  local _t="$1" _fn="$2" _l="" _nl=$'\n' _n=0 _in=""
   _fb_body=""; _fb_line=0
-  case "$_t" in *"$_nl$_fn() "*) : ;; *) return 1 ;; esac
-  _pre="${_t%%"$_nl$_fn() "*}"
-  _nls="${_pre//[!$_nl]/}"                 # the newlines alone; their COUNT is the lines before it
-  _fb_line=${#_nls}
-  _t="${_t#*"$_nl$_fn() "}"
-  _fb_body="${_t%%$_nl\}*}"
+  while IFS= read -r _l; do
+    _n=$((_n + 1))
+    if [ -z "$_in" ]; then
+      [ "$_n" = 1 ] && continue                       # needs the newline that precedes the definition
+      case "$_l" in "$_fn"'() '*) : ;; *) continue ;; esac
+      _in=1; _fb_line=$((_n - 2)); _fb_body="${_l#"$_fn() "}"
+      continue
+    fi
+    case "$_l" in '}'*) break ;; esac
+    _fb_body="$_fb_body$_nl$_l"
+  done <<<"$_t"
+  [ -n "$_in" ] || return 1
   return 0
 }
 
