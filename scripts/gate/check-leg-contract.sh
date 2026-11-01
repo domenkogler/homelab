@@ -106,7 +106,7 @@
 #   green — so no canary reddens for a reason outside its own rule. Four arms are SILENCE arms: a comment,
 #   an error string, a redirection and a line continuation naming the declaration must answer rc 0.
 #   Six more arms grade the FACE derivation, one per way a word on a registration line can stop matching
-#   the leg: a `tree` leg that reads `$HOME/.pi`, a `tree` leg that opens a socket, a registration with no
+#   the leg: a tree leg that reads `$HOME/.pi`, a tree leg that opens a socket, a registration with no
 #   face word at all, a `seat` leg whose facts say seat (green, plus the NOTE that it could have been a
 #   tree), a `joined`-capable leg that only reads seat state, and a WRAPPED leg declared `seat` — which is
 #   a finding rather than a note, because the runner crosses the line it is lying about. A seventh arm
@@ -605,11 +605,12 @@ fn_index() {
 # the body up to the first line that opens with a closing brace. One level deep is the depth the
 # fixture-evidence question needs; a fixture two calls down is a parity question, not a grep question.
 fn_body() {
-  local _t="$1" _fn="$2" _pre="" _nl=$'\n'
+  local _t="$1" _fn="$2" _pre="" _nl=$'\n' _nls=""
   _fb_body=""; _fb_line=0
   case "$_t" in *"$_nl$_fn() "*) : ;; *) return 1 ;; esac
   _pre="${_t%%"$_nl$_fn() "*}"
-  _fb_line=$(( ${#_pre} - ${#_pre//$'\n'/} ))            # the newlines before it = the lines before it
+  _nls="${_pre//[!$_nl]/}"                 # the newlines alone; their COUNT is the lines before it
+  _fb_line=${#_nls}
   _t="${_t#*"$_nl$_fn() "}"
   _fb_body="${_t%%$_nl\}*}"
   return 0
@@ -642,9 +643,49 @@ fixture_evidence() {
       case " $_fns " in *" $_w "*) _cands="$_cands $_w" ;; esac
     done
   done <<<"$_t"
-  if [ -n "$_mode" ]; then                         # 2 · the branch that tests the mode word
+  # 1b · a leg that TESTS the flag (`if [ "${1:-}" = "--self-test" ]; then`) and calls its self-test from
+  # the branch that opens is the same dispatch in another costume; the walk is the same and so is the bar.
+  if [ -z "$_cands" ] && [ -z "$_mode" ]; then
+    _run=0; _n=0
     while IFS= read -r _ln; do
-      case "$_ln" in *"$_mode"*) : ;; *) continue ;; esac
+      _n=$((_n + 1))
+      if [ "$_run" = 0 ]; then
+        case "$_ln" in *"$_flag)"*) continue ;; *"$_flag"*) : ;; *) continue ;; esac
+        _run=9
+      else
+        _run=$((_run - 1))
+        case "$_ln" in *'fi'* | *'esac'* | *'}'*) _run=0; continue ;; esac
+      fi
+      _hit=""
+      for _w in "${SAND_WORDS[@]}"; do case "$_ln" in *"$_w"*) _hit=1; break ;; esac; done
+      if [ -n "$_hit" ]; then                       # the branch builds the fixture itself: no function
+        _fx_n=$((_fx_n + 1))
+        [ "$_fx_n" -le 3 ] && _fx_x="$_fx_x $_p:$_n"
+      fi
+      for _w in $_ln; do
+        _w="${_w%%;*}"
+        case "$_w" in *'['* | *']'* | *'$'* | *'('* | *=* | *')'* | *"$_flag"*) continue ;; esac
+        case " $_fns " in *" $_w "*) _cands="$_cands $_w" ;; esac
+      done
+    done <<<"$_t"
+  fi
+  if [ -n "$_mode" ]; then                         # 2 · the branch that tests the mode word
+    _run=0; _n=0
+    while IFS= read -r _ln; do
+      _n=$((_n + 1))
+      if [ "$_run" = 0 ]; then
+        case "$_ln" in *"$_mode"*) : ;; *) continue ;; esac
+        _run=9                                       # the body the test opens, walked a few lines deep
+      else
+        _run=$((_run - 1))
+        case "$_ln" in *'fi'* | *'esac'* | *'}'*) _run=0; continue ;; esac
+      fi
+      _hit=""
+      for _w in "${SAND_WORDS[@]}"; do case "$_ln" in *"$_w"*) _hit=1; break ;; esac; done
+      if [ -n "$_hit" ]; then
+        _fx_n=$((_fx_n + 1))
+        [ "$_fx_n" -le 3 ] && _fx_x="$_fx_x $_p:$_n"
+      fi
       for _w in $_ln; do
         _w="${_w%%;*}"
         case "$_w" in *'['* | *']'* | *'$'* | *'('* | *=* | *')'*) continue ;; esac
@@ -750,6 +791,7 @@ face_walk() {
     # anywhere in the self-test answers it.
     _st=""
     case "$_fa_flags" in *--self-test*) _st=1 ;; esac
+    _narrow=""                                      # one registration's answer is not the next one's
     _fx_n=0 _fx_x=""
     if [ "$_st" = 1 ] && [ -n "$_leg" ]; then fixture_evidence "$_leg"; fi
     if [ "$_st" = 1 ]; then
@@ -758,8 +800,6 @@ face_walk() {
       else
         if [ "$_sand_n" != 0 ]; then _narrow=1; fi
       fi
-    else
-      _narrow=""
     fi
     if [ -n "$_narrow" ]; then
       if [ -n "$_wrapped" ] && { [ "$_trip_n" != 0 ] || [ "$_home_n" != 0 ]; }; then
@@ -1171,7 +1211,7 @@ _st_tree() {
   cat >"$d/scripts/testdata/leg-contract/run.sh" <<LEG
 #!/usr/bin/env bash
 # A planted leg in the contract's legal shape: a named, guarded declaration of a tool the probe asks,
-# and a `--self-test` that BUILDS ITS OWN FIXTURE — the registration the control tree registers crosses
+# and a --self-test that BUILDS ITS OWN FIXTURE — the registration the control tree registers crosses
 # that flag, so the narrowing needs evidence on the dispatch path or the control is not legal.
 ${NEEDS} rsync || exit \$?
 case "\${1:-}" in
@@ -1269,23 +1309,6 @@ _st_multiline() {
   fi
 }
 
-# _st_legreg <name> <want-rc> <leg file> <registration line> <why> [needle] — a canary whose LEG BODY
-# arrives on stdin and whose REGISTRATION is appended in the same breath: the two halves of one claim,
-# planted together. The leg path is a REAL path of this repo the planted tree does not carry, for the
-# reason `_st_tree` gives — a literal `scripts/<path>` in a tracked script is a command that
-# check_script_layout.py resolves, and the fiction belongs in the planted tree, not in this file.
-_st_legreg() {
-  local name="$1" want="$2" _lf="$3" _reg="$4" why="$5" _rc=0 _needle="${6:-}" _d="$_st_tmp/$name"
-  if ! _st_tree "$_d"; then _st_no "$name: the tree could not be built"; return 0; fi
-  cat >>"$_d/$_lf"
-  printf '%s\n' "$_reg" >>"$_d/scripts/validate-all.sh"
-  _st_run "$_d"; _rc=$?
-  if [ "$_rc" != "$want" ]; then _st_no "$name answered rc $_rc, want $want ($why)"; return 0; fi
-  if [ -n "$_needle" ] && ! has "$_st_out" "$_needle"; then
-    _st_no "$name answered rc $_rc but bred no \`$_needle\` ($why)"; return 0
-  fi
-  _st_ok "$name → rc $_rc ($why)"
-}
 
 self_test() {
   local _rc=0
@@ -1363,42 +1386,29 @@ CONT
     "an undecided face must refuse the run, exactly like an undecided profile" 'carries no face word'
   _st_breed face_seat_note 0 scripts/validate-all.sh \
     'face seat; item_q "a native leg that reads nothing but the tree (needs rsync)" bash scripts/testdata/leg-contract/run.sh --check' \
-    "a `seat` word that claims more seat than the facts show costs a NOTE, not a finding (A7's direction)" 'NOTE: face'
+    "a seat word that claims more seat than the facts show costs a NOTE, not a finding (A7's direction)" 'NOTE: face'
   _st_two face_joined_seat 1 scripts/testdata/leg-contract/run.sh 'DEPLOY="$HOME/.pi/agent/extensions"' \
     scripts/validate-all.sh 'face joined; item_q "the planted leg reads seat state only (needs rsync)" bash scripts/testdata/leg-contract/run.sh --check' \
-    "`joined` claims a tree half as well; a leg that reads only seat state is a `seat` leg" 'FACE:'
+    "joined claims a tree half as well; a leg that reads only seat state is a seat leg" 'FACE:'
   _st_breed face_wrapped_seat 1 scripts/validate-all.sh \
     'face seat; item_q "a crossed leg called seat (needs rsync)" hl_wsl_route bash scripts/testdata/leg-contract/run.sh --check' \
-    "a CROSSED line cannot be a `seat` leg: the runner crosses it, so the snapshot is being asked to grade it" 'FACE:'
+    "a CROSSED line cannot be a seat leg: the runner crosses it, so the snapshot is being asked to grade it" 'FACE:'
   # The ordering arm, and the one real-tree class the six above cannot reach: a NATIVE registration that
   # follows a CROSSED one, whose leg reads seat state and this checkout from inside a branch. The mode
   # the leg file is read in belongs to THIS line — read it from the previous registration and the
   # conditional facts vanish, which derives a `joined` leg as `seat` on a clean tree.
   _st_two face_conditional 0 scripts/testdata/leg-contract/run.sh '    DEPLOY="$HOME/.pi/agent/skills"; SKILLS="$REPO/skills"' \
     scripts/validate-all.sh 'face joined; item_q "the planted leg reads both, from inside a branch (needs rsync)" bash scripts/testdata/leg-contract/run.sh --check' \
-    "a native line reads its leg's conditional facts too — that is where a block's `if` reaches" ''
+    "a native line reads its leg's conditional facts too — that is where a block's if reaches" ''
 
   # The strict half of the fixture narrowing, and the price of letting a fixture excuse a seat read on a
   # CROSSED line: the narrowing must never outvote the conjunction's own clauses, and it must not accept
   # a sandbox the registered argv never reaches.
-  _st_legreg face_fixture_cls 1 scripts/testdata/leg-contract/run.sh \
-    'face tree; item_q "a crossed self-test that classifies its seat (needs rsync)" hl_wsl_route bash scripts/testdata/leg-contract/run.sh --self-test' \
-    "a fixture does not un-ask a classifier: crossed, that question is answered about the engine" 'FACE:' <<CLS
-hl_wsl_class >/dev/null 2>&1 || true
-CLS
-  _st_legreg face_fixture_none 1 scripts/gate/check_placeholders.sh \
-    'face tree; item_q "a crossed self-test with no fixture on its path" hl_wsl_route bash scripts/gate/check_placeholders.sh --self-test' \
-    "a file-scope seat read crossed on the strength of a mktemp the flag never dispatches to is the hole narrowing must not leave open" 'FACE:' <<'NOFX'
-#!/usr/bin/env bash
-DEPLOY="$HOME/.pi/agent/skills"
-case "${1:-}" in
-  --self-test) no_fixture ;;
-esac
-no_fixture() {
-  printf 'ok  a self-test that builds nothing\n'
-}
-mktemp -d >/dev/null 2>&1 || :      # a fixture in code the flag does not reach
-NOFX
+  _st_two face_fixture_cls 1 scripts/testdata/leg-contract/run.sh 'hl_wsl_class >/dev/null 2>&1 || true'     scripts/validate-all.sh 'face tree; item_q "a crossed self-test that classifies its seat (needs rsync)" hl_wsl_route bash scripts/testdata/leg-contract/run.sh --self-test'     "a fixture does not un-ask a classifier: crossed, that question is answered about the ENGINE" 'FACE:'
+  # The leg path is a real script of this repo the planted tree does not carry - see _st_tree. This leg
+  # reads a seat path at file scope and dispatches --self-test to nothing that builds a fixture: the
+  # shape a loose narrowing would have walked through.
+  _st_two face_fixture_none 1 scripts/gate/check_placeholders.sh 'DEPLOY="$HOME/.pi/agent/skills"'     scripts/validate-all.sh 'face tree; item_q "a crossed self-test with no fixture on its path" hl_wsl_route bash scripts/gate/check_placeholders.sh --self-test'     "a file-scope seat read crossed on the strength of a fixture the flag never dispatches to is the hole narrowing must not leave open" 'FACE:'
 
   # The door half, in the tree: the declaring leg driven by four planted answers. Its verdicts print
   # themselves, so a failure here names the arm — and the leg it drives is the same file the real-tree
