@@ -171,7 +171,7 @@ _read_all() {
 corpus_files() {
   local _list=""
   if [ -e "$ROOT/.git" ]; then
-    _list="$(cd "$ROOT" && git ls-files -- scripts 2>/dev/null)" || _list=""
+    _list="$(cd "$ROOT" && git ls-files -- scripts < /dev/null 2>/dev/null)" || _list=""
   fi
   [ -n "$_list" ] || _list="$(cd "$ROOT" && find scripts -type f 2>/dev/null)" || _list=""
   printf '%s\n' "$_list"
@@ -1189,7 +1189,7 @@ door_arms() {
 
   # 1 · answered. The leg runs, and says it ran: an answer that stops a leg it should let through is the
   #     refusal that gets a working wrap unwrapped for the wrong reason.
-  _out="$( export "$INV_VAR=answered — rsync=/usr/bin/rsync"; bash "$_leg" --declare-only 2>&1 )"; _rc=$?
+  _out="$( export "$INV_VAR=answered — rsync=/usr/bin/rsync"; _st_spawn "$_leg" --declare-only )"; _rc=$?
   if [ "$_rc" = 0 ] && has "$_out" 'ran past its declaration' && ! has "$_out" 'CANNOT RUN'; then
     printf '  ok: answered tool → rc 0 and the leg ran\n'
   else
@@ -1199,7 +1199,7 @@ door_arms() {
 
   # 2 · ABSENT. rc 2, and the words must name BOTH the tool and the inventory the refusal was read
   #     against — a CANNOT RUN that quotes nothing is a boundary nobody can check.
-  _out="$( export "$INV_VAR=answered — bash=/usr/bin/bash · ABSENT — rsync"; bash "$_leg" --declare-only 2>&1 )"; _rc=$?
+  _out="$( export "$INV_VAR=answered — bash=/usr/bin/bash · ABSENT — rsync"; _st_spawn "$_leg" --declare-only )"; _rc=$?
   if [ "$_rc" = 2 ] && has "$_out" 'CANNOT RUN' && has "$_out" 'rsync' && has "$_out" 'ABSENT — rsync' \
      && ! has "$_out" 'ran past its declaration'; then
     printf '  ok: ABSENT tool → rc 2 naming the tool and quoting the inventory\n'
@@ -1211,7 +1211,7 @@ door_arms() {
   # 3 · no inventory in hand — the shape `HL_WSL=off`, a Debian seat and a declined argv head all look
   #     like from in here. rc unchanged, the leg ran, and NOTHING was said: a leg that refuses on its own
   #     seat is one answering a question its own probe answers better.
-  _out="$( unset -v "$INV_VAR"; bash "$_leg" --declare-only 2>&1 )"; _rc=$?
+  _out="$( unset -v "$INV_VAR"; _st_spawn "$_leg" --declare-only )"; _rc=$?
   if [ "$_rc" = 0 ] && has "$_out" 'ran past its declaration' && ! has "$_out" 'CANNOT RUN'; then
     printf '  ok: no inventory in hand → ran at home, rc unchanged, silent\n'
   else
@@ -1221,7 +1221,7 @@ door_arms() {
 
   # 4 · the probe answered NOTHING. Still rc 2, but as UNPROVEN: "nobody answered" and "it is not there"
   #     are different sentences, and collapsing them would let an engine outage read as a missing tool.
-  _out="$( export "$INV_VAR=unknown"; bash "$_leg" --declare-only 2>&1 )"; _rc=$?
+  _out="$( export "$INV_VAR=unknown"; _st_spawn "$_leg" --declare-only )"; _rc=$?
   if [ "$_rc" = 2 ] && has "$_out" 'unproven' && ! has "$_out" 'does not answer for it'; then
     printf '  ok: the probe answered nothing → rc 2 as unproven, not as absent\n'
   else
@@ -1238,8 +1238,23 @@ door_arms() {
 _st_n=0
 _st_f=0
 _st_out=""
+_ST_LIMIT=10                       # the wall every arm's subject runs under — see _st_spawn
 _st_ok() { printf '  ok: %s\n' "$*"; _st_n=$((_st_n + 1)); }
 _st_no() { printf 'SELFTEST FAIL: %s\n' "$*"; _st_f=$((_st_f + 1)); }
+
+# _st_spawn <path> [args…] — the ONE place an arm subject is spawned: interpreter quoted, path guarded
+# BEFORE the call (an unset path variable must never leave its arguments to be executed as a command),
+# stdin CLOSED, wall bounded. STDIN IS whatever the parent was reading (CONVENTIONS §6): a canary that
+# inherits the terminal its checker was started from does not fail, it BLOCKS — and a leg that blocks is
+# a leg that mutes the whole gate, which is exactly how a lane lost its window. A subject that reaches
+# the wall answers rc 124, which reads as the failed arm it is.
+_st_spawn() {
+  local _p="${1:-}"
+  [ "$#" -gt 0 ] && shift
+  [ -n "$_p" ] && [ -f "$_p" ] \
+    || { printf 'SELFTEST FAIL: no arm subject at %s — a spawn site with an empty or missing path\n' "${_p:-<unset>}"; return 127; }
+  timeout "$_ST_LIMIT" bash "$_p" "$@" < /dev/null 2>&1
+}
 
 # _st_tree <dir> — the legal shape: the real lib, one named+guarded+asked declaration, and a
 # registration that names the tool. Every canary below mutates ONE thing out of it.
@@ -1292,7 +1307,8 @@ REG
 
 _st_run() { # _st_run <tree> -> the checker's rc on that tree, its text in _st_out
   local _rc=0
-  _st_out="$(bash "${BASH_SOURCE[0]}" --root "$1" 2>&1)" || _rc=$?
+  # one spawn site, one rule: _st_spawn owns the wall, the closed stdin, and the path guard.
+  _st_out="$(_st_spawn "${BASH_SOURCE[0]}" --root "$1")" || _rc=$?
   return $_rc
 }
 
@@ -1352,6 +1368,44 @@ _st_multiline() {
   else
     _st_no "$name answered rc $_rc, want $want ($why)"
   fi
+}
+
+# _st_shape <name> <want-rc> <seat line> <registration line> <why> [needle] — the fixture-narrowing
+# channel with the LEG'S WHOLE TEXT supplied on stdin. The channel is `face_fixture_none`'s: a CROSSED
+# `--self-test` registration, a leg that reads a seat path at column 0, and the excuse for that read
+# living INSIDE a function body that `fixture_evidence` has to REACH through `fn_body` / `blk_body`.
+# Reachable → rc 0 with the fixture NOTE; an extractor that cuts the body in the wrong place loses the
+# evidence → FACE. That is where a body extractor's correctness matters, which is why the shape arms
+# below are planted here and not as a print-diff of what the extractor returned.
+#
+# An arm about WHERE a body ends cannot be planted by appending a line — an appended line lands outside
+# every function body, so every arm above can pass a line and these need a text. The seat read is an
+# argument rather than heredoc text so that its `$HOME` sits inside a quote in THIS file's own text
+# (the balance rule the derivation reads it by), and it is planted FIRST so the leg's text ends exactly
+# where the arm wrote it.
+_st_shape() {
+  local name="$1" want="$2" seat="$3" reg="$4" why="$5" _rc=0
+  local _needle="${6:-}" _d="$_st_tmp/$name" _txt="" _l="" _nl=$'\n'
+  if ! _st_tree "$_d"; then _st_no "$name: the tree could not be built"; return 0; fi
+  # The leg is planted at a REAL path of this repo that the planted tree does not carry (see _st_tree),
+  # and it is written WITHOUT a trailing newline: a body whose terminator is the last line of the file is
+  # a shape the walk has to answer for, and a file that ends in a blank line never asks that question.
+  # The strip is a line walk, not `$(cat)`, for the reason `_read_all` names — a command substitution is
+  # the shape that loses a carriage return.
+  while IFS= read -r _l || [ -n "$_l" ]; do _txt="$_txt$_l$_nl"; done
+  printf '%s\n' "$seat" >"$_d/scripts/gate/check-vault-items.sh"
+  printf '%s' "${_txt%"$_nl"}" >>"$_d/scripts/gate/check-vault-items.sh"
+  printf '%s\n' "$reg" >>"$_d/scripts/validate-all.sh"
+  _st_run "$_d"; _rc=$?
+  if [ "$_rc" != "$want" ]; then
+    _st_no "$name answered rc $_rc, want $want ($why)"
+    return 0
+  fi
+  if [ -n "$_needle" ] && ! has "$_st_out" "$_needle"; then
+    _st_no "$name answered rc $_rc but bred no \`$_needle\` ($why)"
+    return 0
+  fi
+  _st_ok "$name → rc $_rc ($why)"
 }
 
 
@@ -1422,10 +1476,10 @@ CONT
   # registration is CROSSED, so every arm here adds a SECOND registration and grades only its own word.
   _st_two face_home 1 scripts/testdata/leg-contract/run.sh 'DEPLOY="$HOME/.pi/agent/skills"' \
     scripts/validate-all.sh 'face tree; item_q "the planted leg now reads a seat path (needs rsync)" bash scripts/testdata/leg-contract/run.sh --check' \
-    "a `tree` leg that reads this host's ~/.pi has a subject a snapshot cannot see" 'FACE:'
+    "a \`tree\` leg that reads this host's ~/.pi has a subject a snapshot cannot see" 'FACE:'
   _st_two face_socket 1 scripts/testdata/leg-contract/run.sh '    ssh -o BatchMode=yes somewhere uptime || :' \
     scripts/validate-all.sh 'face tree; item_q "the planted leg now opens a trip (needs rsync)" bash scripts/testdata/leg-contract/run.sh --check' \
-    "a `tree` leg that opens a socket has its subject on another box, whatever the column rule makes of it" 'FACE:'
+    "a \`tree\` leg that opens a socket has its subject on another box, whatever the column rule makes of it" 'FACE:'
   _st_breed face_undecided 1 scripts/validate-all.sh \
     'item_q "a registration whose face nobody chose (needs rsync)" bash scripts/testdata/leg-contract/run.sh --check' \
     "an undecided face must refuse the run, exactly like an undecided profile" 'carries no face word'
@@ -1455,6 +1509,111 @@ CONT
   # appended single line - so its --self-test dispatches to nothing and builds no fixture: the shape a
   # loose narrowing would have walked through.
   _st_two face_fixture_none 1 scripts/gate/check-vault-items.sh 'DEPLOY="$HOME/.pi/agent/skills"'     scripts/validate-all.sh 'face tree; item_q "a crossed self-test with no fixture on its path" hl_wsl_route bash scripts/gate/check-vault-items.sh --self-test'     "a file-scope seat read crossed on the strength of a fixture the flag never dispatches to is the hole narrowing must not leave open" 'FACE:'
+
+  # The body-shape half of the same channel: an arm for each place a body extractor could cut, planted as
+  # a whole leg by `_st_shape` because the seat read is excused only by evidence the extractor has to
+  # REACH. Every one of them rests on the same constraint the extractors state at their definitions: a
+  # body ends at a closing brace in COLUMN 0, and the failure mode of the cut is loud — a leg whose
+  # fixture sits after the wrong line stops being excused and prints a FACE finding.
+  _st_shape brace_in_heredoc 0 'DEPLOY="$HOME/.pi/agent/skills"' \
+    'face tree; item_q "a crossed self-test whose fixture sits behind a brace in a heredoc body" hl_wsl_route bash scripts/gate/check-vault-items.sh --self-test' \
+    'an INDENTED closing brace inside a heredoc body is text, not a terminator: the fixture below it is still on the dispatch path' 'NOTE: face' <<'LEG'
+#!/usr/bin/env bash
+# The planted leg of the body-shape arms: `--self-test` dispatches to `self_test`, and the fixture that
+# excuses the seat read is built inside that body — so the whole question is where the body ends.
+case "${1:-}" in
+  --self-test) self_test ;;
+esac
+self_test() {
+  cat <<FIX
+  }
+FIX
+  local tmp
+  tmp="$(mktemp -d)" || return 1
+  printf 'ok  the leg built its fixture\n'
+}
+printf 'ok  the leg ran\n'
+LEG
+
+  # THE LIMITATION PIN. A heredoc body that carries a closing brace in column 0 ENDS the body here, so a
+  # fixture written below one is not reached and the leg keeps its seat fact: `blk_body`'s definition
+  # names the reason the cut stays where it is. This arm is the arm that must change ON PURPOSE if the
+  # extractors are ever made heredoc-aware — a limitation with a pin cannot widen by accident.
+  _st_shape column_zero_brace 1 'DEPLOY="$HOME/.pi/agent/skills"' \
+    'face tree; item_q "a crossed self-test whose fixture sits below a column-0 brace in a heredoc body" hl_wsl_route bash scripts/gate/check-vault-items.sh --self-test' \
+    'a closing brace in column 0 ends the body even inside a heredoc: the fixture below it is missed, and the seat read is not excused' 'FACE:' <<'LEG'
+#!/usr/bin/env bash
+# The same leg, with the heredoc brace at column 0 — the one line shape the extractor cannot see past.
+case "${1:-}" in
+  --self-test) self_test ;;
+esac
+self_test() {
+  cat <<FIX
+}
+FIX
+  local tmp
+  tmp="$(mktemp -d)" || return 1
+  printf 'ok  the leg built its fixture\n'
+}
+printf 'ok  the leg ran\n'
+LEG
+
+  _st_shape nested_function 0 'DEPLOY="$HOME/.pi/agent/skills"' \
+    'face tree; item_q "a crossed self-test whose fixture sits behind a nested function" hl_wsl_route bash scripts/gate/check-vault-items.sh --self-test' \
+    'a nested function is one level deep, not the end of the body: the extractor stops at its OWN terminator, below the inner one' 'NOTE: face' <<'LEG'
+#!/usr/bin/env bash
+# The nested shape a real leg uses: a helper defined inside the self-test, its own terminator indented.
+case "${1:-}" in
+  --self-test) self_test ;;
+esac
+self_test() {
+  fixture_name() {
+    printf 'leg-fixture\n'
+  }
+  local tmp
+  tmp="$(mktemp -d)" || return 1
+  printf 'ok  the leg built its fixture\n'
+}
+printf 'ok  the leg ran\n'
+LEG
+
+  _st_shape terminator_last_line 0 'DEPLOY="$HOME/.pi/agent/skills"' \
+    'face tree; item_q "a crossed self-test whose body ends at the last line of the file" hl_wsl_route bash scripts/gate/check-vault-items.sh --self-test' \
+    'a body that ends at the end of the file is still a body: what follows the terminator is not what makes it one' 'NOTE: face' <<'LEG'
+#!/usr/bin/env bash
+# The leg that ends where its last function ends — no trailing line, and the walk must not need one.
+case "${1:-}" in
+  --self-test) self_test ;;
+esac
+self_test() {
+  local tmp
+  tmp="$(mktemp -d)" || return 1
+  printf 'ok  the leg built its fixture\n'
+}
+LEG
+
+  # The block half of `blk_body`: the same crossed `--self-test` leg, reached through the block the item
+  # line calls instead of off the line — the shape a declaring leg has to register with (VERDICT), and
+  # the one place the extractor reads the registration file rather than the leg.
+  _st_shape through_a_block 0 'DEPLOY="$HOME/.pi/agent/skills"' 'blk_st_shape() {
+  local rc_s=0
+  hl_wsl_route bash scripts/gate/check-vault-items.sh --self-test || rc_s=$?
+  case "$rc_s" in 0) return 0 ;; 2) return 0 ;; *) return "$rc_s" ;; esac
+}
+face tree; item_q "a crossed self-test registered through a block" blk_st_shape' \
+    'a wrap inside a block is a wrap: the face walk reaches the leg through blk_body, so the block body is extracted too' 'NOTE: face' <<'LEG'
+#!/usr/bin/env bash
+# The leg a block crosses: nothing new in its text, the shape under test is in validate-all.sh.
+case "${1:-}" in
+  --self-test) self_test ;;
+esac
+self_test() {
+  local tmp
+  tmp="$(mktemp -d)" || return 1
+  printf 'ok  the leg built its fixture\n'
+}
+printf 'ok  the leg ran\n'
+LEG
 
   # The door half, in the tree: the declaring leg driven by four planted answers. Its verdicts print
   # themselves, so a failure here names the arm — and the leg it drives is the same file the real-tree
