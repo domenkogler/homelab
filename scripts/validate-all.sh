@@ -625,6 +625,13 @@
 # anything launches — quick ⊆ full, full == quick ⊎ excluded, no duplicate label, no empty reason.
 # `--profile` composes with `--only` (intersection); `--serial` and the exit-code contract are
 # unchanged: exit 0 only when everything that the profile declared it would run came back 0.
+# Every registration ALSO carries its FACE — the sibling of the profile decision, one more slot per
+# registration written as `face tree|seat|joined;` before the `item…` call, so there is still ONE item
+# list and ONE registry. The faces and what decides one are stated once in `lib/wsl-route.sh`'s header
+# (the axis belongs to the conjunction, not to this file); what lives here is the machinery: a slot
+# recorded per registration, a `face` that refuses any other word, and the same fail-closed audit — a
+# leg whose face nobody chose is refused, never defaulted, because a silently-defaulted face is the
+# 223b571b class wearing a different coat.
 set -euo pipefail
 # HD-1118 Stage 1/4: find the repo root instead of assuming `$(dirname "$0")/..`. Found, not
 # assumed — the gate that proves the tree is correct must not itself be the one file whose idea of
@@ -852,7 +859,7 @@ true & wait -n >/dev/null 2>&1 && HAVE_WAITN=1     # supported => reaps that `tr
 # printed output and the exit-code contract are unchanged by the split.           #
 # --------------------------------------------------------------------------- #
 n_items=0; labels=(); cmds=(); cstart=(); clen=(); starts=(); ends=(); walls=()
-pids=(); states=(); mems=(); whys=(); n_run=0; rc_missing=0; n_excl_launch=0
+pids=(); states=(); mems=(); whys=(); faces=(); n_run=0; rc_missing=0; n_excl_launch=0
 
 # The profile decision for the NEXT registration. A bare `item` / `item_blk` leaves P_MEM empty,
 # which is UNDECIDED — and `_profile_audit` refuses a quick run rather than defaulting the item in or
@@ -865,16 +872,32 @@ _reminders=()          # index -> 1 for every item registered as a reminder
 _set_quick()    { P_MEM=q; P_WHY=""; }
 _set_excluded() { P_MEM=x; P_WHY="$1"; }
 
+# The FACE decision for the NEXT registration, the sibling of the profile decision above and stated at
+# the same place for the same reason: a leg whose face nobody chose must REFUSE the run, not default
+# into a face. `tree` = its subject is this checkout or a sandbox it builds, so a commit-stamped
+# snapshot can grade it; `seat` = its subject is this host's state (`~/.pi`, the vault, ssh, another
+# box); `joined` = its subject spans both, so it runs NATIVE because a snapshot would prove neither
+# side. WHICH ENGINE runs a wrapped leg stays `lib/wsl-route.sh`'s decision — the face says where the
+# SUBJECT is, and `scripts/gate/check-leg-contract.sh` DERIVES it from the leg's own facts and reddens
+# a line that contradicts the derivation, so the word on the line is a claim being graded, not a label.
+F_MEM=""
+face() {
+  case "${1:-}" in
+    tree | seat | joined) F_MEM="$1" ;;
+    *) echo "FAIL: face '${1:-<nothing>}' is not a face — the faces are tree | seat | joined. Refusing to guess which one a leg has." >&2; exit 2 ;;
+  esac
+}
+
 _reg() {
   local label="$1"; shift
   local i=$n_items; n_items=$((n_items+1))
-  labels+=("$label"); mems+=("$P_MEM"); whys+=("$P_WHY")
+  labels+=("$label"); mems+=("$P_MEM"); whys+=("$P_WHY"); faces+=("$F_MEM")
   _reminders[$i]="${_reminder:-0}"
   starts+=(""); ends+=(""); walls+=(""); pids+=("0"); states+=("pending")
   cstart+=("${#cmds[@]}"); clen+=("$#")
   local _w
   for _w in "$@"; do cmds+=("$_w"); done
-  P_MEM=""; P_WHY=""
+  P_MEM=""; P_WHY=""; F_MEM=""
   if [ "$LIST" = 1 ]; then states[$i]=listed; return 0; fi
   # A profile is an INTERSECTION, not a re-ordering: `--profile quick --only X` runs what is BOTH
   # quick and matched. Profile-excluded is decided before --only, so the NOT PROVEN block stays the
@@ -1533,70 +1556,76 @@ blk_seat_bash_check() {
 #                                        (CONVENTIONS §6: under ~40 chars is    #
 #                                        "not an argument")                     #
 #   item / item_blk (bare)               UNDECIDED → `--profile quick` refuses #
+# and its FACE, written before the call: `face tree` (subject = this checkout or a           #
+# sandbox the leg builds), `face seat` (subject = this host's state), `face joined` (subject  #
+# spans both, so it runs NATIVE — a snapshot would prove neither side). The axis is the       #
+# conjunction's, stated in `lib/wsl-route.sh`; `gate/check-leg-contract.sh` DERIVES it from   #
+# the leg's facts and reddens a line that contradicts the derivation, so the word here is a   #
+# claim being graded rather than a label that can rot.                                        #
 # The quick set is a subset of THIS list, read from THIS list at run time: there #
 # is no second registry to keep in step, which is the whole reason there is no  #
 # second gate script (see the header, and `aa0bc737`).                          #
 # --------------------------------------------------------------------------- #
 
 # The two ansible legs (each fans out internally).
-item_blk_x "runs the real ansible-playbook against a throwaway inventory: needs ~/ansible-venv, and it is the longest leg in the gate — a pre-commit loop buys this at a converge, not at a commit" "testdata/self-converge-guard/run.sh (HD-413 verdict matrix, runtime)" blk_guard_fixture
-item_blk_x "ansible is absent or dies WinError 87 on the Windows seat, so this SKIPs here anyway; on a WSL/CI runner it is the syntax half that a quick loop does not need per keystroke" "ansible-playbook --syntax-check (WSL/CI-gated)" blk_ansible_syntax
+face seat; item_blk_x "face seat — its subject is seat state, not this checkout, so it runs NATIVE and a snapshot has nothing to grade. runs the real ansible-playbook against a throwaway inventory: needs ~/ansible-venv, and it is the longest leg in the gate — a pre-commit loop buys this at a converge, not at a commit" "testdata/self-converge-guard/run.sh (HD-413 verdict matrix, runtime)" blk_guard_fixture
+face joined; item_blk_x "face joined — spans this checkout and seat state, so it runs NATIVE; a snapshot of the commit would prove neither side. ansible is absent or dies WinError 87 on the Windows seat, so this SKIPs here anyway; on a WSL/CI runner it is the syntax half that a quick loop does not need per keystroke" "ansible-playbook --syntax-check (WSL/CI-gated)" blk_ansible_syntax
 
 # The corpus walkers.
 # The corpus walkers. Longest leg first, per the pool note in the header.
-item_x "reads the vault to know what a leak is: ONE batched read whose request count the run prints itself (the Server SDK answers the vault's ~143 items in 1 list + 3 get_all chunks; the labelled `op item get` FALLBACK costs 1 list + 1 read per item until the seat step in docs/1password.md runs), then a content search over the seat's run captures (~560 MB) and the working tree, then the git-history leg (11 942 blobs reachable from refs, ~525 MB — ~9 s cold, and ~0.2 s once the cache in the object store is warm, which the run prints either way). About 23 s on this seat, which is the whole pre-commit budget and more; it also only means something where a vault token exists" "check_secret_leak.py (current vault values vs the run-capture class, the working tree, and every blob a ref still reaches)" blk_secret_leak
-item_q "check_secret_leak.py --self-test (the shapes that leaked must each redden, the finding text must disclose nothing, the vault boundary must SKIP, the ledger must mute only what it names, a published-then-deleted value must still redden through the history leg, a partial sweep must say PARTIAL, a partial VAULT READ must say so and may not shorten the ledger, and --update-ledger must not delete a line it cannot prove — and every mutant of the scanner must be caught, the count is printed by the run)" "${PY_CMD[@]}" scripts/gate/check_secret_leak.py --self-test
-item_x "reads the vault a second time for the debt register's VERSION column (the names-only list is tried first and, on an SDK whose list rows carry no versions, the batched read answers for 4 — the run prints which route answered and what it cost). Then a per-line verdict over the register, the twin arm against provision-secrets.py's NOT_ROTATABLE, and the seat-locality rule; ~2 s on this seat, and it only means something where a vault token exists" "check_secret_debt.py (who acts on each leak debt, on which seat, and whether the value behind it has rotated)" blk_secret_debt
-item_q "check_secret_debt.py --self-test (the four verdicts must each be reachable, the version-bump arm must move ONE line and no other, a foreign seat's line may never close, a store-less run may not close its own, the two no-rotation-path sets must disagree loudly in both directions, a bad register line reddens rather than shortening the book, EVERY verdict must land in the exit class it is filed under with an unplaced word reddening rather than going quietly green, and nothing but an 8-char id prefix is ever printed)" "${PY_CMD[@]}" scripts/gate/check_secret_debt.py --self-test
-item_x "walks the whole tracked tip, 99 MB with archive members included and no cache of any kind, so every profile pays the full walk; the arm is parked OUT of the pre-commit loop because that walk is the whole budget of one" "check_secrets.py (secret shapes in the tracked tip, archive members included)" "${PY_CMD[@]}" scripts/gate/check_secrets.py
-item_x "re-execs itself per archive/casefold arm: a shape-grammar self-test, not a tree check — rerun it when the scanner changes, not per commit" "check_secrets.py --self-test (the speed prefilter must not have narrowed a shape)" "${PY_CMD[@]}" scripts/gate/check_secrets.py --self-test
-item_q "check_yaml_dup_keys.py (HD-1098: a duplicate YAML key is a silent no-op)" "${PY_CMD[@]}" scripts/gate/check_yaml_dup_keys.py
-item_q "check_yaml_dup_keys.py --self-test (HD-1098 canaries + corpus probe)" "${PY_CMD[@]}" scripts/gate/check_yaml_dup_keys.py --self-test
-item_q "check_zone_kogler_si_parity.py (derived zone answers what the hand-authored sources did, HD-436)" "${PY_CMD[@]}" scripts/gate/check_zone_kogler_si_parity.py
-item_q "check_zone_kogler_si_parity.py --self-test" "${PY_CMD[@]}" scripts/gate/check_zone_kogler_si_parity.py --self-test
-item_q "check_dns_seed_drift.py (Technitium split-horizon seed contract, HD-341 parity)" "${PY_CMD[@]}" scripts/gate/check_dns_seed_drift.py
-item_q "check_dns_policy_drift.py (the DNS policy SSOT, its one writer, and its asserted read-back)" "${PY_CMD[@]}" scripts/gate/check_dns_policy_drift.py
-item_q "check_dns_seed_prune_guard.py (the seed delete leg cannot delete a listed record)" "${PY_CMD[@]}" scripts/gate/check_dns_seed_prune_guard.py
-item_q "check_dns_seed_prune_guard.py --self-test (the refusal must be seen to fail three ways)" "${PY_CMD[@]}" scripts/gate/check_dns_seed_prune_guard.py --self-test
-item_q "check_self_converge_guard.py (HD-413 guardrail completeness, static)" "${PY_CMD[@]}" scripts/gate/check_self_converge_guard.py
-item_q "check_hd_mint_space.py (the backlog id space: no fixture id outside the reserved block, no row inside it)" "${PY_CMD[@]}" scripts/gate/check_hd_mint_space.py
-item_q "check_hd_mint_space.py --self-test (each rule bred on a throwaway repo; the legal shapes must stay green)" "${PY_CMD[@]}" scripts/gate/check_hd_mint_space.py --self-test
-item_q "check_net_manager.py (per-host config-manager declaration: no implied manager, no implied render leg)" "${PY_CMD[@]}" scripts/gate/check_net_manager.py
-item_q "check_net_manager.py --self-test (each rule bred on a tree copy: canaries must redden, the legal shapes must stay green)" "${PY_CMD[@]}" scripts/gate/check_net_manager.py --self-test
-item_q "probe-net-manager.sh --self-test (the config-manager verdict still separates the states it names)" bash scripts/ansible/probe-net-manager.sh --self-test
+face joined; item_x "face joined — spans this checkout and seat state, so it runs NATIVE; a snapshot of the commit would prove neither side. reads the vault to know what a leak is: ONE batched read whose request count the run prints itself (the Server SDK answers the vault's ~143 items in 1 list + 3 get_all chunks; the labelled `op item get` FALLBACK costs 1 list + 1 read per item until the seat step in docs/1password.md runs), then a content search over the seat's run captures (~560 MB) and the working tree, then the git-history leg (11 942 blobs reachable from refs, ~525 MB — ~9 s cold, and ~0.2 s once the cache in the object store is warm, which the run prints either way). About 23 s on this seat, which is the whole pre-commit budget and more; it also only means something where a vault token exists" "check_secret_leak.py (current vault values vs the run-capture class, the working tree, and every blob a ref still reaches)" blk_secret_leak
+face tree; item_q "check_secret_leak.py --self-test (the shapes that leaked must each redden, the finding text must disclose nothing, the vault boundary must SKIP, the ledger must mute only what it names, a published-then-deleted value must still redden through the history leg, a partial sweep must say PARTIAL, a partial VAULT READ must say so and may not shorten the ledger, and --update-ledger must not delete a line it cannot prove — and every mutant of the scanner must be caught, the count is printed by the run)" "${PY_CMD[@]}" scripts/gate/check_secret_leak.py --self-test
+face joined; item_x "face joined — spans this checkout and seat state, so it runs NATIVE; a snapshot of the commit would prove neither side. reads the vault a second time for the debt register's VERSION column (the names-only list is tried first and, on an SDK whose list rows carry no versions, the batched read answers for 4 — the run prints which route answered and what it cost). Then a per-line verdict over the register, the twin arm against provision-secrets.py's NOT_ROTATABLE, and the seat-locality rule; ~2 s on this seat, and it only means something where a vault token exists" "check_secret_debt.py (who acts on each leak debt, on which seat, and whether the value behind it has rotated)" blk_secret_debt
+face tree; item_q "check_secret_debt.py --self-test (the four verdicts must each be reachable, the version-bump arm must move ONE line and no other, a foreign seat's line may never close, a store-less run may not close its own, the two no-rotation-path sets must disagree loudly in both directions, a bad register line reddens rather than shortening the book, EVERY verdict must land in the exit class it is filed under with an unplaced word reddening rather than going quietly green, and nothing but an 8-char id prefix is ever printed)" "${PY_CMD[@]}" scripts/gate/check_secret_debt.py --self-test
+face tree; item_x "walks the whole tracked tip, 99 MB with archive members included and no cache of any kind, so every profile pays the full walk; the arm is parked OUT of the pre-commit loop because that walk is the whole budget of one" "check_secrets.py (secret shapes in the tracked tip, archive members included)" "${PY_CMD[@]}" scripts/gate/check_secrets.py
+face tree; item_x "re-execs itself per archive/casefold arm: a shape-grammar self-test, not a tree check — rerun it when the scanner changes, not per commit" "check_secrets.py --self-test (the speed prefilter must not have narrowed a shape)" "${PY_CMD[@]}" scripts/gate/check_secrets.py --self-test
+face tree; item_q "check_yaml_dup_keys.py (HD-1098: a duplicate YAML key is a silent no-op)" "${PY_CMD[@]}" scripts/gate/check_yaml_dup_keys.py
+face tree; item_q "check_yaml_dup_keys.py --self-test (HD-1098 canaries + corpus probe)" "${PY_CMD[@]}" scripts/gate/check_yaml_dup_keys.py --self-test
+face tree; item_q "check_zone_kogler_si_parity.py (derived zone answers what the hand-authored sources did, HD-436)" "${PY_CMD[@]}" scripts/gate/check_zone_kogler_si_parity.py
+face tree; item_q "check_zone_kogler_si_parity.py --self-test" "${PY_CMD[@]}" scripts/gate/check_zone_kogler_si_parity.py --self-test
+face tree; item_q "check_dns_seed_drift.py (Technitium split-horizon seed contract, HD-341 parity)" "${PY_CMD[@]}" scripts/gate/check_dns_seed_drift.py
+face tree; item_q "check_dns_policy_drift.py (the DNS policy SSOT, its one writer, and its asserted read-back)" "${PY_CMD[@]}" scripts/gate/check_dns_policy_drift.py
+face tree; item_q "check_dns_seed_prune_guard.py (the seed delete leg cannot delete a listed record)" "${PY_CMD[@]}" scripts/gate/check_dns_seed_prune_guard.py
+face tree; item_q "check_dns_seed_prune_guard.py --self-test (the refusal must be seen to fail three ways)" "${PY_CMD[@]}" scripts/gate/check_dns_seed_prune_guard.py --self-test
+face tree; item_q "check_self_converge_guard.py (HD-413 guardrail completeness, static)" "${PY_CMD[@]}" scripts/gate/check_self_converge_guard.py
+face tree; item_q "check_hd_mint_space.py (the backlog id space: no fixture id outside the reserved block, no row inside it)" "${PY_CMD[@]}" scripts/gate/check_hd_mint_space.py
+face tree; item_q "check_hd_mint_space.py --self-test (each rule bred on a throwaway repo; the legal shapes must stay green)" "${PY_CMD[@]}" scripts/gate/check_hd_mint_space.py --self-test
+face tree; item_q "check_net_manager.py (per-host config-manager declaration: no implied manager, no implied render leg)" "${PY_CMD[@]}" scripts/gate/check_net_manager.py
+face tree; item_q "check_net_manager.py --self-test (each rule bred on a tree copy: canaries must redden, the legal shapes must stay green)" "${PY_CMD[@]}" scripts/gate/check_net_manager.py --self-test
+face tree; item_q "probe-net-manager.sh --self-test (the config-manager verdict still separates the states it names)" bash scripts/ansible/probe-net-manager.sh --self-test
 # The live half of the next item is deliberately NOT registered: a read tool must never fail a commit
 # (the same reason `ansible_query.py` gates only its fixture). What IS gated is the offline proof that
 # the verdict can still redden — a dark monitoring host emits NO series, so no metric rule can see it
 # and the only instrument is the inventory's expected set compared against one live query.
-item_q "check_host_reporting.py --self-test (the expected-set verdict: a dark host, an undeclared reporter and the two stale shapes must each redden)" "${PY_CMD[@]}" scripts/gate/check_host_reporting.py --self-test
-item_x "walks every byte under IaC/ for twin groups and its self-test re-derives a 2,300-group baseline — minutes on this host, and a pre-commit edit does not rename a twin" "check_string_twins.py (a string two files shipped byte-equal at the wave baseline may not be renamed on one side)" "${PY_CMD[@]}" scripts/gate/check_string_twins.py
+face tree; item_q "check_host_reporting.py --self-test (the expected-set verdict: a dark host, an undeclared reporter and the two stale shapes must each redden)" "${PY_CMD[@]}" scripts/gate/check_host_reporting.py --self-test
+face tree; item_x "walks every byte under IaC/ for twin groups and its self-test re-derives a 2,300-group baseline — minutes on this host, and a pre-commit edit does not rename a twin" "check_string_twins.py (a string two files shipped byte-equal at the wave baseline may not be renamed on one side)" "${PY_CMD[@]}" scripts/gate/check_string_twins.py
 # The plain run above cannot tell a gate that has lost its teeth from a gate that passed: on a
 # green tree both print one OK line, and the cases that prove the verdict (a sever inside a long
 # change run, a twin renamed on every side, an agreed value in the wrong kind of literal) never
 # ran in the suite. Every other check here registers its self-test too; this one did not.
-item_x "its positive control re-populates a real git tree to prove the verdict: the most expensive leg in the gate, and the wave-boundary act owns when it is owed" "check_string_twins.py --self-test (the verdict cases: planted severs, the 8b28edd3 control, presence-proven renames)" "${PY_CMD[@]}" scripts/gate/check_string_twins.py --self-test
-item_q "validate-docker-services.py" "${PY_CMD[@]}" scripts/gate/validate-docker-services.py
-item_x "renders 16 arms of the spark compose template: a profile-matrix check, not a tree check — buy it when a profile changes" "spark-llm-render-matrix.py (HD-489: every profile must RENDER, not just validate)" "${PY_CMD[@]}" scripts/bench/spark-llm-render-matrix.py
-item_q "check_doc_path_refs.py (HD-490: a path a doc cites must exist)" "${PY_CMD[@]}" scripts/gate/check_doc_path_refs.py
-item_q "check_doc_path_refs.py --self-test (HD-490 canary)" "${PY_CMD[@]}" scripts/gate/check_doc_path_refs.py --self-test
-item_q "check_doc_headings.py (the ANCHOR half: a § pointer must name a heading that exists; the committed ledger makes it growth-only)" "${PY_CMD[@]}" scripts/gate/check_doc_headings.py
-item_q "check_doc_headings.py --self-test (anchor canaries + both halves of the ledger ratchet)" "${PY_CMD[@]}" scripts/gate/check_doc_headings.py --self-test
-item_q "check_handoff_size.py (the standing handoff keeps its shape: answered-item history and typed counts reddens against the frozen seal; the size half is a REMINDER only, because size is the proxy and the changelog is the rule)" "${PY_CMD[@]}" scripts/gate/check_handoff_size.py
-item_q "check_handoff_size.py --self-test (both size-reminder halves proved live and non-blocking, the marker exemptions, each count shape, and both halves of the seal ratchet)" "${PY_CMD[@]}" scripts/gate/check_handoff_size.py --self-test
-item_q "check_registry_prose.py (CONVENTIONS §6 on this file: registry states facts + owning spec, no ids/dates/narrative/glyphs/pipe-in-code/dup-paragraph)" "${PY_CMD[@]}" scripts/gate/check_registry_prose.py
-item_q "check_registry_prose.py --self-test (each prose rule bred + every exemption kept quiet + the empty-corpus refusal)" "${PY_CMD[@]}" scripts/gate/check_registry_prose.py --self-test
-item_q "validate_doc_templates.py" "${PY_CMD[@]}" scripts/gate/validate_doc_templates.py
-item_q "render_all.py --self-test (HD-1117: the generated-doc drift check reads green twice, and an SSOT change still reddens it)" "${PY_CMD[@]}" scripts/render_all.py --self-test
+face tree; item_x "its positive control re-populates a real git tree to prove the verdict: the most expensive leg in the gate, and the wave-boundary act owns when it is owed" "check_string_twins.py --self-test (the verdict cases: planted severs, the 8b28edd3 control, presence-proven renames)" "${PY_CMD[@]}" scripts/gate/check_string_twins.py --self-test
+face tree; item_q "validate-docker-services.py" "${PY_CMD[@]}" scripts/gate/validate-docker-services.py
+face tree; item_x "renders 16 arms of the spark compose template: a profile-matrix check, not a tree check — buy it when a profile changes" "spark-llm-render-matrix.py (HD-489: every profile must RENDER, not just validate)" "${PY_CMD[@]}" scripts/bench/spark-llm-render-matrix.py
+face tree; item_q "check_doc_path_refs.py (HD-490: a path a doc cites must exist)" "${PY_CMD[@]}" scripts/gate/check_doc_path_refs.py
+face tree; item_q "check_doc_path_refs.py --self-test (HD-490 canary)" "${PY_CMD[@]}" scripts/gate/check_doc_path_refs.py --self-test
+face tree; item_q "check_doc_headings.py (the ANCHOR half: a § pointer must name a heading that exists; the committed ledger makes it growth-only)" "${PY_CMD[@]}" scripts/gate/check_doc_headings.py
+face tree; item_q "check_doc_headings.py --self-test (anchor canaries + both halves of the ledger ratchet)" "${PY_CMD[@]}" scripts/gate/check_doc_headings.py --self-test
+face tree; item_q "check_handoff_size.py (the standing handoff keeps its shape: answered-item history and typed counts reddens against the frozen seal; the size half is a REMINDER only, because size is the proxy and the changelog is the rule)" "${PY_CMD[@]}" scripts/gate/check_handoff_size.py
+face tree; item_q "check_handoff_size.py --self-test (both size-reminder halves proved live and non-blocking, the marker exemptions, each count shape, and both halves of the seal ratchet)" "${PY_CMD[@]}" scripts/gate/check_handoff_size.py --self-test
+face tree; item_q "check_registry_prose.py (CONVENTIONS §6 on this file: registry states facts + owning spec, no ids/dates/narrative/glyphs/pipe-in-code/dup-paragraph)" "${PY_CMD[@]}" scripts/gate/check_registry_prose.py
+face tree; item_q "check_registry_prose.py --self-test (each prose rule bred + every exemption kept quiet + the empty-corpus refusal)" "${PY_CMD[@]}" scripts/gate/check_registry_prose.py --self-test
+face tree; item_q "validate_doc_templates.py" "${PY_CMD[@]}" scripts/gate/validate_doc_templates.py
+face tree; item_q "render_all.py --self-test (HD-1117: the generated-doc drift check reads green twice, and an SSOT change still reddens it)" "${PY_CMD[@]}" scripts/render_all.py --self-test
 # The fixture first, then the tree it judges: the arms above prove the checker can read green AND
 # can still redden, so a red from the real-tree leg below is a drift finding, not a broken checker.
 # `--no-write` is what makes the real-tree leg legal in a POOL — it renders into a temp dir, so no
 # item beside it can ever read a generated doc that is mid-write (an in-place `--check` measured
 # 2,383 zero-length or partial reads out of 6.67 M for a concurrent reader in this tree).
-item_q "render_all.py --check --no-write (HD-1117: every *-generated.md must equal the render of its SSOT; rendered in a temp dir, so docs/ is never the target)" "${PY_CMD[@]}" scripts/render_all.py --check --no-write
-item_q "check_vault_name.py" "${PY_CMD[@]}" scripts/gate/check_vault_name.py
-item_q "check_placeholders.py" "${PY_CMD[@]}" scripts/gate/check_placeholders.py
-item_q "bash -n sweep (HD-256 portability, all scripts/*.sh)" blk_bash_n_sweep
-item_q "python3 -m py_compile sweep (HD-256 portability, all scripts/*.py)" blk_py_compile_sweep
+face tree; item_q "render_all.py --check --no-write (HD-1117: every *-generated.md must equal the render of its SSOT; rendered in a temp dir, so docs/ is never the target)" "${PY_CMD[@]}" scripts/render_all.py --check --no-write
+face tree; item_q "check_vault_name.py" "${PY_CMD[@]}" scripts/gate/check_vault_name.py
+face tree; item_q "check_placeholders.py" "${PY_CMD[@]}" scripts/gate/check_placeholders.py
+face tree; item_q "bash -n sweep (HD-256 portability, all scripts/*.sh)" blk_bash_n_sweep
+face tree; item_q "python3 -m py_compile sweep (HD-256 portability, all scripts/*.py)" blk_py_compile_sweep
 
 # Seat planes — self-tests run everywhere (sandboxed), the --check half SKIPs per host.
 # A seat with no node is the one exception the sentence never held: a seat with NO usable node cannot run a
@@ -1625,47 +1654,47 @@ st_pi_tui_selftest() {
 # HD-1137: a seat DEPLOY half (--check --strict on a real ~/.pi) is deliberately NOT in quick: it
 # reads and can converge THIS host's seat state, which is not what a pre-commit sanity read claims.
 # The sandboxed --self-test halves stay in quick; the expensive ones carry their cost as the reason.
-item_x "installs into a fixture HOME through stub installers across a dozen CLI launches — a harness self-test, not a tree check: rerun it when the installer changes" "install-nerd-font.sh --self-test (HD-1110: the pinned nerd-font release + sha256 manifest)" bash scripts/harness/install-nerd-font.sh --self-test
+face tree; item_x "installs into a fixture HOME through stub installers across a dozen CLI launches — a harness self-test, not a tree check: rerun it when the installer changes" "install-nerd-font.sh --self-test (HD-1110: the pinned nerd-font release + sha256 manifest)" bash scripts/harness/install-nerd-font.sh --self-test
 # NOTE (HD-1128): seat-ssh-build.sh --self-test is deliberately NOT gated. It is 27 assertions that pass
 # standalone, but they run ~25 nested bash spawns and cost 98 s WALL / 72 s SYS on the Windows seat - inside
 # the pool that starves sibling self-tests (measured: pi-seat-sync.sh --self-test printed 5 canaries NOT
 # caught in the concurrent run and passed standalone, the documented pool-flake class). The cheap and
 # meaningful half IS gated: the --check --strict item below.
-item_x "~25 CLI launches against a fixture settings.json: HD-1135 measured 97 s on this seat even after the fork diet — a self-test for the settings harness, not a tree check" "pi-settings-config.sh --self-test (HD-1110: the harness keys of ~/.pi/agent/settings.json)" st_pi_settings_selftest
+face tree; item_x "~25 CLI launches against a fixture settings.json: HD-1135 measured 97 s on this seat even after the fork diet — a self-test for the settings harness, not a tree check" "pi-settings-config.sh --self-test (HD-1110: the harness keys of ~/.pi/agent/settings.json)" st_pi_settings_selftest
 # The clone's own pre-push gate. The SELF-TEST is gated; the `--check --strict` half is NOT, on
 # the HD-1137 rule: a clone's hooks are deploy state, and an item that reddens every session
 # worktree that has not yet run `install-hooks.sh --push` would make one lane's unset-up seat
 # another lane's red gate. The half that reports it is the seat plane `git-hooks` in
 # lib/seat-planes.yml, which `pi-seat-sync.sh --check` fans out and prints as DRIFT.
-item_q "install-hooks.sh --self-test (HD-1219: a canary blocks a real push, a clean tree passes and says what it did not scan, an unreachable vault SKIPs loudly, a crashed eye is never called a leak, and a second worktree of the same clone finds the hook — the arm the naive `dirname --git-dir` path fails)" bash scripts/git/install-hooks.sh --self-test
-item_q "pi-tui-config.sh --self-test (HD-1110: the pi-open-tui footer hostname key)" st_pi_tui_selftest
-item_x "drives every seat plane through stubbed seats in a temp HOME: HD-1135 measured 46 s on this seat — the fan-out driver's own harness, not a tree check. It runs NATIVE, and the reason is the leg's own shape rather than a parity result: it reads THIS checkout through git (self_head at pi-seat-sync.sh:240 — git -C the repo, rev-parse --short HEAD — called from self_test :333 and from the banner :535) and it classifies the seat it runs on (:81 uname -s, :106 hostname), the two halves of the conjunction lib/wsl-route.sh refuses. Re-derive with: bash scripts/bench/win/gate-parity.sh -- bash scripts/harness/pi-seat-sync.sh --self-test — in a Windows linked worktree that answers PARITY beside its own git=unavailable NOTE, an agreement between two runs that read no HEAD, so a crossed verdict here is not evidence and the unwrap is the ruling" "pi-seat-sync.sh --self-test (HD-1110: the fan-out driver verdicts, on stubbed seats)" bash scripts/harness/pi-seat-sync.sh --self-test
-item_x "arms sandboxed installers and a canary package name across every probe layout — an installer harness, and it must never touch a real registry" "pi-self-update.sh --self-test (HD-1115: BEHIND and AHEAD are both drift)" hl_wsl_route bash scripts/harness/pi-self-update.sh --self-test
-item_x "spawns a real tmux per canary to prove the config TAKES EFFECT: where tmux is absent it can print no verdict at all (CONVENTIONS §6), so a pre-commit loop buys only waiting here" "install-tmux-conf.sh --self-test (HD-1085: config == repo AND actually takes effect)" bash scripts/harness/install-tmux-conf.sh --self-test
-item_x "seat deploy state, not a tree check: it converges this host's ~/.tmux.conf, and where tmux is absent it prints SKIP either way" "install-tmux-conf.sh --check --strict (seat tmux drift)" blk_tmux_check
-item_x "seat deploy state, not a tree check: it asks a profile-loaded PowerShell on THIS seat which ssh binary answers (win11 only)" "seat-ssh-build.sh --check --strict (HD-1128: which ssh build a seat shell resolves)" blk_seat_ssh_check
-item_x "seat deploy state, not a tree check: it asks a profile-loaded PowerShell on THIS seat what a bare `bash` IS (win11 only; the WSL launcher is not a bash seat)" "seat-bash-build.sh --check --strict (which bash build a seat shell resolves)" blk_seat_bash_check
-item_x "seat deploy state, not a tree check: the pi build against pi_host_npm_version, converged by pi-seat-sync.sh --push where pi is installed" "pi-self-update.sh --check --strict (the pi build vs pi_host_npm_version)" blk_pi_self_check
-item_x "seat deploy state, not a tree check: it reads and can rewrite ~/.pi/agent/settings.json on this host" "pi-settings-config.sh --check --strict (settings.json vs settings-ssot.json)" blk_pi_settings_check
-item_x "seat deploy state, not a tree check: the pi-open-tui footer key in this host's ~/.pi/agent/open-tui.json" "pi-tui-config.sh --check --strict (open-tui.json footer key)" blk_pi_tui_check
-item_x "seat deploy state, not a tree check: the font plane is host state, and on the Windows seat the leg that matters is the .ps1 this item cannot run" "install-nerd-font.sh --check --strict (font dir vs pin)" blk_font_check
-item_x "sixteen end-to-end CLI launches in a temp HOME (the HD-1135 record says so): it re-runs the per-assertion legs for its exit-code contract — a harness self-test, not a tree check" "sync-skills.sh --self-test (HD-254: drift, untracked, artifacts, CRLF/BOM/binary guard)" hl_wsl_route bash scripts/harness/sync-skills.sh --self-test
-item_x "seat deploy state, not a tree check: repo skills/ against this host's ~/.pi/agent/skills, deployed by sync-skills.sh --push" "sync-skills.sh --check --strict (skill drift gate, HD-254)" blk_skills_drift
-item_x "a sandboxed fixture over the same 16 arms as its sibling: an extension-harness self-test, not a tree check" "sync-extensions.sh --self-test (HD-254 family: missing fails, extra kept, retired removed)" hl_wsl_route bash scripts/harness/sync-extensions.sh --self-test
-item_x "seat deploy state, not a tree check: repo pi-agent/extensions against this host's deployed extensions" "sync-extensions.sh --check --strict (repo pi-agent/extensions == deployed)" blk_extensions_check
+face tree; item_q "install-hooks.sh --self-test (HD-1219: a canary blocks a real push, a clean tree passes and says what it did not scan, an unreachable vault SKIPs loudly, a crashed eye is never called a leak, and a second worktree of the same clone finds the hook — the arm the naive `dirname --git-dir` path fails)" bash scripts/git/install-hooks.sh --self-test
+face tree; item_q "pi-tui-config.sh --self-test (HD-1110: the pi-open-tui footer hostname key)" st_pi_tui_selftest
+face joined; item_x "face joined — spans this checkout and seat state, so it runs NATIVE; a snapshot of the commit would prove neither side. drives every seat plane through stubbed seats in a temp HOME: HD-1135 measured 46 s on this seat — the fan-out driver's own harness, not a tree check. It runs NATIVE, and the reason is the leg's own shape rather than a parity result: it reads THIS checkout through git (self_head at pi-seat-sync.sh:240 — git -C the repo, rev-parse --short HEAD — called from self_test :333 and from the banner :535) and it classifies the seat it runs on (:81 uname -s, :106 hostname), the two halves of the conjunction lib/wsl-route.sh refuses. Re-derive with: bash scripts/bench/win/gate-parity.sh -- bash scripts/harness/pi-seat-sync.sh --self-test — in a Windows linked worktree that answers PARITY beside its own git=unavailable NOTE, an agreement between two runs that read no HEAD, so a crossed verdict here is not evidence and the unwrap is the ruling" "pi-seat-sync.sh --self-test (HD-1110: the fan-out driver verdicts, on stubbed seats)" bash scripts/harness/pi-seat-sync.sh --self-test
+face tree; item_x "arms sandboxed installers and a canary package name across every probe layout — an installer harness, and it must never touch a real registry" "pi-self-update.sh --self-test (HD-1115: BEHIND and AHEAD are both drift)" hl_wsl_route bash scripts/harness/pi-self-update.sh --self-test
+face tree; item_x "spawns a real tmux per canary to prove the config TAKES EFFECT: where tmux is absent it can print no verdict at all (CONVENTIONS §6), so a pre-commit loop buys only waiting here" "install-tmux-conf.sh --self-test (HD-1085: config == repo AND actually takes effect)" bash scripts/harness/install-tmux-conf.sh --self-test
+face joined; item_x "face joined — spans this checkout and seat state, so it runs NATIVE; a snapshot of the commit would prove neither side. seat deploy state, not a tree check: it converges this host's ~/.tmux.conf, and where tmux is absent it prints SKIP either way" "install-tmux-conf.sh --check --strict (seat tmux drift)" blk_tmux_check
+face joined; item_x "face joined — spans this checkout and seat state, so it runs NATIVE; a snapshot of the commit would prove neither side. seat deploy state, not a tree check: it asks a profile-loaded PowerShell on THIS seat which ssh binary answers (win11 only)" "seat-ssh-build.sh --check --strict (HD-1128: which ssh build a seat shell resolves)" blk_seat_ssh_check
+face seat; item_x "face seat — its subject is seat state, not this checkout, so it runs NATIVE and a snapshot has nothing to grade. seat deploy state, not a tree check: it asks a profile-loaded PowerShell on THIS seat what a bare `bash` IS (win11 only; the WSL launcher is not a bash seat)" "seat-bash-build.sh --check --strict (which bash build a seat shell resolves)" blk_seat_bash_check
+face joined; item_x "face joined — spans this checkout and seat state, so it runs NATIVE; a snapshot of the commit would prove neither side. seat deploy state, not a tree check: the pi build against pi_host_npm_version, converged by pi-seat-sync.sh --push where pi is installed" "pi-self-update.sh --check --strict (the pi build vs pi_host_npm_version)" blk_pi_self_check
+face joined; item_x "face joined — spans this checkout and seat state, so it runs NATIVE; a snapshot of the commit would prove neither side. seat deploy state, not a tree check: it reads and can rewrite ~/.pi/agent/settings.json on this host" "pi-settings-config.sh --check --strict (settings.json vs settings-ssot.json)" blk_pi_settings_check
+face seat; item_x "face seat — its subject is seat state, not this checkout, so it runs NATIVE and a snapshot has nothing to grade. seat deploy state, not a tree check: the pi-open-tui footer key in this host's ~/.pi/agent/open-tui.json" "pi-tui-config.sh --check --strict (open-tui.json footer key)" blk_pi_tui_check
+face joined; item_x "face joined — spans this checkout and seat state, so it runs NATIVE; a snapshot of the commit would prove neither side. seat deploy state, not a tree check: the font plane is host state, and on the Windows seat the leg that matters is the .ps1 this item cannot run" "install-nerd-font.sh --check --strict (font dir vs pin)" blk_font_check
+face tree; item_x "sixteen end-to-end CLI launches in a temp HOME (the HD-1135 record says so): it re-runs the per-assertion legs for its exit-code contract — a harness self-test, not a tree check" "sync-skills.sh --self-test (HD-254: drift, untracked, artifacts, CRLF/BOM/binary guard)" hl_wsl_route bash scripts/harness/sync-skills.sh --self-test
+face joined; item_x "face joined — spans this checkout and seat state, so it runs NATIVE; a snapshot of the commit would prove neither side. seat deploy state, not a tree check: repo skills/ against this host's ~/.pi/agent/skills, deployed by sync-skills.sh --push" "sync-skills.sh --check --strict (skill drift gate, HD-254)" blk_skills_drift
+face tree; item_x "a sandboxed fixture over the same 16 arms as its sibling: an extension-harness self-test, not a tree check" "sync-extensions.sh --self-test (HD-254 family: missing fails, extra kept, retired removed)" hl_wsl_route bash scripts/harness/sync-extensions.sh --self-test
+face joined; item_x "face joined — spans this checkout and seat state, so it runs NATIVE; a snapshot of the commit would prove neither side. seat deploy state, not a tree check: repo pi-agent/extensions against this host's deployed extensions" "sync-extensions.sh --check --strict (repo pi-agent/extensions == deployed)" blk_extensions_check
 
 # lib/ helpers — the root resolvers are the ONE thing every other item silently depends on, so
 # they carry their own proof (HD-1118 Stage 1). The depth arms cannot be exercised by the real
 # tree, which has exactly one depth, so each self-test builds a two-depth fixture: a resolver that
 # still counts `..` passes the shallow arm and fails the deep one — that is the canary, and it is
 # what makes Stage 3's folder moves a mechanical sweep instead of a gamble.
-item_q "lib/repo-root.sh --self-test (HD-1118: the bash root resolves at TWO depths, loud when absent)" bash scripts/lib/repo-root.sh --self-test
-item_q "lib/repo_root.py --self-test (HD-1118: the python twin + require_corpus + script_path)" "${PY_CMD[@]}" scripts/lib/repo_root.py --self-test
-item_x "its pin() half resolves every real plane with grep|head|sed|tr PER pin — the fork tail HD-1135 still bills as open, so the fork diet owns this leg, not a pre-commit loop" "lib/pi-seat.sh --self-test (HD-1118: a missing pin STOPS the caller; no subshell pin call site may return)" bash scripts/lib/pi-seat.sh --self-test
+face tree; item_q "lib/repo-root.sh --self-test (HD-1118: the bash root resolves at TWO depths, loud when absent)" bash scripts/lib/repo-root.sh --self-test
+face tree; item_q "lib/repo_root.py --self-test (HD-1118: the python twin + require_corpus + script_path)" "${PY_CMD[@]}" scripts/lib/repo_root.py --self-test
+face tree; item_x "its pin() half resolves every real plane with grep|head|sed|tr PER pin — the fork tail HD-1135 still bills as open, so the fork diet owns this leg, not a pre-commit loop" "lib/pi-seat.sh --self-test (HD-1118: a missing pin STOPS the caller; no subshell pin call site may return)" bash scripts/lib/pi-seat.sh --self-test
 # The hybrid route's own witness: it drives a STUB engine, so it grades this seat's decisions rather
 # than the distro installed on it, and it runs in a tenth of a second. It is excluded from quick
 # because it tests the router, not the tree — rerun it when the routing or the seat classes change.
-item_x "a router self-test over a stub engine, not a tree check: rerun it when the routing, the seat classes, or the eligibility rule changes" "lib/wsl-route.sh --self-test (the win11 seat's hybrid route: which legs cross to the Debian engine, and what makes a leg ineligible)" bash scripts/lib/wsl-route.sh --self-test
+face joined; item_x "face joined — spans this checkout and seat state, so it runs NATIVE; a snapshot of the commit would prove neither side. a router self-test over a stub engine, not a tree check: rerun it when the routing, the seat classes, or the eligibility rule changes" "lib/wsl-route.sh --self-test (the win11 seat's hybrid route: which legs cross to the Debian engine, and what makes a leg ineligible)" bash scripts/lib/wsl-route.sh --self-test
 # The parity half of that route. A crossed leg that loses an arm to a tool the engine lacks, a path it
 # cannot open, or a seat test it early-returns on STILL comes back rc 0 — `hl_wsl_route` passes the far rc
 # straight through, which is exactly why rc alone cannot certify a wrap. `bench/win/gate-parity.sh` runs
@@ -1677,29 +1706,32 @@ item_x "a router self-test over a stub engine, not a tree check: rerun it when t
 # sweep over the wrapped registrations — that sweep is the act behind wrapping a leg, it doubles the gate
 # to answer a question that only changes when a wrap changes, and in a Windows worktree it would report
 # parity for every git-reading leg from two runs that read nothing. The runner prints that caveat itself.
-item_x "one argv twice per arm across a stub door plus ONE live-door leg: the parity harness's own verdicts, not a tree check — the full-leg parity sweep over the wrapped legs is deliberately NOT registered here (it is the act that authorises a wrap, not a per-keystroke measurement); rerun it when a leg is wrapped or the normalizer changes" "bench/win/gate-parity.sh --self-test (a wrapped leg must judge the SAME arms on both sides of the door: rc, arm counts, verdict words — and rc 2 outranks a parity diff when either side could not run)" bash scripts/bench/win/gate-parity.sh --self-test
+face tree; item_x "one argv twice per arm across a stub door plus ONE live-door leg: the parity harness's own verdicts, not a tree check — the full-leg parity sweep over the wrapped legs is deliberately NOT registered here (it is the act that authorises a wrap, not a per-keystroke measurement); rerun it when a leg is wrapped or the normalizer changes" "bench/win/gate-parity.sh --self-test (a wrapped leg must judge the SAME arms on both sides of the door: rc, arm counts, verdict words — and rc 2 outranks a parity diff when either side could not run)" bash scripts/bench/win/gate-parity.sh --self-test
 # The credential rule the vault legs share. Sandboxed: a stub door, a throwaway HOME, synthesised
 # fixture values — it reads no vault and needs no token, and its ratchet arm reads the tree, so it
 # runs NATIVE (a wrapped leg must not read this checkout through a Linux git).
-item_x "~40 bash spawns plus the ratchet's git grep (measured 11 s on the win11 seat, 1 s on Debian): a self-test of the credential rule, not a tree check — rerun it when the resolution order or a refusal changes" "lib/vault-env.sh --self-test (one credential rule for every vault leg: env → this seat's 0600 install → the Debian engine's install across the WSL door, and the refusals that must never fall back to the desktop app)" bash scripts/lib/vault-env.sh --self-test
-item_x "~2 bash spawns and a fixture map in a temp dir: the python face is proved without ONE vault read, which is what makes it gradeable on a day the account's request budget is spent" "lib/vault_env.py --self-test (the ID map: read, honored, fallen back from, and shared with the bash face — a name-addressed read costs 3 of an account ceiling of 1000 requests/24 h)" "${PY_CMD[@]}" scripts/lib/vault_env.py --self-test
+face joined; item_x "face joined — spans this checkout and seat state, so it runs NATIVE; a snapshot of the commit would prove neither side. ~40 bash spawns plus the ratchet's git grep (measured 11 s on the win11 seat, 1 s on Debian): a self-test of the credential rule, not a tree check — rerun it when the resolution order or a refusal changes" "lib/vault-env.sh --self-test (one credential rule for every vault leg: env → this seat's 0600 install → the Debian engine's install across the WSL door, and the refusals that must never fall back to the desktop app)" bash scripts/lib/vault-env.sh --self-test
+face tree; item_x "~2 bash spawns and a fixture map in a temp dir: the python face is proved without ONE vault read, which is what makes it gradeable on a day the account's request budget is spent" "lib/vault_env.py --self-test (the ID map: read, honored, fallen back from, and shared with the bash face — a name-addressed read costs 3 of an account ceiling of 1000 requests/24 h)" "${PY_CMD[@]}" scripts/lib/vault_env.py --self-test
 # The ONE batched reader (docs/1password.md §What a gate run costs the vault). QUICK and vault-free:
 # fixture route (HL_VAULT_READ_FIXTURE, zero requests) or stubbed routes — the batched SDK arm, the
 # labelled op fan-out arm, the no-credential boundary, the TTY refusal, the get_all chunking. The
 # account's request bucket is never touched by the profile, which is the whole point of the module.
-item_q "lib/vault_read.py --self-test (the ONE reader: both route arms, the get_all chunking, what each mode costs the account, the partial read that never stays silent, the byte-exact ASCII value pipe, the boundary SKIP and both tty refusals — proved at ZERO vault requests)" "${PY_CMD[@]}" scripts/lib/vault_read.py --self-test
+face tree; item_q "lib/vault_read.py --self-test (the ONE reader: both route arms, the get_all chunking, what each mode costs the account, the partial read that never stays silent, the byte-exact ASCII value pipe, the boundary SKIP and both tty refusals — proved at ZERO vault requests)" "${PY_CMD[@]}" scripts/lib/vault_read.py --self-test
 
 # Everything else — cheap, but they add up, so they are in the pool too.
-item_q "guard-session.sh --self-test (sandboxed guard fixture, HD-253)" hl_wsl_route bash scripts/gate/guard-session.sh --self-test
-item_q "guarded-converge.sh --self-test (post-converge liveness verdict, HD-436)" bash scripts/ansible/guarded-converge.sh --self-test
-item_x "drives every 1Password refusal state through a fake op binary in a sandbox: a CLI-contract self-test, not a tree check — rerun it when the bootstrap script changes" "git-bootstrap.sh --self-test (each 1Password refusal state says the right thing)" hl_wsl_route bash scripts/git/git-bootstrap.sh --self-test
+face tree; item_q "guard-session.sh --self-test (sandboxed guard fixture, HD-253)" hl_wsl_route bash scripts/gate/guard-session.sh --self-test
+# Its self-test arms run a WATCHDOG leg through `ssh` shapes and a fixture target, so the SUBJECT of this
+# registration is not only this checkout: face joined — it runs NATIVE, because a snapshot of the commit
+# has no host to watch and would prove neither side.
+face joined; item_q "guarded-converge.sh --self-test (post-converge liveness verdict, HD-436)" bash scripts/ansible/guarded-converge.sh --self-test
+face tree; item_x "drives every 1Password refusal state through a fake op binary in a sandbox: a CLI-contract self-test, not a tree check — rerun it when the bootstrap script changes" "git-bootstrap.sh --self-test (each 1Password refusal state says the right thing)" hl_wsl_route bash scripts/git/git-bootstrap.sh --self-test
 # A PROCESS is a token holder too, and no file check sees that class (docs/1password.md §Where a token is
 # installed): `lib/vault-env.sh` resolves env → file → door, so a daemon born before a rotation keeps the
 # dead value while every file reads CURRENT. Proved on a fixture /proc — the two verdicts, the unseen-pid
 # and kernel-thread halves told apart, an unwalkable proc root refusing, an absent target never going
 # green, the sweep never reporting its own process tree, and the value-blind canary. 0.4 s, ZERO vault
 # contact, so unlike the re-seat below this one is a real gate item.
-item_q "check-token-holders.sh --self-test (a process is a holder: CURRENT/SUPERSEDED by digest, unseen pids named as unseen, and no value crosses the wire)" hl_wsl_route bash scripts/secrets/check-token-holders.sh --self-test
+face tree; item_q "check-token-holders.sh --self-test (a process is a holder: CURRENT/SUPERSEDED by digest, unseen pids named as unseen, and no value crosses the wire)" hl_wsl_route bash scripts/secrets/check-token-holders.sh --self-test
 # A rotated service-account token has to REACH the seats, and the command that does it
 # (`secrets/reseat-vault-token.sh`) is proved against the REAL fleet, not here: its `--self-test` still
 # fails the two driver→transport→install arms (the sandbox cannot be a target), so wiring it in as a
@@ -1710,46 +1742,46 @@ item_q "check-token-holders.sh --self-test (a process is a holder: CURRENT/SUPER
 # seat too and a seat that is not present never makes it a SKIP: the raise is fill-in-only, never
 # clobbers, always derives the pub, and the route verdict keys on "can a git call WAIT?" rather than on
 # the signing key that signing's retirement removed.
-item_q "git-bootstrap-win11.sh --self-test (the seat payload is raised safely, and the route verdict cannot confuse a retired key with a broken route)" bash scripts/git/git-bootstrap-win11.sh --self-test
-item_x "runs the real check-vault-items.sh over a synthetic tree per case: the *_item registry-key parse is only honest if the CLI runs, which is exactly the waiting a fast loop is not buying" "testdata/check-vault-items/run.sh (scanner self-test, HD-244/245)" hl_wsl_route bash scripts/testdata/check-vault-items/run.sh
-item_q "validate_blueprints.py" "${PY_CMD[@]}" scripts/gate/validate_blueprints.py
-item_q "check_doc_ips.py" "${PY_CMD[@]}" scripts/gate/check_doc_ips.py
-item_q "check_traefik_host_rules.py" "${PY_CMD[@]}" scripts/gate/check_traefik_host_rules.py
-item_q "validate-secrets.py" "${PY_CMD[@]}" scripts/gate/validate-secrets.py
-item_q "check_doc_map.py" "${PY_CMD[@]}" scripts/gate/check_doc_map.py
+face tree; item_q "git-bootstrap-win11.sh --self-test (the seat payload is raised safely, and the route verdict cannot confuse a retired key with a broken route)" bash scripts/git/git-bootstrap-win11.sh --self-test
+face tree; item_x "runs the real check-vault-items.sh over a synthetic tree per case: the *_item registry-key parse is only honest if the CLI runs, which is exactly the waiting a fast loop is not buying" "testdata/check-vault-items/run.sh (scanner self-test, HD-244/245)" hl_wsl_route bash scripts/testdata/check-vault-items/run.sh
+face tree; item_q "validate_blueprints.py" "${PY_CMD[@]}" scripts/gate/validate_blueprints.py
+face tree; item_q "check_doc_ips.py" "${PY_CMD[@]}" scripts/gate/check_doc_ips.py
+face tree; item_q "check_traefik_host_rules.py" "${PY_CMD[@]}" scripts/gate/check_traefik_host_rules.py
+face tree; item_q "validate-secrets.py" "${PY_CMD[@]}" scripts/gate/validate-secrets.py
+face tree; item_q "check_doc_map.py" "${PY_CMD[@]}" scripts/gate/check_doc_map.py
 # The map above proves a doc is REACHABLE; nothing proved a doc CLAIMS a domain, or that a domain has
 # exactly one entry point. HD-1119(b): the domain set is DERIVED from the docs' own frontmatter, so a
 # retag moves the rule and this file never has to.
-item_q "check_doc_domain.py (every doc claims a domain, every domain has one entry point; the set is derived, never listed)" "${PY_CMD[@]}" scripts/gate/check_doc_domain.py
-item_q "check_doc_domain.py --self-test (each rule seen RED on a fixture mutation, the legal fixture GREEN, an empty walk refused)" "${PY_CMD[@]}" scripts/gate/check_doc_domain.py --self-test
-item_q "check_generated_suffix.py" "${PY_CMD[@]}" scripts/gate/check_generated_suffix.py
-item_q "check_ledger_state.py (ledger = checkboxes, open rows only, ticks dated)" "${PY_CMD[@]}" scripts/gate/check_ledger_state.py
-item_q "check_runbook_purity.py (runbook = imperative procedure only)" "${PY_CMD[@]}" scripts/gate/check_runbook_purity.py
-item_q "check_runbook_purity.py --self-test (phase-alignment arms seen RED then GREEN; every single-letter phase suffix proved compared; a blind walk or a missing input refused, never OK: 0 phases)" "${PY_CMD[@]}" scripts/gate/check_runbook_purity.py --self-test
-item_q "check_vault_docs.py (every IaC-read vault item is documented, and every §Master Secret List row states its field shape rather than a claim about the item)" "${PY_CMD[@]}" scripts/gate/check_vault_docs.py
-item_q "check_vault_docs.py --self-test (an item named only in a group_vars *_item: scalar is required; a field= cell that denies its own item reddens; the dash and the pointer stay quiet; an empty walk refused)" "${PY_CMD[@]}" scripts/gate/check_vault_docs.py --self-test
-item_q "check_todo_done.py (CONVENTIONS §4(a) done-row sweep)" "${PY_CMD[@]}" scripts/gate/check_todo_done.py
-item_q "check_view_registry_sync.py (todo-table.md §B9 holds exactly todo.md's row ids, in both directions — the dispatch view cannot silently lose a row, and cannot invent one)" "${PY_CMD[@]}" scripts/gate/check_view_registry_sync.py
-item_q "check_view_registry_sync.py --self-test (a row missing from §B9 must redden AND an id §B9 carries that the registry lacks must redden; the ratchet line whose difference cleared must go STALE)" "${PY_CMD[@]}" scripts/gate/check_view_registry_sync.py --self-test
-item_q "check_brief_coverage.py (the row→brief map is ONE map, not three — todo-table.md §B0's cells, every root brief's dispatch header and prompt.md's pointers name the same rows, in every id spelling)" "${PY_CMD[@]}" scripts/gate/check_brief_coverage.py
-item_q "check_brief_coverage.py --self-test (one canary per rule plus its reconciled twin; a vanished §B0, an empty §B0, a brief with no dispatch header and a link carried only by cluster shorthand must all be loud)" "${PY_CMD[@]}" scripts/gate/check_brief_coverage.py --self-test
-item_q "check_todo_done.py --refs (an HD id named by any root prompt brief must still be a row)" "${PY_CMD[@]}" scripts/gate/check_todo_done.py --refs
-item_x "breeds both directions of the marker grammar and the reference rule in a synthetic tree: a checker self-test, not a tree check — and HD-1117 names this leg as a pool flake" "check_todo_done.py --self-test (marker grammar + reference-existence canaries, both directions)" "${PY_CMD[@]}" scripts/gate/check_todo_done.py --self-test
-item_q "check_merge_markers.py (HD-453: no conflict markers in tracked files)" "${PY_CMD[@]}" scripts/gate/check_merge_markers.py
-item_q "check_merge_markers.py --self-test (HD-453 canary)" "${PY_CMD[@]}" scripts/gate/check_merge_markers.py --self-test
-item_q "check_md_tables.py (HD-417 width rule + 2026-10-06 duplicate-key rule)" "${PY_CMD[@]}" scripts/gate/check_md_tables.py
-item_q "check_md_tables.py --self-test (HD-417 cell-count canary + duplicate-key canary)" "${PY_CMD[@]}" scripts/gate/check_md_tables.py --self-test
-item_q "check_iac_backend_strings.py (HD-404: retired-backend mentions may not regrow)" "${PY_CMD[@]}" scripts/gate/check_iac_backend_strings.py
-item_q "check_iac_backend_strings.py --self-test (HD-404 ratchet canary)" "${PY_CMD[@]}" scripts/gate/check_iac_backend_strings.py --self-test
-item_q "check_script_layout.py (HD-1118 Stage 4: registry ≡ tree, depth ratchet, one-of-each, clean root)" "${PY_CMD[@]}" scripts/gate/check_script_layout.py
-item_q "check_script_layout.py --self-test (HD-1118: each rule seen to fail, corpus floor included)" "${PY_CMD[@]}" scripts/gate/check_script_layout.py --self-test
+face tree; item_q "check_doc_domain.py (every doc claims a domain, every domain has one entry point; the set is derived, never listed)" "${PY_CMD[@]}" scripts/gate/check_doc_domain.py
+face tree; item_q "check_doc_domain.py --self-test (each rule seen RED on a fixture mutation, the legal fixture GREEN, an empty walk refused)" "${PY_CMD[@]}" scripts/gate/check_doc_domain.py --self-test
+face tree; item_q "check_generated_suffix.py" "${PY_CMD[@]}" scripts/gate/check_generated_suffix.py
+face tree; item_q "check_ledger_state.py (ledger = checkboxes, open rows only, ticks dated)" "${PY_CMD[@]}" scripts/gate/check_ledger_state.py
+face tree; item_q "check_runbook_purity.py (runbook = imperative procedure only)" "${PY_CMD[@]}" scripts/gate/check_runbook_purity.py
+face tree; item_q "check_runbook_purity.py --self-test (phase-alignment arms seen RED then GREEN; every single-letter phase suffix proved compared; a blind walk or a missing input refused, never OK: 0 phases)" "${PY_CMD[@]}" scripts/gate/check_runbook_purity.py --self-test
+face tree; item_q "check_vault_docs.py (every IaC-read vault item is documented, and every §Master Secret List row states its field shape rather than a claim about the item)" "${PY_CMD[@]}" scripts/gate/check_vault_docs.py
+face tree; item_q "check_vault_docs.py --self-test (an item named only in a group_vars *_item: scalar is required; a field= cell that denies its own item reddens; the dash and the pointer stay quiet; an empty walk refused)" "${PY_CMD[@]}" scripts/gate/check_vault_docs.py --self-test
+face tree; item_q "check_todo_done.py (CONVENTIONS §4(a) done-row sweep)" "${PY_CMD[@]}" scripts/gate/check_todo_done.py
+face tree; item_q "check_view_registry_sync.py (todo-table.md §B9 holds exactly todo.md's row ids, in both directions — the dispatch view cannot silently lose a row, and cannot invent one)" "${PY_CMD[@]}" scripts/gate/check_view_registry_sync.py
+face tree; item_q "check_view_registry_sync.py --self-test (a row missing from §B9 must redden AND an id §B9 carries that the registry lacks must redden; the ratchet line whose difference cleared must go STALE)" "${PY_CMD[@]}" scripts/gate/check_view_registry_sync.py --self-test
+face tree; item_q "check_brief_coverage.py (the row→brief map is ONE map, not three — todo-table.md §B0's cells, every root brief's dispatch header and prompt.md's pointers name the same rows, in every id spelling)" "${PY_CMD[@]}" scripts/gate/check_brief_coverage.py
+face tree; item_q "check_brief_coverage.py --self-test (one canary per rule plus its reconciled twin; a vanished §B0, an empty §B0, a brief with no dispatch header and a link carried only by cluster shorthand must all be loud)" "${PY_CMD[@]}" scripts/gate/check_brief_coverage.py --self-test
+face tree; item_q "check_todo_done.py --refs (an HD id named by any root prompt brief must still be a row)" "${PY_CMD[@]}" scripts/gate/check_todo_done.py --refs
+face tree; item_x "breeds both directions of the marker grammar and the reference rule in a synthetic tree: a checker self-test, not a tree check — and HD-1117 names this leg as a pool flake" "check_todo_done.py --self-test (marker grammar + reference-existence canaries, both directions)" "${PY_CMD[@]}" scripts/gate/check_todo_done.py --self-test
+face tree; item_q "check_merge_markers.py (HD-453: no conflict markers in tracked files)" "${PY_CMD[@]}" scripts/gate/check_merge_markers.py
+face tree; item_q "check_merge_markers.py --self-test (HD-453 canary)" "${PY_CMD[@]}" scripts/gate/check_merge_markers.py --self-test
+face tree; item_q "check_md_tables.py (HD-417 width rule + 2026-10-06 duplicate-key rule)" "${PY_CMD[@]}" scripts/gate/check_md_tables.py
+face tree; item_q "check_md_tables.py --self-test (HD-417 cell-count canary + duplicate-key canary)" "${PY_CMD[@]}" scripts/gate/check_md_tables.py --self-test
+face tree; item_q "check_iac_backend_strings.py (HD-404: retired-backend mentions may not regrow)" "${PY_CMD[@]}" scripts/gate/check_iac_backend_strings.py
+face tree; item_q "check_iac_backend_strings.py --self-test (HD-404 ratchet canary)" "${PY_CMD[@]}" scripts/gate/check_iac_backend_strings.py --self-test
+face tree; item_q "check_script_layout.py (HD-1118 Stage 4: registry ≡ tree, depth ratchet, one-of-each, clean root)" "${PY_CMD[@]}" scripts/gate/check_script_layout.py
+face tree; item_q "check_script_layout.py --self-test (HD-1118: each rule seen to fail, corpus floor included)" "${PY_CMD[@]}" scripts/gate/check_script_layout.py --self-test
 # The leg contract is a rule ABOUT the registration lines below, so its self-test is registered FIRST: a
 # checker whose teeth are unproven would otherwise be read as a verdict about a contract it cannot read.
 # Both items are cheap (one file list, the rest builtins) so quick keeps them.
-item_q "check-leg-contract.sh --self-test (one canary per rule — an unasked tool name, a discarded rc, a declaration that names nothing, a name from the environment, none beside a name, a second spelling of the inventory question, a pinned runtime, a wrap that hides its tool, a wrapped leg that is not there — and four shapes that must stay silent: a comment, an error string, a redirection, a backslash continuation)" bash scripts/gate/check-leg-contract.sh --self-test
-item_q "check-leg-contract.sh (every declaration in scripts/ names a tool the probe asks and is guarded; the inventory question is asked in lib/wsl-route.sh alone; each wrapped leg's registration names its tool; no leg declares a runtime the route's PATH pin hides)" bash scripts/gate/check-leg-contract.sh
-item_q "check_iac_identifiers.py (no changelog identifier may live in IaC/)" "${PY_CMD[@]}" scripts/gate/check_iac_identifiers.py
-item_q "check_iac_identifiers.py --self-test (canary)" "${PY_CMD[@]}" scripts/gate/check_iac_identifiers.py --self-test
+face tree; item_q "check-leg-contract.sh --self-test (one canary per rule — an unasked tool name, a discarded rc, a declaration that names nothing, a name from the environment, none beside a name, a second spelling of the inventory question, a pinned runtime, a wrap that hides its tool, a wrapped leg that is not there — and four shapes that must stay silent: a comment, an error string, a redirection, a backslash continuation)" bash scripts/gate/check-leg-contract.sh --self-test
+face tree; item_q "check-leg-contract.sh (every declaration in scripts/ names a tool the probe asks and is guarded; the inventory question is asked in lib/wsl-route.sh alone; each wrapped leg's registration names its tool; no leg declares a runtime the route's PATH pin hides)" bash scripts/gate/check-leg-contract.sh
+face tree; item_q "check_iac_identifiers.py (no changelog identifier may live in IaC/)" "${PY_CMD[@]}" scripts/gate/check_iac_identifiers.py
+face tree; item_q "check_iac_identifiers.py --self-test (canary)" "${PY_CMD[@]}" scripts/gate/check_iac_identifiers.py --self-test
 # A filtered converge can execute a fraction of a role and still recap `failed=0`: a tag on a playbook
 # `roles:` entry cascades into every task of the role, a tag on the `include_tasks` LINE decides only
 # whether the FILE loads (its children are then filtered on their own tags), and an untagged dynamic
@@ -1758,19 +1790,19 @@ item_q "check_iac_identifiers.py --self-test (canary)" "${PY_CMD[@]}" scripts/ga
 # the tree, name the include line and the task, and cost half a second. The lab after them asks
 # ansible-playbook the same four questions about itself (debug-only legs, the literal `localhost`
 # inventory), which is why it is NOT in the quick profile.
-item_q "check_tag_coverage.py (a task below a dynamic include must be selectable by some tag)" "${PY_CMD[@]}" scripts/gate/check_tag_coverage.py
-item_q "check_tag_coverage.py --self-test (each cascade rule planted in a temp tree; a missing tree exits 2)" "${PY_CMD[@]}" scripts/gate/check_tag_coverage.py --self-test
-item_x "every leg executes real ansible-playbook against the literal localhost inventory: it needs ~/ansible-venv, and the static walk above already judges THIS tree — the lab proves the rules the walk reasons with, so buy it when a tag or an include line changes, not per keystroke" "testdata/check_tag_coverage/run.sh (the four cascade rules, asked of ansible itself)" bash scripts/testdata/check_tag_coverage/run.sh
+face tree; item_q "check_tag_coverage.py (a task below a dynamic include must be selectable by some tag)" "${PY_CMD[@]}" scripts/gate/check_tag_coverage.py
+face tree; item_q "check_tag_coverage.py --self-test (each cascade rule planted in a temp tree; a missing tree exits 2)" "${PY_CMD[@]}" scripts/gate/check_tag_coverage.py --self-test
+face tree; item_x "every leg executes real ansible-playbook against the literal localhost inventory: it needs ~/ansible-venv, and the static walk above already judges THIS tree — the lab proves the rules the walk reasons with, so buy it when a tag or an include line changes, not per keystroke" "testdata/check_tag_coverage/run.sh (the four cascade rules, asked of ansible itself)" bash scripts/testdata/check_tag_coverage/run.sh
 # The child-lane contract (delegation default, ≤2 children, inherit-only model, 2 h deadline) lives in
 # four files at once; this is the only thing that keeps those four agreeing. Run + canaries.
-item_q "check_subagent_contract.py (the subagent contract agrees across settings SSOT + the three rule docs)" "${PY_CMD[@]}" scripts/gate/check_subagent_contract.py
-item_q "check_subagent_contract.py --self-test (each rule bred, plus the silence canaries)" "${PY_CMD[@]}" scripts/gate/check_subagent_contract.py --self-test
+face tree; item_q "check_subagent_contract.py (the subagent contract agrees across settings SSOT + the three rule docs)" "${PY_CMD[@]}" scripts/gate/check_subagent_contract.py
+face tree; item_q "check_subagent_contract.py --self-test (each rule bred, plus the silence canaries)" "${PY_CMD[@]}" scripts/gate/check_subagent_contract.py --self-test
 # The spark bench's provenance half: it reads a results CSV and touches no host, so a spark-served seat
 # runs it safely (it is the check that would have named a Rule 0 violation instead of prose hoping).
 # The rc 2 half is NOT JUDGED — no CSV here, a CSV with no `client` column, an unreadable ledger — printed
 # as a SKIP and never counted as a pass, because a seat with no bench rows has proved nothing about them.
-item_q "check_bench_provenance.py (a timed leg's client stamp must name an allowed runner: Rule 0 + the designated station)" blk_bench_provenance
-item_q "check_bench_provenance.py --self-test (each verdict on fixtures, then a mutation of its own parser — including the leg a ledger line must NOT excuse)" "${PY_CMD[@]}" scripts/gate/check_bench_provenance.py --self-test
+face tree; item_q "check_bench_provenance.py (a timed leg's client stamp must name an allowed runner: Rule 0 + the designated station)" blk_bench_provenance
+face tree; item_q "check_bench_provenance.py --self-test (each verdict on fixtures, then a mutation of its own parser — including the leg a ledger line must NOT excuse)" "${PY_CMD[@]}" scripts/gate/check_bench_provenance.py --self-test
 # corpus_diff.py --gate IS in the pool, and what made that possible is the token anchor on the
 # add/drop-line rule. Its verdict is a pure function of the two revisions pinned in
 # gate/corpus_baseline.txt, so it reads identically at every commit until the staleness cap trips it
@@ -1797,17 +1829,17 @@ item_q "check_bench_provenance.py --self-test (each verdict on fixtures, then a 
 # ordinary development is exactly how an audit gets muted. So --gate now prints its verdict and exits 0;
 # rc 2 (could not measure) still surfaces, because a gate that cannot read its window has no verdict to
 # soften. The hard form is `--strict`, and the self-test item below stays a hard item either way.
-item_reminder "corpus_diff.py --gate (REMINDER, non-blocking: replays the pinned purge window and prints what the window does not explain — re-signing the baseline at a wave tip is the act that clears it, CONVENTIONS §6.4)" "${PY_CMD[@]}" scripts/gate/corpus_diff.py --gate
-item_q "corpus_diff.py --self-test (classifier cases + both halves of the accepts/baseline canary)" "${PY_CMD[@]}" scripts/gate/corpus_diff.py --self-test
+face tree; item_reminder "corpus_diff.py --gate (REMINDER, non-blocking: replays the pinned purge window and prints what the window does not explain — re-signing the baseline at a wave tip is the act that clears it, CONVENTIONS §6.4)" "${PY_CMD[@]}" scripts/gate/corpus_diff.py --gate
+face tree; item_q "corpus_diff.py --self-test (classifier cases + both halves of the accepts/baseline canary)" "${PY_CMD[@]}" scripts/gate/corpus_diff.py --self-test
 # homelab-llm.json is GENERATED: a hand-edit that diverges from the generator is silent otherwise.
 # `--check` only compares, it writes nothing — the write-half (adapt-vllm-dashboards.py --inplace) is
 # deliberately NOT gated: a suite that mutates the tree is worse than the drift it would catch.
-item_q "build-llm-dashboard.py --check (the generated dashboard may not drift from its generator)" "${PY_CMD[@]}" scripts/ansible/build-llm-dashboard.py --check
-item_q "check_spark_llm_gate.py (HD-469: spark LLM profile matrix + gate canaries)" "${PY_CMD[@]}" scripts/gate/check_spark_llm_gate.py
-item_q "knx-hass-gen.py --self-test (HD-439: emitted addresses must exist in the ETS project)" "${PY_CMD[@]}" scripts/ansible/knx-hass-gen.py --self-test
-item_q "laptop-llm.py gate --self-test (HD-474: laptop serving-leg gate must be PROVEN OFFLINE)" "${PY_CMD[@]}" scripts/bench/laptop-llm.py gate --self-test
-item_q "laptop-llm.py probe-client (HD-474: client contract may not drift ahead of the engine)" "${PY_CMD[@]}" scripts/bench/laptop-llm.py probe-client
-item_q "gate7-read.py --self-test (HD-489 gate-7 bucketing: mixed-pid artifact, bounded fill, leak)" "${PY_CMD[@]}" scripts/bench/spark/gate7-read.py --self-test
+face tree; item_q "build-llm-dashboard.py --check (the generated dashboard may not drift from its generator)" "${PY_CMD[@]}" scripts/ansible/build-llm-dashboard.py --check
+face tree; item_q "check_spark_llm_gate.py (HD-469: spark LLM profile matrix + gate canaries)" "${PY_CMD[@]}" scripts/gate/check_spark_llm_gate.py
+face tree; item_q "knx-hass-gen.py --self-test (HD-439: emitted addresses must exist in the ETS project)" "${PY_CMD[@]}" scripts/ansible/knx-hass-gen.py --self-test
+face tree; item_q "laptop-llm.py gate --self-test (HD-474: laptop serving-leg gate must be PROVEN OFFLINE)" "${PY_CMD[@]}" scripts/bench/laptop-llm.py gate --self-test
+face tree; item_q "laptop-llm.py probe-client (HD-474: client contract may not drift ahead of the engine)" "${PY_CMD[@]}" scripts/bench/laptop-llm.py probe-client
+face tree; item_q "gate7-read.py --self-test (HD-489 gate-7 bucketing: mixed-pid artifact, bounded fill, leak)" "${PY_CMD[@]}" scripts/bench/spark/gate7-read.py --self-test
 # The spark instruments' own verdicts. Each of these seven SHIPPED a --self-test and none of them
 # was registered, so the arms ran only when a human remembered them — the defect this registers.
 # The criterion for being here is HOST-FREE, not "has a test": a gate item runs on the seat whose
@@ -1826,47 +1858,47 @@ item_q "gate7-read.py --self-test (HD-489 gate-7 bucketing: mixed-pid artifact, 
 # from. The READER half is already gated above (check_bench_provenance.py and its --self-test, both
 # in the quick profile); what stays unproven is run-scenario.sh's row shape, and it stays unproven
 # honestly: no stub can stand in for a row a timed leg is the only thing that writes.
-item_q "accuracy-gate.sh --self-test (the un-flagged battery body is byte-identical to the pre-change one, --max-tokens reaches the wire and changes nothing else, a bad budget is refused before any request)" hl_wsl_route bash scripts/bench/spark/accuracy-gate.sh --self-test
-item_q "gate6-couple.sh --self-test (Rule 0 refused before anything is read, the pairing guard seen from both sides, no mutate verb on the transport)" hl_wsl_route bash scripts/bench/spark/gate6-couple.sh --self-test
-item_q "hd469-baseline.sh --self-test (the KV/capacity verdicts on hand-valued fixtures + every command the driver sends is a read)" hl_wsl_route bash scripts/bench/spark/hd469-baseline.sh --self-test
-item_q "usable-sampler.sh --self-test (the MemAvailable−CmaFree verdict on fixtures, the transport path, and no mutate verb)" hl_wsl_route bash scripts/bench/spark/usable-sampler.sh --self-test
-item_q "metrics-window.sh --self-test (the /metrics parser, the hit-rate arithmetic, append-not-truncate, and the sampler pid file — including the two-sampler case that must not delete a file it does not own)" hl_wsl_route bash scripts/bench/spark/metrics-window.sh --self-test
-item_q "needle-window.sh --self-test (the depth floor with teeth, a FAIL-DEPTH recorded as a result, the run's own commands on fixtures)" hl_wsl_route bash scripts/bench/spark/needle-window.sh --self-test
-item_q "text-only-preflight.sh --self-test (the HD-400 pre-flight verdicts on fixtures, with an ssh tripwire that must never have been fired)" hl_wsl_route bash scripts/bench/spark/text-only-preflight.sh --self-test
+face tree; item_q "accuracy-gate.sh --self-test (the un-flagged battery body is byte-identical to the pre-change one, --max-tokens reaches the wire and changes nothing else, a bad budget is refused before any request)" hl_wsl_route bash scripts/bench/spark/accuracy-gate.sh --self-test
+face tree; item_q "gate6-couple.sh --self-test (Rule 0 refused before anything is read, the pairing guard seen from both sides, no mutate verb on the transport)" hl_wsl_route bash scripts/bench/spark/gate6-couple.sh --self-test
+face tree; item_q "hd469-baseline.sh --self-test (the KV/capacity verdicts on hand-valued fixtures + every command the driver sends is a read)" hl_wsl_route bash scripts/bench/spark/hd469-baseline.sh --self-test
+face tree; item_q "usable-sampler.sh --self-test (the MemAvailable−CmaFree verdict on fixtures, the transport path, and no mutate verb)" hl_wsl_route bash scripts/bench/spark/usable-sampler.sh --self-test
+face tree; item_q "metrics-window.sh --self-test (the /metrics parser, the hit-rate arithmetic, append-not-truncate, and the sampler pid file — including the two-sampler case that must not delete a file it does not own)" hl_wsl_route bash scripts/bench/spark/metrics-window.sh --self-test
+face tree; item_q "needle-window.sh --self-test (the depth floor with teeth, a FAIL-DEPTH recorded as a result, the run's own commands on fixtures)" hl_wsl_route bash scripts/bench/spark/needle-window.sh --self-test
+face tree; item_q "text-only-preflight.sh --self-test (the HD-400 pre-flight verdicts on fixtures, with an ssh tripwire that must never have been fired)" hl_wsl_route bash scripts/bench/spark/text-only-preflight.sh --self-test
 # Not the query itself — a read tool must never fail a commit — but its offline fixture is a real
 # verdict, and it is the witness for the venv-guard predicate render-pi-config.py copies verbatim.
-item_q "testdata/rsync-max-delete/run.sh --self-test (--max-delete is a CAP: exactly N/2 deleted + rc 25, asserted as numbers; every weakening reddens a canary)" hl_wsl_route bash scripts/testdata/rsync-max-delete/run.sh --self-test
-item_q "testdata/rsync-max-delete/run.sh (the shape-parity arm + the two real rsync fires over N=100 files)" blk_rsync_max_delete
+face tree; item_q "testdata/rsync-max-delete/run.sh --self-test (--max-delete is a CAP: exactly N/2 deleted + rc 25, asserted as numbers; every weakening reddens a canary)" hl_wsl_route bash scripts/testdata/rsync-max-delete/run.sh --self-test
+face tree; item_q "testdata/rsync-max-delete/run.sh (the shape-parity arm + the two real rsync fires over N=100 files)" blk_rsync_max_delete
 # The declaring fixture leg — a FIXTURE, and it exists to be the leg-contract checker's subject: it is
 # wrapped, it declares rsync, and rsync is ABSENT on both engines of this laptop, so the rc-2 CANNOT RUN
 # path runs in the tree instead of in a checker's temp directory. Its rc 2 is the ANSWER the leg exists to
 # print, so the block maps it to a NOTE and never to a finding (same shape as the rsync fires above).
-item_q "testdata/leg-contract/run.sh --self-test (the declaration mirror: an undeclared rsync call, a declaration with no call behind it, and an unreadable leg each redden a canary)" bash scripts/testdata/leg-contract/run.sh --self-test
-item_q "testdata/leg-contract/run.sh (FIXTURE leg for check-leg-contract.sh: the one wrapped leg that declares its engine tool — rsync — so an engine listing it ABSENT must stop the leg with CANNOT RUN before it judges anything)" blk_leg_contract_declares
-item_q "ansible_query.py --self-test (HD-456 fixtures + the venv re-exec guard both seat planes depend on)" "${PY_CMD[@]}" scripts/ansible/ansible_query.py --self-test
+face tree; item_q "testdata/leg-contract/run.sh --self-test (the declaration mirror: an undeclared rsync call, a declaration with no call behind it, and an unreadable leg each redden a canary)" bash scripts/testdata/leg-contract/run.sh --self-test
+face tree; item_q "testdata/leg-contract/run.sh (FIXTURE leg for check-leg-contract.sh: the one wrapped leg that declares its engine tool — rsync — so an engine listing it ABSENT must stop the leg with CANNOT RUN before it judges anything)" blk_leg_contract_declares
+face tree; item_q "ansible_query.py --self-test (HD-456 fixtures + the venv re-exec guard both seat planes depend on)" "${PY_CMD[@]}" scripts/ansible/ansible_query.py --self-test
 # HD-1199: the doc corpus had no size bound at all — this is the ratchet, cheap enough for the quick
 # profile because it reads 75 docs' line counts and nothing else.
-item_reminder "check_doc_size.py (REMINDER, non-blocking: the hand-authored docs/**/*.md against a DERIVED soft ceiling — a long doc of facts is a placement question (§8.1), never a red; the per-file seal this used to be measured against is retired, CONVENTIONS §6.4)" "${PY_CMD[@]}" scripts/gate/check_doc_size.py
-item_reminder "check_doc_size.py --self-test (the reminder half proved live so this is never a silent cap, the ceiling proved derived rather than sealed, a render view invisible to the walk, the retired baseline proved absent, and a broken root refusing to print a corpus line)" "${PY_CMD[@]}" scripts/gate/check_doc_size.py --self-test
+face tree; item_reminder "check_doc_size.py (REMINDER, non-blocking: the hand-authored docs/**/*.md against a DERIVED soft ceiling — a long doc of facts is a placement question (§8.1), never a red; the per-file seal this used to be measured against is retired, CONVENTIONS §6.4)" "${PY_CMD[@]}" scripts/gate/check_doc_size.py
+face tree; item_reminder "check_doc_size.py --self-test (the reminder half proved live so this is never a silent cap, the ceiling proved derived rather than sealed, a render view invisible to the walk, the retired baseline proved absent, and a broken root refusing to print a corpus line)" "${PY_CMD[@]}" scripts/gate/check_doc_size.py --self-test
 # HD-1200: the other direction of the docs seam — a role directory with no doc is invisible to every
 # docs→tree gate. Two reads and a substring scan, so it belongs in quick too.
-item_q "check_docs_pure.py (CONVENTIONS §6/§6.4: a doc may cite an HD/KOPS id only while its todo.md row lives — a dangling id reddens and the row's closing change must sweep it; changelog-shaped prose is printed as a reminder and never reddens)" "${PY_CMD[@]}" scripts/gate/check_docs_pure.py
-item_q "check_docs_pure.py --self-test (both severities bred: a dangling id reddens, an open row's id passes, a code-font HD-shaped value and an in-row recap stay silent, a live-verified date is state, a dated event sentence warns without reddening, fences and render views are invisible, a missing todo.md and a walk below the corpus floor both refuse at rc 2)" "${PY_CMD[@]}" scripts/gate/check_docs_pure.py --self-test
-item_q "check_role_docs.py (HD-1200: every dir under IaC/ansible/roles/ is named by a hand-authored docs/*.md — the role set is derived from the tree, never listed, and naming is decided by shape rather than by the string)" "${PY_CMD[@]}" scripts/gate/check_role_docs.py
-item_q "check_role_docs.py --self-test (a role bred and deleted in a temp tree to prove the set is derived, a prose-only role reddening with its sites printed while one code-font mention clears it, a render view unable to document a role, and an empty corpus / missing role tree / doc-less tree all refusing to print OK)" "${PY_CMD[@]}" scripts/gate/check_role_docs.py --self-test
+face tree; item_q "check_docs_pure.py (CONVENTIONS §6/§6.4: a doc may cite an HD/KOPS id only while its todo.md row lives — a dangling id reddens and the row's closing change must sweep it; changelog-shaped prose is printed as a reminder and never reddens)" "${PY_CMD[@]}" scripts/gate/check_docs_pure.py
+face tree; item_q "check_docs_pure.py --self-test (both severities bred: a dangling id reddens, an open row's id passes, a code-font HD-shaped value and an in-row recap stay silent, a live-verified date is state, a dated event sentence warns without reddening, fences and render views are invisible, a missing todo.md and a walk below the corpus floor both refuse at rc 2)" "${PY_CMD[@]}" scripts/gate/check_docs_pure.py --self-test
+face tree; item_q "check_role_docs.py (HD-1200: every dir under IaC/ansible/roles/ is named by a hand-authored docs/*.md — the role set is derived from the tree, never listed, and naming is decided by shape rather than by the string)" "${PY_CMD[@]}" scripts/gate/check_role_docs.py
+face tree; item_q "check_role_docs.py --self-test (a role bred and deleted in a temp tree to prove the set is derived, a prose-only role reddening with its sites printed while one code-font mention clears it, a render view unable to document a role, and an empty corpus / missing role tree / doc-less tree all refusing to print OK)" "${PY_CMD[@]}" scripts/gate/check_role_docs.py --self-test
 
 # CONVENTIONS §8.6's `sensitivity:` class had nothing reading it: the shape scanners prove no credential TEXT
 # ships, which is not the same fact as what a document is ABOUT — and §8.6's egress rule needs that fact before
 # a run decides where its read list may go. The class is declared in frontmatter, so the gate is a frontmatter
 # reader plus the owner's floor map, and the payload rule is the one place the family plane can hurt.
-item_q "check_doc_sensitivity.py (every hand-authored doc declares one sensitivity class at or above its floor, and the personal docs carry no contact payload — the distribution is derived, never listed)" "${PY_CMD[@]}" scripts/gate/check_doc_sensitivity.py
-item_q "check_doc_sensitivity.py --self-test (each rule seen RED on a mutation and the legal tree GREEN: a missing or mis-spelled class, a downgrade below the floor, one canary per payload shape, and the near-misses — a family-subdomain address, a key fingerprint, a grouped byte count — seen quiet)" "${PY_CMD[@]}" scripts/gate/check_doc_sensitivity.py --self-test
+face tree; item_q "check_doc_sensitivity.py (every hand-authored doc declares one sensitivity class at or above its floor, and the personal docs carry no contact payload — the distribution is derived, never listed)" "${PY_CMD[@]}" scripts/gate/check_doc_sensitivity.py
+face tree; item_q "check_doc_sensitivity.py --self-test (each rule seen RED on a mutation and the legal tree GREEN: a missing or mis-spelled class, a downgrade below the floor, one canary per payload shape, and the near-misses — a family-subdomain address, a key fingerprint, a grouped byte count — seen quiet)" "${PY_CMD[@]}" scripts/gate/check_doc_sensitivity.py --self-test
 
 # §8.3 made an open question a SECTION so the inventory could be listed; nothing read the shape, so "the table
 # is shaped to the grammar" stayed a row's word. This gate is also the only reader of the OQ id space: it prints
 # max + the sorted list so the next id is derived at the moment of minting instead of typed from memory.
-item_q "check_open_questions.py (every Options section is shaped, keyed by its OQ id, and verdict-free; the id space is derived and printed with the inventory command it mirrors)" "${PY_CMD[@]}" scripts/gate/check_open_questions.py
-item_q "check_open_questions.py --self-test (each rule seen RED on a shaped section and quiet on its legal twin: no table, a near-miss header, one row, an empty cheap test, a shifted row, no id, each verdict wording, a typed id above max+1, and both corpus floors at their boundary)" "${PY_CMD[@]}" scripts/gate/check_open_questions.py --self-test
+face tree; item_q "check_open_questions.py (every Options section is shaped, keyed by its OQ id, and verdict-free; the id space is derived and printed with the inventory command it mirrors)" "${PY_CMD[@]}" scripts/gate/check_open_questions.py
+face tree; item_q "check_open_questions.py --self-test (each rule seen RED on a shaped section and quiet on its legal twin: no table, a near-miss header, one row, an empty cheap test, a shifted row, no id, each verdict wording, a typed id above max+1, and both corpus floors at their boundary)" "${PY_CMD[@]}" scripts/gate/check_open_questions.py --self-test
 
 # The state-only rule for the work-tracking surfaces had no checker — the earlier sweep trimmed
 # the retrospective prose, and without a gate the next session refills the space. The narrative rules are
@@ -1874,8 +1906,8 @@ item_q "check_open_questions.py --self-test (each rule seen RED on a shaped sect
 # REMINDER and nothing else — the same place `check_doc_size.py` landed (§6.4): a row or brief that grew
 # with owed work may grow, and only the changelog half decides. Cheap (two file reads), so it belongs
 # in quick too.
-item_q "check_backlog_prose.py (todo.md rows and the prompt-*.md briefs stay state-only — narrative finding counts are sealed and their growth reddens, while row bytes and brief lines only print a REMINDER, because size is the proxy and the changelog is the rule; the grammar targets the verb, not the date, because ISO decision dates stay legal in the queue)" "${PY_CMD[@]}" scripts/gate/check_backlog_prose.py
-item_q "check_backlog_prose.py --self-test (all four narrative rules catch their canary while a state date stays legal and are the only thing that reddens, the size half prints WHICH state it is from both surfaces and never reddens, a deleted row and a dead brief are NOTEs and never findings — closing a row must never redden the gate — and a missing/malformed baseline and an empty corpus refuse to print OK)" "${PY_CMD[@]}" scripts/gate/check_backlog_prose.py --self-test
+face tree; item_q "check_backlog_prose.py (todo.md rows and the prompt-*.md briefs stay state-only — narrative finding counts are sealed and their growth reddens, while row bytes and brief lines only print a REMINDER, because size is the proxy and the changelog is the rule; the grammar targets the verb, not the date, because ISO decision dates stay legal in the queue)" "${PY_CMD[@]}" scripts/gate/check_backlog_prose.py
+face tree; item_q "check_backlog_prose.py --self-test (all four narrative rules catch their canary while a state date stays legal and are the only thing that reddens, the size half prints WHICH state it is from both surfaces and never reddens, a deleted row and a dead brief are NOTEs and never findings — closing a row must never redden the gate — and a missing/malformed baseline and an empty corpus refuse to print OK)" "${PY_CMD[@]}" scripts/gate/check_backlog_prose.py --self-test
 
 # The rsync `--max-delete` fixture. rc 2 is a BOUNDARY, printed and never counted green: the two
 # deletion arms need an rsync binary, which the WSL Debian seat does not carry, while the shape-parity

@@ -423,6 +423,10 @@ check_tree() {
   _read_all _va "$ROOT/scripts/validate-all.sh"
   _b_leg=(); _b_seat=(); _b_trip=(); _b_nv=(); _b_argv=()
   while IFS= read -r _line; do
+    # A registration may state its FACE before the item call (`face seat; item_x "…" …`). That word is a
+    # decision AT the registration line, not a second registry, so the reader strips it and weighs the
+    # registration underneath; `face` is what the face half below grades.
+    case "$_line" in 'face '*) _line="${_line#*; }" ;; esac
     case "$_line" in item*) : ;; *) continue ;; esac
     _wline="$_line" _fn=""
     case "$_line" in

@@ -30,6 +30,22 @@
 # the WRONG SEAT and prints a verdict, not an error — the class this repo keeps meeting. Speed alone
 # never earns a wrap: one trip across the door costs ~0.3 s.
 #
+# THE FACE AXIS, stated here because this is where the conjunction is stated — the same question read
+# off the leg's SUBJECT instead of its launcher. `tree` = the subject is this checkout, or a sandbox the
+# leg builds, so a commit-stamped snapshot of the tree can grade the leg; `seat` = the subject is this
+# host's state (`~/.pi`, the vault, ssh, another box), which no snapshot of a checkout can see; `joined`
+# = the subject spans both — repo content compared against deployed state — so the leg runs NATIVE,
+# because a snapshot would grade a tree that no seat is out of step with and prove neither side. The face
+# is written at the registration line (`face tree|seat|joined;` before the `item…` call) beside the
+# profile decision, so the gate keeps ONE item list and ONE registry — there is no
+# `validate-all-win11.sh` and no second list to forget. `scripts/gate/check-leg-contract.sh` DERIVES each
+# face from the facts above (the seat classifiers, the vault/ssh/network trips, the `$HOME`-shaped paths,
+# and what the leg reads through `git` or `$REPO`) and reddens a registration whose word contradicts the
+# derivation, so the word on the line is a claim being graded and not a label. No launcher changes here:
+# a wrapped leg still crosses when the door is up and a native leg still runs at home — the face says
+# where a leg's SUBJECT lives, which is what a snapshot driver selects on and what keeps a seat-facing leg
+# out of a snapshot altogether.
+#
 # The fourth half of that conjunction is the one a leg can say OUT LOUD, and `hl_wsl_needs <tool>…` is
 # where it says it: the leg names what it shells out to and the inventory the probe already asked for
 # answers. A name the engine lists as ABSENT stops the leg with `CANNOT RUN` (rc 2) BEFORE it judges,
