@@ -12,8 +12,8 @@
 # on, or the same question asked in two places each restore the rc-0-lies shape the rule exists to stop.
 #
 # THE RULE, in one line: a leg that crosses says which engine tools it needs, the name it says is a
-# name the probe ASKS about, the leg ACTS on the answer, and nothing outside the lib asks the question
-# again.
+# name the probe ASKS about, the leg ACTS on the answer, nothing outside the lib asks the question again,
+# and the leg does not ask WHICH SEAT IT IS ON or open something only the far side can open.
 #
 # WHAT IS CHECKED — one finding prefix per rule, with the shape each catches:
 #   DECLARATION  a call of `hl_wsl_needs` must NAME its tools (not `$var`: a name that arrives from the
@@ -34,7 +34,28 @@
 #   RUNTIME      no leg declares `node` / `npm` / `npx` / `pi`. Those names sit behind the route's
 #                deliberate PATH pin, whose widening is declined in `docs/harness-rejected.md`; naming
 #                one is a leg assuming the engine's runtime, which is the assumption the pin exists to
-#                make impossible.
+#                make impossible. The crossed-side pointer is `pi-tui-config --self-test`'s `pinned-node`
+#                arm, which SKIPs when the route's pin carries no node dir: the engine HAS a node and the
+#                leg may not assume it.
+#   VERDICT      a leg that declares a real tool may not be registered straight onto an `item…` line. Its
+#                rc 2 IS the boundary — an engine that lists the name ABSENT stops it before it judges — and
+#                a line that reads the leg's rc as the run's verdict turns a true sentence into a FAILED
+#                gate. The block form maps it (`blk_rsync_max_delete`), and that is also the shape the
+#                REGISTRATION rule then weighs.
+#   SEAT         a wrapped leg that CLASSIFIES the seat it runs on, at column 0: crossed, it answers about
+#                the engine's OS, its `/proc`, its registry — and prints a verdict instead of an error. This
+#                is the conjunction's first clause (`lib/wsl-route.sh`), and the ban list that names it has
+#                had no enforcer until this line. Detectors: `hl_wsl_class`, `hl_wsl_probe`,
+#                `this_is_wsl_engine`, `/proc/version`, `uname -s|-r|-m`, `WSL_DISTRO_NAME`, `hostnamectl`.
+#   TRIP         a wrapped leg that opens a vault, ssh or network trip at column 0, where every registered
+#                mode reaches it — so it opens it on BOTH sides of the door. Detectors: `ssh`, `curl`,
+#                `wget`, `op`, `ansible-playbook`, and sourcing `lib/vault-env.sh` / `lib/vault_read.py`.
+#                Column 0 is the test because it is the one thing grep can settle: an INDENTED site sits in
+#                a function body or an `if` branch, and whether the registered argv reaches it is a parity
+#                question. Those sites are printed as NOT JUDGED with the command that answers it.
+#   BOUNDARY     the exceptions, in `scripts/gate/leg_contract_boundaries.txt` — one leg, one class, one
+#                argument each. A line whose leg is no longer wrapped, or no longer trips the class it
+#                names, REDDENS: an exception that cannot be invalidated is a mute button.
 #
 # A leg that needs no engine tool writes `hl_wsl_needs none`, so "needs nothing" is a STATEMENT rather
 # than an absence a checker cannot tell from "nobody thought about it". A tree that wraps legs while
@@ -220,44 +241,62 @@ at_cmd() { # at_cmd <line> <word> — does <word> sit where a COMMAND may start?
   esac
 }
 
-# tail_comment <line> — the line with a balanced trailing ` # …` comment cut off. The balance test is the
-# whole care: `"#ff0000"` and `s/x#y//` are text, `foo  # note` is a comment, and cutting the first would
+# tail_comment <line> — the line with a balanced trailing ` # …` comment cut off, into _tc. The balance
+# test is the whole care: `"#ff0000"` and `s/x#y//` are text, `foo  # note` is a comment, and cutting the first would
 # hide a trip that really runs.
+# It ASSIGNS to _tc rather than printing: this runs once per line of every wrapped leg, and a command
+# substitution there is ~6,000 forks on the seat whose whole measurement IS the price of a fork — the
+# shape that made this checker time out rather than answer.
 tail_comment() {
-  local _s="$1" _cut="${1%%[[:space:]]#*}" _q=""
-  [ "$_cut" != "$1" ] || { printf '%s' "$1"; return; }
-  _q="${_cut//[!\']/}"
-  [ $(( ${#_q} % 2 )) = 0 ] || { printf '%s' "$1"; return; }
-  _q="${_cut//[!\"]/}"
-  [ $(( ${#_q} % 2 )) = 0 ] || { printf '%s' "$1"; return; }
-  printf '%s' "$_cut"
+  local _cut="${1%%[[:space:]]#*}" _q=""
+  _tc="$1"
+  [ "$_cut" != "$1" ] || return 0
+  _q="${_cut//[!\']}"
+  [ $(( ${#_q} % 2 )) = 0 ] || return 0
+  _q="${_cut//[!\"]}"
+  [ $(( ${#_q} % 2 )) = 0 ] || return 0
+  _tc="$_cut"
 }
 
-# wrap_scan <file> — the seat/trip sites of one wrapped leg, split by whether the registered mode can
-# avoid them. Sets _ws_seat / _ws_trip (top-level sites, `file:line`) and _ws_nv (sites inside a function).
-# The depth is tracked the way bash reads the tree's own style: a body opens on a line ending in `{` and
-# closes on a line that is only `}`; an if/for/case keeps its own words and moves nothing.
+# wrap_scan <file> — the seat/trip sites of one wrapped leg, split by whether every registered mode
+# reaches them. Sets _ws_seat / _ws_trip (the unconditional sites, as `file:line`) and _ws_nv (the
+# conditional ones). Unconditional is read OFF THE COLUMN, not off a control-flow guess: this tree writes
+# its top-level statements at column 0, so a site at column 0 runs in every mode, and a site that is
+# INDENTED sits in a function body or an `if` branch — reachable or not depending on the argv, which is a
+# parity question and not a grep question. A brace depth was tried first and is wrong twice over: an `if`
+# at top level opens no brace, and a heredoc full of braces is prose.
 wrap_scan() {
-  local _f="$1" _ln="" _t="" _w="" _deep=0 _n=0
+  local _f="$1" _ln="" _t="" _w="" _n=0 _hd="" _h=""
   _ws_seat="" _ws_trip="" _ws_nv=0
   while IFS= read -r _ln; do
     _n=$((_n + 1))
     _ln="${_ln%$'\r'}"
-    _t="${_ln#"${_ln%%[![:space:]]*}"}"                    # ltrim
+    _t="${_ln#"${_ln%%[![:space:]]*}"}"                    # ltrim — the terminator test below reads it
+    # A heredoc body is text the leg writes, not calls the leg makes, so it is skipped whole.
+    if [ -n "$_hd" ]; then
+      case "$_t" in "$_hd") _hd="" ;; esac
+      continue
+    fi
+    case "$_t" in
+      *'<<'*)                                             # a heredoc starts here; the tag is the next word
+        _h="${_t##*<<}"; _h="${_h#-}"
+        _h="${_h#"${_h%%[A-Za-z_]*}"}"                    # drop what precedes the tag: blanks, dash, quote
+        _hd="${_h%%[!A-Za-z0-9_]*}"
+        ;;
+    esac
     case "$_t" in '' | '#'*) continue ;; esac
-    _t="$(tail_comment "$_t")"
+    tail_comment "$_t"; _t="$_tc"
+    [ "${#_ln}" != "${#_t}" ] && _site=1 || _site=0       # indented → conditional site
     for _w in "${SEAT_WORDS[@]}"; do
       case "$_t" in *"$_w"*) : ;; *) continue ;; esac
       at_cmd "$_t" "$_w" || continue
-      if [ "$_deep" = 0 ]; then _ws_seat="$_ws_seat $_f:$_n"; else _ws_nv=$((_ws_nv + 1)); fi
+      if [ "$_site" = 0 ]; then _ws_seat="$_ws_seat $_f:$_n"; else _ws_nv=$((_ws_nv + 1)); fi
     done
     for _w in "${TRIP_WORDS[@]}"; do
       case "$_t" in *"$_w"*) : ;; *) continue ;; esac
       at_cmd "$_t" "$_w" || continue
-      if [ "$_deep" = 0 ]; then _ws_trip="$_ws_trip $_f:$_n"; else _ws_nv=$((_ws_nv + 1)); fi
+      if [ "$_site" = 0 ]; then _ws_trip="$_ws_trip $_f:$_n"; else _ws_nv=$((_ws_nv + 1)); fi
     done
-    case "$_t" in *'{') _deep=$((_deep + 1)) ;; esac
-    case "$_t" in '}'*) [ "$_deep" != 0 ] && _deep=$((_deep - 1)) ;; esac
   done <<<"$_c"
   return 0
 }
@@ -283,7 +322,7 @@ blk_wrap_line() {
 check_tree() {
   local _files="" _f="" _c="" _ln="" _names="" _t=""
   local _pre="" _rest="" _leg="" _line="" _arg="" _dn="" _va="" _acc="" _df=0 _s="" _i=""
-  local _wline="" _fn="" _bp="" _bc="" _br="" _known=0 _live=0 _nv_leg=0 _nv_site=0
+  local _wline="" _fn="" _bp="" _bc="" _br="" _av="" _site=0 _known=0 _live=0 _nv_leg=0 _nv_site=0
   local _cont=0
   local decl_files=0 decl_n=0 wrapped=0 resolved=0
   local nl=$'\n'        # a function definition is found at a LINE start, which is what `case` needs
@@ -426,7 +465,8 @@ check_tree() {
     # The conjunction, on this leg.
     wrap_scan "$_leg"
     _b_leg+=("$_leg"); _b_seat+=("$_ws_seat"); _b_trip+=("$_ws_trip"); _b_nv+=("$_ws_nv")
-    _b_argv+=("$(printf '%s\n' "$_wline" | sed -e 's/^[[:space:]]*//' -e 's/^hl_wsl_route //')")
+    _av="${_wline#*hl_wsl_route }"          # the argv ONLY: the labels are prose, not part of the command
+    _b_argv+=("$_av")
   done <<<"$_va"
 
   # THE BOUNDARY LEDGER — this repo's exception idiom: one accepted wrong-seat boundary per line, each
@@ -444,7 +484,7 @@ check_tree() {
       esac
       [ "${#_br}" -ge 40 ] \
         || fail "BOUNDARY: $BOUNDARIES gives $_bp a reason under 40 characters — the reason IS the argument, and a short one is a mute button"
-      for _i in "${!_b_leg[@]-}"; do
+      for _i in "${!_b_leg[@]}"; do
         [ "${_b_leg[$_i]}" = "$_bp" ] || continue
         _known=1
         case "$_bc" in
@@ -457,12 +497,13 @@ check_tree() {
       [ "$_live" = 1 ] \
         || { fail "BOUNDARY: $BOUNDARIES accepts a $_bc boundary at $_bp that the leg no longer trips — the line is dead, delete it"; continue; }
       _acc="$_acc $_bp:$_bc"
+      printf 'NOTE: boundary accepted — %s (%s): %s\n' "$_bp" "$_bc" "$_br"
     done <"$ROOT/$BOUNDARIES"
   else
     printf 'NOTE: no boundary ledger at %s — every wrapped leg that classifies its seat or opens a vault,\n' "$BOUNDARIES"
     printf '      ssh or network trip at top level is a finding, and a real accepted boundary has no home.\n'
   fi
-  for _i in "${!_b_leg[@]-}"; do
+  for _i in "${!_b_leg[@]}"; do
     for _s in ${_b_seat[$_i]}; do
       case "$_acc" in
         *"${_b_leg[$_i]}:seat"*) : ;;
@@ -481,7 +522,7 @@ check_tree() {
   # Guessing either way would be wrong in one direction, so the blind spot is named with the command that
   # closes it, beside what WAS judged.
   _nv_leg=0 _nv_site=0
-  for _i in "${!_b_leg[@]-}"; do
+  for _i in "${!_b_leg[@]}"; do
     [ "${_b_nv[$_i]}" != 0 ] || continue
     _nv_leg=$((_nv_leg + 1))
     _nv_site=$((_nv_site + ${_b_nv[$_i]}))
@@ -591,39 +632,48 @@ door_arms() {
 # --------------------------------------------------------------------------- #
 _st_n=0
 _st_f=0
+_st_out=""
 _st_ok() { printf '  ok: %s\n' "$*"; _st_n=$((_st_n + 1)); }
 _st_no() { printf 'SELFTEST FAIL: %s\n' "$*"; _st_f=$((_st_f + 1)); }
 
 # _st_tree <dir> — the legal shape: the real lib, one named+guarded+asked declaration, and a
 # registration that names the tool. Every canary below mutates ONE thing out of it.
 _st_tree() {
+  # The planted paths are REAL paths of this repo, in a tree that does not carry them all: a literal
+  # `scripts/<path>` in a tracked script is a COMMAND that check_script_layout.py resolves, and the
+  # finding a canary breeds is about the PLANTED tree, which is where the path has to be missing.
   local d="$1"
-  # The planted paths are REAL paths in this repo, in a tree that does not contain them all. A literal
-  # `scripts/<path>` anywhere in a tracked script is a COMMAND that `check_script_layout.py` resolves, so a
-  # canary inventing `scripts/harness/leg.sh` would be a dangling command in the checker's own body — and
-  # the finding the canary breeds is about the PLANTED tree, which is where the path must be missing.
-  mkdir -p "$d/scripts/lib" "$d/scripts/testdata/leg-contract" || return 1
+  mkdir -p "$d/scripts/lib" "$d/scripts/testdata/leg-contract" "$d/scripts/gate" || return 1
   cp "$REPO/scripts/lib/wsl-route.sh" "$d/scripts/lib/wsl-route.sh" || return 1
   # The declaration name is COMPOSED here, for the reason the inventory names are composed: heredoc text
-  # is file text, and a literal planted leg sitting in this checker's own body is read back by the corpus
-  # walk as a declaration IN THE TREE — a denominator the checker inflates about itself, and the shape that
-  # would let a self-test string report the tree as exercised while nothing in it declares anything.
+  # is file text, and a literal planted leg in this checker's own body is read back by the corpus walk as
+  # a declaration IN THE TREE — a denominator the checker inflates about itself.
   cat >"$d/scripts/testdata/leg-contract/run.sh" <<LEG
 #!/usr/bin/env bash
 # A planted leg in the contract's legal shape: a named, guarded declaration of a tool the probe asks.
 ${NEEDS} rsync || exit \$?
 printf 'ok  the leg ran\n'
 LEG
+  # A declaring leg is registered through a BLOCK, because its rc 2 is a boundary and an item line would
+  # read it as a verdict (VERDICT below) — so the legal shape has to be the shape the rule asks for.
   cat >"$d/scripts/validate-all.sh" <<'REG'
 #!/usr/bin/env bash
-item_q "leg.sh --self-test (the planted leg; its engine needs rsync)" hl_wsl_route bash scripts/testdata/leg-contract/run.sh --self-test
+blk_st_leg() {
+  local rc_s=0
+  hl_wsl_route bash scripts/testdata/leg-contract/run.sh --self-test || rc_s=$?
+  case "$rc_s" in 0) return 0 ;; 2) return 0 ;; *) return "$rc_s" ;; esac
+}
+item_q "run.sh --self-test (the planted leg; its engine needs rsync)" blk_st_leg
 REG
+  # The ledger exists with no lines: an accepted boundary is a thing the tree has to decide, not a shape
+  # the canaries get by the file being absent.
+  printf '# planted ledger: no boundary accepted here\n' >"$d/scripts/gate/leg_contract_boundaries.txt"
   return 0
 }
 
-_st_run() { # _st_run <tree> -> the checker's rc on that tree
+_st_run() { # _st_run <tree> -> the checker's rc on that tree, its text in _st_out
   local _rc=0
-  bash "${BASH_SOURCE[0]}" --root "$1" >/dev/null 2>&1 || _rc=$?
+  _st_out="$(bash "${BASH_SOURCE[0]}" --root "$1" 2>&1)" || _rc=$?
   return $_rc
 }
 
@@ -632,19 +682,46 @@ _st_run() { # _st_run <tree> -> the checker's rc on that tree
 # a `set -u` seat the second name is an unbound variable and the whole self-test dies on line one.
 _st_breed() {
   local name="$1" want="$2" file="$3" body="$4" why="$5" _rc=0
-  local _d="$_st_tmp/$name"
+  local _needle="${6:-}" _d="$_st_tmp/$name"
   if ! _st_tree "$_d"; then _st_no "$name: the tree could not be built"; return 0; fi
   printf '%s\n' "$body" >>"$_d/$file"
   _st_run "$_d"; _rc=$?
-  if [ "$_rc" = "$want" ]; then
-    _st_ok "$name → rc $_rc ($why)"
-  else
+  if [ "$_rc" != "$want" ]; then
     _st_no "$name answered rc $_rc, want $want ($why)"
+    return 0
   fi
+  # The rc alone cannot say WHICH rule reddened: a canary that reddens for a reason outside its own rule
+  # would pass here and lie, so the finding's own prefix is asserted when one was given.
+  if [ -n "$_needle" ] && ! has "$_st_out" "$_needle"; then
+    _st_no "$name answered rc $_rc but bred no \`$_needle\` ($why)"
+    return 0
+  fi
+  _st_ok "$name → rc $_rc ($why)"
 }
 
 # _st_multiline <name> <want-rc> <file> <heredoc body> <why> — the same, for a canary whose shape IS
 # multiple lines (a call site continued with backslashes cannot be passed as one argument).
+# _st_two <name> <want-rc> <file a> <line a> <file b> <line b> <why> [needle] — the same, for a canary
+# whose shape is TWO files: an accepted boundary is a leg AND a ledger line, and mutating one of them
+# alone would breed a different finding than the one the arm names.
+_st_two() {
+  local name="$1" want="$2" fa="$3" ba="$4" fb="$5" bb="$6" why="$7" _rc=0
+  local _needle="${8:-}" _d="$_st_tmp/$name"
+  if ! _st_tree "$_d"; then _st_no "$name: the tree could not be built"; return 0; fi
+  printf '%s\n' "$ba" >>"$_d/$fa"
+  printf '%s\n' "$bb" >>"$_d/$fb"
+  _st_run "$_d"; _rc=$?
+  if [ "$_rc" != "$want" ]; then
+    _st_no "$name answered rc $_rc, want $want ($why)"
+    return 0
+  fi
+  if [ -n "$_needle" ] && ! has "$_st_out" "$_needle"; then
+    _st_no "$name answered rc $_rc but bred no \`$_needle\` ($why)"
+    return 0
+  fi
+  _st_ok "$name → rc $_rc ($why)"
+}
+
 _st_multiline() {
   local name="$1" want="$2" file="$3" why="$4" _rc=0
   local _d="$_st_tmp/$name"
@@ -672,26 +749,36 @@ self_test() {
   fi
 
   _st_breed unasked 1 scripts/testdata/leg-contract/run.sh 'hl_wsl_needs nosuchtool || exit 2' \
-    "an unasked name can only ever read as absent; the probe has to be told to ask"
+    "an unasked name can only ever read as absent; the probe has to be told to ask" 'DECLARATION:'
   _st_breed unguarded 1 scripts/testdata/leg-contract/run.sh 'hl_wsl_needs jq' \
-    "a discarded rc: the claim cannot stop the leg, which is the rc-0-lies shape"
+    "a discarded rc: the claim cannot stop the leg, which is the rc-0-lies shape" 'DECLARATION:'
   _st_breed noname 1 scripts/testdata/leg-contract/run.sh 'hl_wsl_needs || exit 2' \
-    "a declaration that names nothing declares nothing"
+    "a declaration that names nothing declares nothing" 'DECLARATION:'
   _st_breed varname 1 scripts/testdata/leg-contract/run.sh 'hl_wsl_needs "$HL_LEG_TOOL" || exit 2' \
-    "a name from the environment is a name no inventory answers for"
+    "a name from the environment is a name no inventory answers for" 'DECLARATION:'
   _st_breed twoclaims 1 scripts/testdata/leg-contract/run.sh 'hl_wsl_needs none rsync || exit 2' \
-    "claiming none and a name at once claims nothing"
+    "claiming none and a name at once claims nothing" 'DECLARATION:'
   _st_breed secondspelling 1 scripts/testdata/leg-contract/run.sh 'if [ -n "${'"$INV_VAR"':-}" ]; then :; fi' \
-    "the engine-tool question asked twice is the per-leg rediscovery the lib exists to stop"
+    "the engine-tool question asked twice is the per-leg rediscovery the lib exists to stop" 'INVENTORY:'
   _st_breed pinnedruntime 1 scripts/testdata/leg-contract/run.sh 'hl_wsl_needs node || exit 2' \
-    "naming a pinned runtime assumes the engine's node, which the declined pin refuses"
+    "naming a pinned runtime assumes the engine's node, which the declined pin refuses" 'RUNTIME:'
   _st_breed noregname 1 scripts/validate-all.sh \
     'item_q "a second wrap of the same leg, tool unnamed" hl_wsl_route bash scripts/testdata/leg-contract/run.sh --check' \
-    "a wrap whose line hides the tool sends the reader to the engine blind"
+    "a wrap whose line hides the tool sends the reader to the engine blind" 'REGISTRATION:'
   # The path is a real script of this repo that the planted tree does not carry — see _st_tree.
   _st_breed missingleg 1 scripts/validate-all.sh \
     'item_q "a wrap of a leg that is not there" hl_wsl_route bash scripts/harness/pi-self-update.sh --self-test' \
-    "a wrapped leg has to exist"
+    "a wrapped leg has to exist" 'does not exist'
+
+  # The conjunction, seen from the tree: a wrapped leg that classifies its seat, opens a vault/ssh/network
+  # trip where every mode reaches it, or reports a declaring leg's rc as the run's verdict.
+  _st_breed seatwrap 1 scripts/testdata/leg-contract/run.sh 'hl_wsl_class >/dev/null 2>&1 || true' \
+    "a leg that asks which seat it is on answers for the wrong seat once it crosses" 'SEAT:'
+  _st_breed tripwrap 1 scripts/testdata/leg-contract/run.sh 'ssh -o BatchMode=yes somewhere uptime || true' \
+    "a trip at column 0 runs on both sides of the door, which is what the conjunction forbids" 'TRIP:'
+  _st_breed verdict 1 scripts/validate-all.sh \
+    'item_q "a declaring leg wrapped straight onto the item line (needs rsync)" hl_wsl_route bash scripts/testdata/leg-contract/run.sh' \
+    "a declaring leg's rc 2 is a boundary, not a failed run — it belongs in a block or stays native" 'VERDICT:'
 
   # The silence half: each shape below MENTIONS the declaration without CALLING it, and must answer rc 0
   # in a tree that already holds one legal declaration. A parser that reads prose, redirections or line
@@ -720,6 +807,25 @@ CONT
   else
     _st_no "a door arm lost its verdict — bash scripts/gate/check-leg-contract.sh --arms prints which one"
   fi
+
+  # The ledger, both alive and dead. An exception that cannot be invalidated is a mute button, so the
+  # file is graded in both directions: what it accepts must still be a boundary, and a boundary that
+  # stopped being one reddens the file that accepted it.
+  # The ledger, in both directions. An exception nobody can invalidate is a mute button, so the file is
+  # graded against the tree: what it accepts has to still BE a boundary (a leg that is still wrapped and
+  # still trips the class named), and a line whose leg moved on reddens the file that trusted it.
+  _st_two boundary_live 0 scripts/testdata/leg-contract/run.sh 'hl_wsl_class >/dev/null 2>&1 || true' \
+    scripts/gate/leg_contract_boundaries.txt $'scripts/testdata/leg-contract/run.sh\tseat\tthe planted leg classifies its seat, and the reason is long enough to be an argument' \
+    "an accepted boundary prints a NOTE and leaves the tree green" 'NOTE: boundary accepted'
+  _st_breed boundary_dead 1 scripts/gate/leg_contract_boundaries.txt \
+    $'scripts/harness/sync-extensions.sh\ttrip\ta leg that no registration wraps any more, with a reason long enough to be an argument' \
+    "a dead exception line reddens: the register cannot rot into a mute button" 'BOUNDARY:'
+  _st_two boundary_wrong 1 scripts/testdata/leg-contract/run.sh 'ssh -o BatchMode=yes somewhere uptime || true' \
+    scripts/gate/leg_contract_boundaries.txt $'scripts/testdata/leg-contract/run.sh\tseat\tthe leg opens a trip, while this line excuses the seat class it never claimed' \
+    "an exception excuses the class it names and never the other one" 'BOUNDARY:'
+  _st_two boundary_short 1 scripts/testdata/leg-contract/run.sh 'hl_wsl_class >/dev/null 2>&1 || true' \
+    scripts/gate/leg_contract_boundaries.txt $'scripts/testdata/leg-contract/run.sh\tseat\tbecause yes' \
+    "a reason under 40 characters is an amnesty, not an argument" 'BOUNDARY:'
 
   # The refusal half: a tree this checker cannot weigh answers rc 2, never a green.
   mkdir -p "$_st_tmp/empty/scripts" || _st_no "the empty tree could not be built"
@@ -757,7 +863,9 @@ case "${1:-}" in
   "")
     check_tree; report $?; exit $? ;;
   -h | --help)
-    sed -n '1,52p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    # The header IS the usage: printed to the first non-comment line, so it cannot drift from the file's
+    # length the way a fixed `sed -n 1,52p` does.
+    awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "${BASH_SOURCE[0]}"
     exit 0 ;;
   *)
     printf 'usage: bash scripts/gate/check-leg-contract.sh [--root DIR | --self-test | --arms]\n' >&2

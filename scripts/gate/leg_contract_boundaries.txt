@@ -1,0 +1,20 @@
+# scripts/gate/leg_contract_boundaries.txt — the wrapped legs whose seat- or trip-facing behaviour the leg
+# contract ACCEPTS as a boundary instead of a finding: one `<leg path><TAB><class><TAB><reason>` line per
+# leg, where class is `seat` or `trip` and is the ONLY thing the line excuses.
+#
+# WHY A FILE RATHER THAN A FLAG IN THE CHECKER: which legs cross is decided in validate-all.sh's
+# registration lines and nowhere else, so an exception written inside the checker would be a second place
+# with an opinion about that set. This file therefore names no leg that crosses and un-names none: it says,
+# about a leg the registration already wraps, that ONE class of finding is a boundary here. That is also
+# why a line whose leg is no longer wrapped, or no longer trips the class it names, is a FINDING and not a
+# clean row — a book that cannot be invalidated is a mute button, and deleting a line belongs in the change
+# that unwraps the leg.
+#
+#   seat — the leg classifies the seat it runs on, so a crossed run answers about the ENGINE and its /proc,
+#          its registry, its OS, rather than about the seat the verdict was asked for.
+#   trip — the leg opens a vault, ssh or network trip that a crossed run performs from the other side.
+#
+# The reason is the argument, so it names what the leg reads and the command that re-derives the pair; a
+# reason under 40 characters is refused, not warned. Nothing in this file makes a leg wrapped, legal, or
+# forgotten.
+scripts/secrets/check-token-holders.sh	seat	native rc 1 by design, crossed rc 0 — a wrong-seat boundary, not a lost arm: the leg reads /proc and asks whether it stands on the WSL engine, so a crossed run answers about the engine /proc and a native one about Git-Bash /proc, and neither side is evidence about the other. Re-derive the pair with bash scripts/bench/win/gate-parity.sh -- bash scripts/secrets/check-token-holders.sh --self-test
