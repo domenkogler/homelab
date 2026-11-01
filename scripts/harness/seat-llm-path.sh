@@ -54,7 +54,9 @@
 # Exit: 0 OK / repaired · 1 MISSING, or DRIFT under `--strict`, or a `--push` that could not run
 #       (the hosts file is root-owned: the push half is a root act on the seat) ·
 #       2 NO VERDICT — the SSOT rows cannot be read, the target file cannot be read, or the probe
-#       died rather than answered (a dead probe is not evidence of an unreachable path).
+#       died rather than answered (a dead probe is not evidence of an unreachable path), or THIS BOX
+#       OWES NO PIN: see WHO OWES A PIN, and note that the fan-out counts that rc as its own SKIP —
+#       neither a pass, nor a failure, nor a reason to hunt for a pin that was never owed here.
 #
 # Usage:
 #   bash scripts/harness/seat-llm-path.sh                     # --check, report only
@@ -69,6 +71,20 @@
 #   SEAT_LLM_PORT            the probed port (default 443)
 #   SEAT_LLM_LABEL           the zone label whose row carries the name (default llm)
 #   SEAT_LLM_PROBE_TIMEOUT   seconds the connect probe waits (default 3)
+#   PI_SEAT                  names THIS box's seat for the scope read below (lib/pi-seat.sh);
+#                            `none` forces "this box is no seat". A fixture hook for the ARMS, because
+#                            a scope question has to be testable with the box it is tested on untouched.
+#   HL_REGISTRY              a fixture registry, so an arm cannot grade the fleet's seat lists by accident
+#
+# WHO OWES A PIN (the scope read, and the reason a hand run off the wsl seat is not a defect)
+#   This leg is the `llm-path` plane, and the registry row (scripts/lib/seat-planes.yml) names the seats
+#   that carry it — today `seats: wsl`, because the re-assert arm exists for a Windows boot that
+#   regenerates /etc/hosts. So the first question is not "is the pin in place" but "is a pin owed HERE".
+#   A box the row does not name gets the PATH read (which is the half a session needs before it routes an
+#   inference lane) and then `SKIP`, never MISSING: rc 1 is this harness's word for drift, and a case that
+#   cannot run here has one honest word, the same SKIP pi-seat-sync.sh already counts as neither a pass nor
+#   a failure (CONVENTIONS §6). A box that is no seat at all, and a registry that cannot be read, are the
+#   same rc 2 with their own reasons — both are "no verdict was computed".
 #
 # ⚠ Row: scripts/README.md §scripts/harness/ · Registry: scripts/lib/seat-planes.yml ·
 #   Rule: docs/network-dns.md §Host-side resolver and docs/harness-pi-seats.md §1.
@@ -85,6 +101,7 @@ SELF="$SCRIPT_DIR/$(basename "$_hl_self")"
 while [ ! -f "$_hl_d/lib/repo-root.sh" ] && [ "$_hl_d" != / ]; do _hl_d="$(dirname "$_hl_d")"; done
 # shellcheck source=/dev/null
 . "$_hl_d/lib/repo-root.sh"
+hl_source_lib "${BASH_SOURCE[0]}" pi-seat.sh   # hl_seat_here + hl_seat_scope_lists: who owes a leg (see WHO OWES A PIN)
 
 SSOT="$REPO/IaC/ansible/group_vars/all/main.yml"
 TARGET="${SEAT_LLM_HOSTS:-/etc/hosts}"
@@ -96,6 +113,8 @@ MARK_END='# <<< seat-llm-path <<<'
 
 MODE="check"; STRICT=0; SCRATCH=""; BLOCK_FILE=""; WANT_FILE=""; SHADOW_LINE=""
 FQDN=""; HOME_IP=""; PATH_VERDICT=""; PROBE_RC=""; STATE=""; REASON=""
+PLANE_ID="llm-path"      # this leg's identity in the registry — its SUBJECT, like the label, not a value to read
+SEAT=""; SCOPE=""; SCOPE_LIST=""   # the box's seat name, whether the plane row names it, and that row's list
 
 err()  { printf 'seat-llm-path: %s\n' "$*" >&2; }
 note() { printf '  %s\n' "$*"; }
@@ -108,7 +127,9 @@ usage() {
   cat <<'EOF'
 usage: seat-llm-path.sh [--check [--strict]] | --push | --self-test
 
-  --check          (default) read the SSOT rows, probe the path, report the hosts-file state
+  --check          (default) read the SSOT rows, probe the path, report the hosts-file state.
+                   Off the seats the registry row names, the path read prints and the PIN question is a
+                   SKIP (exit 2): a box that owes no pin is not a box with a missing pin.
   --check --strict exit 1 on DRIFT too (the seat-leg form; MISSING exits 1 either way)
   --push           write the block while the LAN path answers, remove it when it stops answering
                    (root-owned file: on a seat this is
@@ -309,9 +330,42 @@ read_inputs() {
   assess
 }
 
-say_verdict() {
+# The scope read — cheap, fork-light, and FIRST, because a pin cannot be owed on a box that carries no
+# leg and every verdict rule below presumes one is. rc 2 from the registry reader is a STOP: an
+# unreadable scope is not a licence to answer for a seat the row may well name.
+seat_scope() {
+  hl_seat_here SEAT
+  SCOPE_LIST="$(hl_seat_scope_list "$PLANE_ID")"
+  if [ -z "$SEAT" ] || [ "$SEAT" = none ]; then SCOPE="no-seat"; return 0; fi
+  hl_seat_scope_lists "$PLANE_ID" "$SEAT"
+  case $? in
+    0) SCOPE="here" ;;
+    1) SCOPE="elsewhere" ;;
+    *) stop "the plane registry at $(hl_seat_registry_path) cannot be read — the leg cannot tell whether a pin is owed on this box, and a pin written or removed on that guess is a write to a root-owned file nobody asked for" ;;
+  esac
+  return 0
+}
+
+# Printed on both modes: the SKIP is the whole answer off-scope, and `--push` must not write a byte
+# here even when the file looks wrong. ONLY the read line goes out, never a state word — printing
+# `MISSING` above a SKIP is the very confusion this read exists to end.
+scope_verdict() {
+  say_read
+  case "$SCOPE" in
+    elsewhere) printf 'SKIP: %s — the `%s` leg belongs to the seats its registry row names (seats: %s); this box owes no pin\n' \
+        "$SEAT" "$PLANE_ID" "${SCOPE_LIST:-<empty>}" ;;
+    no-seat)   printf 'SKIP: no seat — this box is none of the harness seats, so `%s` cannot be scoped here\n' "$PLANE_ID" ;;
+  esac
+  return 2
+}
+
+say_read() {
   printf 'read: fqdn=%s ip=%s port=%s path=%s probe-rc=%s file=%s\n' \
     "$FQDN" "$HOME_IP" "$PORT" "$PATH_VERDICT" "$PROBE_RC" "$TARGET"
+}
+
+say_verdict() {
+  say_read
   printf '%s' "$STATE"
   [ -n "$REASON" ] && printf ': %s' "$REASON"
   printf '\n'
@@ -384,6 +438,7 @@ do_push() {
 # here can be mistaken for a fleet value.
 selftest() {
   local fails=0 pass=0 root hosts ssot_f ip_fix fq_fix n
+  local SEAT_OVERRIDE="" PLANES_OVERRIDE=""
   scratch; root="$SCRATCH"
   ip_fix="192.0.2.44"; fq_fix="llm.example.test"
   mkdir -p "$root/repo/IaC/ansible/group_vars/all"
@@ -404,6 +459,12 @@ FIX
   }
   write_ssot
 
+  # The fixture PLANE ROW. Without it every arm below would read the FLEET's seat list and pass or fail
+  # by what scripts/lib/seat-planes.yml happens to say on the day the test runs — the registry IS the
+  # scope's source, so the scope needs a fixture of its own.
+  printf '%s\n' '---' 'plane: llm-path' 'harness: all' 'owner: seat-llm-path.sh' 'runner: bash' \
+                 'check: --check --strict' 'push: --push' 'seats: wsl' 'installer: none' > "$root/planes.yml"
+
   # mk_hosts <name> — foreign content in both directions: the lines a WSL boot writes, and another
   # tool's block. Byte-preservation is only proven against bytes this script does not own.
   mk_hosts() {
@@ -423,7 +484,10 @@ FIX
   run() {   # run <label> <want-rc> <hosts> <probe> <args…>
     local label="$1" want="$2" hf="$3" pb="$4"; shift 4
     local rc=0
+    # PI_SEAT is the fixture BOX (arm 10 swaps it); the default is the seat the fixture row names, so
+    # arms 1-9 keep behaving exactly as they did before a scope question existed.
     REPO="$root/repo" SEAT_LLM_HOSTS="$hf" SEAT_LLM_PROBE="$pb" \
+      PI_SEAT="${SEAT_OVERRIDE:-wsl}" HL_REGISTRY="${PLANES_OVERRIDE:-$root/planes.yml}" \
       bash "$SELF" "$@" >"$root/out" 2>&1 || rc=$?
     if [ "$rc" = "$want" ]; then pass=$((pass + 1)); printf 'ok   %s (rc %s)\n' "$label" "$rc"
     else fails=$((fails + 1)); printf 'FAIL %s: rc %s, want %s\n' "$label" "$rc" "$want"
@@ -585,6 +649,43 @@ FIX
     run "9f  control: writable again, the push lands" 0 "$hosts" "$root/probe-ok" --push
   fi
 
+  # 10. WHO OWES A PIN. The registry row, not the box's feelings, says whether this box carries the leg.
+  #     Every arm here flips ONE thing — the seat the box reports — over the same fixture bytes, the same
+  #     probe and the same hosts file, so a pass cannot come from anything but the scope answer.
+  mk_hosts scope
+  cp -p "$hosts" "$root/scope-before"
+  SEAT_OVERRIDE=oldsrv            # ONE difference from arms 1-9: the row does not name this box
+  run "10a a seat the row does not name answers SKIP, not MISSING" 2 "$hosts" "$root/probe-ok" --check --strict
+  says  "10b the SKIP names this seat and the seats the row does name" 'SKIP: oldsrv .*seats: wsl'
+  says  "10c and the path read still came out — the half the dispatch step asks for" "path=lan"
+  if grep -q '^MISSING\|^DRIFT\|^OK' "$root/out"; then
+    fails=$((fails + 1)); echo "FAIL 10c2 a SKIP printed the pin verdict it just declined to give"
+  else pass=$((pass + 1)); echo "ok   10c2 and no state word appears above the SKIP"; fi
+  unchanged "10d a SKIP decides nothing, so it writes nothing" "$root/scope-before" "$hosts"
+  run "10e  --push on that box is the same SKIP, not a write" 2 "$hosts" "$root/probe-ok" --push
+  unchanged "10f and the hosts file is the file it found" "$root/scope-before" "$hosts"
+  if ls "$root" | grep -q 'scope\.hosts\.bak-'; then
+    fails=$((fails + 1)); echo "FAIL 10g a write was attempted on a box that owes no pin"
+  else pass=$((pass + 1)); echo "ok   10g  no backup taken either — no write was attempted"; fi
+  SEAT_OVERRIDE=wsl
+  run "10h control: the same fixture box NAMED by the row answers MISSING again" 1 "$hosts" "$root/probe-ok" --check --strict
+  says  "10i and in scope the answer is the state word, not a SKIP" "^MISSING"
+  SEAT_OVERRIDE=none
+  run "10j a box that is no seat is not judged" 2 "$hosts" "$root/probe-ok" --check
+  says  "10k and it says no seat rather than guessing one" 'SKIP: no seat'
+  SEAT_OVERRIDE=""
+  PLANES_OVERRIDE="$root/no-such-registry.yml"
+  run "10l an unreadable registry cannot scope the leg" 2 "$hosts" "$root/probe-ok" --check
+  PLANES_OVERRIDE=""
+  says  "10m and that is a STOP naming the registry, never a verdict" 'FATAL'
+  unchanged "10n the file is byte-identical under it" "$root/scope-before" "$hosts"
+  printf '%s\n' '---' 'plane: llm-path' 'harness: all' 'owner: seat-llm-path.sh' 'runner: bash' \
+                 'check: --check --strict' 'push: --push' 'seats:' 'installer: none' > "$root/planes-blank.yml"
+  PLANES_OVERRIDE="$root/planes-blank.yml"
+  run "10o an empty seats list is NO seat, never all of them" 2 "$hosts" "$root/probe-ok" --check
+  PLANES_OVERRIDE=""
+  says  "10p and the SKIP says the list is empty rather than defaulting it" 'seats: <empty>'
+
   printf '\nself-test: %s (%d passed, %d failed)\n' \
     "$([ "$fails" -eq 0 ] && echo OK || echo FAILED)" "$pass" "$fails"
   [ "$fails" -eq 0 ]
@@ -595,6 +696,11 @@ case "$MODE" in
   selftest) selftest; exit $? ;;
 esac
 scratch
+seat_scope
+# The path read runs on EVERY box, in scope or not: "which path does an inference lane travel" is the
+# question the dispatch step asks (docs/orchestration.md §3 item 9), and it has no opinion about seats.
+# What the scope read decides is whether the PIN question gets an answer at all.
 read_inputs
+if [ "$SCOPE" != here ]; then scope_verdict; exit $?; fi
 if [ "$MODE" = "push" ]; then do_push; else do_check; fi
 exit $?

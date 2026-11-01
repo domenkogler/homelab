@@ -326,7 +326,7 @@ sync_seat() {
 
 # --- self-test: stubbed transports, no network, no seats ------------------------
 self_test() {
-  local tmp fails=0 head _pf _rc _log
+  local tmp fails=0 head _pf _rc _log _here _hscope
   tmp="$(mktemp -d 2>/dev/null)" || { err "mktemp failed"; return 1; }
   # shellcheck disable=SC2064
   trap "rm -rf '$tmp'" RETURN
@@ -505,6 +505,26 @@ EOS
      && grep -q 'ssh ' "$tmp/away.out"; then
     info "away-host        GREEN (off the seat: the ssh leg is still the transport)"
   else err "canary passed: off the seat the driver did NOT use ssh (rc $_rc, legs: $(tr '\n' ' ' < "$STUB_LOG"))"; fails=$((fails+1)); fi
+
+  # THE SEAT THIS BOX IS, BY BOTH READERS. The flags below choose the TRANSPORT (which is how a seat
+  # gets sshed to or run locally); hl_seat_here chooses whether a PLANE has a leg here at all (which is
+  # how a leg answers SKIP rather than MISSING). Two marker rules that drift are a leg that SKIPs forever
+  # on the box it owns, or writes a hosts file on a box that owes none — so the pair is proved, not
+  # asserted. PI_SEAT is an override for fixtures, and a fixture comparing an override against flags that
+  # read the box would compare nothing, so the arm names itself a SKIP while one is set.
+  if [ -n "${PI_SEAT:-}" ]; then
+    info "seat-agreement   SKIP (PI_SEAT=$PI_SEAT overrides the helper for this run)"
+  else
+    _here=""; [ "$IS_WINDOWS" -eq 1 ] && _here=win11; [ "$IS_WSL" -eq 1 ] && _here=wsl
+    [ "$IS_OLDSRV" -eq 1 ] && _here=oldsrv
+    hl_seat_here _hscope
+    if [ "$_here" = "$_hscope" ]; then
+      info "seat-agreement   GREEN (both readers call this box ${_here:-no seat})"
+    else
+      err "canary failed: the driver calls this box [$_here] and the plane scope helper calls it [$_hscope]"
+      fails=$((fails+1))
+    fi
+  fi
 
   printf '\nself-test: %s\n' "$([ "$fails" -eq 0 ] && echo "OK — all canaries caught" || echo "$fails canary/canaries NOT caught")"
   return "$fails"

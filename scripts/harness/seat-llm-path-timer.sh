@@ -69,10 +69,21 @@
 #                    side door. Any OTHER drop-in content prints as a NOTE and changes no verdict: that is
 #                    an operator override, outside what this arm owns.
 #
+# WHO INSTALLS THIS PAIR (the scope read — the one read the plane it re-asserts already answers)
+#   The registry record `plane: llm-path` names the seats that carry the leg, and this pair IS that leg's
+#   re-assert arm, so it belongs to exactly those seats: today `seats: wsl`, because the WSL guest writes
+#   its own /etc/hosts at every distro start and the pin would otherwise survive exactly zero boots. A
+#   Debian box that rewrites nothing owes no timer, and installing one there is a root write that changes
+#   nothing about any pin. So the first question is not "are the units installed" but "is an arm owed
+#   HERE"; off those seats this prints its read and a SKIP, never MISSING — the arm is not absent here,
+#   it was never owed (the same word seat-llm-path.sh answers with, and for the same reason).
+#
 # Exit: 0 OK / repaired · 1 MISSING, or DRIFT under `--strict`, or an `--install` that refused, or one
 #       whose enable leg could not run (a written-but-never-enabled timer is an arm that never fires) ·
 #       2 NO VERDICT — the unit directory cannot be read, the plane the ExecStart names is not in the
-#       repo, or a sandbox hook is wrong (a guess is not a verdict).
+#       repo, a sandbox hook is wrong (a guess is not a verdict), or THIS BOX CARRIES NO llm-path LEG:
+#       the seats the registry row names are the seats that get an arm, and off those seats the answer is
+#       the SKIP the fan-out already counts as neither a pass nor a failure (see WHO INSTALLS THIS PAIR).
 #
 # Usage:
 #   bash scripts/harness/seat-llm-path-timer.sh                     # --check, report only
@@ -85,6 +96,8 @@
 #
 # Env hooks — every one points the script at a FIXTURE; none of them changes a verdict rule:
 #   REPO                      a fixture repo whose scripts/harness/seat-llm-path.sh is the ExecStart target
+#   PI_SEAT                   names the fixture BOX for the scope read (lib/pi-seat.sh); `none` = no seat
+#   HL_REGISTRY               a fixture registry, so an arm cannot scope itself by the fleet's seat lists
 #   SEAT_LLM_TIMER_DIR        the unit directory (default /etc/systemd/system)
 #   SEAT_LLM_TIMER_ST         set by a fixture run only: it arms the guard that STOPS an install which
 #                             forgot the systemctl stub, so no self-test arm can drive a real systemd.
@@ -112,12 +125,15 @@ SELF="$SCRIPT_DIR/$(basename "$_hl_self")"
 while [ ! -f "$_hl_d/lib/repo-root.sh" ] && [ "$_hl_d" != / ]; do _hl_d="$(dirname "$_hl_d")"; done
 # shellcheck source=/dev/null
 . "$_hl_d/lib/repo-root.sh"
+hl_source_lib "${BASH_SOURCE[0]}" pi-seat.sh   # hl_seat_here + hl_seat_scope_lists (see WHO INSTALLS THIS PAIR)
 
 SVC="seat-llm-path.service"
 TMR="seat-llm-path.timer"
 UNIT_DIR="${SEAT_LLM_TIMER_DIR:-/etc/systemd/system}"
 SYSTEMCTL="${SEAT_LLM_TIMER_SYSTEMCTL:-systemctl}"
 PLANE="$REPO/scripts/harness/seat-llm-path.sh"
+PLANE_ID="llm-path"     # this arm's identity in the registry — which seats carry it (see WHO INSTALLS THIS PAIR)
+SEAT=""; SCOPE=""; SCOPE_LIST=""
 ON_BOOT_SEC="10s"
 ON_ACTIVE_SEC="120s"
 # WHO WROTE THIS UNIT. The identity is the PLANE, not this file's path: a marker that names a path goes
@@ -304,6 +320,32 @@ assess() {
 
 read_inputs() { assess; }
 
+# The scope read, and it comes FIRST: an install on a box the row does not name is a root write nobody
+# asked for, so `--install` answers this before it looks at a unit file. rc 2 from the registry reader is
+# a STOP — an unreadable scope is not permission to install, and not permission to call it MISSING either.
+seat_scope() {
+  hl_seat_here SEAT
+  SCOPE_LIST="$(hl_seat_scope_list "$PLANE_ID")"
+  if [ -z "$SEAT" ] || [ "$SEAT" = none ]; then SCOPE="no-seat"; return 0; fi
+  hl_seat_scope_lists "$PLANE_ID" "$SEAT"
+  case $? in
+    0) SCOPE="here" ;;
+    1) SCOPE="elsewhere" ;;
+    *) stop "the plane registry at $(hl_seat_registry_path) cannot be read — this arm cannot tell whether a box carries the llm-path leg, and a unit file written on that guess is a root-owned file that re-asserts nothing" ;;
+  esac
+  return 0
+}
+
+scope_verdict() {
+  printf 'read: dir=%s repo=%s\n' "$UNIT_DIR" "$REPO"
+  case "$SCOPE" in
+    elsewhere) printf 'SKIP: %s — the `%s` leg belongs to the seats its registry row names (seats: %s); this box owes no arm\n' \
+        "$SEAT" "$PLANE_ID" "${SCOPE_LIST:-<empty>}" ;;
+    no-seat)   printf 'SKIP: no seat — this box is none of the harness seats, so `%s` cannot be scoped here\n' "$PLANE_ID" ;;
+  esac
+  return 2
+}
+
 say_verdict() {
   printf 'read: dir=%s repo=%s\n' "$UNIT_DIR" "$REPO"
   printf 'exec: /bin/bash %s/scripts/harness/seat-llm-path.sh --push\n' "$REPO"
@@ -445,8 +487,15 @@ do_render() {
 # systemctl PERFORMS an act, so a missing one means the act did not happen, which is what INCOMPLETE says.
 selftest() {
   local fails=0 pass=0 root dir plane_real want
+  local SEAT_OVERRIDE=""
   scratch; root="$SCRATCH"; dir="$root/units"
   mkdir -p "$root/repo/scripts/harness" "$dir"
+  # The fixture BOX and the fixture PLANE ROW, exported because this self-test calls the script directly
+  # in several arms: without them every arm below would scope itself against the real seat and the real
+  # registry, and would pass or fail by the machine it happens to run on rather than by its own fixture.
+  printf '%s\n' '---' 'plane: llm-path' 'harness: all' 'owner: seat-llm-path-timer.sh' 'runner: bash' \
+                 'check: --check --strict' 'push: --install' 'seats: wsl' 'installer: none' > "$root/planes.yml"
+  export PI_SEAT=wsl HL_REGISTRY="$root/planes.yml"
   # The fixture plane: the ExecStart target. Arm 8 proves what happens when it is NOT there.
   printf '#!/usr/bin/env bash\n# fixture stand-in for the llm-path plane\n' \
     > "$root/repo/scripts/harness/seat-llm-path.sh"
@@ -675,6 +724,25 @@ selftest() {
   if [ "$rc" = 1 ] && grep -q 'MISSING' "$root/out"; then pass=$((pass + 1)); echo "ok   11c --check still reports from a worktree (it writes nothing, so it needs no home)"
   else fails=$((fails + 1)); printf 'FAIL 11c --check from a worktree answered rc %s\n' "$rc"; sed 's/^/     | /' "$root/out" | head -4; fi
 
+  # 12. WHO INSTALLS THIS PAIR — the same scope read the plane it re-asserts carries, over the same
+  #     fixture units. The dangerous direction is a scope that is too LOOSE (a root write on a box that
+  #     owes nothing), so `--install` off-scope is proved to write nothing, and the control proves the
+  #     in-scope answer is still the plain MISSING rather than a SKIP that hides an absent arm.
+  rm -rf "$dir"; mkdir -p "$dir"
+  env PI_SEAT=oldsrv bash "$SELF" --check >"$root/out" 2>&1; rc=$?
+  if [ "$rc" = 2 ] && grep -q 'SKIP: oldsrv' "$root/out"; then pass=$((pass + 1)); echo "ok   12a a seat the row does not name answers SKIP, not MISSING"
+  else fails=$((fails + 1)); printf 'FAIL 12a the off-scope check answered rc %s, want 2 with a SKIP\n' "$rc"; sed 's/^/     | /' "$root/out" | head -4; fi
+  if grep -qE '^MISSING|^DRIFT|^OK' "$root/out"; then fails=$((fails + 1)); echo "FAIL 12b a SKIP printed the unit verdict it just declined to give"
+  else pass=$((pass + 1)); echo "ok   12b and no state word appears above the SKIP"; fi
+  env PI_SEAT=oldsrv bash "$SELF" --install >"$root/out" 2>&1; rc=$?
+  if [ "$rc" = 2 ] && [ ! -e "$dir/$SVC" ] && [ ! -e "$dir/$TMR" ]; then pass=$((pass + 1)); echo "ok   12c  --install there is the same SKIP, and wrote no unit file"
+  else fails=$((fails + 1)); printf 'FAIL 12c the off-scope install answered rc %s and left files: %s\n' "$rc" "$(ls "$dir" 2>/dev/null | tr '\n' ' ')"; fi
+  if [ ! -e "$root/systemctl.log" ] || ! grep -q 'enable' "$root/systemctl.log"; then pass=$((pass + 1)); echo "ok   12d  and no systemctl call was made either"
+  else fails=$((fails + 1)); echo "FAIL 12d an off-scope install reached systemd"; fi
+  rm -f "$root/systemctl.log"
+  run "12e control: the box the row DOES name answers MISSING again" 1 --check --strict
+  says  "12f and in scope the answer is the state word, not a SKIP" '^MISSING'
+
   printf '\nself-test: %s (%d passed, %d failed)\n' \
     "$([ "$fails" -eq 0 ] && echo OK || echo FAILED)" "$pass" "$fails"
   [ "$fails" -eq 0 ]
@@ -686,6 +754,8 @@ case "$MODE" in
   render)   do_render; exit $? ;;
 esac
 scratch
+seat_scope
+if [ "$SCOPE" != here ]; then scope_verdict; exit $?; fi
 read_inputs
 case "$MODE" in
   install) do_install ;;

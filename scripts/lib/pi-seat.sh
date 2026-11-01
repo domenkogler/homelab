@@ -109,7 +109,76 @@ pin() {
 }
 
 # hl_seat_registry_path — locate lib/seat-planes.yml from this helper's own location.
-hl_seat_registry_path() { printf '%s' "$(dirname "$_HL_PIN_SELF")/seat-planes.yml"; }
+# `HL_REGISTRY` re-points it, which is what a fixture registry needs to be a fixture at all: the path is
+# found from this file's own location, so a fixture REPO alone would still read the real plane rows and a
+# self-test arm would grade the fleet instead of its fixture. One override name for one file.
+hl_seat_registry_path() {
+  printf '%s' "${HL_REGISTRY:-$(dirname "$_HL_PIN_SELF")/seat-planes.yml}"
+}
+
+# hl_seat_here <out-var> — WHICH harness seat this box is: `win11` · `wsl` · `oldsrv` · empty for a
+# box that is none of them (a VPS, a NAS, a reimaged machine). A plane row's `seats:` list is written
+# in these three words, so a leg that must answer "is a leg owed to me here?" asks THIS.
+# NOT THE DRIVER'S ROUTER: pi-seat-sync.sh computes the same markers itself for its TRANSPORT flags, and
+# the strings are a twin group the gate watches, so neither side imports the other — what binds them is
+# the `seat-agreement` arm of that file's `--self-test`, which fails when the two readers disagree about
+# the box they are both standing on.
+# FORK-FREE (HD-1135): `read`/`case`, no grep, no `$( )` for the markers, so a self-test arm costs no
+# exec and an unreadable /proc/version leaves the class unset rather than wrong.
+# `PI_SEAT` overrides, because a plane's scope question must be testable with the box it is tested on
+# left alone; `PI_SEAT=none` forces the no-seat answer. It is NOT pi-seat-sync.sh's `PI_SEATS` — that one
+# is the list of seats a HOST can reach, this one names the box it is standing on.
+# rc is always 0 — "this box is no seat" is a fact a caller must be able to report, not a failure.
+hl_seat_here() {
+  local __out="${1:?hl_seat_here: needs an out-var}" __u __hv __pv=""
+  if [ -n "${PI_SEAT-}" ]; then printf -v "$__out" '%s' "$PI_SEAT"; return 0; fi
+  __u="$(uname -s 2>/dev/null)"
+  case "$__u" in MINGW*|MSYS*|CYGWIN*) printf -v "$__out" '%s' win11; return 0 ;; esac
+  if [ -r /proc/version ]; then IFS= read -r __pv </proc/version || true; fi
+  case "${__pv,,}" in
+    *microsoft*) printf -v "$__out" '%s' wsl; return 0 ;;
+  esac
+  # Neither marker fired: either the Windows workstation running a bash that is not MSYS-class (it
+  # carries wsl.exe), or a Linux box. `wsl.exe` decides between them — the same test the driver applies
+  # to a shell whose `uname` says Linux.
+  if command -v wsl.exe >/dev/null 2>&1; then printf -v "$__out" '%s' win11; return 0; fi
+  __hv="$(hostname 2>/dev/null || uname -n 2>/dev/null)"
+  __hv="${__hv%%.*}"
+  case "${__hv,,}" in oldsrv) printf -v "$__out" '%s' oldsrv ;; *) printf -v "$__out" '%s' "" ;; esac
+  return 0
+}
+
+# hl_seat_scope_lists <plane> <seat> — rc 0 when the plane row's `seats:` list names <seat>. An EMPTY
+# or absent list is NO seat, never "all of them": a plane that stops answering the question must stop
+# running, not start running everywhere. rc 1 = this seat carries no leg here, including a plane the
+# registry does not carry at all; rc 2 = the registry cannot be read, which is never a scope answer.
+# The `seats:` grammar is ONE record per plane (`seats: wsl`, or a space/comma list); a plane that ever
+# needs per-harness lists grows the registry's own reader instead of growing a second parser here.
+hl_seat_scope_lists() {
+  local __plane="$1" __seat="$2" __reg
+  __reg="$(hl_seat_registry_path)"
+  [ -r "$__reg" ] || return 2
+  awk -v p="$__plane" -v s="$__seat" '
+    $0 ~ /^plane:[[:space:]]*/ { inme = ($2 == p); next }
+    inme && $0 ~ /^seats:[[:space:]]*/ {
+      n = split($2, a, /[, ]+/)
+      for (i = 1; i <= n; i++) if (a[i] == s) { found = 1 }
+      done = 1
+    }
+    END { exit found ? 0 : 1 }' "$__reg"
+}
+
+# hl_seat_scope_list <plane> — that row's `seats:` value as written, for a message that has to name the
+# seats which DO carry the leg. Empty when the registry cannot be read: a blank in a SKIP line says "the
+# row could not be read", and a defaulted one would be a value this file invented.
+hl_seat_scope_list() {
+  local __reg
+  __reg="$(hl_seat_registry_path)"
+  [ -r "$__reg" ] || return 0
+  awk -v p="$1" '
+    $0 ~ /^plane:[[:space:]]*/ { inme = ($2 == p); next }
+    inme && $0 ~ /^seats:[[:space:]]*/ { print $2; exit }' "$__reg"
+}
 
 # hl_owner_path <var> <file-name> — set <var> to the owner's repo-relative path, rc 1 if that name
 # is not under scripts/. By name, so this registry never becomes a second copy of the tree: when
@@ -228,7 +297,7 @@ seat_planes_emit() {
 
 # hl_planes_selftest — the registry reader's arms. Returns arms NOT caught.
 hl_planes_selftest() {
-  local fails=0 _t _n _miss
+  local fails=0 _t _n _miss _sh _a _b
   _t="$(mktemp -d)"
   # shellcheck disable=SC2064
   trap "rm -rf '$_t'" RETURN
@@ -308,6 +377,41 @@ hl_planes_selftest() {
   else
     printf 'NOT CAUGHT: the python runner emitted a malformed command: %s\n' "$_mdl"; fails=$((fails + 1))
   fi
+
+  # 6. WHO OWES A LEG (hl_seat_here + hl_seat_scope_lists), with the canary the scope read can only
+  #    fail in ONE direction: if this box names a seat and no plane row names that seat back, every leg
+  #    on this machine answers SKIP and the whole plane goes silent while looking green. A scope reader
+  #    that is too strict is invisible; one that is too loose writes to /etc/hosts. Both halves below.
+  hl_seat_here _sh
+  case "$_sh" in
+    win11|wsl|oldsrv)
+      _n=0
+      for _p in $(seat_planes "$_sh" check 2>/dev/null | cut -f1 | sort -u); do
+        hl_seat_scope_lists "$_p" "$_sh" && _n=$((_n + 1))
+      done
+      if [ "$_n" -ge 1 ]; then
+        printf 'ok: this box is seat %s and %s plane row(s) name it back\n' "$_sh" "$_n"
+      else
+        printf 'NOT CAUGHT: this box reports seat %s, which no plane row names — every leg here would SKIP\n' "$_sh"; fails=$((fails + 1))
+      fi ;;
+    none) printf 'NOT CAUGHT: hl_seat_here invented the seat name "none"\n'; fails=$((fails + 1)) ;;
+    *)  printf 'SKIP: this box names no harness seat (%s), so the scope pair cannot be exercised here\n' "${_sh:-nothing}" ;;
+  esac
+
+  # 7. THE TWO READERS OF A `seats:` LIST AGREE on the real registry: the fan-out's filter (which decides
+  #    what RUNS) and the scope reader (which decides what a SKIP MEANS). Two parsers of one grammar is
+  #    the defect class, so the parity is proved rather than asserted — with an independent witness
+  #    (one awk pass), because a canary written against the parser it tests proves nothing.
+  for _s in win11 wsl oldsrv; do
+    _a="$(seat_planes "$_s" check 2>/dev/null | cut -f1 | sort -u | tr '\n' ' ')"
+    _b="$(awk -v s="$_s" '/^plane:/{p=$2} /^seats:/ && ($0 ~ ("(^|[ ,])" s "([ ,]|$)")){print p}' \
+            "$(hl_seat_registry_path)" | sort -u | tr '\n' ' ')"
+    if [ "$_a" = "$_b" ]; then
+      printf 'ok: fan-out and scope read the seats list the same for %s\n' "$_s"
+    else
+      printf 'NOT CAUGHT: for seat %s the fan-out runs [%s] but the scope reader believes [%s]\n' "$_s" "$_a" "$_b"; fails=$((fails + 1))
+    fi
+  done
 
   [ "$fails" -eq 0 ] || printf 'seat-planes self-test: %s arm(s) NOT caught\n' "$fails" >&2
   return "$fails"

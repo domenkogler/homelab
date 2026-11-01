@@ -38,6 +38,10 @@ inside one session. The LIVE wave table is
    [`lib/seat-planes.yml`](../scripts/lib/seat-planes.yml)); it pins **one** name's answer while the address answers TCP/443
    and removes the pin when it stops, and it changes no answer plane — the zone rows, the netmap and the tailnet policy are
    outside it ([network-dns.md](network-dns.md) §Host-side resolver, [network-vpn.md](network-vpn.md) §Tailnet boundary).
+   **The `path=` read is the half every box answers.** The pin half is scoped by the plane row's `seats:` list (the leg
+   asks `hl_seat_here` which box it is standing on), so on a seat the row does not name the pin question prints `SKIP` at
+   rc 2 — the fan-out's own word, neither a pass nor a failure — while `path=lan` / `path=edge` still prints. Read the
+   path; do not book a defect against a box that owes no pin, and do not let a `SKIP` talk you out of the path read.
 
 **Ask-if-unsure:** planned/multi-host/deploy-gated/irreversible → orchestrator pattern; re-deciding → check owning doc + rejected log first; unsure of the owning doc → `docs/index.md` map.
 
