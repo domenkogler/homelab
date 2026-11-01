@@ -1413,10 +1413,11 @@ CONT
   # CROSSED line: the narrowing must never outvote the conjunction's own clauses, and it must not accept
   # a sandbox the registered argv never reaches.
   _st_two face_fixture_cls 1 scripts/testdata/leg-contract/run.sh 'hl_wsl_class >/dev/null 2>&1 || true'     scripts/validate-all.sh 'face tree; item_q "a crossed self-test that classifies its seat (needs rsync)" hl_wsl_route bash scripts/testdata/leg-contract/run.sh --self-test'     "a fixture does not un-ask a classifier: crossed, that question is answered about the ENGINE" 'FACE:'
-  # The leg path is a real script of this repo the planted tree does not carry - see _st_tree. This leg
-  # reads a seat path at file scope and dispatches --self-test to nothing that builds a fixture: the
-  # shape a loose narrowing would have walked through.
-  _st_two face_fixture_none 1 scripts/gate/check_placeholders.sh 'DEPLOY="$HOME/.pi/agent/skills"'     scripts/validate-all.sh 'face tree; item_q "a crossed self-test with no fixture on its path" hl_wsl_route bash scripts/gate/check_placeholders.sh --self-test'     "a file-scope seat read crossed on the strength of a fixture the flag never dispatches to is the hole narrowing must not leave open" 'FACE:'
+  # The leg path is a REAL script of this repo (see _st_tree: a literal `scripts/<path>` in a tracked
+  # file is a command check_script_layout.py resolves), and the planted tree carries it only as the
+  # appended single line - so its --self-test dispatches to nothing and builds no fixture: the shape a
+  # loose narrowing would have walked through.
+  _st_two face_fixture_none 1 scripts/gate/check-vault-items.sh 'DEPLOY="$HOME/.pi/agent/skills"'     scripts/validate-all.sh 'face tree; item_q "a crossed self-test with no fixture on its path" hl_wsl_route bash scripts/gate/check-vault-items.sh --self-test'     "a file-scope seat read crossed on the strength of a fixture the flag never dispatches to is the hole narrowing must not leave open" 'FACE:'
 
   # The door half, in the tree: the declaring leg driven by four planted answers. Its verdicts print
   # themselves, so a failure here names the arm — and the leg it drives is the same file the real-tree
