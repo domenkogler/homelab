@@ -84,6 +84,7 @@
 #   bash scripts/gate/check-leg-contract.sh --self-test  # each rule breeds its finding
 #   bash scripts/gate/check-leg-contract.sh --arms       # the declaring leg, driven by planted answers
 #   bash scripts/gate/check-leg-contract.sh --faces      # the derivation table, one row per registration
+#                                        (`--root DIR --faces` prints that table for a planted tree)
 #
 # Exit: 0 clean · 1 finding(s) · 2 could not run (no lib, no registrations, an empty corpus). No stdin
 # is read, and nothing outside a temp directory is written.
@@ -1064,6 +1065,10 @@ printf 'ok  the leg ran\n'
 LEG
   # A declaring leg is registered through a BLOCK, because its rc 2 is a boundary and an item line would
   # read it as a verdict (VERDICT below) — so the legal shape has to be the shape the rule asks for.
+  # The face word is part of the LEGAL shape, not a garnish: a registration with no `face` word is
+  # UNDECIDED, which is a finding, so a control tree without one is red before any canary is planted
+  # and every canary below reddens for a reason outside its own rule. `tree` is what the derivation
+  # derives here: a CROSSED line whose leg reads neither seat state nor this checkout.
   cat >"$d/scripts/validate-all.sh" <<'REG'
 #!/usr/bin/env bash
 blk_st_leg() {
@@ -1071,7 +1076,7 @@ blk_st_leg() {
   hl_wsl_route bash scripts/testdata/leg-contract/run.sh --self-test || rc_s=$?
   case "$rc_s" in 0) return 0 ;; 2) return 0 ;; *) return "$rc_s" ;; esac
 }
-item_q "run.sh --self-test (the planted leg; its engine needs rsync)" blk_st_leg
+face tree; item_q "run.sh --self-test (the planted leg; its engine needs rsync)" blk_st_leg
 REG
   # The ledger exists with no lines: an accepted boundary is a thing the tree has to decide, not a shape
   # the canaries get by the file being absent.
@@ -1171,11 +1176,11 @@ self_test() {
   _st_breed pinnedruntime 1 scripts/testdata/leg-contract/run.sh 'hl_wsl_needs node || exit 2' \
     "naming a pinned runtime assumes the engine's node, which the declined pin refuses" 'RUNTIME:'
   _st_breed noregname 1 scripts/validate-all.sh \
-    'item_q "a second wrap of the same leg, tool unnamed" hl_wsl_route bash scripts/testdata/leg-contract/run.sh --check' \
+    'face tree; item_q "a second wrap of the same leg, tool unnamed" hl_wsl_route bash scripts/testdata/leg-contract/run.sh --check' \
     "a wrap whose line hides the tool sends the reader to the engine blind" 'REGISTRATION:'
   # The path is a real script of this repo that the planted tree does not carry — see _st_tree.
   _st_breed missingleg 1 scripts/validate-all.sh \
-    'item_q "a wrap of a leg that is not there" hl_wsl_route bash scripts/harness/pi-self-update.sh --self-test' \
+    'face tree; item_q "a wrap of a leg that is not there" hl_wsl_route bash scripts/harness/pi-self-update.sh --self-test' \
     "a wrapped leg has to exist" 'does not exist'
 
   # The conjunction, seen from the tree: a wrapped leg that classifies its seat, opens a vault/ssh/network
@@ -1185,7 +1190,7 @@ self_test() {
   _st_breed tripwrap 1 scripts/testdata/leg-contract/run.sh 'ssh -o BatchMode=yes somewhere uptime || true' \
     "a trip at column 0 runs on both sides of the door, which is what the conjunction forbids" 'TRIP:'
   _st_breed verdict 1 scripts/validate-all.sh \
-    'item_q "a declaring leg wrapped straight onto the item line (needs rsync)" hl_wsl_route bash scripts/testdata/leg-contract/run.sh' \
+    'face tree; item_q "a declaring leg wrapped straight onto the item line (needs rsync)" hl_wsl_route bash scripts/testdata/leg-contract/run.sh' \
     "a declaring leg's rc 2 is a boundary, not a failed run — it belongs in a block or stays native" 'VERDICT:'
 
   # The silence half: each shape below MENTIONS the declaration without CALLING it, and must answer rc 0
@@ -1205,6 +1210,27 @@ ${NEEDS} \\
   rsync \\
   || exit \$?
 CONT
+
+  # The FACE half: each way a word on a registration line can stop matching the leg. The control's own
+  # registration is CROSSED, so every arm here adds a SECOND registration and grades only its own word.
+  _st_two face_home 1 scripts/testdata/leg-contract/run.sh 'DEPLOY="$HOME/.pi/agent/skills"' \
+    scripts/validate-all.sh 'face tree; item_q "the planted leg now reads a seat path (needs rsync)" bash scripts/testdata/leg-contract/run.sh --check' \
+    "a `tree` leg that reads this host's ~/.pi has a subject a snapshot cannot see" 'FACE:'
+  _st_two face_socket 1 scripts/testdata/leg-contract/run.sh '    ssh -o BatchMode=yes somewhere uptime || :' \
+    scripts/validate-all.sh 'face tree; item_q "the planted leg now opens a trip (needs rsync)" bash scripts/testdata/leg-contract/run.sh --check' \
+    "a `tree` leg that opens a socket has its subject on another box, whatever the column rule makes of it" 'FACE:'
+  _st_breed face_undecided 1 scripts/validate-all.sh \
+    'item_q "a registration whose face nobody chose (needs rsync)" bash scripts/testdata/leg-contract/run.sh --check' \
+    "an undecided face must refuse the run, exactly like an undecided profile" 'carries no face word'
+  _st_breed face_seat_note 0 scripts/validate-all.sh \
+    'face seat; item_q "a native leg that reads nothing but the tree (needs rsync)" bash scripts/testdata/leg-contract/run.sh --check' \
+    "a `seat` word that claims more seat than the facts show costs a NOTE, not a finding (A7's direction)" 'NOTE: face'
+  _st_two face_joined_seat 1 scripts/testdata/leg-contract/run.sh 'DEPLOY="$HOME/.pi/agent/extensions"' \
+    scripts/validate-all.sh 'face joined; item_q "the planted leg reads seat state only (needs rsync)" bash scripts/testdata/leg-contract/run.sh --check' \
+    "`joined` claims a tree half as well; a leg that reads only seat state is a `seat` leg" 'FACE:'
+  _st_breed face_wrapped_seat 1 scripts/validate-all.sh \
+    'face seat; item_q "a crossed leg called seat (needs rsync)" hl_wsl_route bash scripts/testdata/leg-contract/run.sh --check' \
+    "a CROSSED line cannot be a `seat` leg: the runner crosses it, so the snapshot is being asked to grade it" 'FACE:'
 
   # The door half, in the tree: the declaring leg driven by four planted answers. Its verdicts print
   # themselves, so a failure here names the arm — and the leg it drives is the same file the real-tree
@@ -1257,6 +1283,9 @@ case "${1:-}" in
     [ -n "${2:-}" ] || { printf 'CANNOT RUN: --root needs a directory\n' >&2; exit 2; }
     [ -d "$2" ] || { printf 'CANNOT RUN: --root %s is not a directory\n' "$2" >&2; exit 2; }
     ROOT="$(cd "$2" && pwd)"
+    # `--faces` beside `--root` is how a planted tree is audited row by row: the derivation prints the
+    # LINE the finding names, so an audit that cannot turn the table on has to guess which line it read.
+    case " ${*:3} " in *' --faces '*) SHOW_FACES=1 ;; esac
     check_tree; report $?; exit $? ;;
   --self-test)
     printf '== leg contract: each rule breeds its finding ==\n'
