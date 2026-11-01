@@ -30,6 +30,14 @@
 # the WRONG SEAT and prints a verdict, not an error — the class this repo keeps meeting. Speed alone
 # never earns a wrap: one trip across the door costs ~0.3 s.
 #
+# The fourth half of that conjunction is the one a leg can say OUT LOUD, and `hl_wsl_needs <tool>…` is
+# where it says it: the leg names what it shells out to and the inventory the probe already asked for
+# answers. A name the engine lists as ABSENT stops the leg with `CANNOT RUN` (rc 2) BEFORE it judges,
+# which is the only shape that cannot read as a pass — `hl_wsl_route` passes the far rc straight through,
+# so a crossed leg that found no `rsync` and carried on judging comes back rc 0 having proven less. The
+# question is asked in the probe and never in a leg, so a run pays one spawn and the legs pay none; what
+# travels to a crossed leg is the answer, on the same guest prefix that carries its PATH.
+#
 # HOW: `hl_wsl_route <argv…>` runs the argv on the engine when the probe said yes and runs it HERE when
 # it said no. It never skips and never forks a second copy: a leg that cannot cross is a leg that runs
 # at home, and the launch line says which engine answered.
@@ -55,7 +63,12 @@
 #   far rc is the caller's rc; a refused route runs the argv HERE (a marker file proves it, because
 #   "it ran at home" and "nothing ran" look identical in a log); an argv head with nothing to
 #   substitute runs at home even while the route is up; and the tool inventory the probe prints once per
-#   run states BOTH halves — what the engine answered with and what it answered NOTHING for.
+#   run states BOTH halves — what the engine answered with and what it answered NOTHING for. The
+#   declaration arms then grade `hl_wsl_needs` on planted inventories: the answer travels to a crossed leg
+#   on the guest prefix, a declared name the engine answered lets the leg run, a declared name it lists as
+#   ABSENT stops the leg with `CANNOT RUN` (rc 2) naming the tool, an engine that answered no inventory at
+#   all is a boundary rather than a licence, and a leg with no inventory in hand is at home and refuses
+#   nothing.
 # =====================================================================
 
 : "${HL_WSL:=auto}"                                       # auto | on | off (off = every leg native)
@@ -69,8 +82,12 @@ HL_WSL_GIT_WHY=""
 HL_WSL_MNT=""
 HL_WSL_PY=""
 HL_WSL_BASH=""
-HL_WSL_GUEST=()                                           # per-leg guest prefix: env PATH=…
-HL_WSL_TOOLS=""              # what the engine ANSWERED for, in words — printed once per run by the probe
+HL_WSL_GUEST=()              # per-leg guest prefix: env PATH=… HL_WSL_TOOLS=…
+# What the engine ANSWERED for, in words: printed once per run by the probe, and carried into a crossed
+# leg by the guest env so the leg's own `hl_wsl_needs` claim is answered by THIS run's probe and not by a
+# question the leg asks for itself. Never exported by this file, so a leg that runs at HOME never sees it
+# — the unset/empty state means "running where the tools are" and the declaration stays silent.
+: "${HL_WSL_TOOLS:=}"
 _HL_WSL_TOOL_NAMES_SHIPPED="rsync rg sqlite3 gawk jq git tmux op script ssh curl sudo ansible-playbook node npm npx pi"
 HL_WSL_TOOL_NAMES="${HL_WSL_TOOL_NAMES:-$_HL_WSL_TOOL_NAMES_SHIPPED}"
 # The names come from the legs this repo actually wraps and from the tool classes the route's PATH pin
@@ -268,11 +285,19 @@ EOF
   # was missing, and the alternative — every leg discovering it — is the per-leg rediscovery this file
   # exists to stop. Only on the way OUT of a probe that raised the route, so a seat with no route prints
   # no inventory about a seat it never asked.
+  #
+  # The answer also TRAVELS: it is appended to the guest prefix, which is the one line every crossed leg
+  # is launched with, so a leg's `hl_wsl_needs` claim is graded against this run's inventory without the
+  # leg asking anything. An inventory that answered nothing travels as the word `unknown` rather than as
+  # nothing at all: "the question was asked and nobody answered" has to stay distinguishable from "this
+  # leg is running at home", because the first is a boundary and the second is the ordinary case.
   if hl_wsl_tools; then
     printf 'engine tools (%s at %s): %s\n' "$HL_WSL_DISTRO" "$HL_WSL_MNT" "$HL_WSL_TOOLS" >&2
   else
+    HL_WSL_TOOLS=unknown
     printf 'engine tools (%s at %s): the inventory probe answered NOTHING — treat a wrapped leg that needs a tool as unproven, not as absent\n' "$HL_WSL_DISTRO" "$HL_WSL_MNT" >&2
   fi
+  HL_WSL_GUEST+=("HL_WSL_TOOLS=$HL_WSL_TOOLS")
   return 0
 }
 
@@ -332,6 +357,52 @@ hl_wsl_route() {
   esac
   printf 'route: declined for %s — no engine-side launcher known for this argv head, ran native\n' "$head" >&2
   "$@"
+}
+
+# hl_wsl_needs <tool>… | none — the leg's OWN claim about what it shells out to, which is what turns a
+# missing engine tool into `CANNOT RUN` (rc 2) instead of a leg that quietly judges less and exits 0.
+# WHY THE LEG DECLARES AND THE ROUTE STAYS OUT: the conjunction already says a wrapped leg may need no
+# tool the engine lacks, but nothing in the tree could say WHICH tool, so the rule was only prose — and
+# a crossed leg that finds nothing to run passes its rc straight through. A declaration is a name, not a
+# spawn, so it belongs to the leg and `hl_wsl_route` keeps its three exits unchanged.
+#
+# The answer is never asked here — that question is asked once, in `hl_wsl_tools`, from the probe — so a
+# leg costs nothing to declare and the run still costs one spawn. What a leg sees is the inventory this
+# run's probe printed, carried in on the guest env, which is what makes its refusal readable against the
+# `engine tools:` line a reader of the run already has.
+#
+#   rc 0  at home — no inventory in this environment means the leg is standing on a seat with its own
+#                  tools, which is what `HL_WSL=off`, every non-win11 seat and every declined argv head
+#                  look like from in here. The leg's own probe-then-SKIP logic is the authority there,
+#                  and this function changes nothing about that run.
+#   rc 0  crossed, every name answered.
+#   rc 2  CANNOT RUN, in words, for a name the inventory lists as ABSENT or never answers — an unproven
+#         tool is a boundary, never a green, and `unknown` is the probe's own word for a question the
+#         engine did not answer.
+# `none` is the explicit claim that the leg needs no engine tool: it is what a wrapped leg writes so that
+# "needs nothing" is a statement rather than an absence a checker cannot tell from "nobody thought about
+# it". An empty call is a refusal: a declaration that names nothing declares nothing.
+hl_wsl_needs() {
+  local _t _miss=""
+  if [ "$#" = 0 ]; then
+    printf 'FATAL: hl_wsl_needs: names the tools this leg shells out to, or `none` when it needs none\n' >&2
+    return 2
+  fi
+  if [ "$1" = none ]; then return 0; fi
+  if [ -z "${HL_WSL_TOOLS:-}" ]; then return 0; fi     # at home — see the rc table above
+  if [ "$HL_WSL_TOOLS" = unknown ]; then
+    printf 'CANNOT RUN: this leg declares it needs%s, and the engine it crossed to answered NO inventory question — an unproven tool is a boundary, not an absence\n' " $*" >&2
+    printf '      Re-derive the inventory: bash scripts/lib/wsl-route.sh --self-test (its last arm is the live probe)\n' >&2
+    return 2
+  fi
+  for _t in "$@"; do
+    case " $HL_WSL_TOOLS" in *" $_t="*) : ;; *) _miss="$_miss $_t" ;; esac   # answered rows are `name=/path`
+  done
+  [ -z "$_miss" ] && return 0
+  printf 'CANNOT RUN: this leg needs%s, and the engine it crossed to does not answer for it\n' "$_miss" >&2
+  printf '      inventory this run read: %s\n' "$HL_WSL_TOOLS"
+  printf '      The leg runs where the tool lives, or the engine gains it. A declaration names a tool the\n      probe ASKS about, and the leg-contract checker keeps those two lists from drifting apart.\n'
+  return 2
 }
 
 # --------------------------------------------------------------------------- #
@@ -570,6 +641,48 @@ PAIRS
   printf '%s' "$_inv_print" | grep -q '^engine tools' \
     && _ok "and the probe PRINTS it (once, on stderr, beside the route line a run already reads)" \
     || _no "the probe raised the route but printed no engine-tools line: ${_inv_print:-<none>}"
+  # THE LEG'S OWN DECLARATION — `hl_wsl_needs`, graded on planted inventories so the arms judge the
+  # CONTRACT and not the distro on the host. Four states, and the one that matters most is the third: a
+  # leg that runs at HOME must not be refused for a tool the engine lacks.
+  _probe HL_WSL_TOOL_NAMES='jq tmux rsync' HL_STUB_TOOLS='/usr/bin/jq\n/usr/bin/tmux'
+  case " ${HL_WSL_GUEST[*]} " in
+    *' HL_WSL_TOOLS=answered '*) _ok "the inventory TRAVELS to a crossed leg on the guest prefix — the leg asks nothing to be answered" ;;
+    *) _no "a crossed leg would carry no inventory, so its declaration could not be answered: ${HL_WSL_GUEST[*]}" ;;
+  esac
+  _nh=""
+  hl_wsl_needs jq tmux >/dev/null 2>&1 || _nh="rc$?"
+  [ -z "$_nh" ] && _ok "a leg whose declared tools ANSWERED crosses and runs (rc 0)" \
+                || _no "a leg declaring answered tools was refused ($_nh)"
+  _nh=""; _nout=""
+  _nout="$(hl_wsl_needs rsync 2>&1)" || _nh="rc$?"
+  if [ "$_nh" = rc2 ] && printf '%s' "$_nout" | grep -q 'CANNOT RUN' && printf '%s' "$_nout" | grep -q 'rsync'; then
+    _ok "a leg declaring an ABSENT tool answers CANNOT RUN (rc 2), naming the tool"
+  else
+    _no "a leg declaring rsync answered ${_nh:-rc0} instead of rc 2 — the rc-0-lies class: ${_nout:-no output}"
+  fi
+  HL_WSL_TOOLS=""; _nh=""; _nout=""
+  _nout="$(hl_wsl_needs rsync 2>&1)" || _nh="rc$?"
+  if [ -n "$_nh" ] || printf '%s' "$_nout" | grep -q .; then
+    _no "a leg running at HOME was refused for a tool the ENGINE lacks (${_nh:-rc0}): ${_nout:-no output}"
+  else
+    _ok "with no inventory in hand the leg is at home: no refusal, no word, rc unchanged"
+  fi
+  _nh=""; _nout=""; HL_WSL_TOOLS=unknown
+  _nout="$(hl_wsl_needs jq 2>&1)" || _nh="rc$?"
+  if [ "$_nh" = rc2 ] && printf '%s' "$_nout" | grep -qi 'unproven'; then
+    _ok "an engine that answered NO inventory question is a boundary, not a licence (rc 2, said as unproven)"
+  else
+    _no "a leg crossed onto an engine with no inventory answered ${_nh:-rc0}: ${_nout:-no output}"
+  fi
+  HL_WSL_TOOLS='answered — jq=/usr/bin/jq'
+  hl_wsl_needs none >/dev/null 2>&1 \
+    && _ok "the claim 'needs no engine tool' is a statement, not an absence: rc 0 on either side of the door" \
+    || _no "a leg declaring it needs no engine tool was refused"
+  hl_wsl_needs >/dev/null 2>&1 \
+    && _no "hl_wsl_needs with no names declared nothing and passed" \
+    || _ok "and a declaration that names nothing is refused, not read as the claim of needing nothing"
+  HL_WSL_TOOLS=""
+  # The run's own testimony, restated: a seat with no route asked no question, so it claims no answer.
   _probe class=wsl
   _HL_WSL_PROBED=0
   _inv_off="$( { hl_wsl_probe "$_tmp/tree" wsl /mnt/M/tree; } 2>&1 >/dev/null )"
