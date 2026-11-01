@@ -1256,41 +1256,51 @@ _st_spawn() {
   timeout "$_ST_LIMIT" bash "$_p" "$@" < /dev/null 2>&1
 }
 
-# _st_tree <dir> — the legal shape: the real lib, one named+guarded+asked declaration, and a
-# registration that names the tool. Every canary below mutates ONE thing out of it.
-_st_tree() {
-  # The planted paths are REAL paths of this repo, in a tree that does not carry them all: a literal
-  # `scripts/<path>` in a tracked script is a COMMAND that check_script_layout.py resolves, and the
-  # finding a canary breeds is about the PLANTED tree, which is where the path has to be missing.
-  local d="$1"
-  mkdir -p "$d/scripts/lib" "$d/scripts/testdata/leg-contract" "$d/scripts/gate" || return 1
-  cp "$REPO/scripts/lib/wsl-route.sh" "$d/scripts/lib/wsl-route.sh" || return 1
-  # The declaration name is COMPOSED here, for the reason the inventory names are composed: heredoc text
-  # is file text, and a literal planted leg in this checker's own body is read back by the corpus walk as
-  # a declaration IN THE TREE — a denominator the checker inflates about itself.
-  cat >"$d/scripts/testdata/leg-contract/run.sh" <<LEG
+# THE CONTROL TREE IS BUILT ONCE AND PLANTED PER ARM. WHY the indirection is worth it: every arm below
+# needs a whole legal tree, and planting one the naive way pays `mkdir` + `cp` + two `cat`s + the output
+# capture — half a dozen EXECs per arm, ~200 for the self-test. That is noise on the engine and most of
+# the leg's wall on a seat where a fork is 16-150 ms, and a fork-heavy leg sitting in a 24-wide pool is
+# what reddens a timing-sensitive arm two items away (HD-1117: a leg that spawns must never oversubscribe
+# the machine). So the pristine tree is read into shell memory ONCE and a plant is redirections and
+# builtins: one EXEC per arm, the `mkdir`, and no fork at all for the three planted files. No assertion
+# moves — the bytes written are the bytes `_st_control` reads or holds.
+_ST_CTRL=0
+_ST_ROUTE=""; _ST_LEG=""; _ST_REG=""
+
+# _st_control — the pristine control tree, cached. The two planted texts arrive through a QUOTED heredoc
+# read with `-d ''` rather than `$( cat <<… )`: a command substitution both forks and COMMAND-SUBSTITUTES
+# its own text, which is the shape that let an unquoted `--self-test` comment re-enter this function from
+# inside its own fixture. The declaration name is still COMPOSED (`@NEEDS@`, substituted by parameter
+# expansion below) for the reason the inventory names are composed: heredoc text is file text, and a
+# literal call in this checker's own body is read back by the corpus walk as a declaration IN THE TREE —
+# a denominator it would inflate about itself.
+_st_control() {
+  [ "$_ST_CTRL" = 1 ] && return 0
+  _read_all _ST_ROUTE "$REPO/scripts/lib/wsl-route.sh" || :
+  [ -n "$_ST_ROUTE" ] || return 1
+  read -r -d '' _ST_LEG <<'LEG' || :
 #!/usr/bin/env bash
 # A planted leg in the contract's legal shape: a named, guarded declaration of a tool the probe asks,
 # and a --self-test that BUILDS ITS OWN FIXTURE — the registration the control tree registers crosses
 # that flag, so the narrowing needs evidence on the dispatch path or the control is not legal.
-${NEEDS} rsync || exit \$?
-case "\${1:-}" in
+@NEEDS@ rsync || exit $?
+case "${1:-}" in
   --self-test) self_test ;;
 esac
 self_test() {
   local tmp
-  tmp="\$(mktemp -d)" || return 1
-  printf 'ok  the leg ran in a fixture\\n'
+  tmp="$(mktemp -d)" || return 1
+  printf 'ok  the leg ran in a fixture\n'
 }
-printf 'ok  the leg ran\\n'
+printf 'ok  the leg ran\n'
 LEG
   # A declaring leg is registered through a BLOCK, because its rc 2 is a boundary and an item line would
-  # read it as a verdict (VERDICT below) — so the legal shape has to be the shape the rule asks for.
+  # read it as a verdict (VERDICT above) — so the legal shape has to be the shape the rule asks for.
   # The face word is part of the LEGAL shape, not a garnish: a registration with no `face` word is
   # UNDECIDED, which is a finding, so a control tree without one is red before any canary is planted
   # and every canary below reddens for a reason outside its own rule. `tree` is what the derivation
   # derives here: a CROSSED line whose leg reads neither seat state nor this checkout.
-  cat >"$d/scripts/validate-all.sh" <<'REG'
+  read -r -d '' _ST_REG <<'REG' || :
 #!/usr/bin/env bash
 blk_st_leg() {
   local rc_s=0
@@ -1299,6 +1309,23 @@ blk_st_leg() {
 }
 face tree; item_q "run.sh --self-test (the planted leg; its engine needs rsync)" blk_st_leg
 REG
+  _ST_LEG="${_ST_LEG//@NEEDS@/$NEEDS}"
+  _ST_CTRL=1
+  return 0
+}
+
+# _st_tree <dir> — plant the control tree: the real lib, one named+guarded+asked declaration, a
+# registration that names the tool, and an empty ledger. Every canary below mutates ONE thing out of it.
+_st_tree() {
+  # The planted paths are REAL paths of this repo, in a tree that does not carry them all: a literal
+  # `scripts/<path>` in a tracked script is a COMMAND that check_script_layout.py resolves, and the
+  # finding a canary breeds is about the PLANTED tree, which is where the path has to be missing.
+  local d="$1" _nl=$'\n'
+  _st_control || return 1
+  mkdir -p "$d/scripts/lib" "$d/scripts/testdata/leg-contract" "$d/scripts/gate" || return 1
+  printf '%s\n' "${_ST_ROUTE%$_nl}" >"$d/scripts/lib/wsl-route.sh" || return 1
+  printf '%s\n' "${_ST_LEG%$_nl}" >"$d/scripts/testdata/leg-contract/run.sh" || return 1
+  printf '%s\n' "${_ST_REG%$_nl}" >"$d/scripts/validate-all.sh" || return 1
   # The ledger exists with no lines: an accepted boundary is a thing the tree has to decide, not a shape
   # the canaries get by the file being absent.
   printf '# planted ledger: no boundary accepted here\n' >"$d/scripts/gate/leg_contract_boundaries.txt"
