@@ -135,7 +135,7 @@ most; a rank is not an order. Only step 3 needs an external model, and it is the
 | # | step | from | why it sits there |
 |---|---|---|---|
 | 0 | the seat pre-flight + that seat's delegation plane (HD-1180) — [prompt-laptop-wsl.md](prompt-laptop-wsl.md) §0 | the WSL Debian station | every converge in the window is driven **off-box** from there; an unverified delegation plane makes the whole run foreground-sequential |
-| 1 | the in-repo leak tools (HD-1219 → HD-1216 → HD-1218, the order is a dependency) and the whole-corpus gates — [prompt-secrets.md](prompt-secrets.md) §3, [prompt-external.md](prompt-external.md) | any seat, no converge host | they stop the *next* run-capture debt before the next window creates one — the last window created several. **HD-1216**'s launcher fix is IN `main` (`d1e909a7`, then `38fbd65b` for the shell half), so what is owed is two seat acts and no merge: the `wsl` seat's own `acceptance-pair` read, then `sync-extensions.sh --push` per seat (the `5b6fab75` branch is superseded, absorbed by `d1e909a7`, and its remote ref is deleted) |
+| 1 | the in-repo leak tools (HD-1219 → HD-1216 → HD-1218, the order is a dependency) and the whole-corpus gates — [prompt-secrets.md](prompt-secrets.md) §3, [prompt-external.md](prompt-external.md) | any seat, no converge host | they stop the *next* run-capture debt before the next window creates one — the last window created several. **HD-1216**'s launcher fix is IN `main` and no merge is owed: the `oldsrv` seat reads IN on its own `acceptance-pair` and its own plane `--check`, so what is left is the `wsl` seat's two acts, run FROM that seat — the rows carry the per-seat state, and a read here certifies nothing there |
 | 2 | the rotations a ledger re-derive cannot go past — the residue of [prompt-update.md](prompt-update.md) Phase 3, driven from the briefs that own each item | one converge per host | Phase 7 is ONE commit and it drops only the lines whose **far end** moved |
 | 3 | **[prompt-update.md](prompt-update.md) Phase 6 — spark, last and solo** (OTA → pin converge → the third tailnet node → the engine-key rotation → HD-1206's flips) | an externally-served session on the station, owner present | the only Rule-0-gated step in the fleet; its legs are the card's order + HD-1206's row order, and its boot windows are ~20 min each |
 | 4 | Phase 7 (re-derive the leak ledger) → Phase 8 (the docs pass, then `prompt-update.md` dies) | the station | that one commit is what turns `check_secret_leak.py` green again |
@@ -378,11 +378,12 @@ not this list, holds the steps, the file ownership and the converge host. Waves,
     owner-only channel that closes with no repo change (`op_api` needs nothing further — its scope, its CI holders
     and the root-side install are stated in [docs/1password.md](docs/1password.md) §Where a token is installed) ·
     **HD-1181** the vault values this seat's pi transcripts hold: the rotation is the owner's and it **differs per
-    item**, so act from the row's per-item list, not from memory. ⚠ **`check_secret_leak.py` — and with it
-    `validate-all.sh` — is RED on this seat BY DESIGN until that rotation lands**: no ledger line was added and the
-    checker was not edited to quiet a live value, so a green leak read here means the register was muted; a rotated
-    value stops being a finding, an unrotated one never does, and the register is **per seat** — the list is the union of
-    the seat reads.
+    item**, so act from the row's per-item list, not from memory. ⚠ **The leak gate's exit code is not the
+    finding on this seat**: the pairs are carried in `scripts/gate/secret_leak_ledger.txt`, and a ledgered hit prints
+    `KNOWN-EXPOSED` and exits 0 — so a GREEN read here names its debt rather than hiding it, and only a hit the book
+    does not name reddens. A line another seat recorded prints `CARRIED` and closes nothing here; a rotated value stops
+    being a finding, an unrotated one never does, and the register is **per seat** — the list is the union of the seat
+    reads.
     **HD-1160** owes one owner-present **router window** (global slot) — ⛔ never from a docs lane, never `--diff`
     (parked below). ⏸ **HD-454 is ruled, not pending** — nothing is purchased and no out-of-band path is scheduled, so
     a switched-off `oldsrv` waits for presence, and the one owner-side leg left is a WoL re-test at a planned power-off
