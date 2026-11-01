@@ -130,7 +130,10 @@ _snap_want() {
   SNAP_WANT="$(git -C "$SNAP_REPO" rev-parse HEAD 2>/dev/null)" || return 1
   local d
   d="$(git -C "$SNAP_REPO" rev-parse --git-common-dir 2>/dev/null)" || return 1
-  case "$d" in /*) : ;; *) d="$SNAP_REPO/$d" ;; esac
+  # ABSOLUTE in EITHER spelling: git-for-windows answers a drive letter (`D:/…/.git`) where the
+  # engine answers `/home/…/.git`, and prefixing the first with $SNAP_REPO is how the source dir
+  # becomes `/…/homelab-wt-…/D:/source/…` and every later git call dies on it.
+  case "$d" in /* | [A-Za-z]:[\/]*) : ;; *) d="$SNAP_REPO/$d" ;; esac
   SNAP_SRC="$d"
   if [ "$SNAP_DOOR" = remote ]; then
     SNAP_SRC="$(hl_wsl_mntpath "$d")" || { echo "FAIL: $SELF: the repo's git dir has no /mnt spelling: $d" >&2; return 1; }
@@ -247,7 +250,7 @@ _snap_materialize() {
   [ "$DIR_TRACKED" = 1 ] || [ "$DIR_UNtracked" = 1 ] || return 0
   local gk tmp
   gk="$(git -C "$SNAP_REPO" rev-parse --git-common-dir)" || return 1
-  case "$gk" in /*) : ;; *) gk="$SNAP_REPO/$gk" ;; esac
+  case "$gk" in /* | [A-Za-z]:[\/]*) : ;; *) gk="$SNAP_REPO/$gk" ;; esac   # absolute in either spelling
   # scratch INSIDE the git dir: a worktree-visible /tmp would either leak untracked garbage into the
   # corpus or arrive at the guest through a path the mnt translator could misread as a drive.
   tmp="$(mktemp -d "$gk/gate-snap-carry.XXXXXX")" || return 1
