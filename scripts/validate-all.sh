@@ -1837,6 +1837,12 @@ item_q "text-only-preflight.sh --self-test (the HD-400 pre-flight verdicts on fi
 # verdict, and it is the witness for the venv-guard predicate render-pi-config.py copies verbatim.
 item_q "testdata/rsync-max-delete/run.sh --self-test (--max-delete is a CAP: exactly N/2 deleted + rc 25, asserted as numbers; every weakening reddens a canary)" hl_wsl_route bash scripts/testdata/rsync-max-delete/run.sh --self-test
 item_q "testdata/rsync-max-delete/run.sh (the shape-parity arm + the two real rsync fires over N=100 files)" blk_rsync_max_delete
+# The declaring fixture leg — a FIXTURE, and it exists to be the leg-contract checker's subject: it is
+# wrapped, it declares rsync, and rsync is ABSENT on both engines of this laptop, so the rc-2 CANNOT RUN
+# path runs in the tree instead of in a checker's temp directory. Its rc 2 is the ANSWER the leg exists to
+# print, so the block maps it to a NOTE and never to a finding (same shape as the rsync fires above).
+item_q "testdata/leg-contract/run.sh --self-test (the declaration mirror: an undeclared rsync call, a declaration with no call behind it, and an unreadable leg each redden a canary)" bash scripts/testdata/leg-contract/run.sh --self-test
+item_q "testdata/leg-contract/run.sh (FIXTURE leg for check-leg-contract.sh: the one wrapped leg that declares its engine tool — rsync — so an engine listing it ABSENT must stop the leg with CANNOT RUN before it judges anything)" blk_leg_contract_declares
 item_q "ansible_query.py --self-test (HD-456 fixtures + the venv re-exec guard both seat planes depend on)" "${PY_CMD[@]}" scripts/ansible/ansible_query.py --self-test
 # HD-1199: the doc corpus had no size bound at all — this is the ratchet, cheap enough for the quick
 # profile because it reads 75 docs' line counts and nothing else.
@@ -1882,6 +1888,23 @@ blk_rsync_max_delete() {
     2) echo "NOTE: the two rsync arms did not run here (no rsync binary on this host) — the parity arm did,"; echo "      and --self-test beside this item proves both halves of the verdict can still redden."
        return 0 ;;
     *) return "$rc_md" ;;
+  esac
+}
+
+# The declaring fixture leg's rc 2 is the leg CONTRACT working: across the door it is `hl_wsl_needs`
+# refusing before anything was judged, at home it is the leg's own probe finding no rsync. Both say one
+# true sentence about the seat, so the run prints it and does not count it as a failure — and the
+# sentence is the leg's own words, which quote the run's engine tools: line.
+blk_leg_contract_declares() {
+  local rc_lc=0
+  hl_wsl_route bash scripts/testdata/leg-contract/run.sh || rc_lc=$?
+  case "$rc_lc" in
+    0) return 0 ;;
+    2) echo "NOTE: the declaring fixture leg answered CANNOT RUN — this engine does not have the tool it";
+       echo "      declares. That is the boundary, weighed by scripts/gate/check-leg-contract.sh; the arms";
+       echo "      that need the tool did not run, and nothing was counted green for them."
+       return 0 ;;
+    *) return "$rc_lc" ;;
   esac
 }
 

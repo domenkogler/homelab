@@ -37,23 +37,27 @@
 #                make impossible.
 #
 # A leg that needs no engine tool writes `hl_wsl_needs none`, so "needs nothing" is a STATEMENT rather
-# than an absence a checker cannot tell from "nobody thought about it". A tree where no leg declares
-# anything prints a NOTE instead of a clean-looking zero: on such a tree the rule is unexercised by the
-# tree, and the arms are what still prove it bites.
+# than an absence a checker cannot tell from "nobody thought about it". A tree that wraps legs while
+# NOTHING declares answers rc 2 rather than OK: a contract the tree never exercised is not a pass, and
+# the subject to add is one wrapped leg that names what it shells out to
+# (`scripts/testdata/leg-contract/run.sh`). A tree with no declarations AND no wraps — a checkout where
+# the door is not wired at all — prints the NOTE instead, because there is nothing here to weigh.
 #
 # Usage:
 #   bash scripts/gate/check-leg-contract.sh              # this tree
 #   bash scripts/gate/check-leg-contract.sh --root DIR   # a planted tree (the canaries, and an audit)
 #   bash scripts/gate/check-leg-contract.sh --self-test  # each rule breeds its finding
-#   bash scripts/gate/check-leg-contract.sh --arms       # planted legs through a door: the verdicts
+#   bash scripts/gate/check-leg-contract.sh --arms       # the declaring leg, driven by planted answers
 #
 # Exit: 0 clean · 1 finding(s) · 2 could not run (no lib, no registrations, an empty corpus). No stdin
 # is read, and nothing outside a temp directory is written.
 #
-# WHAT IS NOT HERE: the engine's ANSWER about a tool is the probe's (`hl_wsl_tools`, asked once per run,
-# never from a checker's loop); the parity of a leg across the door is `bench/win/gate-parity.sh`'s; and
-# WHICH legs cross are validate-all.sh's registration lines. This file reads those decisions and never
-# re-makes them — the same reason the repo keeps no second item list.
+# WHAT IS NOT HERE: the engine's ANSWER about a tool is the probe's — ONE `which` spawn per run, asked
+# from the probe and never from a checker's loop (the function is not named here because naming it in a
+# scanned file is what this rule hunts, and a checker exempt from its own rule is a checker with no rule);
+# the parity of a leg across the door is `bench/win/gate-parity.sh`'s; and WHICH legs cross are
+# validate-all.sh's registration lines. This file reads those decisions and never re-makes them — the
+# same reason the repo keeps no second item list.
 #
 # Cost: the walk reads `*.sh` / `*.py` under scripts/ and forks ONCE (the file list), the rest with
 # builtins, on the seat whose whole measurement is the price of a fork. A `.ps1` file is out of scope by
@@ -64,8 +68,11 @@
 #   Each rule breeds its finding alone in a planted tree, and the same tree with nothing planted stays
 #   green — so no canary reddens for a reason outside its own rule. Four arms are SILENCE arms: a comment,
 #   an error string, a redirection and a line continuation naming the declaration must answer rc 0.
-#   `--arms` runs the contract through a door instead of through a grep; it refuses until the declaring
-#   fixture leg lands under `testdata/`, and says so rather than printing verdicts it did not take.
+#   `--arms` runs the contract through the ANSWERS instead of through a grep: the declaring leg in the
+#   tree is driven by four planted inventories and answers rc 0 having run, rc 2 naming a tool the
+#   inventory lists as ABSENT and quoting that inventory, unchanged and silent with no answer in hand, and
+#   rc 2 as UNPROVEN for an engine that answered nothing. The door itself is `lib/wsl-route.sh --self-test`
+#   and the native-versus-crossed pair is `bench/win/gate-parity.sh`'s; no engine is spawned here.
 # =====================================================================
 set -uo pipefail
 set -f        # the words below come out of file text; a `*` in a leg must not become a file list
@@ -161,6 +168,9 @@ decl_names() {
   done
   printf '%s' "${_out# }"
 }
+
+# has <text> <needle> — the substring test as a named condition, so the door arms read as sentences.
+has() { case "$1" in *"$2"*) return 0 ;; *) return 1 ;; esac; }
 
 # has_name <line> <name> — is <name> a WORD of this line? A registration reason is PROSE, and prose
 # ends its clauses with punctuation: `(its engine needs rsync)` names the tool exactly as `needs rsync`
@@ -308,8 +318,16 @@ check_tree() {
   # never look like a pass.
   _note="declarations $decl_n in $decl_files file(s) · wrapped legs $resolved/$wrapped registration(s) named a leg path · tools the probe asks: $(printf '%s\n' "$_asked" | wc -w)"
   if [ "$decl_n" = 0 ]; then
-    printf 'NOTE: no leg on this tree declares its engine tools yet — the tree exercises nothing, so the\n'
-    printf '      arms are the proof here. A wrapped leg that shells out to a tool is what adds a declaration.\n'
+    if [ "$wrapped" != 0 ]; then
+      printf 'CANNOT RUN: %s registration(s) cross the door and nothing in this tree declares its\n' "$wrapped"
+      printf '      engine tools — the half of the contract the tree is supposed to carry was never\n'
+      printf '      exercised, and a green here would be a green about planted strings. The shape to copy\n'
+      printf '      is scripts/testdata/leg-contract/run.sh: one wrapped leg that names what it needs.\n'
+      return 2
+    fi
+    printf 'NOTE: no leg on this tree declares its engine tools, and no leg is wrapped either — the rule\n'
+    printf '      has no subject here, so the arms are the proof. A wrapped leg that shells out to a tool\n'
+    printf '      is what adds a declaration.\n'
   fi
   [ "$resolved" = "$wrapped" ] \
     || printf 'NOTE: %s wrapped registration(s) name no `scripts/…` leg path on the line, so REGISTRATION\n      could not weigh them — a leg wrapped inside a shell function is that shape.\n' \
@@ -330,6 +348,68 @@ report() { # report <check-rc>
 }
 
 # --------------------------------------------------------------------------- #
+# THE DOOR ARMS — the in-tree declaring leg, driven by planted answers.                #
+# --------------------------------------------------------------------------- #
+# WHY NO ENGINE IS SPAWNED HERE: `hl_wsl_needs` grades a name against the answer the probe put on the
+# guest env, so planting THAT is what grades the leg's use of it — which is the whole subject of these
+# arms. The door is proved by `lib/wsl-route.sh --self-test` through its own stub launcher, and a leg's
+# native-versus-crossed PAIR belongs to `bench/win/gate-parity.sh`; a checker that paid a crossing per
+# arm would buy a slower checker, not a truer one. The inventory's name arrives COMPOSED ($INV_VAR) for
+# the reason the canaries compose it: this file may not contain the string its own INVENTORY rule hunts.
+# `pi-tui-config --self-test`'s `pinned-node` arm is the crossed-side pointer for why no arm here names a
+# runtime: the engine's node sits behind the PATH pin whose widening docs/harness-rejected.md declines.
+door_arms() {
+  local _leg="$ROOT/scripts/testdata/leg-contract/run.sh" _out="" _rc=0 _bad=0
+  [ -f "$_leg" ] \
+    || { printf 'CANNOT RUN: no declaring leg at %s — the door arms need a leg that declares something\n' "$_leg"; return 2; }
+  printf '== leg contract: the declaring leg, driven by planted answers ==\n'
+
+  # 1 · answered. The leg runs, and says it ran: an answer that stops a leg it should let through is the
+  #     refusal that gets a working wrap unwrapped for the wrong reason.
+  _out="$( export "$INV_VAR=answered — rsync=/usr/bin/rsync"; bash "$_leg" --declare-only 2>&1 )"; _rc=$?
+  if [ "$_rc" = 0 ] && has "$_out" 'ran past its declaration' && ! has "$_out" 'CANNOT RUN'; then
+    printf '  ok: answered tool → rc 0 and the leg ran\n'
+  else
+    printf 'FAIL: DOOR: an answered tool stopped the leg (rc %s)\n      | %s\n' "$_rc" "$_out"
+    _bad=$((_bad + 1))
+  fi
+
+  # 2 · ABSENT. rc 2, and the words must name BOTH the tool and the inventory the refusal was read
+  #     against — a CANNOT RUN that quotes nothing is a boundary nobody can check.
+  _out="$( export "$INV_VAR=answered — bash=/usr/bin/bash · ABSENT — rsync"; bash "$_leg" --declare-only 2>&1 )"; _rc=$?
+  if [ "$_rc" = 2 ] && has "$_out" 'CANNOT RUN' && has "$_out" 'rsync' && has "$_out" 'ABSENT — rsync' \
+     && ! has "$_out" 'ran past its declaration'; then
+    printf '  ok: ABSENT tool → rc 2 naming the tool and quoting the inventory\n'
+  else
+    printf 'FAIL: DOOR: an ABSENT tool did not refuse the way the contract says (rc %s)\n      | %s\n' "$_rc" "$_out"
+    _bad=$((_bad + 1))
+  fi
+
+  # 3 · no inventory in hand — the shape `HL_WSL=off`, a Debian seat and a declined argv head all look
+  #     like from in here. rc unchanged, the leg ran, and NOTHING was said: a leg that refuses on its own
+  #     seat is one answering a question its own probe answers better.
+  _out="$( unset -v "$INV_VAR"; bash "$_leg" --declare-only 2>&1 )"; _rc=$?
+  if [ "$_rc" = 0 ] && has "$_out" 'ran past its declaration' && ! has "$_out" 'CANNOT RUN'; then
+    printf '  ok: no inventory in hand → ran at home, rc unchanged, silent\n'
+  else
+    printf 'FAIL: DOOR: a leg with no inventory was talked out of running (rc %s)\n      | %s\n' "$_rc" "$_out"
+    _bad=$((_bad + 1))
+  fi
+
+  # 4 · the probe answered NOTHING. Still rc 2, but as UNPROVEN: "nobody answered" and "it is not there"
+  #     are different sentences, and collapsing them would let an engine outage read as a missing tool.
+  _out="$( export "$INV_VAR=unknown"; bash "$_leg" --declare-only 2>&1 )"; _rc=$?
+  if [ "$_rc" = 2 ] && has "$_out" 'unproven' && ! has "$_out" 'does not answer for it'; then
+    printf '  ok: the probe answered nothing → rc 2 as unproven, not as absent\n'
+  else
+    printf 'FAIL: DOOR: an unanswered inventory was not called a boundary (rc %s)\n      | %s\n' "$_rc" "$_out"
+    _bad=$((_bad + 1))
+  fi
+
+  [ "$_bad" = 0 ] || { printf '\n%s door finding(s)\n' "$_bad"; return 1; }
+  return 0
+}
+# --------------------------------------------------------------------------- #
 # SELF-TEST — every rule breeds its finding, and the legal shape stays green.          #
 # --------------------------------------------------------------------------- #
 _st_n=0
@@ -341,17 +421,25 @@ _st_no() { printf 'SELFTEST FAIL: %s\n' "$*"; _st_f=$((_st_f + 1)); }
 # registration that names the tool. Every canary below mutates ONE thing out of it.
 _st_tree() {
   local d="$1"
-  mkdir -p "$d/scripts/lib" "$d/scripts/harness" || return 1
+  # The planted paths are REAL paths in this repo, in a tree that does not contain them all. A literal
+  # `scripts/<path>` anywhere in a tracked script is a COMMAND that `check_script_layout.py` resolves, so a
+  # canary inventing `scripts/harness/leg.sh` would be a dangling command in the checker's own body — and
+  # the finding the canary breeds is about the PLANTED tree, which is where the path must be missing.
+  mkdir -p "$d/scripts/lib" "$d/scripts/testdata/leg-contract" || return 1
   cp "$REPO/scripts/lib/wsl-route.sh" "$d/scripts/lib/wsl-route.sh" || return 1
-  cat >"$d/scripts/harness/leg.sh" <<'LEG'
+  # The declaration name is COMPOSED here, for the reason the inventory names are composed: heredoc text
+  # is file text, and a literal planted leg sitting in this checker's own body is read back by the corpus
+  # walk as a declaration IN THE TREE — a denominator the checker inflates about itself, and the shape that
+  # would let a self-test string report the tree as exercised while nothing in it declares anything.
+  cat >"$d/scripts/testdata/leg-contract/run.sh" <<LEG
 #!/usr/bin/env bash
 # A planted leg in the contract's legal shape: a named, guarded declaration of a tool the probe asks.
-hl_wsl_needs rsync || exit $?
+${NEEDS} rsync || exit \$?
 printf 'ok  the leg ran\n'
 LEG
   cat >"$d/scripts/validate-all.sh" <<'REG'
 #!/usr/bin/env bash
-item_q "leg.sh --self-test (the planted leg; its engine needs rsync)" hl_wsl_route bash scripts/harness/leg.sh --self-test
+item_q "leg.sh --self-test (the planted leg; its engine needs rsync)" hl_wsl_route bash scripts/testdata/leg-contract/run.sh --self-test
 REG
   return 0
 }
@@ -406,44 +494,55 @@ self_test() {
     _st_no "the control tree was NOT green — the canaries below would redden for the wrong reason"
   fi
 
-  _st_breed unasked 1 scripts/harness/leg.sh 'hl_wsl_needs nosuchtool || exit 2' \
+  _st_breed unasked 1 scripts/testdata/leg-contract/run.sh 'hl_wsl_needs nosuchtool || exit 2' \
     "an unasked name can only ever read as absent; the probe has to be told to ask"
-  _st_breed unguarded 1 scripts/harness/leg.sh 'hl_wsl_needs jq' \
+  _st_breed unguarded 1 scripts/testdata/leg-contract/run.sh 'hl_wsl_needs jq' \
     "a discarded rc: the claim cannot stop the leg, which is the rc-0-lies shape"
-  _st_breed noname 1 scripts/harness/leg.sh 'hl_wsl_needs || exit 2' \
+  _st_breed noname 1 scripts/testdata/leg-contract/run.sh 'hl_wsl_needs || exit 2' \
     "a declaration that names nothing declares nothing"
-  _st_breed varname 1 scripts/harness/leg.sh 'hl_wsl_needs "$HL_LEG_TOOL" || exit 2' \
+  _st_breed varname 1 scripts/testdata/leg-contract/run.sh 'hl_wsl_needs "$HL_LEG_TOOL" || exit 2' \
     "a name from the environment is a name no inventory answers for"
-  _st_breed twoclaims 1 scripts/harness/leg.sh 'hl_wsl_needs none rsync || exit 2' \
+  _st_breed twoclaims 1 scripts/testdata/leg-contract/run.sh 'hl_wsl_needs none rsync || exit 2' \
     "claiming none and a name at once claims nothing"
-  _st_breed secondspelling 1 scripts/harness/leg.sh 'if [ -n "${'"$INV_VAR"':-}" ]; then :; fi' \
+  _st_breed secondspelling 1 scripts/testdata/leg-contract/run.sh 'if [ -n "${'"$INV_VAR"':-}" ]; then :; fi' \
     "the engine-tool question asked twice is the per-leg rediscovery the lib exists to stop"
-  _st_breed pinnedruntime 1 scripts/harness/leg.sh 'hl_wsl_needs node || exit 2' \
+  _st_breed pinnedruntime 1 scripts/testdata/leg-contract/run.sh 'hl_wsl_needs node || exit 2' \
     "naming a pinned runtime assumes the engine's node, which the declined pin refuses"
   _st_breed noregname 1 scripts/validate-all.sh \
-    'item_q "a second wrap of the same leg, tool unnamed" hl_wsl_route bash scripts/harness/leg.sh --check' \
+    'item_q "a second wrap of the same leg, tool unnamed" hl_wsl_route bash scripts/testdata/leg-contract/run.sh --check' \
     "a wrap whose line hides the tool sends the reader to the engine blind"
+  # The path is a real script of this repo that the planted tree does not carry — see _st_tree.
   _st_breed missingleg 1 scripts/validate-all.sh \
-    'item_q "a wrap of a leg that is not there" hl_wsl_route bash scripts/harness/gone.sh --self-test' \
+    'item_q "a wrap of a leg that is not there" hl_wsl_route bash scripts/harness/pi-self-update.sh --self-test' \
     "a wrapped leg has to exist"
 
   # The silence half: each shape below MENTIONS the declaration without CALLING it, and must answer rc 0
   # in a tree that already holds one legal declaration. A parser that reads prose, redirections or line
   # breaks as call sites reddens a leg for the shape of its comments — the false-positive class that
   # makes a checker get muted, so it is fenced here rather than in an audit note.
-  _st_breed prosecomment 0 scripts/harness/leg.sh '# the rule: hl_wsl_needs rsync || exit 2 stops the leg' \
+  _st_breed prosecomment 0 scripts/testdata/leg-contract/run.sh '# the rule: hl_wsl_needs rsync || exit 2 stops the leg' \
     "a comment about the rule is prose, not a call site"
-  _st_breed prosestring 0 scripts/harness/leg.sh \
+  _st_breed prosestring 0 scripts/testdata/leg-contract/run.sh \
     "printf 'usage: call hl_wsl_needs with the tools this leg shells out to\n' >&2" \
     "an error string that spells the name is prose, not a call site"
-  _st_breed redirection 0 scripts/harness/leg.sh 'hl_wsl_needs rsync >/dev/null 2>&1 || exit $?' \
+  _st_breed redirection 0 scripts/testdata/leg-contract/run.sh 'hl_wsl_needs rsync >/dev/null 2>&1 || exit $?' \
     "a redirection says where the output goes, not what the leg needs"
-  _st_multiline continuation 0 scripts/harness/leg.sh \
-    "a declaration split by backslashes is one call site, not three" <<'CONT'
-hl_wsl_needs \
-  rsync \
-  || exit $?
+  _st_multiline continuation 0 scripts/testdata/leg-contract/run.sh \
+    "a declaration split by backslashes is one call site, not three" <<CONT
+${NEEDS} \\
+  rsync \\
+  || exit \$?
 CONT
+
+  # The door half, in the tree: the declaring leg driven by four planted answers. Its verdicts print
+  # themselves, so a failure here names the arm — and the leg it drives is the same file the real-tree
+  # check reads, which is what keeps a canary and the tree from holding two opinions.
+  printf '== the door arms ==\n'
+  if door_arms; then
+    _st_ok "the in-tree declaring leg answered the door all four ways"
+  else
+    _st_no "a door arm lost its verdict — bash scripts/gate/check-leg-contract.sh --arms prints which one"
+  fi
 
   # The refusal half: a tree this checker cannot weigh answers rc 2, never a green.
   mkdir -p "$_st_tmp/empty/scripts" || _st_no "the empty tree could not be built"
@@ -477,8 +576,7 @@ case "${1:-}" in
     printf 'SELFTEST FAILED\n'
     exit 1 ;;
   --arms)
-    printf 'CANNOT RUN: the door arms land with the planted legs in scripts/testdata/leg-contract/\n' >&2
-    exit 2 ;;
+    door_arms; exit $? ;;
   "")
     check_tree; report $?; exit $? ;;
   -h | --help)
