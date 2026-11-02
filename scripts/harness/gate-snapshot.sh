@@ -50,7 +50,12 @@
 #   --sync                             bring the snapshot to the graded commit, print `graded: <sha>`.
 #   --check                            same sync + the HEAD proof, and NOTHING else — grades without
 #                                      running the gate (the receipt the brief asked for).
-#   --verify                           no fetch: snapshot HEAD == stamp == the commit to grade, or FAIL.
+#   --verify                           no fetch: snapshot HEAD == stamp == the commit to grade AND the
+#                                      snapshot's own tree clean, or FAIL. The third condition is the
+#                                      `--carry` residue: HEAD and the stamp still agree after a previous
+#                                      `--sync --carry`, so a two-condition verify reads GREEN with carried
+#                                      bytes on top — a graded `--run` cannot inherit them (it cleans before
+#                                      the checkout) but a gate typed by hand inside that snapshot does.
 #   --self-test                        the five arms on a MINTED fixture repo over the LOCAL door (no engine, no wsl.exe):
 #                                      no-snapshot first run · a planted stale file gone after a sync ·
 #                                      stamp matches · a snapshot left behind the graded commit reddens ·
@@ -156,7 +161,11 @@ _snap_refuse_dirty() {
 }
 
 
-# _snap_verify_script — no fetch, no move: HEAD and stamp must BOTH answer the graded commit.
+# _snap_verify_script — no fetch, no move: HEAD and stamp must BOTH answer the graded commit, and the
+# tree they describe must be the tree that is actually there. The third condition is what a HEAD-vs-stamp
+# compare cannot see: a snapshot left by an earlier `--sync --carry` agrees with itself perfectly while
+# carrying bytes on top of the stamp, and `--verify` is the mode a human reaches for before typing a gate
+# by hand IN the snapshot — the one place those bytes get graded (a `--run` cleans first, so it cannot).
 _snap_verify_script() {
   printf 'set -e\n%s\nWANT=%s\n' "$SNAP_ASSIGN" "$(_snap_sq "$1")"
   cat <<'GUEST'
@@ -164,10 +173,18 @@ if [ ! -d "$SNAP/.git" ]; then
   echo "FAIL: no snapshot at $SNAP yet — first run needs a sync: bash scripts/harness/gate-snapshot.sh --sync"
   exit 3
 fi
+# IGNORE-RESPECTING on purpose: `status --porcelain` (not `--ignored`, not `ls-files -o`) is the half a
+# checkout/compare cannot see — carried edits and carried untracked files — while the artifacts a graded run
+# legitimately leaves in the snapshot (`__pycache__`, a bench scratch path) are ignored and stay out of it.
+DIRTY_NOW="$(git -C "$SNAP" status --porcelain | head -1)"
 HEAD_NOW="$(git -C "$SNAP" rev-parse HEAD)"
 STAMP_SHA="$(cut -d' ' -f1 "$SNAP.stamp" 2>/dev/null || echo '<unstamped>')"
 if [ "$HEAD_NOW" != "$WANT" ] || [ "$STAMP_SHA" != "$WANT" ]; then
   echo "FAIL: the snapshot is not the graded commit — HEAD $HEAD_NOW · stamped $STAMP_SHA · to grade $WANT. Run --sync; a stale stamp is why a gate once printed a verdict that belonged to nothing."
+  exit 1
+fi
+if [ -n "$DIRTY_NOW" ]; then
+  echo "FAIL: HEAD and the stamp both name $WANT, but this snapshot's TREE is DIRTY on top of it — the first entry is '$DIRTY_NOW' — bytes a previous --carry left behind, or a hand edit. --verify REFUSES: a gate typed by hand in this checkout would grade a tree no stamp describes. Run --sync for the stamped tree, or --run --carry if a carried tree is what you mean to grade."
   exit 1
 fi
 echo "graded: $WANT (verified: HEAD and stamp agree)"
@@ -380,6 +397,10 @@ self_test() {
   # receipt stale — the class the FAIL line exists to name) → rc 1 with all three shas in its mouth.
   local other orig_stamp
   other="$(git -C "$t/repo" rev-parse HEAD~1)"; orig_stamp="$(cat "$t/snap.stamp")"
+  # ARM 5 leaves the snapshot CARRYING an untracked file, which is exactly the state ARM 7 grades; a
+  # clean sync first, so this arm's two halves are about the RECEIPT and not about the tree.
+  printf 'clean\n' > "$t/repo/f.txt" && git -C "$t/repo" commit -qam "arm6-base" && want="$(git -C "$t/repo" rev-parse HEAD)"
+  HL_SNAP_DIR="$t/snap" bash "$SELF_FILE" --sync >/dev/null 2>&1 || true
   out="$(HL_SNAP_DIR="$t/snap" bash "$SELF_FILE" --verify 2>&1)"; rc=$?
   if [ "$rc" = 0 ] && printf '%s' "$out" | grep -q 'verified: HEAD and stamp agree'; then
     printf '%s %s\n' "$other" "self-test-stale" > "$t/snap.stamp"   # HEAD agrees, the RECEIPT points elsewhere
@@ -391,6 +412,25 @@ self_test() {
     else _st_no "a stamp pointing at $other while HEAD=$want answered rc $rc: $out"; fi
   else _st_no "--verify with HEAD and stamp BOTH at $want answered rc $rc: $out"; fi
   printf '%s\n' "$orig_stamp" > "$t/snap.stamp"        # leave the receipt as the arms found it
+
+  # ARM 7 — the CARRIED SNAPSHOT: `--verify` must NAME it, not pass it. HEAD and the stamp still agree
+  # after a `--sync --carry`, so a verify that compares only those two reads GREEN while the tree under
+  # the stamp carries bytes — and `--verify` is the mode reached for before a gate typed BY HAND inside
+  # the snapshot, the one place those bytes are actually graded (a `--run` cleans before the checkout, so
+  # a graded run cannot inherit them; that asymmetry is the whole finding). The state is PLANTED here
+  # rather than assumed from ARM 5, and the SENTENCE is graded in both directions (ARM 6's shape).
+  printf 'carried\n' > "$t/repo/loose-2.txt"
+  HL_SNAP_DIR="$t/snap" bash "$SELF_FILE" --sync --carry >/dev/null 2>&1 || true
+  out="$(HL_SNAP_DIR="$t/snap" bash "$SELF_FILE" --verify 2>&1)"; rc=$?
+  if [ "$rc" != 0 ] && printf '%s' "$out" | grep -q 'TREE is DIRTY on top of it' \
+     && printf '%s' "$out" | grep -q "both name $want" \
+     && printf '%s' "$out" | grep -q 'loose-2.txt'; then
+    rm -f "$t/repo/loose-2.txt"
+    if HL_SNAP_DIR="$t/snap" bash "$SELF_FILE" --sync >/dev/null 2>&1 \
+       && HL_SNAP_DIR="$t/snap" bash "$SELF_FILE" --verify 2>&1 | grep -q 'HEAD and stamp agree'; then
+      _st_ok "--verify names a snapshot still carrying a previous --carry, and goes green again once --sync cleans it"
+    else _st_no "the carried tree was named but --sync did NOT clear it for a green verify: $out"; fi
+  else _st_no "a snapshot carrying carried bytes passed --verify (rc $rc): $out"; fi
 
   printf 'self-test: %d arm(s), %d failed\n' "$_st_n" "$_st_f"
   [ "$_st_f" = 0 ]
