@@ -1257,7 +1257,7 @@ _diagnose_fails() {
 }
 
 _report() {
-  local i rc fails=0 rem=0 ran=0 filt=0 excl=0 off=0 never=""
+  local i rc fails=0 rem=0 ran=0 filt=0 excl=0 off=0 never="" rc_nofile=""
   for i in "${!labels[@]}"; do
     local label="${labels[$i]}"
     case "${states[$i]}" in
@@ -1274,7 +1274,13 @@ _report() {
     printf '\n== %s ==\n' "$label"
     wait "${pids[$i]}" >/dev/null 2>&1 || true
     _read_rc "$i"; rc="$RC"
-    [ "$RC_MISSING" = 1 ] && rc_missing=$((rc_missing+1))
+    # Name the leg. A count without a label is an audit that reddens and still cannot be debugged, and
+    # one shape produces this almost always: a block whose FAIL branch calls `exit` instead of `return`
+    # — `_launch_one` writes the rc file AFTER the command returns, so `exit` replaces the subshell and
+    # eats the receipt. Blocks `return`; only the runner `exit`s.
+    if [ "$RC_MISSING" = 1 ]; then
+      rc_missing=$((rc_missing+1)); rc_nofile+="$i  ${labels[$i]}"$'\n'
+    fi
     _ms_between "${starts[$i]}" "$END"; walls[$i]="$MS"; ends[$i]="${END:-${starts[$i]}}"
     [ -f "$RUN/$i.log" ] && cat "$RUN/$i.log"
     ran=$((ran+1))
@@ -1364,6 +1370,8 @@ _report() {
       fi
       if [ "$rc_missing" -gt 0 ]; then
         printf '      %d item(s) left NO result file: they launched and never reported — a leg that cannot be seen cannot fail.\n' "$rc_missing"
+        while IFS= read -r _l; do [ -n "$_l" ] && printf '        - %s\n' "$_l"; done <<< "$rc_nofile"
+        printf '      A block that `exit`s in its FAIL branch mints this red: the rc file is written after the\n      command returns, so the `exit` replaces the launch subshell and no receipt is left. Use `return`.\n'
       fi
       echo "      This is the 223b571b class (an item ran never while every gate said green). Do not shrug it."
     } >&2
@@ -1628,7 +1636,7 @@ blk_pi_self_check() {
   case "$rc_piself" in
     0) echo "OK: the pi build on this host equals pi_host_npm_version" ;;
     2) echo "SKIP: no pi binary on this host — the pi-self plane runs where pi is installed (pi-seat-sync.sh --push)" ;;
-    *) echo "FAIL: the pi build drifts from pi_host_npm_version — run: bash scripts/harness/pi-self-update.sh --push"; exit 1 ;;
+    *) echo "FAIL: the pi build drifts from pi_host_npm_version — run: bash scripts/harness/pi-self-update.sh --push"; return 1 ;;
   esac
 }
 
@@ -1670,8 +1678,8 @@ blk_seat_ssh_check() {
   case "$rc_ssh" in
     0) echo "OK: a profile-loaded shell on this seat resolves the OpenSSL ssh build" ;;
     2) echo "SKIP: the ssh-build plane owns only the win11 seat's PowerShell profiles (or no shell here loads a profile) — deploy on that seat with: bash scripts/harness/seat-ssh-build.sh --push" ;;
-    3) echo "FAIL: the seat's ssh-build block was hand-edited or is shadowed by another ssh definition — reconcile it, then: bash scripts/harness/seat-ssh-build.sh --push"; exit 1 ;;
-    *) echo "FAIL: this seat's ssh-build block is missing or stale, or a profile-loaded shell still resolves the LibreSSL build (which cannot load the fleet's PKCS#8 keys) — run: bash scripts/harness/seat-ssh-build.sh --push"; exit 1 ;;
+    3) echo "FAIL: the seat's ssh-build block was hand-edited or is shadowed by another ssh definition — reconcile it, then: bash scripts/harness/seat-ssh-build.sh --push"; return 1 ;;
+    *) echo "FAIL: this seat's ssh-build block is missing or stale, or a profile-loaded shell still resolves the LibreSSL build (which cannot load the fleet's PKCS#8 keys) — run: bash scripts/harness/seat-ssh-build.sh --push"; return 1 ;;
   esac
 }
 
@@ -1686,8 +1694,8 @@ blk_seat_bash_check() {
   case "$rc_sbash" in
     0) echo "OK: a profile-loaded shell on this seat resolves Git-Bash for a bare bash (not the WSL launcher)" ;;
     2) echo "SKIP: the bash-build plane owns only the win11 seat's PowerShell profiles (or no shell here loads a profile) — deploy on that seat with: bash scripts/harness/seat-bash-build.sh --push" ;;
-    3) echo "FAIL: the seat's bash-build block was hand-edited, duplicated, or is shadowed by another bash definition — reconcile it, then: bash scripts/harness/seat-bash-build.sh --push"; exit 1 ;;
-    *) echo "FAIL: this seat's bash-build block is missing or stale, or a profile-loaded shell still resolves the WSL launcher (which runs the harness in another distro's HOME) — run: bash scripts/harness/seat-bash-build.sh --push"; exit 1 ;;
+    3) echo "FAIL: the seat's bash-build block was hand-edited, duplicated, or is shadowed by another bash definition — reconcile it, then: bash scripts/harness/seat-bash-build.sh --push"; return 1 ;;
+    *) echo "FAIL: this seat's bash-build block is missing or stale, or a profile-loaded shell still resolves the WSL launcher (which runs the harness in another distro's HOME) — run: bash scripts/harness/seat-bash-build.sh --push"; return 1 ;;
   esac
 }
 

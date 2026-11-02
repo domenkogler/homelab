@@ -99,13 +99,26 @@ source ~/.bashrc
 ```
 
 When prompted, paste the 1Password Service Account token = item `op_api.credential`. The idempotent
-script installs system prerequisites + the `op` CLI, creates the `~/ansible-venv` virtualenv with
+script installs system prerequisites (`python3`, `pip`, `venv`, `curl`, `gpg`, `git`, **`jq`**) + the
+`op` CLI, creates the `~/ansible-venv` virtualenv with
 ansible + collections from `requirements.yml`, stores the token at `~/.config/op/homelab-sa-token`
 (0600), grants passwordless sudo, generates a throwaway SSH key, and seeds the box's ssh alias plane
 (`scripts/harness/seed-seat-ssh-config.sh`; the blocks are what resolve a runner's identity —
 [docs/network-vpn.md](docs/network-vpn.md) §The runner's alias plane).
 
-✔ Script prints `FULL BOOTSTRAP COMPLETED SUCCESSFULLY`; `ansible --version` and `op --version` respond.
+`jq` is a gate prerequisite, not a convenience: the legs that build a JSON request body answer
+`SKIP: jq is not on PATH` on a seat that has none, and a SKIP judges nothing (it does not redden).
+The Debian half is in the prereq list above, so a rebuilt runner cannot forget it. The **Windows
+git-bash seat** carries its own copy — the repo installs no Windows packages, so that one is a hand
+step with any package manager — and the legs run native there too, so prove it before the first gate
+run:
+
+```bash
+command -v jq && jq --version        # on the runner AND in git-bash on the Windows seat
+```
+
+✔ Script prints `FULL BOOTSTRAP COMPLETED SUCCESSFULLY`; `ansible --version`, `op --version` and
+`jq --version` respond on the runner and in git-bash on the Windows seat.
 
 ### 0.2.5 Name resolution on a rebuilt runner `[MANUAL — one elevated step on the Windows side]`
 

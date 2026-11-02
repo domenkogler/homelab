@@ -58,7 +58,10 @@ else
     echo "SKIP: apt upgrade (--no-upgrade) — prereqs only, no distro upgrade on this host"
     sudo apt update
 fi
-sudo apt install python3 python3-pip python3-venv curl gpg git -y
+# `jq` belongs in this list, not in a human's memory: a seat without it does not read red, it reads
+# SKIP, and a SKIP judges nothing (accuracy-gate.sh --self-test is one such leg). Every Debian seat
+# and the engine clone therefore get it here rather than by hand.
+sudo apt install python3 python3-pip python3-venv curl gpg git jq -y
 
 echo "=== 2. Idempotent 1Password CLI install ==="
 # Download the official GPG key and verify policies (official 1Password developer method)

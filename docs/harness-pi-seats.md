@@ -93,6 +93,13 @@ tags: [ai, pi, agent-harness, harness, spark, llm, settings]
   reads only PATH reports "no node here" for a seat that has one. Re-derive with
   `bash scripts/bench/win/gate-parity.sh -- bash scripts/harness/pi-tui-config.sh --self-test` (the `pinned-node` arm is GREEN on both sides
   only while the staging probe uses that same rule), and read what the engine answered at any run's `engine tools: … ABSENT — … node` line.
+- **`jq` is a seat tool, and a seat without it reads `SKIP`, which is not a pass.** The legs that build
+  or compare a JSON request body answer `SKIP: jq is not on PATH` and judge nothing, so a seat that never
+  installed it reads *greener* than one that did. The Debian half is a prereq in
+  [`../scripts/ansible/bootstrap-runner.sh`](../scripts/ansible/bootstrap-runner.sh) step 1, so a rebuilt
+  runner or a rebuilt engine clone cannot forget it; the Windows git-bash seat carries its own copy — the
+  repo installs no Windows package — and the legs run native there as well. Read it per seat with `jq --version`, and
+  on a win11 seat at the run's `engine tools:` line, where a missing `jq` shows up in the ABSENT list.
 - **Where the pi BINARY lives — two layouts, one PATH.** `npm -g` installs it as a symlink at `<pi-node prefix>/bin/pi` next to the pinned node (what
   [`../scripts/harness/install-pi-debian.sh`](../scripts/harness/install-pi-debian.sh) does); pi's own installer writes a
   launcher at `~/.pi/agent/bin/pi` over `~/.pi/agent/install/releases/<ver>/` (`layout: releases-v1`).

@@ -369,12 +369,13 @@ not this list, holds the steps, the file ownership and the converge host. Waves,
     with `python3 scripts/gate/check_string_twins.py --show-baseline` in the commit that moves the baseline. The act is safe
     anywhere in a wave, because the gate's positive control is pinned to a population of its own (`CONTROL_BASE_REV`).
 
-15. ⏳ **Gate legs must ask the same question on the Win11 Git-Bash seat as on the Debian seats** — **HD-1202**. The seat's
-    verdict and timings are [docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1; the row keeps what is missing: the `jq`
-    seat-software step in `deployment-manual.md`, the `GATE_WIN_PAR` verdict (priced as **one `--time` run plus the
-    list-scheduling model**, not a nine-run sweep), the 0-byte junk file a full set leaves in a lane root (a mangled `>`
-    redirect target, writer unfound), the wrapped legs' verdicts where the seat prints SKIPs, and the `git-hooks` plane's
-    `--push` leg on that seat. Grade from a Debian clone and report a Win11 `OK` as partial.
+15. ⏳ **Gate legs must ask the same question on the Win11 Git-Bash seat as on the Debian seats** — **HD-1202**.
+    The face axis says where each leg runs and [docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1 carries the seat's
+    verdict; `jq` is a bootstrap prereq on the Debian seats and a hand package on the Windows one
+    (`deployment-manual.md` §0.2), and the pool bound — `wall` set by the heaviest leg once the pool is wider than the
+    legs that can run at once — is in [`scripts/README.md`](scripts/README.md). What the row keeps is one unattributed
+    site: a lane root that grows header-line-named files nobody staged. Grade from a Debian clone, report a Win11 `OK`
+    as partial, and take the seat's own half with `bash scripts/validate-all.sh --face seat` at session close.
     **HD-1176**'s mechanism is in place on the WSL seat; what its row owes is the headscale-side call on MagicDNS
     `SERVFAIL`ing most of `zone_kogler_si` and the suspend/resume + away-from-home re-measure. The runner seat answers
     `path=lan` for the inference name, so its converge legs do not cross the tailnet edge;
