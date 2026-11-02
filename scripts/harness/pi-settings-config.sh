@@ -400,7 +400,7 @@ self_test() {
       // A workstation key the plane does NOT own, so any value works — but its bytes are a string
       // twin of `pi_host_npm_version` in IaC/ansible/group_vars/all/versions.yml, and a twin may not
       // be moved on one side (CONVENTIONS §6, check_string_twins.py): a pin bump moves this line too.
-      s.lastChangelogVersion = "1.4.0";
+      s.lastChangelogVersion = "1.5.0";
       s.externalEditor = "notepad.exe -multiInst";
       s.packages = [...owned, seatExtra];
       fs.writeFileSync(outPath, JSON.stringify(s, null, 2) + "\n", "utf8");
