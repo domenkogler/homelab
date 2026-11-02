@@ -707,6 +707,77 @@ pi_pkg_lsp_name: "@signalridge/pi-lsp"
 pi_pkg_lsp_version: "1.3.0"
 pi_pkg_lsp_scope: "fleet"
 
+# ---------------------------------------------------------------------------------------------
+# THE LANGUAGE SERVERS THEMSELVES — the binaries pi-lsp spawns, which the row above places NOT.
+# `scripts/harness/seat-lsp-binaries.sh` (plane `lsp-binaries`) is the owner: it reads the set here,
+# asks what each seat actually has, and installs what is missing or off-pin. Before that row these
+# were nine hand-run commands whose absence showed up as `lsp_*` answering "server skipped" on one
+# seat and a real diagnostic on another, with no check able to say so (HD-1238).
+#
+# Four fields per entry, because the PACKAGE, the COMMAND pi-lsp spawns, the version and the
+# installer are four different facts:
+#   _name    the package or tool id handed to the installer
+#   _cmd     the command name pi-lsp's built-in catalog looks for on PATH (`lsp_hover` resolves THIS)
+#   _version the pinned version. A missing pin is a STOP, never an inline default (§7).
+#   _via     npm        -> `npm --prefix ~/.local install -g name@version`, read back from
+#                         ~/.local/lib/node_modules/<name>/package.json (no exec: the apphost is not
+#                         the thing being asked, and `--version` is not portable across these tools —
+#                         roslyn-language-server does not even accept it)
+#            npm-lib    -> a LIBRARY a route needs on disk rather than a command; `typescript` for
+#                         the TS route. Pinned to the `typescript-language-server` peer range on
+#                         purpose: `typescript@7` is the native port and ships no `lib/tsserver.js`,
+#                         so a `latest` install leaves the server starting and then FAILING
+#                         `initialize` with "Could not find a valid TypeScript installation" — which
+#                         reads as a broken route, not as a wrong version, and was measured on both
+#                         Debian seats after an `install -g typescript` followed `latest`.
+#            astral     -> the vendor installer, which lands a standalone binary in ~/.local/bin
+#            dotnet     -> `dotnet tool install -g name --version`, read back from `dotnet tool list -g`
+#                         rather than by running the apphost, which needs DOTNET_ROOT on a seat whose
+#                         runtime is a ~/.dotnet prefix.
+# `cmd: tsserver` is the one name here no seat is asked to resolve on PATH; the probe reads the
+# package directory, so the field documents the route rather than claiming a binary.
+lsp_bin_bash_name: "bash-language-server"
+lsp_bin_bash_cmd: "bash-language-server"
+lsp_bin_bash_version: "5.8.1"
+lsp_bin_bash_via: "npm"
+
+lsp_bin_yaml_name: "yaml-language-server"
+lsp_bin_yaml_cmd: "yaml-language-server"
+lsp_bin_yaml_version: "2.0.0"
+lsp_bin_yaml_via: "npm"
+
+# The package is `@biomejs/biome`; the command is `biome`. Installing the npm package literally named
+# `biome` puts a different, non-LSP CLI on PATH, which is why _name and _cmd are separate fields.
+lsp_bin_biome_name: "@biomejs/biome"
+lsp_bin_biome_cmd: "biome"
+lsp_bin_biome_version: "2.6.4"
+lsp_bin_biome_via: "npm"
+
+lsp_bin_ts_name: "typescript-language-server"
+lsp_bin_ts_cmd: "typescript-language-server"
+lsp_bin_ts_version: "6.0.3"
+lsp_bin_ts_via: "npm"
+
+lsp_bin_tsserver_name: "typescript"
+lsp_bin_tsserver_cmd: "tsserver"
+lsp_bin_tsserver_version: "6.0.3"
+lsp_bin_tsserver_via: "npm-lib"
+
+lsp_bin_ruff_name: "ruff"
+lsp_bin_ruff_cmd: "ruff"
+lsp_bin_ruff_version: "0.17.3"
+lsp_bin_ruff_via: "astral"
+
+lsp_bin_ty_name: "ty"
+lsp_bin_ty_cmd: "ty"
+lsp_bin_ty_version: "0.0.95"
+lsp_bin_ty_via: "astral"
+
+lsp_bin_roslyn_name: "roslyn-language-server"
+lsp_bin_roslyn_cmd: "roslyn-language-server"
+lsp_bin_roslyn_version: "5.13.0-1.26514.10"
+lsp_bin_roslyn_via: "dotnet"
+
 # The cockpit's own package: scope:seat, because it is roles/seat's placement on the cockpit
 # seat, not a fleet key (docs/services-ai.md §9b-1). mutable: the cockpit self-updates inside
 # `@beta` from the phone, so pinning the string here would break a path that must stay live.

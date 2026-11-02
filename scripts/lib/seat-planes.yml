@@ -266,3 +266,25 @@ check: --check --strict
 push: --push
 seats: wsl oldsrv
 installer: none
+
+---
+# The seat's LANGUAGE-SERVER plane: the binaries pi-lsp spawns, at the `lsp_bin_*` pins, plus the one
+# PATH export that makes them visible to a session. Before this row the set was nine hand-run install
+# commands and `lsp_*` answered differently per box with no check able to say so; two of the three
+# ways that happened are recorded in the owner's header (a `typescript@latest` peer that ships no
+# tsserver.js, and a `~/.profile` guard that a session's shell never reads).
+#
+# `installer: debian cockpit wsl` rather than `none`, unlike the `mcp-server` row: these ARE part of
+# what a from-zero seat must have to answer the same questions as its siblings, and the owner installs
+# them from the pins with no interactive step. The `win11` seat is NOT named: its carriers are Volta's
+# npm tree and a .NET global tool under `%USERPROFILE%`, and the owner's answer there is SKIP at rc 2.
+# Naming the seat without naming its carriers would have the fan-out report a seat as converged
+# because a Debian code path happened to run — the failure mode this registry exists to prevent.
+plane: lsp-binaries
+harness: pi
+owner: seat-lsp-binaries.sh
+runner: bash
+check: --check --strict
+push: --push
+seats: wsl oldsrv
+installer: debian cockpit wsl

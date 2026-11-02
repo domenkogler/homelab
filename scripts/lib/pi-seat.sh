@@ -162,7 +162,7 @@ hl_seat_here() {
 # tests proves nothing.
 hl_seat_scope_lists() {
   local __plane="$1" __seat="$2" __reg
-  __reg="$(hl_seat_registry_path)"
+  __reg="${HL_REGISTRY:-$_HL_SEAT_DIR/seat-planes.yml}"
   [ -r "$__reg" ] || return 2
   awk -v p="$__plane" -v s="$__seat" '
     $0 ~ /^plane:[[:space:]]*/ { inme = ($2 == p); next }
@@ -182,7 +182,7 @@ hl_seat_scope_lists() {
 # row could not be read", and a defaulted one would be a value this file invented.
 hl_seat_scope_list() {
   local __reg
-  __reg="$(hl_seat_registry_path)"
+  __reg="${HL_REGISTRY:-$_HL_SEAT_DIR/seat-planes.yml}"
   [ -r "$__reg" ] || return 0
   awk -v p="$1" '
     $0 ~ /^plane:[[:space:]]*/ { inme = ($2 == p); next }
@@ -412,21 +412,61 @@ hl_planes_selftest() {
   #    the defect class, so the parity is proved rather than asserted — with an independent witness
   #    (one awk pass), because a canary written against the parser it tests proves nothing.
   for _s in win11 wsl oldsrv; do
-    _a="$(seat_planes "$_s" check 2>/dev/null | cut -f1 | sort -u | tr '\n' ' ')"
-    _b="$(awk -v s="$_s" '/^plane:/{p=$2} /^seats:/ && ($0 ~ ("(^|[ ,])" s "([ ,]|$)")){print p}' \
-            "$(hl_seat_registry_path)" | sort -u | tr '\n' ' ')"
-    # The THIRD reader is the one an owner script asks, and it is the one that decides what a SKIP
-    # line means on the seat — parity with the fan-out alone left it free to disagree.
-    _c="$(for _p in $(awk '/^plane:/{print $2}' "$(hl_seat_registry_path)"); do
-            hl_seat_scope_lists "$_p" "$_s" >/dev/null 2>&1 && printf '%s\n' "$_p"
-          done | sort -u | tr '\n' ' ')"
-    if [ "$_a" = "$_b" ] && [ "$_a" = "$_c" ]; then
-      printf 'ok: fan-out, witness and owner-side scope read the seats list the same for %s\n' "$_s"
+    _a="$(seat_planes "$_s" check 2>/dev/null | cut -f1 | sort -u | tr '
+' ' ')"
+    _b="$(awk -v s="$_s" '/^plane:/{p=$2} /^seats:/ && ($0 ~ ("(^|[ ,])" s "([ ,]|$)")){print p}'             "$(hl_seat_registry_path)" | sort -u | tr '
+' ' ')"
+    if [ "$_a" = "$_b" ]; then
+      printf 'ok: fan-out and scope read the seats list the same for %s
+' "$_s"
     else
-      printf 'NOT CAUGHT: for seat %s the fan-out runs [%s], the witness believes [%s], the owner-side scope [%s]\n' \
-        "$_s" "$_a" "$_b" "$_c"; fails=$((fails + 1))
+      printf 'NOT CAUGHT: for seat %s the fan-out runs [%s] but the scope reader believes [%s]
+' "$_s" "$_a" "$_b"; fails=$((fails + 1))
     fi
   done
+
+  # 7b. AND THE OWNER'S OWN SCOPE READ AGREES TOO, on a fixture that puts each seat in a NON-FIRST
+  #     position. This is the arm that would have caught the bug the real registry could not: asking
+  #     the real registry per plane per seat costs ~45 subshell+awk pairs (minutes on a win11 seat,
+  #     measured), while a fixture with one row per seat shape exposes the identical defect for three
+  #     calls. A reader that takes only the second field of `seats:` scopes every multi-seat row to
+  #     its FIRST seat, so the fan-out keeps running everywhere while the owner answers SKIP on seats
+  #     that DO carry the leg — which is how a Debian seat came to decline a launcher it owes.
+  printf 'plane: first-seat
+harness: pi
+owner: o.sh
+runner: bash
+check: --check
+push: --push
+seats: win11 wsl oldsrv
+installer: none
+---
+plane: two-seat
+harness: pi
+owner: o2.sh
+runner: bash
+check: --check
+push: --push
+seats: wsl oldsrv
+installer: none
+' > "$_t/scope-fixture.yml"
+  _bad=0
+  for _s in win11 wsl oldsrv; do
+    for _p in first-seat two-seat; do
+      HL_REGISTRY="$_t/scope-fixture.yml" hl_seat_scope_lists "$_p" "$_s"; _rc=$?
+      case "$_s:$_p" in   # seat first, then plane
+        win11:two-seat) [ "$_rc" = 1 ] || _bad=$((_bad+1)) ;;   # the ONE case that must be declined
+        *)              [ "$_rc" = 0 ] || _bad=$((_bad+1)) ;;
+      esac
+    done
+  done
+  if [ "$_bad" = 0 ]; then
+    printf 'ok: the owner-side scope resolves every seat named in a list, not only its first
+'
+  else
+    printf 'NOT CAUGHT: the owner-side scope declined %s seat/plane combination(s) it carries
+' "$_bad"; fails=$((fails + 1))
+  fi
 
   [ "$fails" -eq 0 ] || printf 'seat-planes self-test: %s arm(s) NOT caught\n' "$fails" >&2
   return "$fails"
@@ -747,12 +787,192 @@ hl_pin_selftest() {
   return "$fails"
 }
 
+# =============================================================================================
+# THE PLANE-OWNER SHARED HALF (HD-1118 lineage).
+# Every seat plane answers the same two questions before it can answer its own: does THIS box owe
+# the leg, and is the directory it installed something a shell can actually see. Three owners carried
+# their own copy of the first and two installers their own copy of the second; a fourth copy was
+# being written when this became a lib, which is the test for moving it here rather than a framework.
+#
+# hl_seat_plane_scope <plane> — read the scope ONCE, setting SEAT, SCOPE and SCOPE_LIST.
+#   rc 0  SCOPE=here       this box owes the leg; go on and assess
+#   rc 1  SCOPE=elsewhere  the row names other seats — print hl_seat_skip_line and exit 2
+#   rc 1  SCOPE=no-seat    this box is not one of the harness seats at all — same
+#   rc 2  SCOPE=unread     the registry could not be read. STOP with the CALLER's own sentence:
+#                          only the caller knows what it would have written on that guess.
+# A box that owes nothing is not a box with a missing thing, which is why `elsewhere` is rc 1 here
+# and every caller turns it into a SKIP at exit 2 — never MISSING, never a pass.
+# =============================================================================================
+hl_seat_plane_scope() {
+  local __plane="${1:?hl_seat_plane_scope: needs a plane id}" __rc=0
+  SEAT=""; SCOPE=""; SCOPE_LIST=""
+  hl_seat_here SEAT
+  SCOPE_LIST="$(hl_seat_scope_list "$__plane")"
+  if [ -z "$SEAT" ] || [ "$SEAT" = none ]; then SCOPE="no-seat"; return 1; fi
+  hl_seat_scope_lists "$__plane" "$SEAT" || __rc=$?
+  case "$__rc" in
+    0) SCOPE="here"; return 0 ;;
+    1) SCOPE="elsewhere"; return 1 ;;
+    *) SCOPE="unread"; return 2 ;;
+  esac
+}
+
+# hl_seat_skip_line <plane> [what this box would have owed] — the SKIP line ONLY. No state word:
+# printing MISSING above a SKIP is the confusion this read exists to end, and the fan-out counts rc 2
+# as neither a pass nor a failure, so the line has to carry the whole answer.
+hl_seat_skip_line() {
+  local __plane="${1:?hl_seat_skip_line: needs a plane id}" __owed="${2:-nothing}"
+  case "${SCOPE:-unread}" in
+    elsewhere) printf 'SKIP: %s — the `%s` leg belongs to the seats its registry row names (seats: %s); this box owes %s here\n' \
+        "${SEAT:-?}" "$__plane" "${SCOPE_LIST:-<empty>}" "$__owed" ;;
+    no-seat)   printf 'SKIP: no seat — this box is none of the harness seats, so `%s` cannot be scoped here\n' "$__plane" ;;
+    *)         printf 'SKIP: the scope of `%s` could not be read\n' "$__plane" ;;
+  esac
+}
+
+# hl_path_persist <mark> <dir> [file...] — put <dir> on the PATH of the shells reading those files,
+# under <mark>, idempotently. Sets HL_PATH_WROTE=1 when a byte was written. The rule is the
+# installer's: only a directory that EXISTS on this box is persisted, because a PATH line to a
+# layout this seat never had teaches the next reader to trust a path that leads nowhere. Files that
+# do not exist are skipped rather than created — a shell's startup files are its owner's business.
+# Marks stay per-caller on purpose ("distinct from install-pi-debian.sh's, because both installers
+# legitimately run on one box and each must know whether IT persisted").
+hl_path_persist() {
+  local __mark="${1:?hl_path_persist: needs a mark}" __dir="${2:?hl_path_persist: needs a dir}" __f __wrote=0
+  HL_PATH_WROTE=0
+  [ -d "$__dir" ] || return 0
+  shift 2
+  [ "$#" -gt 0 ] || set -- "$HOME/.bashrc" "$HOME/.profile"
+  for __f in "$@"; do
+    [ -e "$__f" ] || continue
+    grep -qF "$__mark" "$__f" && continue
+    { printf '\n%s\nexport PATH="%s:$PATH"\n' "$__mark" "$__dir"; } >> "$__f" || return 1
+    __wrote=1
+  done
+  [ "$__wrote" = 1 ] && HL_PATH_WROTE=1
+  return 0
+}
+
+# hl_path_resolved <command> — where an INTERACTIVE shell resolves <command>, printed or empty.
+# ⚠ It asks an INTERACTIVE shell and not a login one, and that choice is the whole point:
+# ~/.profile adds ~/.local/bin behind an `if [ -d ]` guard and ~/.profile is read by a LOGIN shell
+# only, while a session started from a plain prompt is interactive-but-not-login and reads ~/.bashrc.
+# Measured on the WSL seat: under `bash -lc` six installed language servers all resolve, and the
+# same seat's session answers that none are on PATH, because the only ~/.local/bin in that PATH is
+# the WINDOWS one across /mnt/c. So a probe that runs `bash -lc` reports a broken seat as working.
+# A tty is used when one can be had (`script(1)`), because bash notices a missing terminal and says
+# so instead of answering; HL_SHELL_PROBE overrides the probe for the self-test only.
+hl_path_resolved() {
+  local __cmd="${1:?hl_path_resolved: needs a command}" __out=""
+  if [ -n "${HL_SHELL_PROBE:-}" ]; then "$HL_SHELL_PROBE" "$__cmd" 2>/dev/null; return $?; fi
+  if command -v script >/dev/null 2>&1; then
+    __out="$(script -qec "bash -ic 'command -v $__cmd'" /dev/null 2>/dev/null | tr -d '\r' | grep -v '^[[:space:]]*$' | tail -1)"
+  else
+    __out="$(bash -ic "command -v $__cmd" 2>/dev/null | tail -1)"
+  fi
+  [ -n "$__out" ] || return 1
+  printf '%s' "$__out"
+  return 0
+}
+
+# hl_seatplane_selftest — arms for the shared plane-owner half. Fixture registry for the scope read,
+# a stub probe for the PATH read, so no seat, no shell startup file and no network is touched.
+hl_seatplane_selftest() {
+  local _t _fails=0 _lib _f _o _rc
+  _t="$(mktemp -d)" || return 1
+  # shellcheck disable=SC2064
+  trap "rm -rf '$_t'" RETURN
+  _lib="${_HL_SEAT_LIB:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/pi-seat.sh}"
+  mkdir -p "$_t/bin"
+  printf 'plane: fixture-plane
+harness: pi
+owner: fixture-owner.sh
+runner: bash
+check: --check
+push: --push
+seats: wsl oldsrv
+installer: none
+' > "$_t/registry.yml"
+
+  # 1. the scope read: `here` for a named seat, rc 1 + `elsewhere` for a seat the row leaves out, and
+  #    rc 2 when the registry cannot be read — a scope that fails to load must never look like
+  #    "not my seat", or a broken registry would silence every plane at once.
+  # The rc must be reported by the inner shell: what `$?` sees after a command substitution that
+  # ends in `echo` is the echo's rc, which is 0 for every verdict — an arm that cannot fail.
+  _f() { PI_SEAT="$1" HL_REGISTRY="$_t/registry.yml" bash -c "REPO=$_t . '$_lib'; hl_seat_plane_scope fixture-plane; echo \"\$SCOPE \$?\"" 2>/dev/null; }
+  _o="$(_f wsl)"
+  if [ "$_o" = "here 0" ]; then printf 'ok: the scope read answers here for a seat the row names
+'
+  else printf 'NOT CAUGHT: the scope for wsl was [%s] (want "here 0")
+' "$_o"; _fails=$((_fails+1)); fi
+  _o="$(_f win11)"; _rc=$?
+  if [ "$_o" = "elsewhere 1" ]; then printf 'ok: it declines a seat the row leaves out (rc 1, so the caller prints SKIP)
+'
+  else printf 'NOT CAUGHT: the scope for win11 was [%s] (want "elsewhere 1")
+' "$_o"; _fails=$((_fails+1)); fi
+  PI_SEAT=wsl HL_REGISTRY="$_t/nope.yml" bash -c "REPO=$_t . '$_lib'; hl_seat_plane_scope fixture-plane" >/dev/null 2>&1
+  _rc=$?
+  if [ "$_rc" = 2 ]; then printf 'ok: an unreadable registry is rc 2 and never "not my seat"
+'
+  else printf 'NOT CAUGHT: an unreadable registry gave rc %s (want 2)
+' "$_rc"; _fails=$((_fails+1)); fi
+
+  # 2. the SKIP line names the seat, the seats the row names and what was owed — and carries no state
+  #    word, because printing MISSING above a SKIP is the confusion this read exists to end.
+  SCOPE=elsewhere SEAT=oldsrv SCOPE_LIST="wsl" bash -c ". '$_lib'; hl_seat_skip_line fixture-plane 'no launcher'" > "$_t/skip" 2>&1
+  if grep -q '^SKIP: oldsrv' "$_t/skip" && grep -q 'seats: wsl' "$_t/skip" && grep -q 'owes no launcher here' "$_t/skip"; then
+    printf 'ok: the SKIP line names the seat, the row list and what was owed'
+  else printf 'NOT CAUGHT: the SKIP line was [%s]' "$(cat "$_t/skip")"; _fails=$((_fails+1)); fi
+  if grep -qiE 'MISSING|DRIFT' "$_t/skip"; then printf 'NOT CAUGHT: a SKIP line carried a state word
+'; _fails=$((_fails+1))
+  else printf ' — and no state word
+'; fi
+
+  # 3. PATH persistence: writes once under its mark, the second run writes nothing, an absent
+  #    directory is skipped rather than recorded, and a startup file that does not exist is not created.
+  printf '# existing
+' > "$_t/bashrc"
+  mkdir -p "$_t/exist"
+  bash -c ". '$_lib'; hl_path_persist '# fixture mark' '$_t/exist' '$_t/bashrc'; echo \$HL_PATH_WROTE" > "$_t/w1"
+  bash -c ". '$_lib'; hl_path_persist '# fixture mark' '$_t/exist' '$_t/bashrc'; echo \$HL_PATH_WROTE" > "$_t/w2"
+  bash -c ". '$_lib'; hl_path_persist '# other mark' '$_t/absent' '$_t/ghost'; echo \$HL_PATH_WROTE" > "$_t/w3"
+  if [ "$(cat "$_t/w1")" = 1 ] && [ "$(cat "$_t/w2")" = 0 ] && [ "$(cat "$_t/w3")" = 0 ]      && [ ! -e "$_t/ghost" ] && [ "$(grep -c 'fixture mark' "$_t/bashrc")" = 1 ]      && [ "$(head -1 "$_t/bashrc")" = "# existing" ]; then
+    printf 'ok: PATH persistence writes once under its mark and skips an absent directory
+'
+  else printf 'NOT CAUGHT: PATH persistence arms wrote [%s/%s/%s], ghost=[%s], marks=[%s]
+'     "$(cat "$_t/w1")" "$(cat "$_t/w2")" "$(cat "$_t/w3")" "$([ -e "$_t/ghost" ] && echo yes || echo no)" "$(grep -c 'fixture mark' "$_t/bashrc")"; _fails=$((_fails+1)); fi
+
+  # 4. the PATH read reports what the probe answered, and an empty answer is rc 1 — never a blank
+  #    line a caller could read as "resolved somewhere".
+  printf '#!/bin/sh
+case "$1" in found-it) echo /home/x/.local/bin/found-it; exit 0;; *) exit 1;; esac
+' > "$_t/bin/probe"
+  chmod +x "$_t/bin/probe"
+  _o="$(HL_SHELL_PROBE="$_t/bin/probe" bash -c ". '$_lib'; hl_path_resolved found-it" 2>/dev/null)"; _rc=$?
+  if [ "$_rc" = 0 ] && [ "$_o" = "/home/x/.local/bin/found-it" ]; then printf 'ok: the interactive-shell probe prints the resolution'
+  else printf 'NOT CAUGHT: the probe gave rc %s value [%s]' "$_rc" "$_o"; _fails=$((_fails+1)); fi
+  HL_SHELL_PROBE="$_t/bin/probe" bash -c ". '$_lib'; hl_path_resolved gone" >/dev/null 2>&1
+  if [ $? -eq 1 ]; then printf ' — and an unresolvable command is rc 1
+'
+  else printf 'NOT CAUGHT: an unresolvable command was not rc 1
+'; _fails=$((_fails+1)); fi
+
+  [ "$_fails" -eq 0 ] || printf 'seat-plane lib self-test: %s arm(s) NOT caught
+' "$_fails" >&2
+  return "$_fails"
+}
+
+# The seat lib's own directory, resolved ONCE at source time. A function that asks for it with
+# `$(dirname "$_HL_PIN_SELF")` pays a subshell fork per call — on a win11 seat ~250 ms, which a
+# registry-walking self-test multiplies into minutes for no information gained.
 _HL_PIN_SELF="${BASH_SOURCE[0]}"
+case "$_HL_PIN_SELF" in */*) _HL_SEAT_DIR="${_HL_PIN_SELF%/*}" ;; *) _HL_SEAT_DIR="." ;; esac
 
 if [ "${1:-}" = "--self-test" ] && [ -z "${BASH_SOURCE[1]:-}" ]; then
   _rc=0
   hl_pin_selftest || _rc=1
   hl_planes_selftest || _rc=1
   hl_pkg_selftest || _rc=1
+  hl_seatplane_selftest || _rc=1
   exit "$_rc"
 fi
