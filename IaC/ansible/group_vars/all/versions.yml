@@ -695,6 +695,18 @@ pi_pkg_deepseek_name: "pi-deepseek-optimized"
 pi_pkg_deepseek_version_pin: pi_host_deepseek_npm_version
 pi_pkg_deepseek_scope: "fleet"
 
+# The seat's language-server tools. pi-lsp is an in-process pi extension that spawns ONE language
+# server per call and shuts it down again, so it is the only package here whose value depends on the
+# seat's own PATH: with no server installed the `lsp_*` tools answer that the server was skipped and
+# nothing else about the seat changes. This row places NO binary and pi-lsp downloads none — npm's
+# `bash-language-server` + `yaml-language-server` and the .NET global tool `roslyn-language-server`
+# (`dotnet tool install --global roslyn-language-server --prerelease`) are each seat's own act.
+# No seat carries a `pi-lsp.json`: a custom server map REPLACES the built-in catalog instead of
+# extending it, so the shipped catalog is what routes those three commands and their extensions.
+pi_pkg_lsp_name: "@signalridge/pi-lsp"
+pi_pkg_lsp_version: "1.3.0"
+pi_pkg_lsp_scope: "fleet"
+
 # The cockpit's own package: scope:seat, because it is roles/seat's placement on the cockpit
 # seat, not a fleet key (docs/services-ai.md §9b-1). mutable: the cockpit self-updates inside
 # `@beta` from the phone, so pinning the string here would break a path that must stay live.
