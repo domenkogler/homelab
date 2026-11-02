@@ -514,8 +514,8 @@ self_test() {
   else _st_no "a snapshot carrying carried bytes passed --verify (rc $rc): $out"; fi
 
   # ARM 8 — the FACE SELECTION inside a stamped snapshot, both directions, grading the SENTENCE. Until this
-  # arm existed the behavior rested on reading validate-all.sh's face block (HD-1230's last ⏳): nothing
-  # planted a snapshot and asked the real block which face it picks. The seam is the DOCUMENTED inherited-$REPO
+  # arm existed the behavior rested on reading validate-all.sh's face block: nothing planted a snapshot and
+  # asked the real block which face it picks. The seam is the DOCUMENTED inherited-$REPO
   # override (scripts/lib/repo-root.sh:150-153 — an inherited $REPO is trusted, not re-checked), which is what
   # lets the real validate-all.sh run against a fixture snapshot that carries no IaC markers: the block then
   # reads the driver's OWN stamp sibling and the snapshot's HEAD, exactly as it does in the engine.
