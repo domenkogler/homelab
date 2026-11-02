@@ -99,12 +99,6 @@ done
 
 SNAP_REPO="${HL_SNAP_REPO:-$HL_ROOT}"
 SNAP_LIMIT="${HL_SNAP_TIMEOUT:-3600}"
-# The snapshot path AS THE ENGINE SPELLS IT. With no HL_SNAP_DIR the assignment carries $HOME
-# UNEXPANDED so the GUEST shell resolves it in the guest's own home; a fixture (or an operator)
-# that sets HL_SNAP_DIR gets its value embedded VERBATIM — it is then the caller's job to spell
-# the path the way the engine reads it (that is what makes the seam honest, not clever).
-SNAP_ASSIGN='SNAP="$HOME/gate-snap/homelab"'
-if [ -n "${HL_SNAP_DIR:-}" ]; then SNAP_ASSIGN="SNAP=$(_snap_sq "$HL_SNAP_DIR")"; fi
 [ -n "${HL_SNAP_DOOR:-}" ] || HL_SNAP_DOOR=auto
 
 _snap_class="$(hl_wsl_class)"
@@ -119,8 +113,18 @@ case "$HL_SNAP_DOOR" in
   *) echo "FAIL: $SELF: HL_SNAP_DOOR wants auto | local, not '$HL_SNAP_DOOR'." >&2; exit 2 ;;
 esac
 
-# _snap_sq <s> — shell-quote for one WORD inside the guest script.
+# _snap_sq <s> — shell-quote for one WORD inside the guest script. DEFINED BEFORE ITS TOP-LEVEL
+# CALL (the SNAP_ASSIGN block below) and the two stay adjacent on purpose: a function defined after
+# the line that calls it inside $( ) is no function yet when that line runs — the substitution answered
+# empty, the guest cloned into nothing, and every fixture-driven child (every --self-test arm) died
+# several layers away from the cause. Same DOA family as the fixed `echo <unstamped>`.
 _snap_sq() { local s="${1//\'/\'\\\'\'}"; printf "'%s'" "$s"; }
+# The snapshot path AS THE ENGINE SPELLS IT. With no HL_SNAP_DIR the assignment carries $HOME
+# UNEXPANDED so the GUEST shell resolves it in the guest's own home; a fixture (or an operator)
+# that sets HL_SNAP_DIR gets its value embedded VERBATIM — it is then the caller's job to spell
+# the path the way the engine reads it (that is what makes the seam honest, not clever).
+SNAP_ASSIGN='SNAP="$HOME/gate-snap/homelab"'
+if [ -n "${HL_SNAP_DIR:-}" ]; then SNAP_ASSIGN="SNAP=$(_snap_sq "$HL_SNAP_DIR")"; fi
 
 # _snap_want — the commit to grade: HEAD of the repo being graded. Also the two dirty facts,
 # which the POLICY below turns into either a carry or a refusal — never a silent mix.
@@ -308,7 +312,7 @@ _snap_prepare() {
 }
 
 # ---------------------------------------------------------------------------
-# --self-test: five arms on a MINTED fixture repo over the LOCAL door — no wsl.exe,
+# --self-test: six arms on a MINTED fixture repo over the LOCAL door — no wsl.exe,
 # no engine, no station state. The git mechanics under test are the same bytes the
 # remote door sends; only the filesystem is nearer.
 # ---------------------------------------------------------------------------
@@ -366,6 +370,27 @@ self_test() {
     else _st_no "the refusal worked but --carry did not land the untracked file"; fi
   else _st_no "a dirty tree graded silently (rc $rc): $out"; fi
   rm -f "$t/repo/loose.txt"
+
+  # ARM 6 — --verify FOR REAL, BOTH directions, with the output read. The mode was once dead on
+  # arrival — an `echo <unstamped>` in the generated guest script parsed as a redirect and died at the
+  # closing `)`, and every arm around it stayed green because they only ever asked `rc != 0` or
+  # `>/dev/null`: a door that is never asked to read the program's WORDS certifies nothing about the
+  # program behind it. So this arm runs the mode as a user does and grades the sentence, not just the
+  # code: agreeing stamp → rc 0 naming the agreement; a stamp pointing at ANOTHER commit (HEAD clean,
+  # receipt stale — the class the FAIL line exists to name) → rc 1 with all three shas in its mouth.
+  local other orig_stamp
+  other="$(git -C "$t/repo" rev-parse HEAD~1)"; orig_stamp="$(cat "$t/snap.stamp")"
+  out="$(HL_SNAP_DIR="$t/snap" bash "$SELF_FILE" --verify 2>&1)"; rc=$?
+  if [ "$rc" = 0 ] && printf '%s' "$out" | grep -q 'verified: HEAD and stamp agree'; then
+    printf '%s %s\n' "$other" "self-test-stale" > "$t/snap.stamp"   # HEAD agrees, the RECEIPT points elsewhere
+    out="$(HL_SNAP_DIR="$t/snap" bash "$SELF_FILE" --verify 2>&1)"; rc=$?
+    if [ "$rc" = 1 ] && printf '%s' "$out" | grep -q "HEAD $want" \
+       && printf '%s' "$out" | grep -q "stamped $other" \
+       && printf '%s' "$out" | grep -q "to grade $want"; then
+      _st_ok "--verify runs for real both ways: agreement rc 0 saying so, a stamp on another commit rc 1 naming HEAD, stamp and target"
+    else _st_no "a stamp pointing at $other while HEAD=$want answered rc $rc: $out"; fi
+  else _st_no "--verify with HEAD and stamp BOTH at $want answered rc $rc: $out"; fi
+  printf '%s\n' "$orig_stamp" > "$t/snap.stamp"        # leave the receipt as the arms found it
 
   printf 'self-test: %d arm(s), %d failed\n' "$_st_n" "$_st_f"
   [ "$_st_f" = 0 ]
