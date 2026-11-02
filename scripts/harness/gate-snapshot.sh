@@ -56,10 +56,14 @@
 #                                      `--sync --carry`, so a two-condition verify reads GREEN with carried
 #                                      bytes on top — a graded `--run` cannot inherit them (it cleans before
 #                                      the checkout) but a gate typed by hand inside that snapshot does.
-#   --self-test                        the five arms on a MINTED fixture repo over the LOCAL door (no engine, no wsl.exe):
-#                                      no-snapshot first run · a planted stale file gone after a sync ·
-#                                      stamp matches · a snapshot left behind the graded commit reddens ·
-#                                      a dirty tree refuses by default and carries on purpose.
+#   --self-test                        the arms on a MINTED fixture repo over the LOCAL door (no engine, no wsl.exe), and the
+#                                      run prints its own count: no-snapshot first run · a planted stale file gone after a
+#                                      sync · stamp matches · a snapshot left behind the graded commit reddens · a dirty tree
+#                                      refuses by default and carries on purpose · --verify's SENTENCE both ways (agreement,
+#                                      and a stamp on another commit) · --verify names a snapshot still carrying --carry ·
+#                                      `--face auto` inside a stamped snapshot selects the TREE face and a disagreeing stamp
+#                                      selects NO face · the forced-local-door policy · one-writer-per-snapshot lock · the
+#                                      stamp names who last synced it.
 #   --carry                            modifier: tracked edits as a patch + untracked files as ONE
 #                                      tar stream, both applied INTO the snapshot in the same spawn,
 #                                      each named.
@@ -67,8 +71,26 @@
 # SEAMS (every engine touch goes through ONE spawn, and a fixture injects it):
 #   HL_SNAP_DIR     the snapshot path IN THE ENGINE's spelling (default "$HOME/gate-snap/homelab";
 #                   an absolute local path is what a stub-door fixture plants it as).
+#                   ONE WRITER PER SNAPSHOT — the path is SHARED STATE, so two lanes pointed at the same
+#                   snapshot grade WHICHEVER TREE SYNCED LAST: each run's HEAD proof and stamp agree with
+#                   itself perfectly and neither describes the tree the other is about to read. The rule is
+#                   that a concurrent lane sets HL_SNAP_DIR to its OWN path ($HOME/gate-snap/<lane>), and the
+#                   driver enforces it two ways, both cheap: a mkdir-atomic sibling `$SNAP.lock` holding a
+#                   holder line, taken INSIDE the one spawn and refused (rc 4) while a holder younger than
+#                   HL_SNAP_TIMEOUT still stands (a lock past that wall came from a spawn the wall killed),
+#                   and an ORIGIN field on the stamp — the graded repo's path, kept in the THIRD field
+#                   because validate-all.sh's face block reads field 1 only — so `--verify` prints WHO last
+#                   moved the tree it is about to certify.
 #   HL_SNAP_DOOR    auto | local. auto = wsl.exe when this box classifies as win11, local when the
 #                   box IS the engine. local is what --self-test forces.
+#                   THE TRAP WHEN FORCED: `local` asserts "the engine is THIS bash". On the win11 class that
+#                   bash is Git-Bash on the NTFS mount, so with no HL_SNAP_DIR the DEFAULT path resolves
+#                   $HOME in the CALLER's home and the snapshot lands where the engine has no view of it —
+#                   measured on this seat: a bare `HL_SNAP_DOOR=local … --sync` minted
+#                   C:\Users\domen\gate-snap\homelab, the exact mount the driver exists to avoid, silently.
+#                   `_snap_door_policy` refuses THAT combination before anything moves; an explicit
+#                   HL_SNAP_DIR is still allowed, because that is how --self-test injects a fixture and a
+#                   caller who spells the path chose the filesystem with eyes open.
 #   HL_SNAP_REPO    the repo whose commit is graded (default: the repo this file lives in).
 #   HL_SNAP_TIMEOUT wall in seconds on every spawn (a spawn that blocks on a half-open door is a
 #                   lane lost — stdin is CLOSED on every spawn, CONVENTIONS §6).
@@ -117,6 +139,31 @@ case "$HL_SNAP_DOOR" in
   local) SNAP_DOOR=local ;;
   *) echo "FAIL: $SELF: HL_SNAP_DOOR wants auto | local, not '$HL_SNAP_DOOR'." >&2; exit 2 ;;
 esac
+
+# _snap_door_policy <class> <door> <dir-set> — rc 0 proceed, rc 1 refuse with the reason on stdout.
+# Arguments instead of readings, the same reason `hl_wsl_class` takes a uname string: the rule is about the
+# CLASS, so the arm that grades it must answer the same way on the engine as on the Windows seat. What it
+# refuses is the measured trap in the HL_SNAP_DOOR note — a FORCED local door on a Windows class with the
+# DEFAULT snapshot path, which resolves $HOME wherever the CALLER's home is (a Windows directory the engine
+# never sees), while the class-derived door would have chosen the engine. An explicit HL_SNAP_DIR is not
+# refused: that is the fixture seam, and the caller named the filesystem.
+_snap_door_policy() {
+  local cls="${1:-}" door="${2:-}" dir_set="${3:-0}"
+  [ "$door" = local ] || return 0
+  case "$cls" in win11 | win11-nodoor) ;; *) return 0 ;; esac
+  [ "$dir_set" = 1 ] && return 0
+  echo "REFUSE: HL_SNAP_DOOR=local on a $cls box runs the engine half in THIS bash, so the default snapshot path resolves \$HOME where the ENGINE has no view of it — on this seat that is a Windows directory on the NTFS mount this driver exists to avoid (measured: a bare local-door --sync minted C:\\Users\\<user>\\gate-snap\\homelab). Either drop HL_SNAP_DOOR and let the seat class choose the door, or set HL_SNAP_DIR to the path the engine spells — that is what --self-test does for its fixtures. NOTHING was graded."
+  return 1
+}
+
+# The policy is applied to a snapshot run only. --self-test IS not one: it mints fixtures and injects its
+# own HL_SNAP_DIR into every arm, so the top-level environment says nothing about where an arm writes, and
+# refusing there would stop the arms that grade this very rule.
+if [ "$MODE" != self-test ] && [ "$SNAP_DOOR" = local ]; then
+  _snap_dir_set=0
+  [ -n "${HL_SNAP_DIR:-}" ] && _snap_dir_set=1
+  _snap_door_policy "$_snap_class" "$SNAP_DOOR" "$_snap_dir_set" || exit 3
+fi
 
 # _snap_sq <s> — shell-quote for one WORD inside the guest script. DEFINED BEFORE ITS TOP-LEVEL
 # CALL (the SNAP_ASSIGN block below) and the two stay adjacent on purpose: a function defined after
@@ -179,6 +226,14 @@ fi
 DIRTY_NOW="$(git -C "$SNAP" status --porcelain | head -1)"
 HEAD_NOW="$(git -C "$SNAP" rev-parse HEAD)"
 STAMP_SHA="$(cut -d' ' -f1 "$SNAP.stamp" 2>/dev/null || echo '<unstamped>')"
+# WHO last synced the tree — the question HEAD-vs-stamp cannot answer, because two lanes sharing one
+# snapshot each leave a stamp that agrees with the HEAD they moved it to. The origin is the stamp's THIRD
+# field (field 1 is what validate-all.sh's face block reads), so a stamp written before the field exists
+# says so rather than printing an empty name.
+STAMP_ORIGIN="$(cut -d' ' -f3- "$SNAP.stamp" 2>/dev/null)"
+if [ -z "$STAMP_ORIGIN" ]; then STAMP_ORIGIN='<no origin recorded — a stamp written before the origin field>'; fi
+HELD=""
+if [ -d "$SNAP.lock" ]; then HELD="$(cut -c1-160 "$SNAP.lock/holder" 2>/dev/null || echo '<no holder line>')"; fi
 if [ "$HEAD_NOW" != "$WANT" ] || [ "$STAMP_SHA" != "$WANT" ]; then
   echo "FAIL: the snapshot is not the graded commit — HEAD $HEAD_NOW · stamped $STAMP_SHA · to grade $WANT. Run --sync; a stale stamp is why a gate once printed a verdict that belonged to nothing."
   exit 1
@@ -188,6 +243,10 @@ if [ -n "$DIRTY_NOW" ]; then
   exit 1
 fi
 echo "graded: $WANT (verified: HEAD and stamp agree)"
+echo "stamped by: $STAMP_ORIGIN"
+if [ -n "$HELD" ]; then
+  echo "note: $SNAP.lock is held RIGHT NOW by $HELD — another lane has this snapshot open, and its next --sync moves the tree you are about to grade."
+fi
 GUEST
 }
 
@@ -231,12 +290,34 @@ _snap_spawn() {
 }
 
 _snap_script() { # -> stdout; $1=want $2=src (both host-resolved already) $3=1 to run the tree face
-  local _want="$1" _src="$2" _grade="${3:-0}" _gate
-  printf 'set -e\n%s\nSRC=%s\nWANT=%s\n' "$SNAP_ASSIGN" "$(_snap_sq "$_src")" "$(_snap_sq "$_want")"
+  local _want="$1" _src="$2" _grade="${3:-0}" _gate _holder
+  # The holder line names the LANE, which in this repo means the worktree whose commit is being graded,
+  # plus the pid of the driver that took the lock — enough for a refused lane to say who to go ask.
+  _holder="$SNAP_REPO head=$(printf '%s' "$_want" | cut -c1-12) pid=$$"
+  printf 'set -e\n%s\nSRC=%s\nWANT=%s\nHOLDER=%s\nORIGIN=%s\nLOCK_LIMIT=%s\n' \
+    "$SNAP_ASSIGN" "$(_snap_sq "$_src")" "$(_snap_sq "$_want")" "$(_snap_sq "$_holder")" \
+    "$(_snap_sq "$SNAP_REPO")" "$SNAP_LIMIT"
   cat <<'GUEST'
 STAMP="$SNAP.stamp"
+# ONE WRITER PER SNAPSHOT (the HL_SNAP_DIR seam in the header): the lock is the sibling DIRECTORY, taken
+# with `mkdir` because that is the one operation both filesystems here make atomic, and taken INSIDE this
+# spawn so the rule costs no extra door trip. A lock can outlive its writer only through a spawn that was
+# killed, and HL_SNAP_TIMEOUT is the wall that spawn ran under — older than the wall is a stale lock.
+mkdir -p "$(dirname "$SNAP")"
+LOCK="$SNAP.lock"
+if ! mkdir "$LOCK" 2>/dev/null; then
+  AGE=$(( $(date +%s) - $(stat -c %Y "$LOCK" 2>/dev/null || date +%s) ))
+  [ "$AGE" -ge 0 ] || AGE=0
+  HELD="$(cut -c1-160 "$LOCK/holder" 2>/dev/null || echo '<no holder line>')"
+  if [ "$AGE" -lt "$LOCK_LIMIT" ]; then
+    echo "REFUSE: $LOCK is held by $HELD — lock age ${AGE}s, staleness bound ${LOCK_LIMIT}s (HL_SNAP_TIMEOUT), so its writer is still running. ONE WRITER PER SNAPSHOT: two lanes sharing one snapshot grade whichever tree synced last, and this run would certify a tree another lane is moving. Point this run at its own path: HL_SNAP_DIR=$HOME/gate-snap/<lane> bash scripts/harness/gate-snapshot.sh …  NOTHING was graded."
+    exit 4
+  fi
+  echo "note: taking $LOCK over from $HELD — ${AGE}s old, past the ${LOCK_LIMIT}s spawn wall, so its writer is gone"
+fi
+printf '%s\n' "$HOLDER" > "$LOCK/holder"
+trap 'rm -rf "$LOCK"' EXIT
 if [ ! -d "$SNAP/.git" ]; then
-  mkdir -p "$(dirname "$SNAP")"
   git clone -q --no-hardlinks "$SRC" "$SNAP"
 fi
 git -C "$SNAP" fetch -q "$SRC" '+refs/heads/*:refs/gate-snap/*' || git -C "$SNAP" fetch -q "$SRC"
@@ -254,9 +335,9 @@ if [ "$HEAD_NOW" != "$WANT" ]; then
   exit 1
 fi
 STAMPED="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-printf '%s %s\n' "$WANT" "$STAMPED" > "$STAMP"
+printf '%s %s %s\n' "$WANT" "$STAMPED" "$ORIGIN" > "$STAMP"
 echo "graded: $WANT $(git -C "$SNAP" log -1 --format=%s)"
-echo "stamped: $STAMP at $STAMPED"
+echo "stamped: $STAMP at $STAMPED by $ORIGIN"
 GUEST
   # CARRY rides in the SAME spawn, AFTER the HEAD proof: the base stays exactly the stamped commit, so
   # what sits on top of it is a carried tree rather than a commit's — and the gate says so on its own line.
@@ -329,7 +410,7 @@ _snap_prepare() {
 }
 
 # ---------------------------------------------------------------------------
-# --self-test: six arms on a MINTED fixture repo over the LOCAL door — no wsl.exe,
+# --self-test: the arms on a MINTED fixture repo over the LOCAL door — no wsl.exe,
 # no engine, no station state. The git mechanics under test are the same bytes the
 # remote door sends; only the filesystem is nearer.
 # ---------------------------------------------------------------------------
@@ -431,6 +512,83 @@ self_test() {
       _st_ok "--verify names a snapshot still carrying a previous --carry, and goes green again once --sync cleans it"
     else _st_no "the carried tree was named but --sync did NOT clear it for a green verify: $out"; fi
   else _st_no "a snapshot carrying carried bytes passed --verify (rc $rc): $out"; fi
+
+  # ARM 8 — the FACE SELECTION inside a stamped snapshot, both directions, grading the SENTENCE. Until this
+  # arm existed the behavior rested on reading validate-all.sh's face block (HD-1230's last ⏳): nothing
+  # planted a snapshot and asked the real block which face it picks. The seam is the DOCUMENTED inherited-$REPO
+  # override (scripts/lib/repo-root.sh:150-153 — an inherited $REPO is trusted, not re-checked), which is what
+  # lets the real validate-all.sh run against a fixture snapshot that carries no IaC markers: the block then
+  # reads the driver's OWN stamp sibling and the snapshot's HEAD, exactly as it does in the engine.
+  # The run STOPS at the unknown-profile refusal, which sits three lines below the face block: `--list` costs
+  # ~14 s and performs a real 1Password read, so an arm that let the item list print would turn --self-test
+  # into a leg. The refusal line is therefore graded too — if that stop ever moves, this arm fails loudly
+  # instead of quietly paying for the registry, and the `timeout` is the wall behind the wall.
+  local va stamped _pol_ok=1
+  va="$HL_ROOT/scripts/validate-all.sh"
+  HL_SNAP_DIR="$t/snap" bash "$SELF_FILE" --sync >/dev/null 2>&1 || true      # the driver's own stamp, freshly written
+  stamped="$(cut -d ' ' -f1 "$t/snap.stamp")"
+  out="$(REPO="$t/snap" timeout 120 bash "$va" --face auto --profile selftest-stop 2>&1)"; rc=$?
+  if printf '%s' "$out" | grep -q "face: auto → tree" \
+     && printf '%s' "$out" | grep -q "snapshot ($stamped)" \
+     && printf '%s' "$out" | grep -q "FAIL: unknown --profile 'selftest-stop'"; then
+    other="$(git -C "$t/repo" rev-parse HEAD~1)"
+    printf '%s %s %s\n' "$other" "1970-01-01T00:00:00Z" "$t/repo" > "$t/snap.stamp"   # HEAD clean, RECEIPT elsewhere
+    out="$(REPO="$t/snap" timeout 120 bash "$va" --face auto --profile selftest-stop 2>&1)"; rc=$?
+    if printf '%s' "$out" | grep -q 'a disagreeing stamp selects NO face' \
+       && printf '%s' "$out" | grep -q "names '$other', not this commit" \
+       && ! printf '%s' "$out" | grep -q 'face: auto → tree'; then
+      _st_ok "--face auto inside a stamped snapshot selects the tree face naming the stamp, and a stamp disagreeing with HEAD selects NO face"
+    else _st_no "a stamp naming $other while the snapshot is at $stamped answered: $out"; fi
+  else _st_no "--face auto in a stamped snapshot did not select the tree face (rc $rc): $out"; fi
+  HL_SNAP_DIR="$t/snap" bash "$SELF_FILE" --sync >/dev/null 2>&1 || true       # re-stamp for the arms after this one
+
+  # ARM 9 — the FORCED-LOCAL-DOOR POLICY, graded on its ARGUMENTS so it answers the same on every seat (the
+  # rule is about the CLASS, not about the host asking — the same shape `hl_wsl_class` takes). What it refuses
+  # was measured here, not imagined: `local` means "the engine is THIS bash", so on a win11 box with the
+  # DEFAULT path the snapshot is minted under the CALLER's $HOME — a Windows directory the engine cannot see.
+  out="$(_snap_door_policy win11 local 0)"; rc=$?
+  if [ "$rc" = 1 ] && printf '%s' "$out" | grep -q 'REFUSE: HL_SNAP_DOOR=local' \
+     && printf '%s' "$out" | grep -q 'HL_SNAP_DIR'; then
+    _pol_ok=1
+    _snap_door_policy win11 local 1 >/dev/null 2>&1 || _pol_ok=0     # an explicit path: the fixture seam
+    _snap_door_policy wsl local 0 >/dev/null 2>&1 || _pol_ok=0       # the box IS the engine
+    _snap_door_policy linux local 0 >/dev/null 2>&1 || _pol_ok=0     # a Debian seat, no door to cross
+    _snap_door_policy win11 remote 0 >/dev/null 2>&1 || _pol_ok=0    # the class-derived door, untouched
+    _snap_door_policy win11 auto 0 >/dev/null 2>&1 || _pol_ok=0
+    if [ "$_pol_ok" = 1 ]; then _st_ok "a forced local door on a win11 class with the default path is refused by name, and every other shape runs"
+    else _st_no "the door policy refused a shape it must allow (rc of the four: see the policy text)"; fi
+  else _st_no "a forced local door on a win11 class with the default path was NOT refused (rc $rc): $out"; fi
+
+  # ARM 10 — ONE WRITER PER SNAPSHOT. The state is PLANTED (a lock dir, a holder line naming another lane),
+  # and all three facts that make the rule usable are graded: the refusal names the HOLDER and the bound, a
+  # lock older than HL_SNAP_TIMEOUT is taken over rather than obeyed forever, and a normal sync leaves no
+  # lock behind — a leaked lock is a lane that cannot run until the bound expires.
+  mkdir -p "$t/snap.lock" && printf '%s\n' "$t/lane-other head.0123456789ab pid 4242" > "$t/snap.lock/holder"
+  out="$(HL_SNAP_DIR="$t/snap" bash "$SELF_FILE" --sync 2>&1)"; rc=$?
+  if [ "$rc" = 4 ] && printf '%s' "$out" | grep -q 'REFUSE:' \
+     && printf '%s' "$out" | grep -q 'ONE WRITER PER SNAPSHOT' \
+     && printf '%s' "$out" | grep -q 'lane-other'; then
+    touch -d '2 hours ago' "$t/snap.lock" 2>/dev/null || true        # HL_SNAP_TIMEOUT is 60 here → stale
+    out="$(HL_SNAP_DIR="$t/snap" bash "$SELF_FILE" --sync 2>&1)"; rc=$?
+    if [ "$rc" = 0 ] && printf '%s' "$out" | grep -q 'taking .* over' && [ ! -d "$t/snap.lock" ]; then
+      _st_ok "a held snapshot REFUSES the second writer by name, a lock past the spawn wall is taken over, and a sync leaves no lock behind"
+    else _st_no "the lock took over or leaked (rc $rc, lock still there: $([ -d "$t/snap.lock" ] && printf yes || printf no)): $out"; fi
+  else _st_no "a second writer synced straight into a locked snapshot (rc $rc): $out"; fi
+
+  # ARM 11 — WHO stamped the tree. Two lanes sharing one snapshot is a PROVENANCE question that HEAD-vs-stamp
+  # cannot answer, so the stamp carries the graded repo path and --verify prints it. THIRD field on purpose:
+  # validate-all.sh's face block reads field 1 only, and the field must stay out of the way of that reader.
+  local stamped_by
+  stamped_by="$(cut -d ' ' -f3 "$t/snap.stamp")"
+  out="$(HL_SNAP_DIR="$t/snap" bash "$SELF_FILE" --verify 2>&1)"; rc=$?
+  if [ "$rc" = 0 ] && [ "$stamped_by" = "$t/repo" ] \
+     && printf '%s' "$out" | grep -q "stamped by: $t/repo"; then
+    printf '%s %s\n' "$want" "2026-01-01T00:00:00Z" > "$t/snap.stamp"   # a stamp from before the origin field
+    out="$(HL_SNAP_DIR="$t/snap" bash "$SELF_FILE" --verify 2>&1)"; rc=$?
+    if [ "$rc" = 0 ] && printf '%s' "$out" | grep -q 'stamped by: <no origin recorded'; then
+      _st_ok "the stamp names the repo that synced it and --verify prints it, and a pre-origin stamp says so instead of naming nobody"
+    else _st_no "a two-field stamp printed an origin it never had (rc $rc): $out"; fi
+  else _st_no "the stamp's origin field is '$stamped_by', not the graded repo '$t/repo' (rc $rc): $out"; fi
 
   printf 'self-test: %d arm(s), %d failed\n' "$_st_n" "$_st_f"
   [ "$_st_f" = 0 ]
