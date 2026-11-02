@@ -89,8 +89,22 @@ missing_items() { # output -> MI = the listed missing items (lines after the MIS
 
 [ -f "$MAIN" ] || { echo "FAIL: scanner not found at $MAIN"; exit 1; }
 
+# ONE STREAM FOR EVERY VERDICT (HD-1230). The scanner writes its `--strict` FAIL banner to STDERR
+# (check-vault-items.sh:231); a plain `$( )` capture takes only stdout, so inside this leg the banner
+# fell through to the leg's OWN stderr. Captured across the WSL door (bench/win/gate-parity.sh +
+# lib/wsl-route.sh) the guest's stdout and stderr are TWO channels merged into one file with offsets
+# that do not share a cursor: measured 2026-11-02, the two 42-byte banners landed at offset 0 and
+# replaced the first 84 stdout bytes there — case1's first two verdicts plus the eaten `PASS: cas` of
+# its third, byte for byte — while stdout resumed intact at its own cursor. The fix keeps every byte
+# and the order: fd 3 IS the leg's stdout, and `scan` points the scanner's stderr at it, so this leg
+# offers the stream exactly one writer and every verdict stays ONE complete line, in order.
+exec 3>&1
+scan() { # scan <scanner args…> — stdout is the caller's to capture, stderr lands on the leg's stdout
+    bash "$MAIN" "$@" 2>&3
+}
+
 # --- Case 1: HD-244 regression proof (informational mode) ------------------
-out="$(bash "$MAIN" --root "$FIXTURE" --fake-vault "$FIXTURE/vault-gap.txt")"   # one launch per distinct (root, vault, mode) — see case 5
+out="$(scan --root "$FIXTURE" --fake-vault "$FIXTURE/vault-gap.txt")"   # one launch per distinct (root, vault, mode) — see case 5
 rc=$?
 missing_items "$out"; items="$MI"
 GAP_ITEMS="$MI"        # case 5 asserts on THIS run's list instead of launching the same command again
@@ -103,7 +117,7 @@ expect_eq "case1 enabled services = 2 (disabled entry filtered)" "$_c1" "2"
 expect_eq "case1 needed set = 4 (owner-seedable only; demo_oidc + the 2 HD-247 spec items are GLUE-class)" "$_c2" "4"
 
 # --- Case 2: no-false-positive on a complete vault --------------------------
-out="$(bash "$MAIN" --root "$FIXTURE" --fake-vault "$FIXTURE/vault-complete.txt")"
+out="$(scan --root "$FIXTURE" --fake-vault "$FIXTURE/vault-complete.txt")"
 rc=$?
 missing_items "$out"; items="$MI"
 expect_eq "case2 complete-vault exits 0" "$rc" "0"
@@ -115,14 +129,14 @@ expect_absent "case2 whole output never mentions disabled_should_never_appear" "
 # --- Case 3: --strict fails when something is missing ------------------------
 # A real launch even though case 1 ran the same tree: the MODE is the contract here (informational 0 vs
 # strict non-zero), and an rc cannot be read out of another process's stdout.
-out="$(bash "$MAIN" --root "$FIXTURE" --fake-vault "$FIXTURE/vault-gap.txt" --strict)"
+out="$(scan --root "$FIXTURE" --fake-vault "$FIXTURE/vault-gap.txt" --strict)"
 rc=$?
 if [ "$rc" -ne 0 ]; then ok "case3 gap+strict exits non-zero ($rc)"; else bad "case3 gap+strict exited 0"; fi
 missing_items "$out"
 expect_contains "case3 still lists metabase-forgejo_ro in strict mode" "$MI" "metabase-forgejo_ro"
 
 # --- Case 4: --strict passes on a complete vault ------------------------------
-bash "$MAIN" --root "$FIXTURE" --fake-vault "$FIXTURE/vault-complete.txt" --strict >/dev/null
+scan --root "$FIXTURE" --fake-vault "$FIXTURE/vault-complete.txt" --strict >/dev/null
 rc=$?
 expect_eq "case4 complete+strict exits 0" "$rc" "0"
 
@@ -147,7 +161,7 @@ trap 'rm -rf "$TMPD"' EXIT
 cp -r "$FIXTURE/." "$TMPD/"
 rm "$TMPD/IaC/ansible/roles/docker_services/templates/litellm-bootstrap-keys.sh.j2"
 sed -i 's/^litellm_scoped_keys:/litellm_keys:/' "$TMPD/IaC/ansible/group_vars/vps.yml"
-out="$(bash "$MAIN" --root "$TMPD" --fake-vault "$FIXTURE/vault-gap.txt")"
+out="$(scan --root "$TMPD" --fake-vault "$FIXTURE/vault-gap.txt")"
 rc=$?
 missing_items "$out"; items="$MI"
 expect_eq "case6 no-glue exits 0 (informational)" "$rc" "0"
@@ -174,14 +188,14 @@ mk_copy() { # $1 = "ctrl" | "scoped" -> MD = copy dir (out-parameter: `$(mk_copy
     MD="$d"
 }
 MD=""; mk_copy ctrl; CTRL="$MD"; MD=""; mk_copy scoped; GATED="$MD"
-out="$(bash "$MAIN" --root "$CTRL" --fake-vault "$FIXTURE/vault-gap.txt")"
+out="$(scan --root "$CTRL" --fake-vault "$FIXTURE/vault-gap.txt")"
 missing_items "$out"
 expect_contains "case7 control (non-scoped name): bdemo_key_api listed MISSING" "$MI" "bdemo_key_api"
-out="$(bash "$MAIN" --root "$GATED" --fake-vault "$FIXTURE/vault-gap.txt")"; rc=$?
+out="$(scan --root "$GATED" --fake-vault "$FIXTURE/vault-gap.txt")"; rc=$?
 expect_eq "case7 scoped block: informational exit 0" "$rc" "0"
 missing_items "$out"
 expect_absent "case7 scoped block: bdemo_key_api routed to GLUE (never MISSING)" "$MI" "bdemo_key_api"
-out="$(bash "$MAIN" --root "$GATED" --fake-vault "$FIXTURE/vault-gap.txt" --strict)"
+out="$(scan --root "$GATED" --fake-vault "$FIXTURE/vault-gap.txt" --strict)"
 missing_items "$out"; count_rows "$MI"
 expect_eq "case7 scoped+strict: exactly 1 missing remains (metabase gap only)" "$CR_N" "1"
 rm -rf "$CTRL" "$GATED"
@@ -201,10 +215,10 @@ mk_hostvars() { # $1 = key name -> MD = copy dir (out-parameter, see mk_copy)
     MD="$d"
 }
 MD=""; mk_hostvars vault_item; HV_CTRL="$MD"; MD=""; mk_hostvars vaultitem; HV_NOCLASS="$MD"
-out="$(bash "$MAIN" --root "$HV_CTRL" --fake-vault "$FIXTURE/vault-gap.txt")"
+out="$(scan --root "$HV_CTRL" --fake-vault "$FIXTURE/vault-gap.txt")"
 missing_items "$out"
 expect_contains "case8 host_vars vault_item: is a real dependency (smb-shared_login MISSING)" "$MI" "smb-shared_login"
-out="$(bash "$MAIN" --root "$HV_NOCLASS" --fake-vault "$FIXTURE/vault-gap.txt")"
+out="$(scan --root "$HV_NOCLASS" --fake-vault "$FIXTURE/vault-gap.txt")"
 missing_items "$out"
 expect_absent "case8 control: a non-class key name makes it invisible (rule is key-class, not text)" "$MI" "smb-shared_login"
 expect_absent "case8 commented-out '# vault_item:' line never creates a dependency" "$MI" "comment_only_item"
