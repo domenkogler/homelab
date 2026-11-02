@@ -242,3 +242,27 @@ check: --check --strict
 push: --push
 seats: win11 wsl oldsrv
 installer: none
+
+---
+# The seat's TOOL-SERVER LAUNCHER plane (HD-1238): the act that keeps a `localhost`-only MCP
+# server answering, so the MCP entry in a seat's HOME has a transport instead of a terminal's child.
+# Declared where the carrier exists — a systemd USER unit on the two Debian seats — and deliberately
+# NOT for `win11`, where the carrier is a per-user Startup entry (`schtasks /Create /SC ONLOGON`
+# answers `Access is denied` unelevated) and the owner's answer there is SKIP at rc 2, not MISSING.
+#
+# `installer: none` for the reason the `llm-path` and `dns-route` rows give, plus one of its own: a
+# from-zero bootstrap of a HOME does not install a .NET tool it has no pin for, and enabling a
+# service for a binary the bootstrap never placed would fail the bootstrap for a defect that is not
+# the bootstrap's. The owner REFUSES to install the tool for the same reason (CONVENTIONS §7).
+#
+# What this row does NOT reach is the other half of HD-1238: `~/.pi/agent/mcp.json` itself, which no
+# plane reads. Converging a launcher for a server no seat's config names is half a plane, and that
+# is stated rather than smoothed over.
+plane: mcp-server
+harness: pi
+owner: seat-mcp-server.sh
+runner: bash
+check: --check --strict
+push: --push
+seats: wsl oldsrv
+installer: none
