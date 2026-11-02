@@ -92,8 +92,48 @@ def tok(n: int) -> str:
     return f"HD-{n}"
 
 
+# The Windows-worktree git seam, resolved ONCE per root (HD-1230(b)). A linked worktree created by
+# git-for-windows names its admin dir as `gitdir: D:/…` inside the checkout's `.git` FILE, and a Linux
+# git on the engine resolves that answer as a RELATIVE path: every git call dies
+# `fatal: not a git repository: <checkout>/D:/source/…`. It is the same seam
+# scripts/harness/gate-snapshot.sh's `_snap_scratch` resolves by spelling — an answer is absolute in
+# EITHER spelling (`/…` and `D:/…`) and repo-relative in neither; here the answer sits in a file that
+# git will not open, so read the file, and only when git itself cannot enter the checkout. The
+# answer is handed to the SUBPROCESSES as GIT_DIR/GIT_WORK_TREE, never to os.environ: this file's
+# self-test builds fixture repos, and an inherited GIT_DIR is how a leg grades someone else's
+# checkout (the trap lib/wsl-route.sh names for a global injection).
+_WT_ENV: dict[str, dict | None] = {}
+
+
+def worktree_env(root: Path) -> dict | None:
+    """Extra git env for THIS root: a drive-letter-`.git` checkout git cannot open, else None."""
+    key = str(root)
+    if key in _WT_ENV:
+        return _WT_ENV[key]
+    _WT_ENV[key] = None
+    try:
+        ptr = root / ".git"
+        if ptr.is_file():                       # a linked worktree; a normal clone has a directory
+            target = ptr.read_text(encoding="utf-8", errors="replace").strip()
+            if target.startswith("gitdir:"):
+                target = target[len("gitdir:"):].strip()
+            if re.match(r"[A-Za-z]:[\\/]", target):     # the git-for-windows spelling only
+                probe = subprocess.run(["git", "-C", key, "rev-parse", "--git-dir"],
+                                       capture_output=True, text=True, encoding="utf-8",
+                                       errors="replace")
+                if probe.returncode != 0:       # THIS side's git cannot enter it: translate
+                    mnt = "/mnt/" + target[0].lower() + target[2:].replace("\\", "/")
+                    if os.path.isdir(mnt):      # and only when the translated dir really is there
+                        _WT_ENV[key] = {"GIT_DIR": mnt, "GIT_WORK_TREE": key}
+    except OSError:
+        pass                                    # unreadable pointer: the git calls will say it themselves
+    return _WT_ENV[key]
+
+
 def git(root: Path, *args: str) -> str:
+    wt = worktree_env(root)
     proc = subprocess.run(["git", "-C", str(root), *args],
+                          env=({**os.environ, **wt} if wt else None),
                           capture_output=True, text=True, encoding="utf-8", errors="replace")
     if proc.returncode not in (0, 1):  # git grep exits 1 for "no match", which is not an error
         raise RuntimeError(f"git {' '.join(args)}: {proc.stderr.strip()[:200]}")
@@ -152,9 +192,11 @@ def history_writers(root: Path) -> dict[int, list[str]]:
     for a merge, and the `-S` sweep cannot see one either). Same scan set as the minter's tree half:
     reports/ is archive-only, so an id that survives only there is an id no row ever held.
     """
+    wt = worktree_env(root)
     proc = subprocess.Popen(["git", "-C", str(root), "log", "--all", "--no-color",
                              f"--format={COMMIT_MARK}%h", "-p", "-U0",
                              "--diff-merges=first-parent", "--", ".", ":(exclude)reports"],
+                            env=({**os.environ, **wt} if wt else None),
                             stdout=subprocess.PIPE, text=True, encoding="utf-8", errors="replace")
     writers: dict[int, list[str]] = {}
     sha, commits = "", 0
@@ -186,6 +228,9 @@ def run_minter(root: Path, mode: str = "--raw", *, history: bool = True,
     env = {**os.environ, "REPO": root.as_posix(),
            "RESERVED_RANGES": ",".join(f"{lo}-{hi}" for lo, hi in ranges),
            "RESERVED_IDS": " ".join(str(i) for i in sorted(ids))}
+    wt = worktree_env(root)      # the minter's own git calls judge the SAME checkout this leg was asked about
+    if wt:
+        env.update(wt)
     if not history:
         env["GIT_SCAN"] = "0"       # the tree half alone: what this script proposed before the fix
     if window is not None:
@@ -230,8 +275,10 @@ def row_history(root: Path) -> set[int]:
     LAZY on purpose: the caller asks only when something is already above the ceiling, so a clean tree
     pays nothing (this pass costs ~2.5 s on the slow seat, and it must not be a tax on a green run).
     """
+    wt = worktree_env(root)
     proc = subprocess.Popen(["git", "-C", str(root), "log", "--all", "--no-color", "--format=",
                              "-p", "-U0", "--diff-merges=first-parent", "--", "todo.md"],
+                            env=({**os.environ, **wt} if wt else None),
                             stdout=subprocess.PIPE, text=True, encoding="utf-8", errors="replace")
     ids: set[int] = set()
     added = 0
