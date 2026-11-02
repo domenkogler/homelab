@@ -229,8 +229,10 @@ STAMP_SHA="$(cut -d' ' -f1 "$SNAP.stamp" 2>/dev/null || echo '<unstamped>')"
 # WHO last synced the tree — the question HEAD-vs-stamp cannot answer, because two lanes sharing one
 # snapshot each leave a stamp that agrees with the HEAD they moved it to. The origin is the stamp's THIRD
 # field (field 1 is what validate-all.sh's face block reads), so a stamp written before the field exists
-# says so rather than printing an empty name.
-STAMP_ORIGIN="$(cut -d' ' -f3- "$SNAP.stamp" 2>/dev/null)"
+# says so rather than printing an empty name. The `|| echo` is not decoration: an absent stamp makes `cut`
+# exit 1, and inside this `set -e` guest an unguarded assignment would end the script RIGHT THERE — a
+# silent rc 1 with no sentence, the same dead-on-arrival family as the `echo <unstamped>` redirect.
+STAMP_ORIGIN="$(cut -d' ' -f3- "$SNAP.stamp" 2>/dev/null || echo '')"
 if [ -z "$STAMP_ORIGIN" ]; then STAMP_ORIGIN='<no origin recorded — a stamp written before the origin field>'; fi
 HELD=""
 if [ -d "$SNAP.lock" ]; then HELD="$(cut -c1-160 "$SNAP.lock/holder" 2>/dev/null || echo '<no holder line>')"; fi
@@ -575,9 +577,12 @@ self_test() {
     else _st_no "the lock took over or leaked (rc $rc, lock still there: $([ -d "$t/snap.lock" ] && printf yes || printf no)): $out"; fi
   else _st_no "a second writer synced straight into a locked snapshot (rc $rc): $out"; fi
 
-  # ARM 11 — WHO stamped the tree. Two lanes sharing one snapshot is a PROVENANCE question that HEAD-vs-stamp
-  # cannot answer, so the stamp carries the graded repo path and --verify prints it. THIRD field on purpose:
-  # validate-all.sh's face block reads field 1 only, and the field must stay out of the way of that reader.
+  # ARM 11 — WHO stamped the tree, and what the stamp's FIELDS do in each state. Two lanes sharing one
+  # snapshot is a PROVENANCE question that HEAD-vs-stamp cannot answer, so the stamp carries the graded repo
+  # path and --verify prints it. THIRD field on purpose: validate-all.sh's face block reads field 1 only, and
+  # the field must stay out of the way of that reader. The third state is the one this change could have
+  # broken — an absent stamp is a `cut` failure, and a `set -e` guest eats an unguarded assignment into a
+  # silent rc 1, which is how `--verify` was dead on arrival once before (HD-1230).
   local stamped_by
   stamped_by="$(cut -d ' ' -f3 "$t/snap.stamp")"
   out="$(HL_SNAP_DIR="$t/snap" bash "$SELF_FILE" --verify 2>&1)"; rc=$?
@@ -586,7 +591,11 @@ self_test() {
     printf '%s %s\n' "$want" "2026-01-01T00:00:00Z" > "$t/snap.stamp"   # a stamp from before the origin field
     out="$(HL_SNAP_DIR="$t/snap" bash "$SELF_FILE" --verify 2>&1)"; rc=$?
     if [ "$rc" = 0 ] && printf '%s' "$out" | grep -q 'stamped by: <no origin recorded'; then
-      _st_ok "the stamp names the repo that synced it and --verify prints it, and a pre-origin stamp says so instead of naming nobody"
+      rm -f "$t/snap.stamp"                                            # HEAD agrees, there is no RECEIPT at all
+      out="$(HL_SNAP_DIR="$t/snap" bash "$SELF_FILE" --verify 2>&1)"; rc=$?
+      if [ "$rc" = 1 ] && printf '%s' "$out" | grep -q 'stamped <unstamped>'; then
+        _st_ok "the stamp's fields hold in all three states: the repo that synced it is named, a pre-origin stamp says it has no origin, an absent stamp still prints the FAIL sentence rather than exiting silent"
+      else _st_no "a snapshot with NO stamp answered rc $rc and printed: $out — the origin read died before the verdict"; fi
     else _st_no "a two-field stamp printed an origin it never had (rc $rc): $out"; fi
   else _st_no "the stamp's origin field is '$stamped_by', not the graded repo '$t/repo' (rc $rc): $out"; fi
 
