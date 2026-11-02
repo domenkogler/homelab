@@ -70,6 +70,22 @@
 #                says its subject is the tree or a sandbox it builds — so `face seat` on a wrapped line is
 #                a placement lie, and the seat facts under that wrap are already named by SEAT/TRIP.
 #                A registration with NO face word is UNDECIDED, and `--profile quick` refuses the run.
+#                The words a line may state BEFORE its item call are DECISIONS, and the reader drops them
+#                ALL before weighing what is underneath: `face <word>` above, and `late` (HD-1232 — the
+#                WHEN slot, held for legs the pool starves). Dropping only the FIRST is its own silent-drop
+#                class: a stripped line that still begins `late; item_q …` matches no `item` test, so the
+#                registration would leave the FACE and REGISTRATION walks with no finding anywhere. The
+#                `late_ok` / `late_seen` arms are the pair that keeps that shut — the legal two-word line
+#                stays green, and a two-word line may not hide a contradicted face word.
+#   LABEL        the text a registration PRINTS is code, because it sits inside a double-quoted argument on
+#                a line the launcher EXECUTES while it builds the registry. An unescaped backtick pair there
+#                is a COMMAND SUBSTITUTION that runs at REGISTRATION time, before any leg launches and
+#                outside every leg's rc file: the command runs on EVERY run — a run that selects no items at
+#                all runs it — its stderr lands beside the run instead of in the log of the leg that never
+#                ran, and its output is spliced into the label the run prints as that leg's name. The verdict
+#                still ends OK, which is what makes it a class and not a typo. A dollar-paren is the same
+#                shape with different punctuation. An ESCAPED occurrence is the prose the author meant, and
+#                a comment — whole-line or trailing — is prose too, so both stay silent.
 #
 # A leg that needs no engine tool writes `hl_wsl_needs none`, so "needs nothing" is a STATEMENT rather
 # than an absence a checker cannot tell from "nobody thought about it". A tree that wraps legs while
@@ -108,6 +124,10 @@
 #   Each rule breeds its finding alone in a planted tree, and the same tree with nothing planted stays
 #   green — so no canary reddens for a reason outside its own rule. Four arms are SILENCE arms: a comment,
 #   an error string, a redirection and a line continuation naming the declaration must answer rc 0.
+#   Four arms grade the LABEL rule: the two shapes that must redden (a bare backtick pair, a dollar-paren)
+#   and the two that must stay silent (the same text with the backslash the author meant, and a comment that
+#   quotes such a line). Two more grade the SECOND decision word, `late` — one that the legal two-word line
+#   stays green, one that proves the strip reaches past the first semicolon-space.
 #   Six more arms grade the FACE derivation, one per way a word on a registration line can stop matching
 #   the leg: a tree leg that reads `$HOME/.pi`, a tree leg that opens a socket, a registration with no
 #   face word at all, a `seat` leg whose facts say seat (green, plus the NOTE that it could have been a
@@ -140,6 +160,11 @@ INV_VAR='HL_WSL''_TOOLS'
 INV_FN='hl_wsl''_tools'
 NEEDS='hl_wsl_needs'
 PINNED_RUNTIMES="node npm npx pi"    # behind the route's PATH pin; widening that pin is declined
+# The two shapes a double-quoted registration label command-substitutes at, held as DATA for the same
+# reason the inventory names above are composed: a rule that spells what it hunts inside its own format
+# string is a rule that has to exempt its own file, and an exemption is where a rule stops existing.
+LIT_TICK='`'                         # one backtick
+LIT_DP='$('                          # a dollar-paren
 # The two detectors that read the conjunction off the wrapped legs. They name CALLS: the SEAT list is how a
 # leg asks which seat it is on, the TRIP list is how a leg opens something only the seat it stands on can
 # open. A name inside prose or inside a quoted string is not a call — see at_cmd.
@@ -152,6 +177,7 @@ find_n=0
 _asked=""
 _note="nothing read"
 SHOW_FACES=0                       # --faces: face_walk prints one row per registration, not just the counts
+label_n=0                          # registration lines label_walk weighed, for the denominator line
 _face_note="faces not weighed"
 declare -A _face_cache=()          # leg path (+ mode) -> its fact counts, for the width of one check_tree run
 declare -A _fx_cache=()            # leg path -> its fixture-on-the-dispatch-path evidence, same reason
@@ -290,6 +316,31 @@ tail_comment() {
   _q="${_cut//[!\"]}"
   [ $(( ${#_q} % 2 )) = 0 ] || return 0
   _tc="$_cut"
+}
+
+# dec_strip <line> -> _sw, _sw_face — the registration UNDERNEATH its decision words, and the face word it
+# stated. A line may state its decisions before the item call (`face tree; late; item_q "…" …`), and each
+# word is a decision AT the registration, not a second registry, so all of them come off before the line is
+# weighed. "All" is the whole care here: the shape that hides a registration is a strip that stops at the
+# FIRST `; `, which leaves `late; item_q …` — a line that matches no `item` test and therefore leaves the
+# FACE and REGISTRATION walks without a finding anywhere. A silent drop is worse than a missing rule, so
+# the loop takes every leading word and stops the moment a word is not a decision.
+# `late` carries no value; `face` does, and that value is the claim face_walk grades, so it lands in
+# _sw_face (empty when the line stated none — undecided is a finding, not a default).
+dec_strip() {
+  local _t="$1" _w="" _v="" _nxt=""
+  _sw="$_t"; _sw_face=""
+  while :; do
+    _w="${_sw%%[ ;]*}"
+    case "$_w" in
+      face) _v="${_sw#face }"; _sw_face="${_v%%[ ;]*}" ;;
+      late) : ;;
+      *) return 0 ;;
+    esac
+    _nxt="${_sw#*; }"
+    [ "$_nxt" != "$_sw" ] || return 0       # a decision word with no registration after it: leave it alone
+    _sw="$_nxt"
+  done
 }
 
 # wrap_scan <file> — the seat/trip sites of one wrapped leg, split by whether every registered mode
@@ -758,7 +809,7 @@ fixture_evidence() {
 # face its facts show. Prints the line the denominator carries and the list of the legs that are not `tree`;
 # with SHOW_FACES it also prints one row per registration, so the derivation is auditable and not asserted.
 face_walk() {
-  local _nl=$'\n' _line="" _decl="" _d="" _n=0 _leg="" _fn="" _body="" _der="" _why="" _ent=""
+  local _nl=$'\n' _line="" _decl="" _n=0 _leg="" _fn="" _body="" _der="" _why="" _ent=""
   local _has_seat="" _has_tree="" _st="" _wrapped="" _l1="" _l2="" _blk_out="" _udeep=""
   local _cls_n=0 _trip_n=0 _home_n=0 _ck_n=0 _sand_n=0 _cls_x="" _trip_x="" _home_x="" _ck_x="" _sand_x=""
   local _fx_n=0 _fx_x="" _narrow="" _n_fx=0
@@ -768,9 +819,13 @@ face_walk() {
   fn_index "$_va" _fn_defs
   while IFS= read -r _line; do
     _n=$((_n + 1))
+    # Every decision word comes off, not just the first — see dec_strip. The face word is the claim this
+    # walk grades; the `late` slot belongs to the launcher and is dropped here rather than weighed. The
+    # leading `case` is the cheap guard, not the rule: this walk runs over every line of the launcher, and
+    # a function call per line is the cost this file's own header names.
     _decl=""
     case "$_line" in
-      'face '*) _d="${_line#face }"; _decl="${_d%%[ ;]*}"; _line="${_line#*; }" ;;
+      'face '* | 'late;'*) dec_strip "$_line"; _decl="$_sw_face"; _line="$_sw" ;;
     esac
     case "$_line" in item*) : ;; *) continue ;; esac
     case "${_line%%[[:space:]]*}" in *'('*) continue ;; esac     # `item_q() { …` defines; it registers nothing
@@ -914,6 +969,45 @@ face_walk() {
 }
 
 # --------------------------------------------------------------------------- #
+# THE LABEL, read as the code it is.                                                   #
+# --------------------------------------------------------------------------- #
+# label_walk — every registration line, for one question: does the TEXT of the line command-substitute?
+# A label is a double-quoted argument on a line the launcher executes while it builds the registry, so an
+# unescaped backtick pair inside it is not a quotation mark and not a typo — it is a command that runs at
+# REGISTRATION time, outside every leg, outside every rc file, on every run including one that selects no
+# items at all. Three things go wrong at once: the command runs, its stderr lands beside the run, and its
+# output is spliced into the label the run prints as a leg's name. The verdict still ends OK.
+# Only the registration lines are walked, and only their TEXT is weighed: a comment about a registration —
+# the shape that gets a checker muted — stays prose, and the rule never widens to "no backticks anywhere".
+# An escaped occurrence is what the author meant, and is silent for the same reason.
+label_walk() {
+  local _line="" _rest="" _clean="" _hit="" _n=0 _n_reg=0
+  label_n=0
+  while IFS= read -r _line; do
+    _n=$((_n + 1))
+    case "$_line" in
+      'face '* | 'late;'*) dec_strip "$_line"; _rest="$_sw" ;;
+      *) _rest="$_line" ;;
+    esac
+    case "$_rest" in item*) : ;; *) continue ;; esac                # a comment, a definition: registers nothing
+    case "${_rest%%[[:space:]]*}" in *'('*) continue ;; esac         # `item_q() { …` defines; it registers nothing
+    _n_reg=$((_n_reg + 1))                                          # the denominator: a label nobody read is not a pass
+    tail_comment "$_rest"; _rest="$_tc"
+    case "$_rest" in *"$LIT_TICK"* | *"$LIT_DP"*) : ;; *) continue ;; esac   # nothing here to weigh
+    # What survives the escaped occurrences is what bash would substitute. `\`` and `\$(` are text.
+    _clean="${_rest//\\$LIT_TICK}"
+    _clean="${_clean//\\$LIT_DP}"
+    _hit=""
+    case "$_clean" in *"$LIT_TICK"*) _hit="a backtick pair" ;; esac
+    case "$_clean" in *"$LIT_DP"*) _hit="$_hit ${_hit:+and} a dollar-paren" ;; esac
+    [ -n "$_hit" ] || continue                                       # escaped both times: the prose it meant
+    fail "LABEL: validate-all.sh:$_n is a registration whose line carries ${_hit# } — bash command-substitutes it while BUILDING the registry, so the command runs on every run (a run that selects no items runs it too), its stderr lands beside the run instead of in a leg's log, and its output is spliced into the label the run prints as that leg's name — while the verdict still ends OK. Escape it (backslash the tick, backslash the dollar) or write the command as words."
+  done <<<"$_va"
+  label_n=$_n_reg
+  return 0
+}
+
+# --------------------------------------------------------------------------- #
 # THE CHECK                                                                   #
 # --------------------------------------------------------------------------- #
 check_tree() {
@@ -1020,10 +1114,13 @@ check_tree() {
   _read_all _va "$ROOT/scripts/validate-all.sh"
   _b_leg=(); _b_seat=(); _b_trip=(); _b_nv=(); _b_argv=()
   while IFS= read -r _line; do
-    # A registration may state its FACE before the item call (`face seat; item_x "…" …`). That word is a
-    # decision AT the registration line, not a second registry, so the reader strips it and weighs the
-    # registration underneath; `face` is what the face half below grades.
-    case "$_line" in 'face '*) _line="${_line#*; }" ;; esac
+    # A registration may state its DECISIONS before the item call (`face seat; late; item_x "…" …`). Those
+    # words are decisions AT the registration line, not a second registry, so the reader drops all of them
+    # and weighs the registration underneath — `face` is what the face half below grades, and `late` is the
+    # launcher's WHEN slot. A strip that stops at the first one hides the line from this walk: see dec_strip.
+    case "$_line" in
+      'face '* | 'late;'*) dec_strip "$_line"; _line="$_sw" ;;   # ALL its words — see dec_strip, `late_seen`
+    esac
     case "$_line" in item*) : ;; *) continue ;; esac
     _wline="$_line" _fn=""
     case "$_line" in
@@ -1119,6 +1216,11 @@ check_tree() {
     done
   done
 
+  # THE LABELS — the same registration lines, asked the one question the launcher cannot ask itself: does
+  # the TEXT of a line run something? It runs before the face half because a label that command-substitutes
+  # splices its output into every other line this file prints.
+  label_walk
+
   # THE FACE — every registration line's word, weighed against the derivation. Its own findings print as it
   # walks; the counts land in the denominator below.
   face_walk
@@ -1139,7 +1241,7 @@ check_tree() {
 
   # The honest denominator, printed whether or not anything was found: a rule that read nothing must
   # never look like a pass.
-  _note="declarations $decl_n in $decl_files file(s) · wrapped legs $resolved/$wrapped registration(s) named a leg path · tools the probe asks: $(printf '%s\n' "$_asked" | wc -w) · $_face_note"
+  _note="declarations $decl_n in $decl_files file(s) · wrapped legs $resolved/$wrapped registration(s) named a leg path · labels $label_n registration line(s) scanned · tools the probe asks: $(printf '%s\n' "$_asked" | wc -w) · $_face_note"
   if [ "$decl_n" = 0 ]; then
     if [ "$wrapped" != 0 ]; then
       printf 'CANNOT RUN: %s registration(s) cross the door and nothing in this tree declares its\n' "$wrapped"
@@ -1481,6 +1583,23 @@ self_test() {
     'face tree; item_q "a declaring leg wrapped straight onto the item line (needs rsync)" hl_wsl_route bash scripts/testdata/leg-contract/run.sh' \
     "a declaring leg's rc 2 is a boundary, not a failed run — it belongs in a block or stays native" 'VERDICT:'
 
+  # THE LABEL half. A label is a double-quoted argument on a line the launcher EXECUTES, so the two shapes
+  # that command-substitute have to redden and the two that merely resemble them have to stay quiet. Each
+  # canary is planted as a SECOND registration so it grades itself, and each names a command the tree has —
+  # deliberately not a trip word, so the arm reddens for its own rule and not for TRIP beside it.
+  _st_breed label_tick 1 scripts/validate-all.sh \
+    'face tree; item_q "the planted leg (needs rsync), and a label that runs `date`" blk_st_leg' \
+    "a bare backtick pair in a label is a command that runs at registration time, outside every leg" 'LABEL:'
+  _st_breed label_dollarparen 1 scripts/validate-all.sh \
+    'face tree; item_q "the planted leg (needs rsync), and a label that runs $(date)" blk_st_leg' \
+    "a dollar-paren in a label is the same command substitution with different punctuation" 'LABEL:'
+  _st_breed label_escaped 0 scripts/validate-all.sh \
+    'face tree; item_q "the planted leg (needs rsync), whose label escapes its ticks like \`date\`" blk_st_leg' \
+    "an escaped occurrence is the prose the author meant — which is exactly the fix the finding prints"
+  _st_breed label_comment 0 scripts/validate-all.sh \
+    '# a registration whose label runs `date` is a finding; this line is a COMMENT about one, so it is prose' \
+    "a comment naming the shape is not a call site — an accusing checker is a checker that gets muted"
+
   # The silence half: each shape below MENTIONS the declaration without CALLING it, and must answer rc 0
   # in a tree that already holds one legal declaration. A parser that reads prose, redirections or line
   # breaks as call sites reddens a leg for the shape of its comments — the false-positive class that
@@ -1519,6 +1638,19 @@ CONT
   _st_breed face_wrapped_seat 1 scripts/validate-all.sh \
     'face seat; item_q "a crossed leg called seat (needs rsync)" hl_wsl_route bash scripts/testdata/leg-contract/run.sh --check' \
     "a CROSSED line cannot be a seat leg: the runner crosses it, so the snapshot is being asked to grade it" 'FACE:'
+
+  # The SECOND decision word. `late` sits beside `face` on the same registration line, and a reader that
+  # strips only the FIRST word is left holding `late; item_q …` — text that matches no `item` test, so the
+  # registration would leave the FACE and REGISTRATION walks with no finding printed anywhere. The pair
+  # fences both directions: a legal two-word line costs nothing (the word is the launcher's WHEN slot, not a
+  # claim this file grades), and a two-word line may not hide a face word its own leg contradicts — were the
+  # strip to stop at the first semicolon-space, `late_seen` would answer rc 0 and say nothing.
+  _st_breed late_ok 0 scripts/validate-all.sh \
+    'face tree; late; item_q "the planted leg, held out of the pool (needs rsync)" blk_st_leg' \
+    "a second decision word on a legal line is a decision, not a finding"
+  _st_breed late_seen 1 scripts/validate-all.sh \
+    'face joined; late; item_q "the planted leg, held late and claiming a tree half (needs rsync)" blk_st_leg' \
+    "a decision word must not hide a registration from the FACE walk — this line is weighed or the class is silent" 'FACE:'
   # The ordering arm, and the one real-tree class the six above cannot reach: a NATIVE registration that
   # follows a CROSSED one, whose leg reads seat state and this checkout from inside a branch. The mode
   # the leg file is read in belongs to THIS line — read it from the previous registration and the
