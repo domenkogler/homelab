@@ -25,7 +25,7 @@
 # a reason to mute the leg.
 #
 # THE VOCABULARY, in words, because rc 2 must never be read as a boundary when it is really a blind spot:
-#   ok · not ok · PASS · FAIL · ERROR · SKIP · NOTE · WARNING · WARN · FATAL · CANNOT   the verdict-word idiom
+#   ok · OK · not ok · PASS · FAIL · ERROR · SKIP · NOTE · WARNING · WARN · FATAL · CANNOT   the verdict-word idiom
 #   GREEN · caught                                                                     what THIS repo's harness
 #                                                                                      self-tests answer with
 # A word is a verdict only when the character BEFORE it is a space or the line's start and the one AFTER
@@ -118,7 +118,11 @@ done
 # accepts the END OF THE LINE as well as punctuation, because `  file-untouched   GREEN` is a verdict
 # too — and an arm nobody reads is an rc 2 that reads as a boundary (see the header's VOCABULARY block).
 # A leg that reports ONLY in prose has NO arms, and that is an rc 2 — nothing to compare — never a free green.
-HL_PARITY_ARM_RE='(^|[[:space:]])(ok|not ok|PASS|FAIL|SKIP|NOTE|ERROR|WARNING|WARN|FATAL|CANNOT|GREEN|caught)([!?:[:space:]]|$)'
+# `OK` joins the class because the harness's dominant idiom is `OK:` / `SELFTEST OK` (check_backlog_prose,
+# sync-skills, git-bootstrap, vault-env): measured 2026-11-01 over eight legs, four answered rc 2 with
+# `0 arm(s)` on the engine side while the SAME side exited 0 — a blind spot read as a boundary, which is
+# the one thing this instrument must never do. Uppercase matters: the scan is case-sensitive by design.
+HL_PARITY_ARM_RE='(^|[[:space:]])(ok|OK|not ok|PASS|FAIL|SKIP|NOTE|ERROR|WARNING|WARN|FATAL|CANNOT|GREEN|caught)([!?:[:space:]]|$)'
 
 PARITY_STRICT_ARMS=1     # MUTATION SEAM (self-test): 0 = stop comparing the arm COUNTS
 PARITY_STRICT_WORDS=1    # MUTATION SEAM (self-test): 0 = stop comparing the normalized verdict WORDS
