@@ -161,7 +161,7 @@ if [ ! -d "$SNAP/.git" ]; then
   exit 3
 fi
 HEAD_NOW="$(git -C "$SNAP" rev-parse HEAD)"
-STAMP_SHA="$(cut -d' ' -f1 "$SNAP.stamp" 2>/dev/null || echo <unstamped>)"
+STAMP_SHA="$(cut -d' ' -f1 "$SNAP.stamp" 2>/dev/null || echo '<unstamped>')"
 if [ "$HEAD_NOW" != "$WANT" ] || [ "$STAMP_SHA" != "$WANT" ]; then
   echo "FAIL: the snapshot is not the graded commit — HEAD $HEAD_NOW · stamped $STAMP_SHA · to grade $WANT. Run --sync; a stale stamp is why a gate once printed a verdict that belonged to nothing."
   exit 1
