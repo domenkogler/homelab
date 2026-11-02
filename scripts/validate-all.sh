@@ -643,6 +643,15 @@
 # box. `harness/gate-snapshot.sh --run` is that driver; either face prints the commit it graded and the
 # items it left for the other half, because a run that grades half a registry is a boundary and a
 # boundary prints what it did not look at.
+#
+# THE THIRD SLOT IS WHEN, not WHETHER: `late;` written beside the face word holds a leg out of the pool
+# and runs it AFTER the pool has drained, one leg at a time. It exists for HD-1232 — a fork-burst leg that
+# answers red in a wide pool and green alone is a red nobody can believe, and the repair that does not touch
+# a verdict is to stop it competing. The sibling count that says which red is which is what `POOL DIAGNOSTIC`
+# prints, so no number is typed here (CONVENTIONS §2). `late` selects nothing (the leg keeps its face and
+# its profile and its place in the report), so unlike the other two slots it needs no audit: a leg nobody
+# held late is simply a leg that ran in the pool. Which legs carry the word is a measured fact, not a style
+# — see docs/harness-pi-seats.md §1.
 set -euo pipefail
 # HD-1118 Stage 1/4: find the repo root instead of assuming `$(dirname "$0")/..`. Found, not
 # assumed — the gate that proves the tree is correct must not itself be the one file whose idea of
@@ -895,7 +904,7 @@ true & wait -n >/dev/null 2>&1 && HAVE_WAITN=1     # supported => reaps that `tr
 # printed output and the exit-code contract are unchanged by the split.           #
 # --------------------------------------------------------------------------- #
 n_items=0; labels=(); cmds=(); cstart=(); clen=(); starts=(); ends=(); walls=()
-pids=(); states=(); mems=(); whys=(); faces=(); n_run=0; rc_missing=0; n_excl_launch=0
+pids=(); states=(); mems=(); whys=(); faces=(); lates=(); n_run=0; rc_missing=0; n_excl_launch=0
 
 # The profile decision for the NEXT registration. A bare `item` / `item_blk` leaves P_MEM empty,
 # which is UNDECIDED — and `_profile_audit` refuses a quick run rather than defaulting the item in or
@@ -924,16 +933,27 @@ face() {
   esac
 }
 
+# The WHEN decision for the NEXT registration, the second sibling of the profile decision: `late;` holds
+# this leg out of the pool and runs it after the pool drains (HD-1232, and the reason is a red that cannot
+# be believed rather than a slow leg). It is a WORD, not a word-with-a-value, and it refuses an argument
+# for the same reason `face` does: a `late seat;` would set the slot and then run `seat` as a command,
+# which loses the registration without losing the run.
+L_MEM=""
+late() {
+  [ "$#" -eq 0 ] || { echo "FAIL: 'late' takes no word — the whole decision is 'late;' (the face word beside it is where a value belongs). Refusing to guess which slot was meant." >&2; exit 2; }
+  L_MEM=1
+}
+
 _reg() {
   local label="$1"; shift
   local i=$n_items; n_items=$((n_items+1))
-  labels+=("$label"); mems+=("$P_MEM"); whys+=("$P_WHY"); faces+=("$F_MEM")
+  labels+=("$label"); mems+=("$P_MEM"); whys+=("$P_WHY"); faces+=("$F_MEM"); lates+=("$L_MEM")
   _reminders[$i]="${_reminder:-0}"
   starts+=(""); ends+=(""); walls+=(""); pids+=("0"); states+=("pending")
   cstart+=("${#cmds[@]}"); clen+=("$#")
   local _w
   for _w in "$@"; do cmds+=("$_w"); done
-  P_MEM=""; P_WHY=""; F_MEM=""
+  P_MEM=""; P_WHY=""; F_MEM=""; L_MEM=""
   if [ "$LIST" = 1 ]; then states[$i]=listed; return 0; fi
   # A profile is an INTERSECTION, not a re-ordering: `--profile quick --only X` runs what is BOTH
   # quick and matched. Profile-excluded is decided before --only, so the NOT PROVEN block stays the
@@ -967,23 +987,37 @@ item_blk_q() { _set_quick; _reg "$1" "$2"; }
 item_x()     { local _why="$1"; shift; _set_excluded "$_why"; _reg "$@"; }
 item_blk_x() { local _why="$1"; shift; _set_excluded "$_why"; _reg "$1" "$2"; }
 
-# Launch everything still pending, in registration order, with the slot control unchanged.
+# _launch_one <i> — put ONE registered slot in the background and print its launch line. The single place
+# a leg is started, so the pool pass and the late pass below cannot disagree about what a launch does:
+# same stamps, same rc-file contract, same words on the launch line.
+_launch_one() {
+  local i="$1" pid _eng _late=''
+  states[$i]=run
+  _now; starts[$i]="$NOW"
+  # rc FIRST, then the stamp: a function call clobbers `$?`, and a launch that always wrote rc 0
+  # would mute the whole gate while printing a perfect report.
+  ( set +e; "${cmds[@]:${cstart[$i]}:${clen[$i]}}" >"$RUN/$i.log" 2>&1; _lr=$?; _now
+    printf '%s %s\n' "$_lr" "$NOW" >"$RUN/$i.rc" ) &
+  pid=$!
+  pids[$i]=$pid
+  n_run=$((n_run+1))
+  # The engine is named IN the launch line, so a reader never has to guess which seat answered a leg.
+  if [ "${cmds[${cstart[$i]}]}" = hl_wsl_route ] && [ "$HL_WSL_ON" = 1 ]; then _eng='  [debian engine]'; else _eng=''; fi
+  # And WHEN it ran is named there too: a late leg's wall is only readable if the line says it had no
+  # siblings, which is the whole point of holding it back (HD-1232).
+  [ -z "${lates[$i]}" ] || _late='  [late]'
+  printf '  -> %2d  %s%s%s\n' "$i" "${labels[$i]}" "$_eng" "$_late" >&2
+}
+
+# Launch everything still pending, in registration order, with the slot control unchanged — except for the
+# legs that asked to run `late`, which go in a second pass after the pool has drained.
 _launch_all() {
-  local i pid _eng
+  local i pid
   for i in "${!labels[@]}"; do
     [ "${states[$i]}" = pending ] || continue
-    states[$i]=run
-    _now; starts[$i]="$NOW"
-    # rc FIRST, then the stamp: a function call clobbers `$?`, and a launch that always wrote rc 0
-    # would mute the whole gate while printing a perfect report.
-    ( set +e; "${cmds[@]:${cstart[$i]}:${clen[$i]}}" >"$RUN/$i.log" 2>&1; _lr=$?; _now
-      printf '%s %s\n' "$_lr" "$NOW" >"$RUN/$i.rc" ) &
-    pid=$!
-    pids[$i]=$pid
-    n_run=$((n_run+1))
-    # The engine is named IN the launch line, so a reader never has to guess which seat answered a leg.
-    if [ "${cmds[${cstart[$i]}]}" = hl_wsl_route ] && [ "$HL_WSL_ON" = 1 ]; then _eng='  [debian engine]'; else _eng=''; fi
-    printf '  -> %2d  %s%s\n' "$i" "${labels[$i]}" "$_eng" >&2
+    [ -z "${lates[$i]}" ] || continue          # the late slots stay pending; the second pass takes them
+    _launch_one "$i"
+    pid="${pids[$i]}"
     if [ "$MAXPAR" -le 1 ]; then
       wait "$pid" >/dev/null 2>&1 || true     # --serial: block here, no polling in the loop
       n_run=$((n_run-1))
@@ -995,6 +1029,20 @@ _launch_all() {
     else
       while [ "$(jobs -rp | wc -l)" -ge "$MAXPAR" ]; do sleep 0.05; done   # bash < 5.1: no wait -n
     fi
+  done
+  # THE LATE PASS (HD-1232). Why a second pass and not a serial block: a leg whose arm is a fork burst
+  # answers red when the pool is wide — POOL DIAGNOSTIC has been printing exactly that number beside such
+  # a red — and the repair that changes no verdict is to stop it competing. `wait` with no arguments reaps
+  # every leg this shell launched (a block's own children belong to its subshell, not to this loop), so
+  # what follows runs with nothing else in flight, ONE leg at a time, in registration order. Pending now
+  # means late: the pass above left nothing else pending.
+  wait
+  n_run=0                                     # the drain reaped them all; the counter says so
+  for i in "${!labels[@]}"; do
+    [ "${states[$i]}" = pending ] || continue
+    _launch_one "$i"
+    wait "${pids[$i]}" >/dev/null 2>&1 || true
+    n_run=$((n_run-1))
   done
 }
 
@@ -1964,10 +2012,15 @@ face tree; item_q "gate7-read.py --self-test (HD-489 gate-7 bucketing: mixed-pid
 face tree; item_q "accuracy-gate.sh --self-test (the un-flagged battery body is byte-identical to the pre-change one, --max-tokens reaches the wire and changes nothing else, a bad budget is refused before any request)" hl_wsl_route bash scripts/bench/spark/accuracy-gate.sh --self-test
 face tree; item_q "gate6-couple.sh --self-test (Rule 0 refused before anything is read, the pairing guard seen from both sides, no mutate verb on the transport)" hl_wsl_route bash scripts/bench/spark/gate6-couple.sh --self-test
 face tree; item_q "hd469-baseline.sh --self-test (the KV/capacity verdicts on hand-valued fixtures + every command the driver sends is a read)" hl_wsl_route bash scripts/bench/spark/hd469-baseline.sh --self-test
-face tree; item_q "usable-sampler.sh --self-test (the MemAvailable−CmaFree verdict on fixtures, the transport path, and no mutate verb)" hl_wsl_route bash scripts/bench/spark/usable-sampler.sh --self-test
+# HD-1232: these two carry `late;` — each is a fork burst that answers red in a wide pool and green alone,
+# so they run after the pool drains instead of competing inside it. Neither has a real-tree counterpart
+# registered beside it (the timed bench legs they prove are not registered at all), so holding them to the
+# end cannot invert a self-test-before-check ordering that is not here. The mechanism, the two legs and the
+# run that re-derives the drain are in docs/harness-pi-seats.md §1.
+face tree; late; item_q "usable-sampler.sh --self-test (the MemAvailable−CmaFree verdict on fixtures, the transport path, and no mutate verb)" hl_wsl_route bash scripts/bench/spark/usable-sampler.sh --self-test
 face tree; item_q "metrics-window.sh --self-test (the /metrics parser, the hit-rate arithmetic, append-not-truncate, and the sampler pid file — including the two-sampler case that must not delete a file it does not own)" hl_wsl_route bash scripts/bench/spark/metrics-window.sh --self-test
 face tree; item_q "needle-window.sh --self-test (the depth floor with teeth, a FAIL-DEPTH recorded as a result, the run's own commands on fixtures)" hl_wsl_route bash scripts/bench/spark/needle-window.sh --self-test
-face tree; item_q "text-only-preflight.sh --self-test (the HD-400 pre-flight verdicts on fixtures, with an ssh tripwire that must never have been fired)" hl_wsl_route bash scripts/bench/spark/text-only-preflight.sh --self-test
+face tree; late; item_q "text-only-preflight.sh --self-test (the HD-400 pre-flight verdicts on fixtures, with an ssh tripwire that must never have been fired)" hl_wsl_route bash scripts/bench/spark/text-only-preflight.sh --self-test
 # Not the query itself — a read tool must never fail a commit — but its offline fixture is a real
 # verdict, and it is the witness for the venv-guard predicate render-pi-config.py copies verbatim.
 face tree; item_q "testdata/rsync-max-delete/run.sh --self-test (--max-delete is a CAP: exactly N/2 deleted + rc 25, asserted as numbers; every weakening reddens a canary)" hl_wsl_route bash scripts/testdata/rsync-max-delete/run.sh --self-test
