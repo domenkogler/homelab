@@ -154,6 +154,12 @@ hl_seat_here() {
 # registry does not carry at all; rc 2 = the registry cannot be read, which is never a scope answer.
 # The `seats:` grammar is ONE record per plane (`seats: wsl`, or a space/comma list); a plane that ever
 # needs per-harness lists grows the registry's own reader instead of growing a second parser here.
+# ⚠ The list is the WHOLE value after the key, and an owner that reads only the second field scopes
+# every multi-seat row to its FIRST seat: the row keeps running everywhere (the fan-out has its own
+# reader) while the owner answers `SKIP` on the seats it does carry — which is how a Debian seat came
+# to decline a launcher it owes. Arm 7 of hl_planes_selftest compares this reader with the fan-out
+# AND an independent awk witness, for all three seats, because a canary written against the parser it
+# tests proves nothing.
 hl_seat_scope_lists() {
   local __plane="$1" __seat="$2" __reg
   __reg="$(hl_seat_registry_path)"
@@ -161,7 +167,10 @@ hl_seat_scope_lists() {
   awk -v p="$__plane" -v s="$__seat" '
     $0 ~ /^plane:[[:space:]]*/ { inme = ($2 == p); next }
     inme && $0 ~ /^seats:[[:space:]]*/ {
-      n = split($2, a, /[, ]+/)
+      # The WHOLE value, not the second field: a row that names three seats carries the leg on all
+      # three, and reading only $2 silently scopes every multi-seat row to its first seat.
+      __v = $0; sub(/^seats:[[:space:]]*/, "", __v)
+      n = split(__v, a, /[, ]+/)
       for (i = 1; i <= n; i++) if (a[i] == s) { found = 1 }
       done = 1
     }
@@ -177,7 +186,7 @@ hl_seat_scope_list() {
   [ -r "$__reg" ] || return 0
   awk -v p="$1" '
     $0 ~ /^plane:[[:space:]]*/ { inme = ($2 == p); next }
-    inme && $0 ~ /^seats:[[:space:]]*/ { print $2; exit }' "$__reg"
+    inme && $0 ~ /^seats:[[:space:]]*/ { __v = $0; sub(/^seats:[[:space:]]*/, "", __v); print __v; exit }' "$__reg"
 }
 
 # hl_owner_path <var> <file-name> — set <var> to the owner's repo-relative path, rc 1 if that name
@@ -406,10 +415,16 @@ hl_planes_selftest() {
     _a="$(seat_planes "$_s" check 2>/dev/null | cut -f1 | sort -u | tr '\n' ' ')"
     _b="$(awk -v s="$_s" '/^plane:/{p=$2} /^seats:/ && ($0 ~ ("(^|[ ,])" s "([ ,]|$)")){print p}' \
             "$(hl_seat_registry_path)" | sort -u | tr '\n' ' ')"
-    if [ "$_a" = "$_b" ]; then
-      printf 'ok: fan-out and scope read the seats list the same for %s\n' "$_s"
+    # The THIRD reader is the one an owner script asks, and it is the one that decides what a SKIP
+    # line means on the seat — parity with the fan-out alone left it free to disagree.
+    _c="$(for _p in $(awk '/^plane:/{print $2}' "$(hl_seat_registry_path)"); do
+            hl_seat_scope_lists "$_p" "$_s" >/dev/null 2>&1 && printf '%s\n' "$_p"
+          done | sort -u | tr '\n' ' ')"
+    if [ "$_a" = "$_b" ] && [ "$_a" = "$_c" ]; then
+      printf 'ok: fan-out, witness and owner-side scope read the seats list the same for %s\n' "$_s"
     else
-      printf 'NOT CAUGHT: for seat %s the fan-out runs [%s] but the scope reader believes [%s]\n' "$_s" "$_a" "$_b"; fails=$((fails + 1))
+      printf 'NOT CAUGHT: for seat %s the fan-out runs [%s], the witness believes [%s], the owner-side scope [%s]\n' \
+        "$_s" "$_a" "$_b" "$_c"; fails=$((fails + 1))
     fi
   done
 

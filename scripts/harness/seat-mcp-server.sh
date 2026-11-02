@@ -222,7 +222,15 @@ do_push() {
   printf '%s\n' "$want" > "$UNIT" || { err "cannot write $UNIT"; return 1; }
   "$SYSTEMCTL" --user daemon-reload >/dev/null 2>&1 || stop "systemctl --user daemon-reload failed — is a user manager running here?"
   "$SYSTEMCTL" --user enable --now "$UNIT_NAME" >/dev/null 2>&1 || stop "systemctl --user enable --now failed for $UNIT_NAME"
-  sleep 2
+  # A cold start binds later than a fork. A push that read the port once would report DRIFT(no-listener)
+  # on a server that was on its way up — measured on the WSL seat, where the first push after a restart
+  # did exactly that and the SECOND one found it serving. So the push waits for the fact it just caused;
+  # `--check` still reads once, because a read-only verdict must not cost a gate its wall clock.
+  local _try=0
+  while [ "$_try" -lt 20 ]; do
+    probe_port && break
+    sleep 1; _try=$((_try + 1))
+  done
   assess; say_read
   [ "$VERDICT" = NO-PROBE ] && stop "$REASON"
   if [ "$VERDICT" = OK ]; then printf 'OK: wrote the unit and RE-PROVED it — enabled, active, 127.0.0.1:%s answers\n' "$PORT"; return 0; fi
@@ -306,9 +314,11 @@ EOS
   printf 'ok   the DOTNET_ROOT line follows the box in both arms\n'
 
   # 6. a seat the row does not name answers SKIP (rc 2), and --push writes NOTHING there.
-  PI_SEAT=oldsrv run_at 2 --check --strict
-  grep -q '^SKIP: oldsrv' "$t/out" || { printf 'NOT CAUGHT an off-scope seat did not answer SKIP\n'; fails=$((fails+1)); }
-  rm -f "$UNIT_PATH"; PI_SEAT=oldsrv run_at 2 --push
+  #    win11, not oldsrv: the row names BOTH Debian seats, so the cockpit is in scope and the box that
+  #    owes no systemd launcher is the Windows one, whose carrier is a per-user Startup entry.
+  PI_SEAT=win11 run_at 2 --check --strict
+  grep -q '^SKIP: win11' "$t/out" || { printf 'NOT CAUGHT an off-scope seat did not answer SKIP\n'; fails=$((fails+1)); }
+  rm -f "$UNIT_PATH"; PI_SEAT=win11 run_at 2 --push
   [ -e "$UNIT_PATH" ] && { printf 'NOT CAUGHT --push wrote a unit off-scope\n'; fails=$((fails+1)); }
 
   # 7. --push on a box with nothing: writes the render and re-proves it (rc 0 with the stubs).
@@ -319,6 +329,14 @@ EOS
   printf '#!/bin/sh\nexit 3\n' > "$t/probe-dead"; chmod +x "$t/probe-dead"
   bash -c "MCP_SYSTEMCTL='$t/systemctl' MCP_PROBE='$t/probe-dead' MCP_TOOL='$t/AmazingMCP' PI_SEAT=wsl MCP_UNIT='$UNIT_PATH' MCP_DOTNET_DIR='$t/dotnet-none' bash '${BASH_SOURCE[0]}' --check --strict" > "$t/out" 2>&1
   [ $? -eq 2 ] && grep -qi 'died' "$t/out" || { printf 'NOT CAUGHT a dead probe produced a verdict instead of no verdict\n'; fails=$((fails+1)); }
+
+  # 9. a server that takes a few seconds to bind is NOT silent: the probe answers only on its third
+  #    call, and a push that read the port once would call that DRIFT(no-listener).
+  printf '#!/bin/sh\nn=$(cat "$ST_HITS" 2>/dev/null || echo 0); n=$((n+1)); echo "$n" > "$ST_HITS"\n[ "$n" -ge 3 ] && exit 0\nexit 1\n' > "$t/probe-late"; chmod +x "$t/probe-late"
+  rm -f "$UNIT_PATH" "$t/hits"
+  bash -c "MCP_SYSTEMCTL='$t/systemctl' MCP_PROBE='$t/probe-late' MCP_TOOL='$t/AmazingMCP' PI_SEAT=wsl MCP_UNIT='$UNIT_PATH' MCP_DOTNET_DIR='$t/dotnet-none' ST_HITS='$t/hits' bash '${BASH_SOURCE[0]}' --push" > "$t/out" 2>&1
+  [ $? -eq 0 ] && grep -q '^OK: wrote the unit' "$t/out" \
+    || { printf 'NOT CAUGHT a server that binds slowly was reported as a silent unit\n'; fails=$((fails+1)); }
 
   printf '\nself-test: %s\n' "$([ "$fails" -eq 0 ] && echo "OK — all canaries caught" || echo "$fails canary/canaries NOT caught")"
   return "$fails"
