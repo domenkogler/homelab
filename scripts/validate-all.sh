@@ -657,6 +657,7 @@ cd "$REPO"
 # every self-test that builds a synthetic repo in /tmp and asserts the resolver found IT. The lib's
 # own --self-test items were the first to notice: they passed for three stages and went red the
 # moment the entry point started exporting the root.
+_GATE_ROOT="$REPO"   # the root for THIS file's own use, kept out of the environment (REPO goes below)
 unset REPO
 
 # Python launcher: chosen by PROBE, not by name. WHY it is a probe (measured 2026-10-09 on the Win11
@@ -743,6 +744,21 @@ case "$FACE" in
   auto | tree | seat | both) ;;
   *) echo "FAIL: --face wants tree | seat | both | auto, not '$FACE'. Refusing to guess which legs you meant to grade." >&2; exit 2 ;;
 esac
+# `auto` INSIDE the engine's commit-stamped snapshot means the TREE face, and says so. A snapshot
+# carries no seat state, so a `joined` leg graded there answers about the ENGINE's ~/.pi and prints a
+# red that belongs to neither side — measured on `sync-skills.sh --check --strict` and
+# `install-tmux-conf.sh --self-test`, both green on the seat and red in a snapshot. The stamp is the
+# driver's sibling file and it must AGREE with HEAD: a stamp that disagrees selects nothing, because a
+# stale stamp choosing a face is how a half-run starts to look like a whole one.
+if [ "$FACE" = auto ] && [ -f "$_GATE_ROOT.stamp" ]; then
+  _snap_sha="$(cut -d' ' -f1 "$_GATE_ROOT.stamp" 2>/dev/null || echo '')"
+  if [ -n "$_snap_sha" ] && [ "$_snap_sha" = "$(git rev-parse HEAD 2>/dev/null || echo -)" ]; then
+    FACE=tree
+    echo "face: auto → tree — this checkout is the engine's commit-stamped snapshot ($_snap_sha), so the seat half is NOT PROVEN here; run --face seat on the seat."
+  else
+    echo "NOTE: $_GATE_ROOT.stamp names '$_snap_sha', not this commit — a disagreeing stamp selects NO face; this run grades seat legs against the engine's own state and their reds are not the seat's."
+  fi
+fi
 # An unknown profile must stop here, not quietly run the full set: a flag that is misspelled and
 # obeyed-as-another-flag is the mute-the-gate class, and this one has an opposite to confuse it with.
 case "$PROFILE" in
