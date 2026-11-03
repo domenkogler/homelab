@@ -366,6 +366,16 @@ from a runner, these rules are what make it safe *and correct*:
   file under `pi-agent/extensions/` is loaded by every session on every seat, the same file under
   `pi-agent/proposed/` by none — a fleet-wide harness change and an owner call, not a lane's
   ([harness-pi-seats.md](harness-pi-seats.md) §1, "An extension's placement is its enable switch").
+- **The mask sits on ONE event, and a child's journal is not that event.** `vault-mask.ts` hooks
+  `pi.on("tool_result", …)` and nothing else — `tool_execution` appears zero times in the file — while a
+  subagent's `events.jsonl` records six families: `tool_execution_start`, `tool_execution_update`,
+  `tool_execution_end`, `message_start`, `message_end`, `turn_end`. So a tool result produced by a CHILD
+  crosses the seam unmasked, while the same result in the parent session is masked. The control that proves
+  which half is which: one `docker logs` read of the spark engine (whose `non-default args:` line prints the
+  `--api-key` values) leaves the parent's session journal clean and the child's run journal holding the
+  current value. ⛔ The consequence for a lane: an engine-log read is a secret read, and
+  `docker logs <engine> | grep -v api_key` is the safe form, not a matter of taste. The seam is
+  [todo.md](../todo.md) HD-1216's — the masker's hook surface — not a lane's fix.
 - **A minted preauth key is captured, never displayed.** headscale 0.29.4 has no `--output <file>` —
   `-o` is the FORMAT flag — so `preauthkeys create … -o json` writes the value to stdout, and the
   documented mint commands in this repo and in `deployment-manual.md` are therefore only safe inside a

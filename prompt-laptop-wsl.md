@@ -58,14 +58,6 @@ verdict, not a SKIP. (The binary is a host change with no in-repo path: `roles/s
 `sudo apt-get install -y tmux`, then `install-tmux-conf.sh --reload`.)
 Re-run `bash scripts/validate-all.sh` afterwards: **record the item count with `--list | wc -l`, never a number typed into a report.**
 
-**An open LANE that runs on this seat — found here, not owned here:** [prompt-engine-bearer-wsl.md](prompt-engine-bearer-wsl.md),
-the consumer half of the engine-bearer rotation. It claims **no rows** (the owning briefs keep them), it dies with its
-lane, and this file is the pointer so a session that starts on this seat finds it without being told the filename. Its
-gate is a both-directions HTTP read of the engine — 200 for each accepted bearer, 401 for the superseded one — before
-any converge; its ordered acts are the two gateways, then each seat's rendered `models.json`, then the two Rule-0
-instruments §2 above already assigns to this station, then the scheduled `alloy` pin bump. ⛔ Do not fold its runbook
-into this file: this file is the standing contract, that one is a window.
-
 ## 1. The runner rule (one sentence each, no re-derivation later)
 
 1. **The seat unlocks converges.** A lockout-class leg on a host you are not standing on is legal from here and refused
