@@ -89,7 +89,19 @@ json.dump(item,sys.stdout)
     | op item edit "$id" --vault "$VAULT" >/dev/null 2>&1
   rc=$?
   # Re-read and verify by hash — an op rc alone is not evidence (op 2.39 spurious HTTP errors).
-  got="$(op read "op://$VAULT/$it/credential" </dev/null 2>/dev/null | sha256sum | cut -c1-12)"
+  # The re-read MUST go through the same token the write used. The seat's ambient token is
+  # READ-scoped and cached: a write made with `op-write_api` is invisible to it for a while, so a
+  # re-read through the ambient token answers the OLD value and reports a landed write as UNPROVEN.
+  # Measured 2026-11-03: spark-llm_api was written, `op item edit` answered rc 0, and the ambient
+  # re-read still returned the superseded value.
+  # ⚠ TWO traps are folded into this one line, both measured on op 2.39.0:
+  #   1. the re-read must use the SAME token the write used (the ambient seat token is READ-scoped and
+  #      reports the superseded value as current);
+  #   2. `op read` emits the value PLUS a trailing newline, while the proposal file has none — so
+  #      `op read | sha256sum` and `sha256sum file` hash different byte strings and every landing
+  #      reads as unproven. Hash the CAPTURED value, exactly like the proposal side does.
+  got_v="$(OP_SERVICE_ACCOUNT_TOKEN="${OP_SERVICE_ACCOUNT_TOKEN:-}" op read "op://$VAULT/$it/credential" </dev/null 2>/dev/null)"
+  got="$(printf '%s' "$got_v" | sha256sum | cut -c1-12)"
   wanth="$(sha256sum "$f" | cut -c1-12)"
   if [ "$got" = "$wanth" ]; then
     say "  $(printf '%-20s' "$it") written  sha256[:12]=$got  (rc=$rc, re-read matches)"
