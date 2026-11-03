@@ -569,6 +569,10 @@ def check(repo: Path, control: str | None = None, base: str | None = None) -> di
                        f"Re-baseline at the wave tip -- point baseline_rev at HEAD and publish "
                        f"the twin_groups and group_keys_sha256 that --show-baseline prints")
 
+    # Whether the base was PINNED is read here, before the name is reused for the loaded tree
+    # below: `base` goes from a revision string to a dict one line down, so a later
+    # `base is None` is always False and the population canary would never fire.
+    pinned_base = base is not None
     paths = files_at_rev(repo, base_rev)
     base = load(repo, base_rev, paths)
     now = load(repo, control, paths)
@@ -582,7 +586,7 @@ def check(repo: Path, control: str | None = None, base: str | None = None) -> di
                         f"not a count") from None
     # The recorded fingerprint describes the RECORDED baseline's population, so a replay with a
     # pinned base is not that population and is not measured against it.
-    if (base is None and (len(groups) != recorded
+    if (not pinned_base and (len(groups) != recorded
                           or group_keys_sha256(groups) != fields["group_keys_sha256"])):
         return _refuse(
             "ERROR: the population does not match the baseline file",
@@ -705,6 +709,48 @@ def self_test() -> int:
                f"rc={res['rc']} severs={res['severs']}: {' | '.join(res['lines'])[:200]}")
     except ToolError as exc:
         record("vi   this tree reads no severed twin", False, f"cannot run: {exc}")
+
+    # The population canary: the recorded twin_groups / group_keys_sha256 must describe the
+    # population this run recomputes. This arm exists because that guard was DEAD and nothing
+    # noticed — `base` is reassigned from the revision string to the loaded tree a few lines
+    # above the check, so `base is None` was always False, and a baseline that moved
+    # `baseline_rev` while pasting the OLD count and digest read OK. A re-baseline is exactly
+    # the moment that paste happens, which is why the hole mattered.
+    for label, mutate in (
+        ("twin_groups", lambda f: dict(f, twin_groups=str(int(f["twin_groups"]) + 1))),
+        ("group_keys_sha256", lambda f: dict(f, group_keys_sha256="0" * 64)),
+    ):
+        d = Path(tempfile.mkdtemp(prefix="string-twins-canary-"))
+        try:
+            run_env = dict(_scrubbed_env(), GIT_CONFIG_NOSYSTEM="1",
+                           GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t.invalid",
+                           GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t.invalid")
+
+            def git(*cmd: str) -> None:
+                subprocess.run(cmd, cwd=d, env=run_env, check=True, capture_output=True)
+
+            git("git", "init", "-q")
+            _assert_local_git(d, run_env)
+            for rel, text in pair.items():
+                (d / rel).parent.mkdir(parents=True, exist_ok=True)
+                (d / rel).write_text(text, encoding="utf-8")
+            git("git", "add", "-A")
+            git("git", "commit", "-q", "-m", "baseline")
+            rev = _git(d, "rev-parse", "HEAD").decode().strip()
+            good = twins(load(d, rev, files_at_rev(d, rev)))
+            bad = mutate({"twin_groups": str(len(good)),
+                          "group_keys_sha256": group_keys_sha256(good)})
+            (d / BASELINE).parent.mkdir(parents=True, exist_ok=True)
+            (d / BASELINE).write_text(
+                f"baseline_rev {rev}\ntwin_groups {bad['twin_groups']}\n"
+                f"group_keys_sha256 {bad['group_keys_sha256']}\n", encoding="utf-8")
+            git("git", "add", "-A")
+            git("git", "commit", "-q", "-m", "record the baseline")
+            got = check(d)
+            record(f"xiv  a baseline with a wrong {label} REFUSES", got["rc"] == 2,
+                   f"rc={got['rc']} (expected 2): {' | '.join(got['lines'])[:180]}")
+        finally:
+            subprocess.run(["rm", "-rf", str(d)], check=False)
 
     # The now side is the index, not the directory: a side staged for deletion whose bytes are
     # still on disk is GONE. Before the filter this case read the disk and went green.
