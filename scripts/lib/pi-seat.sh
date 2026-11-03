@@ -839,21 +839,67 @@ hl_seat_skip_line() {
 # business. ⚠ And an existing line that already does the job is ADOPTED rather than duplicated: a
 # startup file carrying two exports of one directory leaves a later reader unable to tell which line
 # anyone owns, and the mark — whose whole job is to answer that question — cannot see a line an
-# operator typed by hand. So the mark is the write key and the DIRECTORY is the adopt key.
+# operator typed by hand. So the mark is the write key and the DIRECTORY is the adopt key — and
+# DIRECTORY means the RESOLVED directory: an operator's `export PATH="$HOME/.local/bin:$PATH"` and the
+# absolute path a caller passes are one directory written two ways, and a compare that reads them as
+# two appends a second block over a line that already did the job.
 # Marks stay per-caller on purpose ("distinct from install-pi-debian.sh's, because both installers
 # legitimately run on one box and each must know whether IT persisted").
+
+# hl_path_dir_norm <out-var> <path> — one directory in ONE spelling: `$HOME/x`, `${HOME}/x`, `~/x` and
+# the absolute path all collapse to the same string, and a trailing `/` stops being a difference. It is
+# TEXTUAL on purpose: the file holds the words the shell will expand later, so the compare expands the
+# same three tokens and nothing else. `$PATH` inside a line therefore stays literal — the inherited
+# PATH is not the directory this key is looking for.
+hl_path_dir_norm() {
+  local __out="${1:?hl_path_dir_norm: needs an out-var}" __v="${2-}"
+  __v="${__v//\$\{HOME\}/$HOME}"
+  __v="${__v//\$HOME/$HOME}"
+  # ⚠ `${__v#~/}` is NOT how to drop the tilde: a tilde in a REMOVE pattern gets tilde-expanded, so the
+  # pattern becomes $HOME/ and strips nothing — the silent half of this key. Substring, not pattern.
+  case "$__v" in '~'/*) __v="$HOME/${__v:2}" ;; '~') __v="$HOME" ;; esac
+  while [ "$__v" != "/" ]; do case "$__v" in */) __v="${__v%/}" ;; *) break ;; esac; done
+  printf -v "$__out" '%s' "$__v"
+}
+
+# hl_path_exports <file> <resolved-dir> — rc 0 when a PATH line in <file> exports that directory.
+# Fork-free and line-by-line, because a PATH line is a LIST: matching the file for the directory as a
+# substring would read `/opt/other/.local/bin` and `/home/domen/.local/bin/x` as hits, and an adopt
+# that fires on the wrong directory is worse than the duplicate it avoids — the file then carries no
+# line that works and a reader that believes it does. So: the PATH assignments only, quoted text only,
+# split on `:`, each field normalised.
+hl_path_exports() {
+  local __f="${1:?hl_path_exports: needs a file}" __want="${2:?hl_path_exports: needs a resolved dir}"
+  local __line __rhs __part
+  while IFS= read -r __line || [ -n "$__line" ]; do
+    __line="${__line#"${__line%%[![:space:]]*}"}"                 # leading blanks
+    case "$__line" in export[[:space:]]*) __line="${__line#export}"; __line="${__line#"${__line%%[![:space:]]*}"}" ;; esac
+    case "$__line" in PATH=*) ;; *) continue ;; esac
+    __rhs="${__line#PATH=}"
+    case "$__rhs" in *\"*) __rhs="${__rhs#*\"}"; __rhs="${__rhs%%\"*}" ;; esac   # the quoted text, not a trailing comment
+    while [ -n "$__rhs" ]; do
+      __part="${__rhs%%:*}"
+      __rhs="${__rhs#"$__part"}"; __rhs="${__rhs#:}"
+      __part="${__part//\"/}"; __part="${__part//\'/}"
+      hl_path_dir_norm __part "$__part"
+      [ "$__part" = "$__want" ] && return 0
+    done
+  done < "$__f"
+  return 1
+}
+
 hl_path_persist() {
-  local __mark="${1:?hl_path_persist: needs a mark}" __dir="${2:?hl_path_persist: needs a dir}" __f __wrote=0
+  local __mark="${1:?hl_path_persist: needs a mark}" __dir="${2:?hl_path_persist: needs a dir}" __f __wrote=0 __dnorm
   HL_PATH_WROTE=0
   HL_PATH_ADOPTED=0
   [ -d "$__dir" ] || return 0
+  hl_path_dir_norm __dnorm "$__dir"
   shift 2
   [ "$#" -gt 0 ] || set -- "$HOME/.bashrc" "$HOME/.profile"
   for __f in "$@"; do
     [ -e "$__f" ] || continue
     grep -qF "$__mark" "$__f" && continue
-    # Two stages and no regex: grep the PATH lines, then ask those for the directory as a literal.
-    if grep -E '^[[:space:]]*(export[[:space:]]+)?PATH=' "$__f" 2>/dev/null | grep -qF -- "$__dir"; then
+    if hl_path_exports "$__f" "$__dnorm"; then
       HL_PATH_ADOPTED=1
       continue
     fi
@@ -972,13 +1018,47 @@ case "$1" in found-it) echo /home/x/.local/bin/found-it; exit 0;; *) exit 1;; es
   # 5. an existing line that already exports the directory is ADOPTED, not duplicated: the hand-typed
   #    line an operator left behind satisfies the requirement, and a second block for one directory is
   #    the state no later read can attribute. The mark never lands, nothing is written.
-  printf '# existing\nexport PATH="%s:$PATH"\n' "$_t/exist" > "$_t/bashrc2"
-  bash -c ". '$_lib'; hl_path_persist '# fixture mark' '$_t/exist' '$_t/bashrc2'; echo \$HL_PATH_WROTE \$HL_PATH_ADOPTED" > "$_t/w4"
-  if [ "$(cat "$_t/w4")" = "0 1" ] && [ "$(grep -c 'fixture mark' "$_t/bashrc2")" = 0 ] \
-     && [ "$(wc -l < "$_t/bashrc2")" = 2 ]; then
-    printf 'ok: an unmarked export of the same directory is adopted, never duplicated\n'
-  else printf 'NOT CAUGHT: the adopt arm wrote [%s] marks=%s lines=%s\n' "$(cat "$_t/w4")" \
-    "$(grep -c 'fixture mark' "$_t/bashrc2")" "$(wc -l < "$_t/bashrc2")"; _fails=$((_fails+1)); fi
+  #    And the adopt key is the RESOLVED DIRECTORY, never its spelling: `~/.local/bin`,
+  #    `$HOME/.local/bin`, `${HOME}/.local/bin` and the absolute path are one directory written four
+  #    ways, and an arm that plants only the absolute one is how a duplicate block passed as converged.
+  #    The negatives belong in the same table: a DECOY directory and a PARENT of the target must both
+  #    still get the block, or an "always adopt" mutation reads as a passing suite.
+  mkdir -p "$_t/home/.local/bin"
+  _f5() { # _f5 <name> "<WROTE ADOPTED>" <line> — one spelling of the target directory, one persist call.
+  #          A name carrying `nonl` writes the file WITHOUT a trailing newline, the shape a hand-edited
+  #          ~/.bashrc actually has more often than the one a heredoc leaves behind.
+    local __n="$1" __want="$2" __l="$3" __got __marks
+    case "$__n" in *nonl*) printf '# existing\n%s' "$__l" > "$_t/b5" ;; *) printf '# existing\n%s\n' "$__l" > "$_t/b5" ;; esac
+    cp "$_t/b5" "$_t/b5.orig"
+    HOME="$_t/home" bash -c ". '$_lib'; hl_path_persist '# fixture mark' \"\$HOME/.local/bin\" '$_t/b5'; echo \$HL_PATH_WROTE \$HL_PATH_ADOPTED" > "$_t/b5.out" 2>&1
+    __got="$(cat "$_t/b5.out")"; __marks="$(grep -c 'fixture mark' "$_t/b5")"
+    # an ADOPTED line carries no mark and leaves the file BYTE-IDENTICAL; a written block is exactly one
+    # mark. Both halves are asserted, because the rc alone cannot tell the two states apart.
+    case "$__want" in
+      "0 1") [ "$__got" = "0 1" ] && [ "$__marks" = 0 ] && cmp -s "$_t/b5" "$_t/b5.orig" && return 0 ;;
+      *)     [ "$__got" = "$__want" ] && [ "$__marks" = 1 ] && return 0 ;;
+    esac
+    printf 'NOT CAUGHT: the %s case was [%s] marks=%s (want [%s])\n' "$__n" "$__got" "$__marks" "$__want"
+    return 1
+  }
+  _f5n=0
+  _f5 abs      "0 1" "export PATH=\"$_t/home/.local/bin:\$PATH\"" || _f5n=$((_f5n+1))
+  _f5 dollar   "0 1" 'export PATH="$HOME/.local/bin:$PATH"' || _f5n=$((_f5n+1))
+  _f5 brace    "0 1" 'export PATH="${HOME}/.local/bin:$PATH"' || _f5n=$((_f5n+1))
+  _f5 tilde    "0 1" 'export PATH="~/.local/bin:$PATH"' || _f5n=$((_f5n+1))
+  _f5 slash    "0 1" 'export PATH="${HOME}/.local/bin/:$PATH"' || _f5n=$((_f5n+1))
+  _f5 list     "0 1" 'export PATH="/opt/other/bin:$HOME/.local/bin:$PATH"' || _f5n=$((_f5n+1))
+  _f5 nonl     "0 1" 'export PATH="$HOME/.local/bin:$PATH"' || _f5n=$((_f5n+1))
+  _f5 decoy    "1 0" 'export PATH="/opt/other/bin:$PATH"' || _f5n=$((_f5n+1))
+  _f5 parent   "1 0" 'export PATH="$HOME/.local:$PATH"' || _f5n=$((_f5n+1))
+  _f5 prefix5  "1 0" 'export PATH="$HOME/.local/binx:$PATH"' || _f5n=$((_f5n+1))
+  if [ "$_f5n" = 0 ]; then
+    printf 'ok: an unmarked export of the same directory is adopted in any spelling, and a different one still gets a block\n'
+  else _fails=$((_fails+_f5n)); fi
+
+  if [ "$_f5n" = 0 ]; then
+    printf 'ok: an unmarked export of the same directory is adopted in any spelling, and a different one still gets a block\n'
+  else _fails=$((_fails+_f5n)); fi
 
   [ "$_fails" -eq 0 ] || printf 'seat-plane lib self-test: %s arm(s) NOT caught
 ' "$_fails" >&2

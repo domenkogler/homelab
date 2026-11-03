@@ -63,7 +63,10 @@
 #   OK                  installed at the pin and resolvable by a session
 #   MISSING             no record of it at all
 #   DRIFT(version)      installed, not at the pin
-#   DRIFT(invisible)    installed but NO interactive shell resolves it — the ~/.bashrc export is absent
+#   DRIFT(invisible)    installed but NO interactive shell resolves it — on a Debian seat the ~/.bashrc
+#                       export is absent; on win11 it also means the bare name AND its `.cmd` spelling
+#                       both fail to resolve (a .NET tool's `.cmd` is asked, because MSYS `command -v`
+#                       skips `.cmd` and would otherwise call a working server invisible)
 #   DRIFT(shadowed)     an interactive shell resolves it to a /mnt/c copy: the Windows binary wins,
 #                       and on that seat it answers nothing at all
 #   DRIFT(broken-lib)   installed but unusable in the specific way the TS route fails — no
@@ -211,7 +214,17 @@ assess() {
     if [ "$got" != "${VER[$i]}" ]; then RES[$i]="DRIFT(version) ${got}"; continue; fi
     if [ "${VIA[$i]}" = npm-lib ]; then RES[$i]="OK"; continue; fi   # a library, not a command
     res="$(hl_path_resolved "${CMD[$i]}")"; rc=$?
-    if [ "$rc" -ne 0 ] || [ -z "$res" ]; then RES[$i]="DRIFT(invisible)"; continue; fi
+    # A win11 `.NET global tool` is a `.cmd`, and MSYS `command -v` tries `.exe` but NOT `.cmd`: the bare
+    # name has no answer there even though the tool is installed and answers `initialize` when spawned
+    # the way a session spawns it (through a shell, which does honour PATHEXT). Measured on the win11
+    # seat, where the plane called a working C# server invisible. Ask the extension the way that seat's
+    # own shell would before calling an installed server invisible — and only there: on a Debian seat a
+    # bare name that does not resolve IS the invisible seat, and a `.cmd` guess would hide it.
+    if [ $rc -ne 0 ] || [ -z "$res" ]; then
+      [ "${SEAT:-}" = win11 ] || { RES[$i]="DRIFT(invisible)"; continue; }
+      res="$(hl_path_resolved "${CMD[$i]}.cmd")" || res=""
+      [ -n "$res" ] || { RES[$i]="DRIFT(invisible)"; continue; }
+    fi
     case "$res" in /mnt/c/*|/mnt/C/*) RES[$i]="DRIFT(shadowed) $res"; continue ;; esac
     RES[$i]="OK"
   done
@@ -429,7 +442,7 @@ EOS
   run() { # run <expect-rc> <args...> — the REAL CLI, under the fixture environment
     local want="$1"; shift
     PI_SEAT="${PS:-wsl}" VERSIONS="$t/repo/IaC/ansible/group_vars/all/versions.yml" \
-    LSP_ROOT="$t/root" LSP_NPM="$t/bin/npm" LSP_DOTNET="${LSPDOT:-$t/bin/dotnet}" HL_SHELL_PROBE="$t/bin/probe" \
+    LSP_ROOT="${LSPROOT:-$t/root}" LSP_NPM="$t/bin/npm" LSP_DOTNET="${LSPDOT:-$t/bin/dotnet}" HL_SHELL_PROBE="$t/bin/probe" \
     LSP_ASTRAL_FETCH="$t/bin/fetch" \
     ST_LOG="$t/log" ST_TOOLS="$t/tools" ST_RESOLVE="$t/resolve" PREFIX="$t/root" \
     PATH="$t/bin:$PATH" HOME="$t/home" bash "${BASH_SOURCE[0]}" "$@" > "$t/out" 2>&1
@@ -583,6 +596,41 @@ EOS
   grep -q 'lsp binaries (seat-lsp-binaries.sh)' "$HOME/.bashrc" \
     && { printf 'NOT CAUGHT a win11 push wrote a ~/.local/bin export that seat does not use\n'; fails=$((fails+1)); }
   grep -q 'NO-INSTALLER win11' "$t/out" || { printf 'NOT CAUGHT a win11 push did not say it writes nothing\n'; fails=$((fails+1)); }
+
+  # 14. the win11 `.cmd` half of that seat's read: a .NET global tool there is `roslyn-language-server.cmd`,
+  #     and MSYS `command -v` will not resolve the BARE name to it — so the answers file carries only the
+  #     `.cmd` spelling, exactly as the seat does. A plane that asks the bare name alone reports a tool
+  #     that is installed, at pin, and answers `initialize` as DRIFT(invisible).
+  printf 'node=%s/volta/node/1.2.3/node\nbash-language-server=%s/volta/node/1.2.3/bash-language-server\nyaml-language-server=%s/volta/node/1.2.3/yaml-language-server\nruff=%s/ruff\nroslyn-language-server.cmd=%s/win-tools/roslyn-language-server.cmd\n' "$t" "$t" "$t" "$PATH_OK" "$t" > "$t/resolve"
+  PS=win11 run 1 --check --strict
+  grep -q 'roslyn-language-server .*invisible' "$t/out" \
+    && { printf 'NOT CAUGHT a win11 .cmd-only carrier was called invisible\n'; fails=$((fails+1)); }
+  grep -q 'roslyn-language-server.*OK' "$t/out" \
+    || { printf 'NOT CAUGHT the .cmd spelling was never asked (roslyn answered neither OK nor invisible)\n'; fails=$((fails+1)); }
+
+  #     14b. and the fallback is win11's, not universal. On a Debian seat a bare name that does not
+  #          resolve IS the invisible seat (arm 4), so a `.cmd` answer sitting in the same file must NOT
+  #          rescue it there — a fallback that ignores the seat would hide the seat this verdict exists
+  #          to catch, and only this half can tell the two readings apart.
+  PS=wsl run 1 --check --strict
+  grep -q 'roslyn-language-server .*invisible' "$t/out" \
+    || { printf 'NOT CAUGHT a .cmd answer rescued a Debian seat whose bare name does not resolve\n'; fails=$((fails+1)); }
+  printf 'bash-language-server=%s/bash-language-server\nruff=%s/ruff\nroslyn-language-server=%s/roslyn-language-server\n' "$PATH_OK" "$PATH_OK" "$PATH_OK" > "$t/resolve"
+
+  # 15. the PATH ADOPT key on this plane's own push: a ~/.bashrc whose operator line spells the directory
+  #     "$HOME/.local/bin" exports the SAME directory the plane passes in absolute form, so --push adopts
+  #     it and writes NO block. Arm 4 proves the absolute spelling; absolute alone is how a duplicate
+  #     block passed as converged on both Debian seats.
+  PS=wsl; mkdir -p "$t/home/.local/bin"
+  printf '# existing\nexport PATH="$HOME/.local/bin:$PATH"\n' > "$HOME/.bashrc"
+  LSPROOT="$t/home/.local" run 1 --push
+  grep -q 'path: adopted the export' "$t/out" \
+    || { printf 'NOT CAUGHT --push did not report adopting a $HOME-spelled export\n'; fails=$((fails+1)); }
+  [ "$(grep -c 'lsp binaries (seat-lsp-binaries.sh)' "$HOME/.bashrc")" = 0 ] \
+    || { printf 'NOT CAUGHT a $HOME-spelled export still received a second marked block\n'; fails=$((fails+1)); }
+  [ "$(wc -l < "$HOME/.bashrc")" = 2 ] \
+    || { printf 'NOT CAUGHT the adopt case grew the startup file (%s lines)\n' "$(wc -l < "$HOME/.bashrc")"; fails=$((fails+1)); }
+  printf '# existing\n' > "$HOME/.bashrc"
 
   printf '\nself-test: %s\n' "$([ "$fails" -eq 0 ] && echo "OK — all canaries caught" || echo "$fails canary/canaries NOT caught")"
   return "$fails"
