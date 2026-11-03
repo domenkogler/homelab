@@ -862,12 +862,39 @@ hl_path_dir_norm() {
   printf -v "$__out" '%s' "$__v"
 }
 
+# hl_path_rhs <out-var> <path-assignment-rhs> — the VALUE a PATH assignment writes, into <out-var>: every
+# quoted segment kept, the quotes themselves gone, and an unquoted trailing `# …` dropped. It is a small
+# shell-word reader rather than one `"…"` lift, because the value is ASSEMBLED from several segments and a
+# lift that takes only the first one is the shape this key shipped with: `export PATH="$PATH":"$HOME/.local/bin"`
+# puts the directory in the SECOND span, so the key read `$PATH` and appended a block over a line that
+# already did the job — the same duplicate the resolved-directory key exists to stop, arriving one layer
+# down. The comment half is why the unquoted text stops at `#`: `PATH="$X" # add /opt/y` must not adopt
+# /opt/y, which is a comment about a directory the line does not export.
+hl_path_rhs() {
+  local __out="${1:?hl_path_rhs: needs an out-var}" __s="${2-}" __acc="" __c __i=0 __q=""
+  while [ "$__i" -lt "${#__s}" ]; do
+    __c="${__s:__i:1}"
+    if [ -n "$__q" ]; then
+      # inside a quote: the CLOSING one ends it and is not part of the value; the other quote char is text
+      [ "$__c" = "$__q" ] && __q="" || __acc="$__acc$__c"
+    else
+      case "$__c" in
+        "'" | '"') __q="$__c" ;;   # a segment opens; the quote itself is never part of the value
+        '#') break ;;                # UNQUOTED, so this is the comment: everything after it is prose
+        *) __acc="$__acc$__c" ;;
+      esac
+    fi
+    __i=$((__i + 1))
+  done
+  printf -v "$__out" '%s' "$__acc"
+}
+
 # hl_path_exports <file> <resolved-dir> — rc 0 when a PATH line in <file> exports that directory.
 # Fork-free and line-by-line, because a PATH line is a LIST: matching the file for the directory as a
 # substring would read `/opt/other/.local/bin` and `/home/domen/.local/bin/x` as hits, and an adopt
 # that fires on the wrong directory is worse than the duplicate it avoids — the file then carries no
-# line that works and a reader that believes it does. So: the PATH assignments only, quoted text only,
-# split on `:`, each field normalised.
+# line that works and a reader that believes it does. So: the PATH assignments only, the value read as a
+# shell reads it (hl_path_rhs), split on `:`, each field normalised.
 hl_path_exports() {
   local __f="${1:?hl_path_exports: needs a file}" __want="${2:?hl_path_exports: needs a resolved dir}"
   local __line __rhs __part
@@ -875,12 +902,10 @@ hl_path_exports() {
     __line="${__line#"${__line%%[![:space:]]*}"}"                 # leading blanks
     case "$__line" in export[[:space:]]*) __line="${__line#export}"; __line="${__line#"${__line%%[![:space:]]*}"}" ;; esac
     case "$__line" in PATH=*) ;; *) continue ;; esac
-    __rhs="${__line#PATH=}"
-    case "$__rhs" in *\"*) __rhs="${__rhs#*\"}"; __rhs="${__rhs%%\"*}" ;; esac   # the quoted text, not a trailing comment
+    hl_path_rhs __rhs "${__line#PATH=}"
     while [ -n "$__rhs" ]; do
       __part="${__rhs%%:*}"
       __rhs="${__rhs#"$__part"}"; __rhs="${__rhs#:}"
-      __part="${__part//\"/}"; __part="${__part//\'/}"
       hl_path_dir_norm __part "$__part"
       [ "$__part" = "$__want" ] && return 0
     done
@@ -1049,13 +1074,22 @@ case "$1" in found-it) echo /home/x/.local/bin/found-it; exit 0;; *) exit 1;; es
   _f5 slash    "0 1" 'export PATH="${HOME}/.local/bin/:$PATH"' || _f5n=$((_f5n+1))
   _f5 list     "0 1" 'export PATH="/opt/other/bin:$HOME/.local/bin:$PATH"' || _f5n=$((_f5n+1))
   _f5 nonl     "0 1" 'export PATH="$HOME/.local/bin:$PATH"' || _f5n=$((_f5n+1))
+  # The value is assembled from SEVERAL quoted spans in real startup files, and a reader that keeps only
+  # the first span sees `$PATH` and appends a block over a line that already did the job. Both orders,
+  # single quotes, and an unquoted line belong in the table for that reason.
+  _f5 spans    "0 1" 'export PATH="$PATH":"$HOME/.local/bin"' || _f5n=$((_f5n+1))
+  _f5 spanq    "0 1" "export PATH='\$HOME/.local/bin':\$PATH" || _f5n=$((_f5n+1))
+  _f5 bare     "0 1" 'export PATH=$PATH:$HOME/.local/bin' || _f5n=$((_f5n+1))
   _f5 decoy    "1 0" 'export PATH="/opt/other/bin:$PATH"' || _f5n=$((_f5n+1))
   _f5 parent   "1 0" 'export PATH="$HOME/.local:$PATH"' || _f5n=$((_f5n+1))
   _f5 prefix5  "1 0" 'export PATH="$HOME/.local/binx:$PATH"' || _f5n=$((_f5n+1))
-  if [ "$_f5n" = 0 ]; then
-    printf 'ok: an unmarked export of the same directory is adopted in any spelling, and a different one still gets a block\n'
-  else _fails=$((_fails+_f5n)); fi
-
+  # A comment NAMES a directory without exporting it. The quoted value is the line's claim; the prose after
+  # it is not, and adopting on it leaves the file with no line that works and a reader that believes it does.
+  _f5 comment  "1 0" 'export PATH=$PATH:$HOME/bin  # add:$HOME/.local/bin' || _f5n=$((_f5n+1))
+  # The mirror of the comment case, and the one a `#`-blind reader gets wrong the other way: inside quotes
+  # a `#` is ORDINARY TEXT, so a directory whose own name carries one still exports. A reader that treats
+  # every `#` as a comment truncates the value there and loses the directory behind it.
+  _f5 hash     "0 1" 'export PATH="$HOME/x#y:$HOME/.local/bin"' || _f5n=$((_f5n+1))
   if [ "$_f5n" = 0 ]; then
     printf 'ok: an unmarked export of the same directory is adopted in any spelling, and a different one still gets a block\n'
   else _fails=$((_fails+_f5n)); fi

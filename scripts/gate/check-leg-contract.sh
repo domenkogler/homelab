@@ -164,6 +164,8 @@ PINNED_RUNTIMES="node npm npx pi"    # behind the route's PATH pin; widening tha
 # reason the inventory names above are composed: a rule that spells what it hunts inside its own format
 # string is a rule that has to exempt its own file, and an exemption is where a rule stops existing.
 LIT_TICK='`'                         # one backtick
+SQ="'"                              # a single quote as a PATTERN word, for stripping a quoted subject
+DQ='"'                              # the double, same reason
 LIT_DP='$('                          # a dollar-paren
 # The two detectors that read the conjunction off the wrapped legs. They name CALLS: the SEAT list is how a
 # leg asks which seat it is on, the TRIP list is how a leg opens something only the seat it stands on can
@@ -326,14 +328,19 @@ tail_comment() {
 # FACE and REGISTRATION walks without a finding anywhere. A silent drop is worse than a missing rule, so
 # the loop takes every leading word and stops the moment a word is not a decision.
 # `late` carries no value; `face` does, and that value is the claim face_walk grades, so it lands in
-# _sw_face (empty when the line stated none — undecided is a finding, not a default).
+# _sw_face (empty when the line stated none — undecided is a finding, not a default); `subject` carries the
+# repo globs a NATIVE leg is ABOUT, which land in _sw_subj (empty is a finding for a seat/joined line).
 dec_strip() {
   local _t="$1" _w="" _v="" _nxt=""
-  _sw="$_t"; _sw_face=""
+  _sw="$_t"; _sw_face=""; _sw_subj=""
   while :; do
     _w="${_sw%%[ ;]*}"
     case "$_w" in
       face) _v="${_sw#face }"; _sw_face="${_v%%[ ;]*}" ;;
+      subject)
+        # the words up to the terminating `;` — the globs this leg is ABOUT (see the SUBJECT rule)
+        _v="${_sw#subject }"; _v="${_v%%;*}"
+        _sw_subj="${_v# }"; _sw_subj="${_sw_subj% }" ;;
       late) : ;;
       *) return 0 ;;
     esac
@@ -813,7 +820,7 @@ face_walk() {
   local _has_seat="" _has_tree="" _st="" _wrapped="" _l1="" _l2="" _blk_out="" _udeep=""
   local _cls_n=0 _trip_n=0 _home_n=0 _ck_n=0 _sand_n=0 _cls_x="" _trip_x="" _home_x="" _ck_x="" _sand_x=""
   local _fx_n=0 _fx_x="" _narrow="" _n_fx=0
-  local _n_tree=0 _n_seat=0 _n_joined=0 _n_und=0 _n_bad=0 _n_tot=0 _n_note=0
+  local _n_tree=0 _n_seat=0 _n_joined=0 _n_und=0 _n_bad=0 _n_tot=0 _n_note=0 _n_nosubj=0 _subj="" _w_subj=""
 
   _face_seat="" _face_joined=""
   fn_index "$_va" _fn_defs
@@ -823,9 +830,10 @@ face_walk() {
     # walk grades; the `late` slot belongs to the launcher and is dropped here rather than weighed. The
     # leading `case` is the cheap guard, not the rule: this walk runs over every line of the launcher, and
     # a function call per line is the cost this file's own header names.
-    _decl=""
+    _decl=""; _subj=""
     case "$_line" in
-      'face '* | 'late;'*) dec_strip "$_line"; _decl="$_sw_face"; _line="$_sw" ;;
+      'face '* | 'late;'* | 'subject '*)
+        dec_strip "$_line"; _decl="$_sw_face"; _subj="$_sw_subj"; _line="$_sw" ;;
     esac
     case "$_line" in item*) : ;; *) continue ;; esac
     case "${_line%%[[:space:]]*}" in *'('*) continue ;; esac     # `item_q() { …` defines; it registers nothing
@@ -933,6 +941,50 @@ face_walk() {
       fail "FACE: validate-all.sh:$_n carries no face word — \`face tree|seat|joined;\` belongs before the item call, and \`--profile quick\` refuses the run while one is undecided. The axis is stated in lib/wsl-route.sh."
       continue
     fi
+
+    # THE SUBJECT — the paths a NATIVE leg is ABOUT, which is what lets a launcher answer "does this diff owe
+    # it now" instead of running all of them on every commit. Two rules, and the second is the one a label
+    # cannot pass: a `seat`/`joined` line MUST name one (an unnamed subject is a leg the owed-now verdict can
+    # never name, and a leg left out of that list reads as not owed), and every word must MATCH something in
+    # the tree — a glob that resolves to nothing is a subject that can never be hit, which is a mute button
+    # wearing a declaration's face. A `tree` line carries none by definition: its subject is the checkout,
+    # which the snapshot already grades.
+    case "$_decl" in
+      seat | joined)
+        if [ -z "$_subj" ]; then
+          _n_nosubj=$((_n_nosubj + 1))
+          fail "SUBJECT: validate-all.sh:$_n declares \`face $_decl' and names no \`subject'. A NATIVE leg without one cannot be named by the owed-now verdict, so the only answer left is \"every one of them, every commit\" — the whole native wall on a docs-only change. Write \`subject <repo path or glob>…;\` beside the face word."
+        else
+          _w_subj=""
+          # The SPLIT happens under this file's global `set -f` (line 148), so the globs survive as patterns.
+          # The RESOLVE therefore needs globbing back, and it is taken in a SUBSHELL: this file's `set -f` is
+          # load-bearing for every other walk (a `*` off file text must never become a file list), so it is
+          # restored rather than switched off — a bare `set +f` here would leak that widening into every later
+          # walk, which is a checker that reads different text depending on which registration it is on.
+          for _w in $_subj; do
+            # Each word arrives as the shell word it was written as, quotes INCLUDED (the registration quotes a
+            # glob so bash does not expand it at the call site), so the quoting comes off before the path is
+            # weighed: a `'skills/*'` tested with its quotes is a path named `'skills`.
+            # ⚠ NOT `${_w#'}`: inside a `${var#word}` the `'` OPENS a quoted region and swallows the closing
+            # brace, so the expansion degrades to "strip nothing" and every quoted subject reads as
+            # unresolvable. The quote is held in a VARIABLE and the pattern names it ("$SQ"), the one spelling
+            # bash honours literally.
+            case "$_w" in "$SQ"*) _w="${_w#"$SQ"}" ;; esac
+            case "$_w" in *"$SQ") _w="${_w%"$SQ"}" ;; esac
+            case "$_w" in "$DQ"*) _w="${_w#"$DQ"}" ;; esac
+            case "$_w" in *"$DQ") _w="${_w%"$DQ"}" ;; esac
+            case "$_w" in
+              *[*?[]*) # shellcheck disable=SC2254  # DATA off the registration line, matched against the tree on purpose
+                       [ -n "$( cd "$ROOT" && ( set +f; ls -d $_w 2>/dev/null | head -1 ) )" ] || _w_subj="$_w_subj $_w" ;;
+              *)       [ -e "$ROOT/$_w" ] || _w_subj="$_w_subj $_w" ;;
+            esac
+          done
+          [ -z "$_w_subj" ] || fail "SUBJECT: validate-all.sh:$_n names subject path(s) nothing in the tree matches —${_w_subj}. A glob that resolves to nothing can never be hit by a diff, so the leg would read as never owed. Fix the path, or move the leg's subject to what it really reads."
+        fi ;;
+      tree)
+        [ -z "$_subj" ] || printf 'NOTE: subject — validate-all.sh:%s declares \`face tree'"'"' and a subject (%s); a tree leg'"'"'s subject is the whole checkout, which the snapshot already grades, so the globs buy nothing and the launcher ignores them.
+' "$_n" "$_subj" ;;
+    esac
     [ "$_decl" = "$_der" ] && continue
 
     _why=""
@@ -1630,14 +1682,27 @@ CONT
     'item_q "a registration whose face nobody chose (needs rsync)" bash scripts/testdata/leg-contract/run.sh --check' \
     "an undecided face must refuse the run, exactly like an undecided profile" 'carries no face word'
   _st_breed face_seat_note 0 scripts/validate-all.sh \
-    'face seat; item_q "a native leg that reads nothing but the tree (needs rsync)" bash scripts/testdata/leg-contract/run.sh --check' \
+    'face seat; subject scripts/testdata/leg-contract/run.sh; item_q "a native leg that reads nothing but the tree (needs rsync)" bash scripts/testdata/leg-contract/run.sh --check' \
     "a seat word that claims more seat than the facts show costs a NOTE, not a finding (A7's direction)" 'NOTE: face'
   _st_two face_joined_seat 1 scripts/testdata/leg-contract/run.sh 'DEPLOY="$HOME/.pi/agent/extensions"' \
-    scripts/validate-all.sh 'face joined; item_q "the planted leg reads seat state only (needs rsync)" bash scripts/testdata/leg-contract/run.sh --check' \
+    scripts/validate-all.sh 'face joined; subject scripts/testdata/leg-contract/run.sh; item_q "the planted leg reads seat state only (needs rsync)" bash scripts/testdata/leg-contract/run.sh --check' \
     "joined claims a tree half as well; a leg that reads only seat state is a seat leg" 'FACE:'
   _st_breed face_wrapped_seat 1 scripts/validate-all.sh \
-    'face seat; item_q "a crossed leg called seat (needs rsync)" hl_wsl_route bash scripts/testdata/leg-contract/run.sh --check' \
+    'face seat; subject scripts/testdata/leg-contract/run.sh; item_q "a crossed leg called seat (needs rsync)" hl_wsl_route bash scripts/testdata/leg-contract/run.sh --check' \
     "a CROSSED line cannot be a seat leg: the runner crosses it, so the snapshot is being asked to grade it" 'FACE:'
+
+  # THE SUBJECT half (HD-1233). The subject is what lets a win11 launch name the seat legs a diff owes, so an
+  # unnamed one is a leg that can never be owed (it reads as "not owed" forever) and an unmatched one is a
+  # glob that can never be hit — the same mute wearing a declaration's face. The two negatives are fenced
+  # against the positive and against the tree-leg NOTE, because a rule that reddens everything is as useless
+  # as one that reddens nothing.
+  _st_breed subject_missing 1 scripts/validate-all.sh     'face joined; item_q "a seat leg that names no subject (needs rsync)" bash scripts/testdata/leg-contract/run.sh --check'     "a NATIVE leg with no subject can never be named by the owed-now verdict" 'SUBJECT:'
+  _st_breed subject_unmatched 1 scripts/validate-all.sh     "face joined; subject 'scripts/gate/*.nothing-matches-this'; item_q \"a seat leg whose glob hits nothing (needs rsync)\" bash scripts/testdata/leg-contract/run.sh --check"     "a glob that resolves to nothing can never be hit by a diff, so the leg reads as never owed" 'SUBJECT:'
+  # The positive plants BOTH halves its word claims: a `joined` leg whose subject resolves AND whose file reads
+  # seat state as well as the checkout. Without the second half the FACE rule reddens it for a different reason,
+  # and an arm that reddens for its neighbour's rule proves nothing about its own.
+  _st_two subject_ok 0 scripts/testdata/leg-contract/run.sh '    DEPLOY="$HOME/.pi/agent/skills"; SKILLS="$REPO/skills"'     scripts/validate-all.sh "face joined; subject scripts/testdata/leg-contract/run.sh; item_q \"a seat leg whose subject hits the tree (needs rsync)\" bash scripts/testdata/leg-contract/run.sh --check"     "a subject that RESOLVES is the legal shape, and the two canaries above must not redden it"
+  _st_breed subject_on_tree 0 scripts/validate-all.sh     "face tree; subject 'scripts/testdata/leg-contract/*.sh'; item_q \"a tree leg carrying a subject it does not need (needs rsync)\" blk_st_leg"     "a subject on a tree leg is a NOTE — its subject is the checkout the snapshot already grades" 'NOTE: subject'
 
   # The SECOND decision word. `late` sits beside `face` on the same registration line, and a reader that
   # strips only the FIRST word is left holding `late; item_q …` — text that matches no `item` test, so the
@@ -1656,7 +1721,7 @@ CONT
   # the leg file is read in belongs to THIS line — read it from the previous registration and the
   # conditional facts vanish, which derives a `joined` leg as `seat` on a clean tree.
   _st_two face_conditional 0 scripts/testdata/leg-contract/run.sh '    DEPLOY="$HOME/.pi/agent/skills"; SKILLS="$REPO/skills"' \
-    scripts/validate-all.sh 'face joined; item_q "the planted leg reads both, from inside a branch (needs rsync)" bash scripts/testdata/leg-contract/run.sh --check' \
+    scripts/validate-all.sh 'face joined; subject scripts/testdata/leg-contract/run.sh; item_q "the planted leg reads both, from inside a branch (needs rsync)" bash scripts/testdata/leg-contract/run.sh --check' \
     "a native line reads its leg's conditional facts too — that is where a block's if reaches" ''
 
   # The strict half of the fixture narrowing, and the price of letting a fixture excuse a seat read on a

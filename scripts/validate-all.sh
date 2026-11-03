@@ -768,6 +768,22 @@ if [ "$FACE" = auto ] && [ -f "$_GATE_ROOT.stamp" ]; then
     echo "NOTE: $_GATE_ROOT.stamp names '$_snap_sha', not this commit — a disagreeing stamp selects NO face; this run grades seat legs against the engine's own state and their reds are not the seat's."
   fi
 fi
+# `auto` ON THE WIN11 SEAT means the TREE face in the engine's commit-stamped snapshot, and the seat half
+# becomes a PRINTED verdict instead of a paid wall. WHY the seat class and not the face: on this box a
+# `fork()+exec` costs two orders of magnitude more than the engine's, so an un-flagged run is 106 tree legs
+# at the snapshot's price plus ~19 seat legs at this one — and the 106 are the same bytes the snapshot
+# grades, from the same commit. The seat half cannot move: its subject is THIS host's state, so a snapshot
+# of a checkout can never prove it. What the launcher CAN still do is answer per DIFF whether the seat half
+# is owed NOW, from the `subject` each seat/joined registration declares: a docs-only change owes none, a
+# change to a seat plane's own inputs owes it in this same commit. Either way the answer is PRINTED, with
+# the close-out act named, because a deferred leg that nobody names is a leg that reads as proven.
+# The tree half is DELEGATED, not re-implemented: `gate-snapshot.sh --run` is the one driver that moves a
+# commit into the engine's ext4 with git and grades it in ONE spawn, so this block prints that command
+# rather than a second copy of the recipe.
+DEFER_SEAT=0; DEFER_WHY=""
+_WIN11_AUTO_WANTED=0
+if [ "$FACE" = auto ] && [ "$WSLMODE" != off ]; then _WIN11_AUTO_WANTED=1; fi
+
 # An unknown profile must stop here, not quietly run the full set: a flag that is misspelled and
 # obeyed-as-another-flag is the mute-the-gate class, and this one has an opposite to confuse it with.
 case "$PROFILE" in
@@ -884,6 +900,32 @@ if [ "$HL_WSL" = on ] && [ "$HL_WSL_ON" = 0 ] && [ "$(hl_wsl_class)" != wsl ]; t
 fi
 [ "$LIST" = 1 ] || echo "route: $HL_WSL_WHY" >&2
 
+# `auto` ON THE WIN11 SEAT means the TREE face, and the seat half becomes a PRINTED verdict instead of a
+# paid wall (HD-1233). WHY the seat class and not the face: on this box `fork()+exec` costs two orders of
+# magnitude more than the engine's, so an un-flagged run is ~106 tree legs at the snapshot's price plus 19
+# seat legs at this one — and the tree legs are the same bytes the snapshot grades, from the same commit.
+# The seat half cannot move: its subject is THIS host's state, so a snapshot of a checkout can never prove
+# it. What the launcher CAN do is answer per DIFF whether the seat half is owed NOW, from the `subject`
+# each seat/joined registration declares: a docs-only change owes none, a change to a seat plane's own
+# inputs owes it in this same commit. Either way the answer is PRINTED with the close-out act named,
+# because a deferred leg nobody names is a leg that reads as proven.
+# The tree half is DELEGATED, not re-implemented: `gate-snapshot.sh --run` is the one driver that moves a
+# commit into the engine's ext4 with git and grades it in ONE spawn, so this block prints that command
+# rather than a second copy of the recipe. An explicit `--wsl off` is the operator asking for the
+# engine-independent verdict, and honouring it means the tree half cannot be delegated — the run stays
+# whole and says why.
+DEFER_SEAT=0; DEFER_WHY=""
+if [ "$_WIN11_AUTO_WANTED" = 1 ] && [ "$(hl_wsl_class)" = win11 ]; then
+  if [ "$WSLMODE" = off ]; then
+    DEFER_WHY="--wsl off asked for, so nothing can cross and the tree half runs here too"
+    echo "face: auto stays whole — $DEFER_WHY." >&2
+  elif [ "$LIST" != 1 ]; then
+    FACE=tree
+    DEFER_SEAT=1
+    echo "face: auto → tree on the win11 seat — the tree half belongs in the Debian engine's commit-stamped snapshot (bash scripts/harness/gate-snapshot.sh --run), because a fork here costs what that snapshot spends on the whole half. The seat half is NOT PROVEN by this run and is owed at session close." >&2
+  fi
+fi
+
 # SLOT CONTROL without a FORK per POLL, measured 2026-10-10: the old gate checked the pool with
 # `[ "$(jobs -rp | wc -l)" -ge "$MAXPAR" ]`, and `wc` is an EXEC — so a saturated pool spawned two
 # processes (wc + sleep) every 50 ms purely to ask "is anything free?", which is a process per poll
@@ -904,7 +946,7 @@ true & wait -n >/dev/null 2>&1 && HAVE_WAITN=1     # supported => reaps that `tr
 # printed output and the exit-code contract are unchanged by the split.           #
 # --------------------------------------------------------------------------- #
 n_items=0; labels=(); cmds=(); cstart=(); clen=(); starts=(); ends=(); walls=()
-pids=(); states=(); mems=(); whys=(); faces=(); lates=(); n_run=0; rc_missing=0; n_excl_launch=0
+pids=(); states=(); mems=(); whys=(); faces=(); lates=(); subs=(); n_run=0; rc_missing=0; n_excl_launch=0
 
 # The profile decision for the NEXT registration. A bare `item` / `item_blk` leaves P_MEM empty,
 # which is UNDECIDED — and `_profile_audit` refuses a quick run rather than defaulting the item in or
@@ -944,16 +986,40 @@ late() {
   L_MEM=1
 }
 
+# The SUBJECT decision, the fourth slot and the one a win11 launch reads: the repo paths a seat/joined leg
+# is ABOUT, as shell globs. A `tree` leg's subject is the whole checkout, which the snapshot already
+# grades, so it carries no subject. A seat/joined leg's subject is the reason it is not in the snapshot at
+# all — and the launcher's job on a win11 seat is to decide, per DIFF, whether this change is one of them.
+# Without the slot the only honest answer is "always run all of them", which is the whole native wall paid
+# on a docs-only commit; with a glob nobody can re-derive it is a label that rots, which is the same
+# failure `face` has and is why `gate/check-leg-contract.sh` grades these against the tree.
+# An EMPTY subject REFUSES the run: a seat leg whose subject nobody named is a leg the owed-now verdict
+# can never name, and a leg left out of that list reads as "not owed".
+S_MEM=""
+subject() {
+  [ "$#" -gt 0 ] || { echo "FAIL: 'subject' needs at least one repo path or glob — a seat/joined leg with an unnamed subject is a leg the owed-now verdict can never name. Refusing to guess." >&2; exit 2; }
+  # These are GLOBS to be matched against a diff LATER, not a file list to expand now — and bash expands a
+  # glob in the CALLER's word before this function sees it, so a `subject IaC/ansible/playbooks/*.yml`
+  # written unquoted silently becomes the sixteen files that exist at registration time and a playbook
+  # ADDED later is a path the leg no longer names. The owed-now verdict would then under-report, which is
+  # the direction that reads as "not owed". So every glob word is QUOTED at its registration site, and the
+  # `set -f` here is the belt for the ones that are not (and for the caller that sources this file).
+  local _sf=0; case "$-" in *f*) _sf=1 ;; esac
+  set -f
+  S_MEM="$*"
+  [ "$_sf" = 1 ] || set +f
+}
+
 _reg() {
   local label="$1"; shift
   local i=$n_items; n_items=$((n_items+1))
-  labels+=("$label"); mems+=("$P_MEM"); whys+=("$P_WHY"); faces+=("$F_MEM"); lates+=("$L_MEM")
+  labels+=("$label"); mems+=("$P_MEM"); whys+=("$P_WHY"); faces+=("$F_MEM"); lates+=("$L_MEM"); subs+=("$S_MEM")
   _reminders[$i]="${_reminder:-0}"
   starts+=(""); ends+=(""); walls+=(""); pids+=("0"); states+=("pending")
   cstart+=("${#cmds[@]}"); clen+=("$#")
   local _w
   for _w in "$@"; do cmds+=("$_w"); done
-  P_MEM=""; P_WHY=""; F_MEM=""; L_MEM=""
+  P_MEM=""; P_WHY=""; F_MEM=""; L_MEM=""; S_MEM=""
   if [ "$LIST" = 1 ]; then states[$i]=listed; return 0; fi
   # A profile is an INTERSECTION, not a re-ordering: `--profile quick --only X` runs what is BOTH
   # quick and matched. Profile-excluded is decided before --only, so the NOT PROVEN block stays the
@@ -1143,6 +1209,42 @@ _face_audit() {
       echo "      half happened to be asked. The faces are stated once, with the conjunction, in"
       echo "      lib/wsl-route.sh; the word on the line is graded by scripts/gate/check-leg-contract.sh."
       printf '%s' "$bad"
+      echo "      The full set is: bash scripts/validate-all.sh --list"
+    } >&2
+    exit 1
+  fi
+}
+
+# The SUBJECT audit, the sibling of the face audit and read the other way round: a `tree` leg's subject is
+# the whole checkout, which a snapshot already grades, so a subject on one is a NOTE about nothing. A
+# `seat`/`joined` leg with NO subject is the finding, because those are the legs a win11 launch defers to
+# the close-out run, and a deferred leg whose subject nobody named can never be named as owed — it would
+# leave the diff's answer silently, which is a leg that reads as "not owed".
+_subject_audit() {
+  local i bad="" n_und=0
+  for i in "${!labels[@]}"; do
+    case "${faces[$i]}" in
+      seat | joined)
+        [ -n "${subs[$i]}" ] && continue
+        n_und=$((n_und+1))
+        bad+="  NO SUBJECT: ${labels[$i]}"$'\n'
+        bad+="        declare it:  'subject <repo path or glob>…;' beside the face word — the paths this leg"$'\n'
+        bad+="        is ABOUT, which is what lets a win11 launch decide whether this diff owes it now"$'\n' ;;
+      tree)
+        [ -z "${subs[$i]}" ] && continue
+        bad+="  NOTE: SUBJECT ON A TREE LEG: ${labels[$i]} names '${subs[$i]}' — a tree leg's subject is the"$'\n'
+        bad+="        whole checkout, which the snapshot already grades, so the globs buy nothing"$'\n' ;;
+    esac
+  done
+  if [ -n "$bad" ]; then printf '%s' "$bad" >&2; fi
+  if [ "$n_und" -gt 0 ]; then
+    {
+      echo "FAIL: $n_und seat/joined registration(s) carry no subject — NOTHING ran."
+      echo "      The subject is the half of a face decision a diff can be weighed against: it names the"
+      echo "      repo paths a NATIVE leg is about, so a launcher can answer 'does this change owe it now'."
+      echo "      Without it the only honest answer is 'every one of them, every commit', which is the whole"
+      echo "      native wall paid on a docs-only change. The axis is stated once in lib/wsl-route.sh;"
+      echo "      scripts/gate/check-leg-contract.sh grades these against the tree."
       echo "      The full set is: bash scripts/validate-all.sh --list"
     } >&2
     exit 1
@@ -1727,14 +1829,14 @@ blk_seat_bash_check() {
 # --------------------------------------------------------------------------- #
 
 # The two ansible legs (each fans out internally).
-face seat; item_blk_x "face seat — its subject is seat state, not this checkout, so it runs NATIVE and a snapshot has nothing to grade. runs the real ansible-playbook against a throwaway inventory: needs ~/ansible-venv, and it is the longest leg in the gate — a pre-commit loop buys this at a converge, not at a commit" "testdata/self-converge-guard/run.sh (HD-413 verdict matrix, runtime)" blk_guard_fixture
-face joined; item_blk_x "face joined — spans this checkout and seat state, so it runs NATIVE; a snapshot of the commit would prove neither side. ansible is absent or dies WinError 87 on the Windows seat, so this SKIPs here anyway; on a WSL/CI runner it is the syntax half that a quick loop does not need per keystroke" "ansible-playbook --syntax-check (WSL/CI-gated)" blk_ansible_syntax
+face seat; subject 'scripts/testdata/self-converge-guard/*' 'IaC/ansible/playbooks/*.yml' IaC/ansible/site.yml; item_blk_x "face seat — its subject is seat state, not this checkout, so it runs NATIVE and a snapshot has nothing to grade. runs the real ansible-playbook against a throwaway inventory: needs ~/ansible-venv, and it is the longest leg in the gate — a pre-commit loop buys this at a converge, not at a commit" "testdata/self-converge-guard/run.sh (HD-413 verdict matrix, runtime)" blk_guard_fixture
+face joined; subject IaC/ansible/site.yml IaC/ansible/test-1password.yml 'IaC/ansible/playbooks/*.yml' IaC/ansible/ansible.cfg IaC/ansible/inventory.ini IaC/ansible/requirements.yml 'IaC/ansible/roles/*'; item_blk_x "face joined — spans this checkout and seat state, so it runs NATIVE; a snapshot of the commit would prove neither side. ansible is absent or dies WinError 87 on the Windows seat, so this SKIPs here anyway; on a WSL/CI runner it is the syntax half that a quick loop does not need per keystroke" "ansible-playbook --syntax-check (WSL/CI-gated)" blk_ansible_syntax
 
 # The corpus walkers.
 # The corpus walkers. Longest leg first, per the pool note in the header.
-face joined; item_x "face joined — spans this checkout and seat state, so it runs NATIVE; a snapshot of the commit would prove neither side. reads the vault to know what a leak is: ONE batched read whose request count the run prints itself (the Server SDK answers the vault's ~143 items in 1 list + 3 get_all chunks; the labelled \`op item get\` FALLBACK costs 1 list + 1 read per item until the seat step in docs/1password.md runs), then a content search over the seat's run captures (~560 MB) and the working tree, then the git-history leg (11 942 blobs reachable from refs, ~525 MB — ~9 s cold, and ~0.2 s once the cache in the object store is warm, which the run prints either way). About 23 s on this seat, which is the whole pre-commit budget and more; it also only means something where a vault token exists" "check_secret_leak.py (current vault values vs the run-capture class, the working tree, and every blob a ref still reaches)" blk_secret_leak
+face joined; subject scripts/gate/check_secret_leak.py scripts/gate/secret_leak_ledger.txt; item_x "face joined — spans this checkout and seat state, so it runs NATIVE; a snapshot of the commit would prove neither side. reads the vault to know what a leak is: ONE batched read whose request count the run prints itself (the Server SDK answers the vault's ~143 items in 1 list + 3 get_all chunks; the labelled \`op item get\` FALLBACK costs 1 list + 1 read per item until the seat step in docs/1password.md runs), then a content search over the seat's run captures (~560 MB) and the working tree, then the git-history leg (11 942 blobs reachable from refs, ~525 MB — ~9 s cold, and ~0.2 s once the cache in the object store is warm, which the run prints either way). About 23 s on this seat, which is the whole pre-commit budget and more; it also only means something where a vault token exists" "check_secret_leak.py (current vault values vs the run-capture class, the working tree, and every blob a ref still reaches)" blk_secret_leak
 face tree; item_q "check_secret_leak.py --self-test (the shapes that leaked must each redden, the finding text must disclose nothing, the vault boundary must SKIP, the ledger must mute only what it names, a published-then-deleted value must still redden through the history leg, a partial sweep must say PARTIAL, a partial VAULT READ must say so and may not shorten the ledger, and --update-ledger must not delete a line it cannot prove — and every mutant of the scanner must be caught, the count is printed by the run)" "${PY_CMD[@]}" scripts/gate/check_secret_leak.py --self-test
-face joined; item_x "face joined — spans this checkout and seat state, so it runs NATIVE; a snapshot of the commit would prove neither side. reads the vault a second time for the debt register's VERSION column (the names-only list is tried first and, on an SDK whose list rows carry no versions, the batched read answers for 4 — the run prints which route answered and what it cost). Then a per-line verdict over the register, the twin arm against provision-secrets.py's NOT_ROTATABLE, and the seat-locality rule; ~2 s on this seat, and it only means something where a vault token exists" "check_secret_debt.py (who acts on each leak debt, on which seat, and whether the value behind it has rotated)" blk_secret_debt
+face joined; subject scripts/gate/check_secret_debt.py scripts/gate/secret_debt_register.txt; item_x "face joined — spans this checkout and seat state, so it runs NATIVE; a snapshot of the commit would prove neither side. reads the vault a second time for the debt register's VERSION column (the names-only list is tried first and, on an SDK whose list rows carry no versions, the batched read answers for 4 — the run prints which route answered and what it cost). Then a per-line verdict over the register, the twin arm against provision-secrets.py's NOT_ROTATABLE, and the seat-locality rule; ~2 s on this seat, and it only means something where a vault token exists" "check_secret_debt.py (who acts on each leak debt, on which seat, and whether the value behind it has rotated)" blk_secret_debt
 face tree; item_q "check_secret_debt.py --self-test (the four verdicts must each be reachable, the version-bump arm must move ONE line and no other, a foreign seat's line may never close, a store-less run may not close its own, the two no-rotation-path sets must disagree loudly in both directions, a bad register line reddens rather than shortening the book, EVERY verdict must land in the exit class it is filed under with an unplaced word reddening rather than going quietly green, and nothing but an 8-char id prefix is ever printed)" "${PY_CMD[@]}" scripts/gate/check_secret_debt.py --self-test
 face tree; item_x "walks the whole tracked tip, 99 MB with archive members included and no cache of any kind, so every profile pays the full walk; the arm is parked OUT of the pre-commit loop because that walk is the whole budget of one" "check_secrets.py (secret shapes in the tracked tip, archive members included)" "${PY_CMD[@]}" scripts/gate/check_secrets.py
 face tree; item_x "re-execs itself per archive/casefold arm: a shape-grammar self-test, not a tree check — rerun it when the scanner changes, not per commit" "check_secrets.py --self-test (the speed prefilter must not have narrowed a shape)" "${PY_CMD[@]}" scripts/gate/check_secrets.py --self-test
@@ -1827,20 +1929,20 @@ face tree; item_x "~25 CLI launches against a fixture settings.json: HD-1135 mea
 # lib/seat-planes.yml, which `pi-seat-sync.sh --check` fans out and prints as DRIFT.
 face tree; item_q "install-hooks.sh --self-test (HD-1219: a canary blocks a real push, a clean tree passes and says what it did not scan, an unreachable vault SKIPs loudly, a crashed eye is never called a leak, and a second worktree of the same clone finds the hook — the arm the naive \`dirname --git-dir\` path fails)" bash scripts/git/install-hooks.sh --self-test
 face tree; item_q "pi-tui-config.sh --self-test (HD-1110: the pi-open-tui footer hostname key)" st_pi_tui_selftest
-face joined; item_x "face joined — spans this checkout and seat state, so it runs NATIVE; a snapshot of the commit would prove neither side. drives every seat plane through stubbed seats in a temp HOME: HD-1135 measured 46 s on this seat — the fan-out driver's own harness, not a tree check. It runs NATIVE, and the reason is the leg's own shape rather than a parity result: it reads THIS checkout through git (self_head at pi-seat-sync.sh:240 — git -C the repo, rev-parse --short HEAD — called from self_test :333 and from the banner :535) and it classifies the seat it runs on (:81 uname -s, :106 hostname), the two halves of the conjunction lib/wsl-route.sh refuses. Re-derive with: bash scripts/bench/win/gate-parity.sh -- bash scripts/harness/pi-seat-sync.sh --self-test — in a Windows linked worktree that answers PARITY beside its own git=unavailable NOTE, an agreement between two runs that read no HEAD, so a crossed verdict here is not evidence and the unwrap is the ruling" "pi-seat-sync.sh --self-test (HD-1110: the fan-out driver verdicts, on stubbed seats)" bash scripts/harness/pi-seat-sync.sh --self-test
-face joined; item_x "face joined — spans this checkout and seat state, so it runs NATIVE; a snapshot of the commit would prove neither side. arms sandboxed installers and a canary package name across every probe layout — an installer harness, and it must never touch a real registry. It runs NATIVE because pi-self-update.sh:185 asks which OS the seat is running (a CLASSifier, and the \`--self-test\` fixture narrowing does not un-ask a classifier) while :86 reads the pin file out of this checkout: crossed, the probe would answer about the ENGINE's OS, which is the clause lib/wsl-route.sh's conjunction refuses to wrap — so the unwrap is the fix and the face word follows the derivation, not the other way round. Re-derive: bash scripts/gate/check-leg-contract.sh --faces" "pi-self-update.sh --self-test (HD-1115: BEHIND and AHEAD are both drift)" bash scripts/harness/pi-self-update.sh --self-test
+face joined; subject scripts/harness/pi-seat-sync.sh scripts/lib/seat-planes.yml scripts/lib/pi-seat.sh; item_x "face joined — spans this checkout and seat state, so it runs NATIVE; a snapshot of the commit would prove neither side. drives every seat plane through stubbed seats in a temp HOME: HD-1135 measured 46 s on this seat — the fan-out driver's own harness, not a tree check. It runs NATIVE, and the reason is the leg's own shape rather than a parity result: it reads THIS checkout through git (self_head at pi-seat-sync.sh:240 — git -C the repo, rev-parse --short HEAD — called from self_test :333 and from the banner :535) and it classifies the seat it runs on (:81 uname -s, :106 hostname), the two halves of the conjunction lib/wsl-route.sh refuses. Re-derive with: bash scripts/bench/win/gate-parity.sh -- bash scripts/harness/pi-seat-sync.sh --self-test — in a Windows linked worktree that answers PARITY beside its own git=unavailable NOTE, an agreement between two runs that read no HEAD, so a crossed verdict here is not evidence and the unwrap is the ruling" "pi-seat-sync.sh --self-test (HD-1110: the fan-out driver verdicts, on stubbed seats)" bash scripts/harness/pi-seat-sync.sh --self-test
+face joined; subject scripts/harness/pi-self-update.sh IaC/ansible/group_vars/all/versions.yml; item_x "face joined — spans this checkout and seat state, so it runs NATIVE; a snapshot of the commit would prove neither side. arms sandboxed installers and a canary package name across every probe layout — an installer harness, and it must never touch a real registry. It runs NATIVE because pi-self-update.sh:185 asks which OS the seat is running (a CLASSifier, and the \`--self-test\` fixture narrowing does not un-ask a classifier) while :86 reads the pin file out of this checkout: crossed, the probe would answer about the ENGINE's OS, which is the clause lib/wsl-route.sh's conjunction refuses to wrap — so the unwrap is the fix and the face word follows the derivation, not the other way round. Re-derive: bash scripts/gate/check-leg-contract.sh --faces" "pi-self-update.sh --self-test (HD-1115: BEHIND and AHEAD are both drift)" bash scripts/harness/pi-self-update.sh --self-test
 face tree; item_x "spawns a real tmux per canary to prove the config TAKES EFFECT: where tmux is absent it can print no verdict at all (CONVENTIONS §6), so a pre-commit loop buys only waiting here" "install-tmux-conf.sh --self-test (HD-1085: config == repo AND actually takes effect)" bash scripts/harness/install-tmux-conf.sh --self-test
-face joined; item_x "face joined — spans this checkout and seat state, so it runs NATIVE; a snapshot of the commit would prove neither side. seat deploy state, not a tree check: it converges this host's ~/.tmux.conf, and where tmux is absent it prints SKIP either way" "install-tmux-conf.sh --check --strict (seat tmux drift)" blk_tmux_check
-face joined; item_x "face joined — spans this checkout and seat state, so it runs NATIVE; a snapshot of the commit would prove neither side. seat deploy state, not a tree check: it asks a profile-loaded PowerShell on THIS seat which ssh binary answers (win11 only)" "seat-ssh-build.sh --check --strict (HD-1128: which ssh build a seat shell resolves)" blk_seat_ssh_check
-face seat; item_x "face seat — its subject is seat state, not this checkout, so it runs NATIVE and a snapshot has nothing to grade. seat deploy state, not a tree check: it asks a profile-loaded PowerShell on THIS seat what a bare \`bash\` IS (win11 only; the WSL launcher is not a bash seat)" "seat-bash-build.sh --check --strict (which bash build a seat shell resolves)" blk_seat_bash_check
-face joined; item_x "face joined — spans this checkout and seat state, so it runs NATIVE; a snapshot of the commit would prove neither side. seat deploy state, not a tree check: the pi build against pi_host_npm_version, converged by pi-seat-sync.sh --push where pi is installed" "pi-self-update.sh --check --strict (the pi build vs pi_host_npm_version)" blk_pi_self_check
-face joined; item_x "face joined — spans this checkout and seat state, so it runs NATIVE; a snapshot of the commit would prove neither side. seat deploy state, not a tree check: it reads and can rewrite ~/.pi/agent/settings.json on this host" "pi-settings-config.sh --check --strict (settings.json vs settings-ssot.json)" blk_pi_settings_check
-face seat; item_x "face seat — its subject is seat state, not this checkout, so it runs NATIVE and a snapshot has nothing to grade. seat deploy state, not a tree check: the pi-open-tui footer key in this host's ~/.pi/agent/open-tui.json" "pi-tui-config.sh --check --strict (open-tui.json footer key)" blk_pi_tui_check
-face joined; item_x "face joined — spans this checkout and seat state, so it runs NATIVE; a snapshot of the commit would prove neither side. seat deploy state, not a tree check: the font plane is host state, and on the Windows seat the leg that matters is the .ps1 this item cannot run" "install-nerd-font.sh --check --strict (font dir vs pin)" blk_font_check
+face joined; subject scripts/harness/install-tmux-conf.sh 'pi-agent/tmux/*'; item_x "face joined — spans this checkout and seat state, so it runs NATIVE; a snapshot of the commit would prove neither side. seat deploy state, not a tree check: it converges this host's ~/.tmux.conf, and where tmux is absent it prints SKIP either way" "install-tmux-conf.sh --check --strict (seat tmux drift)" blk_tmux_check
+face joined; subject scripts/harness/seat-ssh-build.sh 'ssh/*' scripts/harness/seed-seat-ssh-config.sh; item_x "face joined — spans this checkout and seat state, so it runs NATIVE; a snapshot of the commit would prove neither side. seat deploy state, not a tree check: it asks a profile-loaded PowerShell on THIS seat which ssh binary answers (win11 only)" "seat-ssh-build.sh --check --strict (HD-1128: which ssh build a seat shell resolves)" blk_seat_ssh_check
+face seat; subject scripts/harness/seat-bash-build.sh; item_x "face seat — its subject is seat state, not this checkout, so it runs NATIVE and a snapshot has nothing to grade. seat deploy state, not a tree check: it asks a profile-loaded PowerShell on THIS seat what a bare \`bash\` IS (win11 only; the WSL launcher is not a bash seat)" "seat-bash-build.sh --check --strict (which bash build a seat shell resolves)" blk_seat_bash_check
+face joined; subject scripts/harness/pi-self-update.sh IaC/ansible/group_vars/all/versions.yml; item_x "face joined — spans this checkout and seat state, so it runs NATIVE; a snapshot of the commit would prove neither side. seat deploy state, not a tree check: the pi build against pi_host_npm_version, converged by pi-seat-sync.sh --push where pi is installed" "pi-self-update.sh --check --strict (the pi build vs pi_host_npm_version)" blk_pi_self_check
+face joined; subject scripts/harness/pi-settings-config.sh pi-agent/settings-ssot.json; item_x "face joined — spans this checkout and seat state, so it runs NATIVE; a snapshot of the commit would prove neither side. seat deploy state, not a tree check: it reads and can rewrite ~/.pi/agent/settings.json on this host" "pi-settings-config.sh --check --strict (settings.json vs settings-ssot.json)" blk_pi_settings_check
+face seat; subject scripts/harness/pi-tui-config.sh; item_x "face seat — its subject is seat state, not this checkout, so it runs NATIVE and a snapshot has nothing to grade. seat deploy state, not a tree check: the pi-open-tui footer key in this host's ~/.pi/agent/open-tui.json" "pi-tui-config.sh --check --strict (open-tui.json footer key)" blk_pi_tui_check
+face joined; subject scripts/harness/install-nerd-font.sh IaC/ansible/group_vars/all/versions.yml; item_x "face joined — spans this checkout and seat state, so it runs NATIVE; a snapshot of the commit would prove neither side. seat deploy state, not a tree check: the font plane is host state, and on the Windows seat the leg that matters is the .ps1 this item cannot run" "install-nerd-font.sh --check --strict (font dir vs pin)" blk_font_check
 face tree; item_x "sixteen end-to-end CLI launches in a temp HOME (the HD-1135 record says so): it re-runs the per-assertion legs for its exit-code contract — a harness self-test, not a tree check" "sync-skills.sh --self-test (HD-254: drift, untracked, artifacts, CRLF/BOM/binary guard)" hl_wsl_route bash scripts/harness/sync-skills.sh --self-test
-face joined; item_x "face joined — spans this checkout and seat state, so it runs NATIVE; a snapshot of the commit would prove neither side. seat deploy state, not a tree check: repo skills/ against this host's ~/.pi/agent/skills, deployed by sync-skills.sh --push" "sync-skills.sh --check --strict (skill drift gate, HD-254)" blk_skills_drift
+face joined; subject scripts/harness/sync-skills.sh 'skills/*'; item_x "face joined — spans this checkout and seat state, so it runs NATIVE; a snapshot of the commit would prove neither side. seat deploy state, not a tree check: repo skills/ against this host's ~/.pi/agent/skills, deployed by sync-skills.sh --push" "sync-skills.sh --check --strict (skill drift gate, HD-254)" blk_skills_drift
 face tree; item_x "a sandboxed fixture over the same 16 arms as its sibling: an extension-harness self-test, not a tree check" "sync-extensions.sh --self-test (HD-254 family: missing fails, extra kept, retired removed)" hl_wsl_route bash scripts/harness/sync-extensions.sh --self-test
-face joined; item_x "face joined — spans this checkout and seat state, so it runs NATIVE; a snapshot of the commit would prove neither side. seat deploy state, not a tree check: repo pi-agent/extensions against this host's deployed extensions" "sync-extensions.sh --check --strict (repo pi-agent/extensions == deployed)" blk_extensions_check
+face joined; subject scripts/harness/sync-extensions.sh 'pi-agent/extensions/*'; item_x "face joined — spans this checkout and seat state, so it runs NATIVE; a snapshot of the commit would prove neither side. seat deploy state, not a tree check: repo pi-agent/extensions against this host's deployed extensions" "sync-extensions.sh --check --strict (repo pi-agent/extensions == deployed)" blk_extensions_check
 
 # lib/ helpers — the root resolvers are the ONE thing every other item silently depends on, so
 # they carry their own proof (HD-1118 Stage 1). The depth arms cannot be exercised by the real
@@ -1849,11 +1951,11 @@ face joined; item_x "face joined — spans this checkout and seat state, so it r
 # what makes Stage 3's folder moves a mechanical sweep instead of a gamble.
 face tree; item_q "lib/repo-root.sh --self-test (HD-1118: the bash root resolves at TWO depths, loud when absent)" bash scripts/lib/repo-root.sh --self-test
 face tree; item_q "lib/repo_root.py --self-test (HD-1118: the python twin + require_corpus + script_path)" "${PY_CMD[@]}" scripts/lib/repo_root.py --self-test
-face seat; item_x "face seat — its subject classifies the seat (hl_seat_here at pi-seat.sh:135), so it runs NATIVE and a snapshot has nothing to grade. not a tree check: lib/pi-seat.sh --self-test classifies THIS box and reads its planes, with the pin() half resolving every real plane with grep|head|sed|tr PER pin — the fork tail HD-1135 still bills as open, so the fork diet owns this leg, not a pre-commit loop" "lib/pi-seat.sh --self-test (HD-1118: a missing pin STOPS the caller; no subshell pin call site may return)" bash scripts/lib/pi-seat.sh --self-test
+face seat; subject scripts/lib/pi-seat.sh scripts/lib/seat-planes.yml IaC/ansible/group_vars/all/versions.yml; item_x "face seat — its subject classifies the seat (hl_seat_here at pi-seat.sh:135), so it runs NATIVE and a snapshot has nothing to grade. not a tree check: lib/pi-seat.sh --self-test classifies THIS box and reads its planes, with the pin() half resolving every real plane with grep|head|sed|tr PER pin — the fork tail HD-1135 still bills as open, so the fork diet owns this leg, not a pre-commit loop" "lib/pi-seat.sh --self-test (HD-1118: a missing pin STOPS the caller; no subshell pin call site may return)" bash scripts/lib/pi-seat.sh --self-test
 # The hybrid route's own witness: it drives a STUB engine, so it grades this seat's decisions rather
 # than the distro installed on it, and it runs in a tenth of a second. It is excluded from quick
 # because it tests the router, not the tree — rerun it when the routing or the seat classes change.
-face joined; item_x "face joined — spans this checkout and seat state, so it runs NATIVE; a snapshot of the commit would prove neither side. a router self-test over a stub engine, not a tree check: rerun it when the routing, the seat classes, or the eligibility rule changes" "lib/wsl-route.sh --self-test (the win11 seat's hybrid route: which legs cross to the Debian engine, and what makes a leg ineligible)" bash scripts/lib/wsl-route.sh --self-test
+face joined; subject scripts/lib/wsl-route.sh scripts/gate/check-leg-contract.sh scripts/gate/leg_contract_boundaries.txt; item_x "face joined — spans this checkout and seat state, so it runs NATIVE; a snapshot of the commit would prove neither side. a router self-test over a stub engine, not a tree check: rerun it when the routing, the seat classes, or the eligibility rule changes" "lib/wsl-route.sh --self-test (the win11 seat's hybrid route: which legs cross to the Debian engine, and what makes a leg ineligible)" bash scripts/lib/wsl-route.sh --self-test
 # The parity half of that route. A crossed leg that loses an arm to a tool the engine lacks, a path it
 # cannot open, or a seat test it early-returns on STILL comes back rc 0 — `hl_wsl_route` passes the far rc
 # straight through, which is exactly why rc alone cannot certify a wrap. `bench/win/gate-parity.sh` runs
@@ -1869,7 +1971,7 @@ face tree; item_x "one argv twice per arm across a stub door plus ONE live-door 
 # The credential rule the vault legs share. Sandboxed: a stub door, a throwaway HOME, synthesised
 # fixture values — it reads no vault and needs no token, and its ratchet arm reads the tree, so it
 # runs NATIVE (a wrapped leg must not read this checkout through a Linux git).
-face joined; item_x "face joined — spans this checkout and seat state, so it runs NATIVE; a snapshot of the commit would prove neither side. ~40 bash spawns plus the ratchet's git grep (measured 11 s on the win11 seat, 1 s on Debian): a self-test of the credential rule, not a tree check — rerun it when the resolution order or a refusal changes" "lib/vault-env.sh --self-test (one credential rule for every vault leg: env → this seat's 0600 install → the Debian engine's install across the WSL door, and the refusals that must never fall back to the desktop app)" bash scripts/lib/vault-env.sh --self-test
+face joined; subject scripts/lib/vault-env.sh scripts/lib/vault_read.py scripts/lib/vault_env.py; item_x "face joined — spans this checkout and seat state, so it runs NATIVE; a snapshot of the commit would prove neither side. ~40 bash spawns plus the ratchet's git grep (measured 11 s on the win11 seat, 1 s on Debian): a self-test of the credential rule, not a tree check — rerun it when the resolution order or a refusal changes" "lib/vault-env.sh --self-test (one credential rule for every vault leg: env → this seat's 0600 install → the Debian engine's install across the WSL door, and the refusals that must never fall back to the desktop app)" bash scripts/lib/vault-env.sh --self-test
 face tree; item_x "~2 bash spawns and a fixture map in a temp dir: the python face is proved without ONE vault read, which is what makes it gradeable on a day the account's request budget is spent" "lib/vault_env.py --self-test (the ID map: read, honored, fallen back from, and shared with the bash face — a name-addressed read costs 3 of an account ceiling of 1000 requests/24 h)" "${PY_CMD[@]}" scripts/lib/vault_env.py --self-test
 # The ONE batched reader (docs/1password.md §What a gate run costs the vault). QUICK and vault-free:
 # fixture route (HL_VAULT_READ_FIXTURE, zero requests) or stubbed routes — the batched SDK arm, the
@@ -1882,7 +1984,7 @@ face tree; item_q "guard-session.sh --self-test (sandboxed guard fixture, HD-253
 # Its self-test arms run a WATCHDOG leg through `ssh` shapes and a fixture target, so the SUBJECT of this
 # registration is not only this checkout: face joined — it runs NATIVE, because a snapshot of the commit
 # has no host to watch and would prove neither side.
-face joined; item_q "guarded-converge.sh --self-test (post-converge liveness verdict, HD-436)" bash scripts/ansible/guarded-converge.sh --self-test
+face joined; subject scripts/ansible/guarded-converge.sh scripts/ansible/restart-watchdog.sh scripts/ansible/ansible-run.sh; item_q "guarded-converge.sh --self-test (post-converge liveness verdict, HD-436)" bash scripts/ansible/guarded-converge.sh --self-test
 face tree; item_x "drives every 1Password refusal state through a fake op binary in a sandbox: a CLI-contract self-test, not a tree check — rerun it when the bootstrap script changes" "git-bootstrap.sh --self-test (each 1Password refusal state says the right thing)" hl_wsl_route bash scripts/git/git-bootstrap.sh --self-test
 # A PROCESS is a token holder too, and no file check sees that class (docs/1password.md §Where a token is
 # installed): `lib/vault-env.sh` resolves env → file → door, so a daemon born before a rotation keeps the
@@ -2120,8 +2222,14 @@ if [ "$LIST" = 1 ]; then
     for i in "${!labels[@]}"; do
       case "${mems[$i]}" in q) _m='*' ;; x) _m='-' ;; *) _m='?' ;; esac
       # The face column is the OTHER decision the same registration line carries — where the leg's SUBJECT
-      # lives — so ONE list answers both questions without a second list.
-      printf '%2d %s %-6s %s\n' "$i" "$_m" "${faces[$i]:-?}" "${labels[$i]}"
+      # lives — so ONE list answers both questions without a second list. A seat/joined row also prints its
+      # `subject` globs: that word is what decides whether a win11 change owes the leg now, and a reader must
+      # be able to see it without opening the registration.
+      case "${faces[$i]:-?}" in
+        seat | joined) _sj="  subject ${subs[$i]:-<NO SUBJECT>}" ;;
+        *)             _sj="" ;;
+      esac
+      printf '%2d %s %-6s %s%s\n' "$i" "$_m" "${faces[$i]:-?}" "${labels[$i]}" "$_sj"
     done
   fi
   exit 0
@@ -2134,6 +2242,7 @@ fi
 # The FACE audit runs on EVERY run rather than only a quick one, because a face selects: an undecided
 # registration would otherwise be graded in whichever half happened to be asked.
 _face_audit
+_subject_audit
 if [ "$PROFILE" = quick ]; then
   _profile_audit
   n_excl_launch=$(( n_items - N_QUICK ))   # derived from the audited counts, not typed
@@ -2157,6 +2266,47 @@ if [ "$FACE" != auto ]; then
     _face_dirty=' · the tree is not clean: this run grades carried edits, not a commit'
   fi
   echo "face: $FACE — $_face_n of $n_items registered item(s) run here, grading ${_face_sha:0:12} ($_face_sub)$_face_dirty" >&2
+fi
+# THE OWED-NOW VERDICT — the second half of the win11 `auto` decision, and the reason the `subject` slot
+# exists: which seat/joined legs THIS change touches, read off the diff (merge-base → HEAD plus the
+# uncommitted paths) against the globs each of them declares. It prints and decides NOTHING; the tree face
+# is what runs, and the seat rows are for the session to act on with one command. An EMPTY owed set is the
+# interesting answer — it is what makes a docs-only commit's gate about a minute instead of eight.
+# A diff that cannot be read AT ALL is a boundary and prints as one, never as "owes nothing": a leg nobody
+# listed is a leg that reads as proven, which is the class this whole axis exists to stop.
+if [ "$DEFER_SEAT" = 1 ]; then
+  _owed_n=0; _owed=""; _diff_n=0
+  _paths="$( { git diff --name-only "$(git merge-base HEAD '@{upstream}' 2>/dev/null || echo HEAD)" HEAD 2>/dev/null
+               git diff --name-only HEAD 2>/dev/null
+               git ls-files --others --exclude-standard 2>/dev/null ; } | LC_ALL=C sort -u )"
+  if git rev-parse --git-dir >/dev/null 2>&1; then
+    _diff_n="$(printf '%s\n' "$_paths" | grep -c . || true)"
+    for _oi in "${!labels[@]}"; do
+      case "${faces[$_oi]}" in seat | joined) ;; *) continue ;; esac
+      _hit=0
+      set -f          # the subject words ARE globs; here they must survive as patterns, not expand to files
+      while IFS= read -r _op; do
+        [ -n "$_op" ] || continue
+        for _og in ${subs[$_oi]}; do
+          # shellcheck disable=SC2254  # the glob is DATA off the registration line, matched on purpose
+          case "$_op" in $_og) _hit=1; break ;; *) ;; esac
+        done
+        [ "$_hit" = 1 ] && break
+      done <<<"$_paths"
+      set +f
+      if [ "$_hit" = 1 ]; then
+        _owed_n=$((_owed_n+1)); _owed="$_owed  - ${labels[$_oi]}"$'\n'
+      fi
+    done
+    if [ "$_owed_n" = 0 ]; then
+      echo "seat face: NOT OWED by this diff — 0 of the seat/joined legs name a path the change touches ($_diff_n path(s) read). This run did not grade them; bash scripts/validate-all.sh --face seat is still the session-close act, and it is the only thing that proves them." >&2
+    else
+      echo "seat face: OWED NOW — $_owed_n seat/joined leg(s) name a path this change touches ($_diff_n path(s) read). This run did NOT grade them (tree face only); run: bash scripts/validate-all.sh --face seat" >&2
+      printf '%s' "$_owed" >&2
+    fi
+  else
+    echo "seat face: CANNOT ANSWER whether this change owes it — the diff could not be read (not a git checkout, or no commit). The rule is NEVER 'owes nothing': run bash scripts/validate-all.sh --face seat at session close." >&2
+  fi
 fi
 _launch_all
 wait

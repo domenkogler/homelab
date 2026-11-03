@@ -315,11 +315,11 @@ not this list, holds the steps, the file ownership and the converge host. Waves,
     The `harness` docs domain is REGISTERED: [prompt-scripts.md](prompt-scripts.md) §The taxonomy call and the hub
     [docs/harness.md](docs/harness.md). **The `lsp-binaries` plane is live on all three seats**
     ([`scripts/harness/seat-lsp-binaries.sh`](scripts/harness/seat-lsp-binaries.sh), set from the
-    `lsp_bin_*` pins, 14 mutations proved against its arms on both Debian seats): it reads win11's
-    Volta image and .NET store and writes neither, so that seat's five MISSING entries and its
-    `DRIFT(invisible)` C# server are owner legs, not lane legs — and the one AI-doable debt
-    is the PATH adopt key, which reads a directory as written and still duplicates an export spelled
-    `$HOME/...` (row HD-1238).
+    `lsp_bin_*` pins, 15 mutations proved against its arms): it reads win11's Volta image and .NET
+    store and writes neither, so that seat's installs are owner legs, not lane legs. Its PATH adopt key
+    reads the RESOLVED directory and the PATH value as a list, and the win11 read asks the `.cmd`
+    spelling by name, so an export an operator already wrote is never duplicated and an installed .NET
+    tool is not called invisible (row HD-1238).
 12. ⏳ **Owner-gated tails** (exact steps in the rows): **HD-377** the Grafana render re-do · **HD-1103 + HD-1167** one Pi
     visit — the boot that makes the fstab `mode=` true, and the one-time re-render of `pi-eth0.nmconnection` that notifies
     `reload NetworkManager` · **HD-06** the UPS drill · **HD-411** the cockpit resume word · **HD-230 · HD-207** the
