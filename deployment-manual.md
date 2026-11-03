@@ -342,6 +342,41 @@ the **public-key string**, not a file path. Why each config line in the script i
 two failure modes (`invalid ssh public key`, WSL networking wedges) — is in
 [deployment-ansible.md](docs/deployment-ansible.md) §Windows/WSL runner host facts.
 
+### 0.4c Windows seat: the language-server binaries + the MCP autostart `[MANUAL — the seat planes write no Windows image and no profile]`
+
+The `lsp-binaries` and `mcp-server` planes **read** this box and write nothing to it — no `~/.local/bin` PATH block,
+no install into another image — so a rebuilt Windows seat gets these acts by hand. Take every version from
+[`IaC/ansible/group_vars/all/versions.yml`](IaC/ansible/group_vars/all/versions.yml) (`lsp_bin_*`), never from this
+page; an unpinned install leaves the seat ahead of its pin (CONVENTIONS §7).
+
+```powershell
+# npm prefix -g is the Volta image this seat's node resolves to — read it, do not hardcode it
+npm i -g "@biomejs/biome@<pin>" "typescript-language-server@<pin>" "typescript@<pin>"
+dotnet tool install --global roslyn-language-server --prerelease
+```
+
+`ruff` and `ty` have no installer this plane can drive on Windows: fetch each
+`*-x86_64-pc-windows-msvc.zip` release asset at its pin, verify it against the published `.sha256`, and unpack the
+binary into `~/.local/bin`.
+
+Keep the tool-server port up across sign-in. `schtasks /Create /SC ONLOGON` answers `Access is denied` unelevated, so
+the carrier is a per-user Startup entry: place `AmazingMCP.vbs` in
+`~\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup\` with its command line pinning
+`--urls http://localhost:7777` — an EMPTY command line binds port **5000** while `--help` advertises 7777, and the
+unit is the thing to read, not the tool's help.
+
+Prove both halves from Git-Bash, after the seat's clone is at the SSOT commit:
+
+```bash
+bash scripts/harness/seat-lsp-binaries.sh --check --strict        # every pinned server at its pin, visible to a session
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:7777/   # 400 — the server answers and rejects a bare GET /
+```
+
+`DRIFT(invisible)` means a server is installed and no interactive shell resolves it: on this seat that is the `.cmd`
+spelling of a .NET global tool, which the plane asks by name, so a persistent one is a PATH question about the
+profile this seat builds — read that before touching the plane
+([docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1).
+
 ### 0.6 Seed the on-site control node (`oldsrv`, HD-407) `[MANUAL — one-time per box]`
 
 Run this from the laptop. The two traps it exists to survive — a dual-stack runner prefers the VPS's
