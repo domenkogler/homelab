@@ -112,7 +112,10 @@ LAN `:443`, VPS edge and tailnet over WG/S2S. Catalog row: `provision-secrets.py
 
 > **Two credentials on one engine.** **`litellm-engine_api`** is the **gateway leg's own credential**: it is
 > rendered as the engine's *second* accepted `--api-key` value and, once step (2) of the switch lands, as
-> `OPENAI_API_KEY` in both LiteLLM containers. Consequences for anyone rotating here:
+> `OPENAI_API_KEY` in both LiteLLM containers. Its presence in the render is not its presence on the engine:
+> an engine booted before the second value was added to the template renders ONE key, so the accepted-key
+> count is a fact to read from the live argv (`--api-key` appears once, followed by N values) and never
+> inferred from the compose file. Consequences for anyone rotating here:
 >
 > * **Both items are in `NOT_AUTO_ROTATABLE`.** The accepted-key list lives in the engine's **argv**, so a
 >   vault-only rotation leaves the running engine accepting the old value while re-rendered consumers hold the
@@ -126,6 +129,19 @@ LAN `:443`, VPS edge and tailnet over WG/S2S. Catalog row: `provision-secrets.py
 >   before the gateway halves are converged.
 > * ⚠ **SGLang accepts ONE key** (`api_key: Optional[str]` in `server_args.py`), so under a fast-sglang profile
 >   this two-credential shape is impossible and the gateway leg must be re-decided before that profile runs.
+
+**The rotation tool for this class.** [`scripts/secrets/rotate-engine-bearers.sh`](../../scripts/secrets/rotate-engine-bearers.sh)
+exists because `provision-secrets.py --rotate` refuses both items by design (`NOT_AUTO_ROTATABLE`) and the
+window steps above were prose. It splits proposing from applying: `--propose` mints into a `0700` dir as a
+`0600` file and prints a title plus a `sha256[:12]`; `--apply` performs the get-json → set-`value`-on-the-
+existing-field-`id` → `edit`-via-pipe round-trip, re-reads, compares hashes, then shreds the file. Two
+defects are folded into it, both measured on op 2.39.0 and both of which make a landed write read as
+unproven: `op item get <id>` refuses without `--vault` (empty stdout, which surfaces downstream as a
+JSONDecodeError), and `op read` emits a trailing newline while a proposal file has none, so the landing
+check must hash the CAPTURED value — through the token that wrote it, because the ambient seat token is
+read-scoped and answers the superseded value as current. A disagreeing re-read stops with the file kept and
+an explicit "converge nothing": an unproven write must not walk into a converge that would make it look
+applied.
 
 **The bearer in git history.** `vllm bench serve` prints its own parsed argv, which includes
 `header=['Authorization=Bearer <key>']`, so stability/bench step logs carried the live bearer into

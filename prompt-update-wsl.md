@@ -1,16 +1,16 @@
 # `prompt-update-wsl.md` — Lane brief · the WSL seat's half of the engine-bearer rotation
 
 > **Rows it carries:** none, and it claims none. It runs the **consumer half** of a rotation the spark
-> seat has already performed; the rows stay owned by the briefs §B0 assigns them to
+> seat has already performed; the rows stay owned by the briefs [todo-table.md](todo-table.md) §B0 assigns them to
 > ([`prompt-litellm-consumers.md`](prompt-litellm-consumers.md) · [`prompt-secrets.md`](prompt-secrets.md)
 > · [`prompt-spark-llm.md`](prompt-spark-llm.md)). No row is minted, no ownership moves here — this file
 > dies with its lane (O7).
 > **Role:** the runbook for what may run only from **this** seat, after the spark seat has rotated
 > `spark-llm-api` and `litellm-engine_api` and converged the engine. Every act below names its own
 > proof; a box ticked without its proof is not a box.
-> **Linked from:** [`prompt.md`](prompt.md) §2 (the handoff family) — not from `todo-table.md` §B0,
-> because a §B0 cell would claim a row that already has an owner.
-> **Seat contract:** [`prompt-laptop-wsl.md`](prompt-laptop-wsl.md) §0–§1 — this is that seat, and that
+> **Linked from:** [`prompt.md`](prompt.md) §2 (the handoff family) — not from a `todo-table.md` cell,
+> because a `todo-table.md` lane-map cell would claim a row that already has an owner.
+> **Seat contract:** [`prompt-laptop-wsl.md`](prompt-laptop-wsl.md) (its §0 pre-flight and its seat facts) — this is that seat, and that
 > file's pre-flight runs **first**. Dies with the lane (O7).
 
 ---
@@ -89,7 +89,7 @@ for hc in "vps litellm" "oldsrv lan-litellm"; do set -- $hc
   printf '%-8s %-14s %s\n' "$1" "$2" "$([ "$(h "$got")" = "$want" ] && echo MATCH || echo MISMATCH)"; done
 ```
 
-⚠ **Known blocker on `oldsrv`:** `docs/hardware-spark.md` §status records that the LAN LiteLLM
+⚠ **Known blocker on `oldsrv`:** the status block of [`docs/hardware-spark.md`](docs/hardware-spark.md) records that the LAN LiteLLM
 bootstrap-key glue aborts `rc2` on a stale `dsh` secret, so **every `lan-litellm` converge is red until
 it is remediated**. If that hits, park with the exact blocked action (O4) — do not "fix" it by editing a
 vault value, and do not converge oldsrv twice in a row to see if it clears.
