@@ -114,9 +114,16 @@ row authenticates with the **engine** key directly (`llm.ts.kogler.si` proxies s
 
 ```bash
 # regenerate every seat's render; a missed seat silently loses its spark lane.
-bash scripts/harness/render-pi-config.py            # then read the diff, never cat the file
-# prove it: a real request through the spark lane, on THIS seat
-pi --provider spark -m spark/qwen3.8-flash-next -p 'reply with the single word ok'
+# ⚠ `python3`, not `bash` — the file is Python (`#!/usr/bin/env python3`), and run under bash its
+# docstring's first line becomes the shell word `import`, which on this box IS ImageMagick's
+# screen-grab binary and blocks forever on an X11 selection. `--check` first, then write.
+python3 scripts/harness/render-pi-config.py --check     # expect exactly one DRIFT before, zero after
+python3 scripts/harness/render-pi-config.py             # then read the diff, never cat the file
+# prove it: a real request through the spark lane, on THIS seat.
+# ⚠ `--model`, not `-m` — this pi build has no `-m` short flag (`Unknown option: -m`).
+# ⚠ The seat renders `spark-llm_api`, NOT `litellm-engine_api`: the direct lane authenticates at the
+# engine itself, and the two hops carry different credentials on purpose (HD-384).
+pi --provider spark --model spark/qwen3.8-flash-next -p 'reply with the single word ok'
 ```
 
 ⛔ A missed seat is a silent loss, not an error — the gateway path may still answer while the direct
