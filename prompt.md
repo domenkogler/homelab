@@ -128,6 +128,13 @@ boundary. The parity harness ([`scripts/bench/win/gate-parity.sh`](scripts/bench
 crossing: a run whose engine side never crossed answers rc 2. Attach the run's own `ms/exec` line to every timing and read
 older figures against the host-cost note in that doc.
 
+**MCP-config brief:** [prompt-mcp.md](prompt-mcp.md) — the seat's `~/.pi/agent/mcp.json`, the one harness artifact no
+plane reads: measure what each seat actually holds, build the plane shape the registry already expects, and put the
+fleet-vs-`localhost` question to the owner instead of shipping both entries. It carries **HD-1238**'s open half; the
+row's `lsp-binaries` and win11-carrier legs are state in the row and in
+[docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1 — do not re-open them. ⛔ a `url` entry is connected, never
+launched, so the drift read is the port and not the file.
+
 **Window brief (not a wave):** [prompt-update.md](prompt-update.md) — the fleet pin bump + host-package window: phases
 0–8 driven from the runner station, the secret rotations scheduled into it, no rows carried, and it dies with the window.
 

@@ -18,6 +18,6 @@
 #
 # Re-derive the body after a trim lands — at the merge station, never inside a lane:
 #     python3 scripts/gate/check_handoff_size.py --reseal
-baseline_bytes 46855
-baseline_lines 424
-sealed_at 303d9167d9dff7cc105125a80cc456c413c07c0e
+baseline_bytes 47951
+baseline_lines 437
+sealed_at 6609c73d41d1979684f7e8f592370442ae87a62e
