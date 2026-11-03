@@ -89,10 +89,17 @@ for hc in "vps litellm" "oldsrv lan-litellm"; do set -- $hc
   printf '%-8s %-14s %s\n' "$1" "$2" "$([ "$(h "$got")" = "$want" ] && echo MATCH || echo MISMATCH)"; done
 ```
 
-⚠ **Known blocker on `oldsrv`:** the status block of [`docs/hardware-spark.md`](docs/hardware-spark.md) records that the LAN LiteLLM
-bootstrap-key glue aborts `rc2` on a stale `dsh` secret, so **every `lan-litellm` converge is red until
-it is remediated**. If that hits, park with the exact blocked action (O4) — do not "fix" it by editing a
-vault value, and do not converge oldsrv twice in a row to see if it clears.
+⚠ **The old `dsh` blocker is retired — the real hazard on `oldsrv` is the tag filter.** The LAN LiteLLM
+bootstrap-key glue no longer aborts on a stale `dsh` secret: those records are commented out of
+`litellm_scoped_keys` in [`IaC/ansible/group_vars/home_servers.yml`](IaC/ansible/group_vars/home_servers.yml) and
+the `dsh_api` / `dsh_forgejo_api` / `tailscale_dsh_api` items are gone from the vault, so nothing probes them.
+What **is** live: `playbooks/home_servers.yml` declares `- docker_services` with NO role-level `tags:`, so
+`--tags docker_services` includes `deploy-service.yml` for every service and runs NONE of its tasks — the
+converge exits with a clean RECAP having deployed nothing. Use the tag union, `--tags
+"docker_services,lan-litellm"`. Also expect one **pre-existing** red on both hosts that is not this lane's:
+`Technitium: read what the zone holds for each retired name` (`tasks/technitium-seed.yml`, HD-1152) aborts the play
+**after** the deploy loop, so a `failed=1` RECAP still means the re-render landed — prove it by hash, never by
+the RECAP.
 
 ⚠ **Do not flip both gateways to the new key in one go if you cannot prove the engine first.** The
 inverted order 401s every upstream call: gateways holding a key the running engine never accepted.

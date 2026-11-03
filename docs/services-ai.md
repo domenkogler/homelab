@@ -382,36 +382,68 @@ Model rows live in the LiteLLM **DB**, never in git (decision #13). Create them 
 'op://Homelab-ansible/litellm_api/credential'` into a variable, never echo it). The pinned-AI rows below are
 on **`lan-litellm`** (oldsrv); `spark/qwen3.8-flash-next` exists on **both** instances.
 
-Current row ids (the handle for a later delete/replay): `local-rerank`
-`08f7e525-6a7b-4258-b940-54e23433a47a` · `bge-m3-vk` `ac74a51f-ab6b-4eaa-a0c2-88cdb4ce40b6` · `local-stt`
-`4a47bb86-39bc-412b-a46d-1a6a692a779d`.
+Current row ids (the handle for a later delete/replay): `spark/qwen3.8-flash-next`
+`4f8783fd-f423-41d8-90c0-b94bae051c88` (vps, one row) / `13e679ba-1ed3-4265-87fc-6fe58ca675fc` (oldsrv) ·
+`local-rerank` `0bbce803-37cc-4f2c-9bdd-a5ab3382e199` · `local-stt` `c7e3bc9c-2bc3-4b68-87b9-c8a2c024eb6e` · `bge-m3-vk`
+`8a89cd15-21c5-4f99-83e0-10679b91d574`. Ids are per-instance and change on every re-create, so treat them as a
+snapshot: enumerate with `/model/info` before deleting anything. The spark row's `model` is
+**`openai/spark/qwen3.8-flash-next`** — the provider prefix, then the id the engine actually serves
+(`qwen3.8-flash-next` alone 404s at the engine: `--served-model-name` is the `spark/`-prefixed id).
 
 ```bash
-# from the oldsrv shell (lan-litellm is on the same compose host, no publish needed)
-K=$(op read 'op://Homelab-ansible/litellm_api/credential')   # master key; never echo $K
+# There is NO published management port and NEITHER image ships `curl` (measured: `exec: "curl": executable
+# file not found`) — so a `curl` from the host or from inside the container is the wrong instrument. Reach the
+# admin API from inside the container with urllib, reading the master key from the container's OWN env so the
+# value never enters argv or a transcript.
+ssh oldsrv 'docker exec -i lan-litellm python3 -' <<'PY'
+import json, os, urllib.request
+req = urllib.request.Request("http://127.0.0.1:4000/model/new",
+    data=json.dumps({"model_name": "local-rerank",
+                     "litellm_params": {"model": "jina_ai/bge-reranker-v2-m3",
+                                        "api_base": "http://reranker:9001", "api_key": "sk-none"}}).encode(),
+    method="POST")
+req.add_header("Authorization", "Bearer " + os.environ["LITELLM_MASTER_KEY"])
+req.add_header("Content-Type", "application/json")
+print(urllib.request.urlopen(req, timeout=60).status)
+PY
 
-# 1. RERANK — provider jina_ai/, LITERAL api_base (DB rows do not expand os.environ/, §9c).
+# 1. SPARK ROW — `openai/<served id>`. NO api_key: the bearer arrives from the container's
+#    OPENAI_API_KEY env (the openai/-provider fallback), because a DB param does not expand os.environ/ (§9c).
+#    base_url is the name edge for BOTH instances, https (spark's :80 is redirect-only, and the OpenAI SDK
+#    does not follow a 307 on POST). Two windows, deliberately different: max_input_tokens is the per-request
+#    servable window MINUS the reply reserve, max_output_tokens is the reply.
+#      {"model_name": "spark/qwen3.8-flash-next",
+#       "litellm_params": {"model": "openai/spark/qwen3.8-flash-next",
+#                          "api_base": "https://llm.kogler.si/v1",
+#                          "max_input_tokens": 245760, "max_output_tokens": 16384}}
+
+# 2. RERANK — provider jina_ai/, LITERAL api_base (DB rows do not expand os.environ/, §9c).
 #    jina_ai's get_complete_url REPLACES the path with /v1/rerank → api_base carries NO path.
-curl -s -H "Authorization: Bearer $K" -H content-type:application/json \
-  -d '{"model_name":"local-rerank","litellm_params":{"model":"jina_ai/bge-reranker-v2-m3","api_base":"http://reranker:9001","api_key":"sk-none"}}' \
-  http://localhost:4000/model/new
+#      {"model_name": "local-rerank",
+#       "litellm_params": {"model": "jina_ai/bge-reranker-v2-m3",
+#                          "api_base": "http://reranker:9001", "api_key": "sk-none"}}
 
-# 2. EMBED — llama.cpp serves OpenAI-shaped /v1/embeddings; here api_base DOES carry /v1.
+# 3. EMBED — llama.cpp serves OpenAI-shaped /v1/embeddings; here api_base DOES carry /v1.
 #    ⚠ provider = hosted_vllm/, NOT openai/ (openai forwards encoding_format:null → llama.cpp 500, §3a-3).
-curl -s -H "Authorization: Bearer $K" -H content-type:application/json \
-  -d '{"model_name":"bge-m3-vk","litellm_params":{"model":"hosted_vllm/bge-m3","api_base":"http://embed:9002/v1","api_key":"sk-none"}}' \
-  http://localhost:4000/model/new
+#      {"model_name": "bge-m3-vk",
+#       "litellm_params": {"model": "hosted_vllm/bge-m3",
+#                          "api_base": "http://embed:9002/v1", "api_key": "sk-none"}}
 
-# 3. STT — whisper-server serves the OpenAI path natively (--inference-path), no wrapper.
-curl -s -H "Authorization: Bearer $K" -H content-type:application/json \
-  -d '{"model_name":"local-stt","litellm_params":{"model":"openai/whisper-1","api_base":"http://whisper:9000/v1","api_key":"sk-none"}}' \
-  http://localhost:4000/model/new
+# 4. STT — whisper-server serves the OpenAI path natively (--inference-path), no wrapper.
+#      {"model_name": "local-stt",
+#       "litellm_params": {"model": "openai/whisper-1",
+#                          "api_base": "http://whisper:9000/v1", "api_key": "sk-none"}}
+
+# BOTH local legs and the spark row resolve their upstream by CONTAINER NAME on `llm-backend`
+# (`reranker`, `embed`, `whisper` — measured, all three resolvable from inside `lan-litellm`).
 ```
 
 **Rules for this table:**
-- **`lan-litellm` has no `curl`** — drive its API from the host against its `llm-backend` container address
-  (`docker inspect` for the IP), or from any container shipping a client. Never write the bridge IP into a
-  doc: it moves.
+- **Neither LiteLLM image ships `curl`, and NEITHER instance publishes a management port** — the admin API is
+  `docker exec`-only. Reach it with the image's own `python3` and `urllib` against `127.0.0.1:4000`, reading
+  `LITELLM_MASTER_KEY` from the container's env **in-process**: that keeps the value out of argv, out of the
+  host, and out of the transcript. A `curl` attempt from the host fails on the closed port and one from inside
+  the container fails on the missing binary — both are instrument faults, not gateway faults.
 - **Admin endpoints (measured on the pre-v1.104.0 build, not on the current `litellm_version` pin — re-verify
   them there before trusting one):** `/model/list` is **not** usable with the master key (it answers
   `{"detail": …}`) — **`/model/info`** is the one that enumerates rows; and **`/model/delete` takes
@@ -442,6 +474,26 @@ curl -s -H "Authorization: Bearer $K" -H content-type:application/json \
 - **Two traps:** a `--check --diff` on a LiteLLM converge renders **live keys into the log**; and a green
   **scoped** converge (`-e docker_services_scope=… --tags docker_services`) can **skip** the named service
   and still print `failed=0` — prove a deploy with `docker inspect` / the rendered file, never the RECAP.
+- **⚠ The same trap in the TAG dimension, and on `home_servers.yml` it is total.** `playbooks/vps.yml` declares
+  `- role: docker_services` **with `tags: [docker_services]`**, and a role-level tag is inherited by every task
+  inside the role — so `--tags docker_services` matches `deploy-service.yml`'s children too. `playbooks/home_servers.yml`
+  declares the role **bare, with no `tags:`**, so only the include lines in `roles/docker_services/tasks/main.yml`
+  (which carry `tags: docker_services`) match; the included children carry **only** `tags: "{{ svc.name }}"` and
+  every one is filtered out. Measured: `ansible-run.sh playbooks/home_servers.yml --limit oldsrv.kogler.si --tags
+  docker_services` **included** `deploy-service.yml` 34 times and ran **zero** of its tasks (`Create directory`
+  count 0, `Docker compose` 0, `changed=0`) while printing a clean RECAP. **The working form is the union:**
+  `--tags "docker_services,<svc.name>"` (e.g. `--tags "docker_services,lan-litellm"`), which selects the includes
+  and that service's children and leaves every other service's children filtered. `tasks/deploy-service.yml:6-8`
+  states the union semantics; the two playbooks simply differ on whether the role tag is there to widen it.
+- **⚠ A rotated `LITELLM_MASTER_KEY` orphans every stored model row** — `get_salt_key()` falls back to the live
+  `master_key` when `LITELLM_SALT_KEY` is unset (it is unset on both instances), so the at-rest key for
+  `litellm_params` tracks the master. The symptom is silent: `/v1/models` answers `{"data":[]}`, `/model/info`
+  answers an empty catalog, and every call returns 400 `LLM Provider NOT provided. You passed model=<ciphertext>`
+  while the rows still sit in `LiteLLM_ProxyModelTable`. **Re-create the rows by id, not by re-POSTing:** with the
+  catalog unlistable, `POST /model/new` creates a **TWIN** for each name rather than updating in place — delete
+  the stale row by its `model_id` first, then create. Read the catalog back with `/model/info` and prove it with a
+  real chat/rerank/embedding 200, never with the converge RECAP. Mechanism + the `LITELLM_SALT_KEY` choice:
+  [deployment-ai-stack-secrets.md](deployment-ai-stack-secrets.md) §4a.
 - **Path composition (verified live):** LiteLLM appends `/embeddings` and `/audio/transcriptions` to the
   `api_base` it is given, so the `/v1` suffix belongs on the embed and STT rows and must **not** appear on
   the rerank row (jina_ai discards any path and posts to `/v1/rerank`).

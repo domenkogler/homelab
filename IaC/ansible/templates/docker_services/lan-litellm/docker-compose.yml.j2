@@ -22,7 +22,7 @@
 #   enters the Kopia-backed lan-litellm-db — `api_key: os.environ/…` in a DB param is NOT expanded
 #   by this LiteLLM version. That item is this GATEWAY leg's own credential, not the harness key:
 #   the engine accepts both, and keeping them apart is what ends `spark-llm_api`'s triple use
-#   (HD-384). Seats and coding harnesses reach the engine directly with `spark-llm_api`.
+#   Seats and coding harnesses reach the engine directly with `spark-llm_api`.
 #   Resolution: `extra_hosts` glue below — oldsrv's host resolv.conf is
 #   public-only (WAN-out survival by design) and /etc/hosts is NOT inherited by containers, so a
 #   container cannot resolve home-split names itself. Management API stays docker-exec-only.

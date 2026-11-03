@@ -29,7 +29,7 @@
 #   `OPENAI_API_KEY` (the openai/-provider credential), so the DB model row carries NO key and
 #   the bearer never lands in the Kopia-backed Postgres backup (CONVENTIONS §secrets). This is
 #   the GATEWAY leg's OWN credential, not a copy of the harness key: the engine accepts both,
-#   which is what ends `spark-llm_api`'s triple use (HD-384). The direct lane (the coding
+#   which is what ends `spark-llm_api`'s triple use. The direct lane (the coding
 #   harnesses and every seat's `models.json`) still authenticates with `spark-llm_api` at
 #   `llm.kogler.si` — two hops, two credentials, deliberately not unified.
 #   `api_key: os.environ/SPARK_LLM_API` in the DB entry does NOT work:

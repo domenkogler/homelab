@@ -89,9 +89,9 @@ After items exist, confirm each compose renders (the fail-loud guard passes) and
 > | Holder | What it is | Verified |
 > |---|---|---|
 > | spark engine `--api-key` | **the authority** — vLLM's own argv, rendered from `spark-ai` compose. `--api-key` is `nargs='+'`, so the engine holds a **list of two accepted keys**: `spark-llm_api` first, then `litellm-engine_api` | argv hash == vault (first position) |
-> | VPS `litellm` `OPENAI_API_KEY` | what LiteLLM sends **upstream** to spark | env hash == vault |
-> | oldsrv `lan-litellm` `OPENAI_API_KEY` | same, LAN leg | host was down |
-> | laptop `models.json → providers.spark.apiKey` | **a second copy of the engine key, not a LiteLLM key.** `baseUrl` is `https://llm.ts.kogler.si/v1`, and `traefik-tailnet/dynamic/routes.yml.j2:365` routes that host straight to spark's own edge: *"auth is the ENGINE's `--api-key` … not a middleware"* | 200 at `llm.ts`, and a real completion came back |
+> | VPS `litellm` `OPENAI_API_KEY` | what LiteLLM sends **upstream** to spark — now `litellm-engine_api`, the gateway leg's OWN credential | env hash == `litellm-engine_api` |
+> | oldsrv `lan-litellm` `OPENAI_API_KEY` | same, LAN leg — same item | env hash == `litellm-engine_api` |
+> | every pi seat `models.json → providers.spark.apiKey` | **a copy of the HARNESS key, not the gateway's.** The seat's `baseUrl` is `https://llm.kogler.si/v1`, and `traefik-tailnet/dynamic/routes.yml.j2:365` routes that host straight to spark's own edge: *"auth is the ENGINE's `--api-key` … not a middleware"* — so this hop authenticates with `spark-llm_api` and is deliberately NOT switched to `litellm-engine_api` | render hash == `spark-llm_api`; `pi --provider spark` answered |
 >
 > `op_api`'s live holder is the **control node** `op` CLI (`scripts/ansible/bootstrap-runner.sh`); it is re-seeded on
 > a rotation day.
@@ -185,16 +185,42 @@ OP_SERVICE_ACCOUNT_TOKEN="$(op read 'op://Homelab-ansible/op-write_api/credentia
 #    the deploy loop SKIPS the named service: the new key never reaches compose/argv, so a green
 #    scoped converge is not evidence anything landed. Full converges are the proven path.
 #    Proof of landing = the engine's own argv hash equals the vault value, nothing weaker.
-# 3. LAPTOP, outside Ansible: ~/.pi/agent/models.json → providers.spark.apiKey  (a SECOND COPY OF
-#    THE ENGINE KEY — llm.ts authenticates with it directly; write it only after the engine
-#    re-renders, or this harness's spark lane silently 401s).
+# 3. SEATS, outside Ansible: ~/.pi/agent/models.json → providers.spark.apiKey  (a COPY OF THE HARNESS
+#    KEY `spark-llm_api`, not the gateway's — the seat's baseUrl reaches the engine's own edge directly;
+#    write it only after the engine re-renders, or this harness's spark lane silently 401s.
+#    `python3 scripts/harness/render-pi-config.py` writes it on every seat; read the diff, then
+#    `--check` must print no DRIFT.
 # 4. VERIFY BOTH DIRECTIONS — rotation is only proven by the negative test:
-#    new bearer → 200 at engine :8000 AND at https://llm.ts.kogler.si/v1/models
+#    new bearer → 200 at engine :8000 AND at the name edge's /v1/models
 #    OLD bearer → 401 at BOTH (a 200 anywhere means the converge did not land)
 #    ⚠ Do NOT wait on /health to decide the re-render happened: the engine answers 200 for the
 #    whole window BEFORE its container is recreated, so a health-only wait returns instantly and
 #    then verifies against the OLD key while the converges are still running. Gate on argv.
 ```
+
+> **The gateway leg and the direct leg carry DIFFERENT credentials, by design.** The two LiteLLM
+> instances render `OPENAI_API_KEY` from **`litellm-engine_api`**; every seat and coding harness keeps
+> **`spark-llm_api`**. The engine accepts both (`--api-key` is `nargs='+'`), which is what retires
+> `spark-llm_api`'s triple use. Do NOT "harmonise" the two — pointing a seat at the gateway credential
+> breaks nothing today only because the engine happens to accept it too, and it puts a gateway secret on a
+> laptop. The proof pair is two hashes against two different items: `docker inspect` on each container
+> must equal `litellm-engine_api`, and `render-pi-config.py --check` must equal `spark-llm_api`.
+>
+> **⚠ Rotating `litellm_api` orphans every stored model row, and a silent `{"data":[]}` is the symptom.**
+> `get_salt_key()` (`litellm/proxy/common_utils/encrypt_decrypt_utils.py`) returns
+> `os.getenv("LITELLM_SALT_KEY")` and falls back to the live **`master_key`** when that is unset — and it
+> is unset on both instances. So the at-rest key for `litellm_params` IS `LITELLM_MASTER_KEY`: rotating it
+> makes every previously written `model` / `api_base` / `api_key` ciphertext undecryptable, and nothing kept
+> the superseded master value. Measured consequence: `GET /v1/models` answers `{"data":[]}` and
+> `/model/info` answers an EMPTY catalog while the rows still sit in `LiteLLM_ProxyModelTable`, and every
+> `/chat/completions`, `/v1/rerank` and `/v1/embeddings` returns 400
+> `LLM Provider NOT provided. You passed model=<ciphertext>` — the proxy is reading the ciphertext as the
+> provider name. `decrypt_value_helper(value=<stored>, key="model")` returns `None`, which is the one-line
+> test that names it. **The rows are unrecoverable; rewrite them** (see §4a of
+> [services-ai.md](services-ai.md) for the current row coordinates). ⚠ `POST /model/new` will NOT update them
+> in place when the catalog cannot be listed: it creates a TWIN for each name, so delete the stale row by
+> id first. Either set `LITELLM_SALT_KEY` once so the at-rest key stops tracking the master, or treat the row
+> rewrite as part of the rotation — an owner decision, not a lane's.
 
 - **`litellm_api`** is admin/bootstrap-only: consumers hold SCOPED virtual keys instead. Rotating it breaks only the admin UI + bootstrap glue (re-run after rotation); consumer keys are independent — rotate/revoke per-key in the Admin UI, then update the matching 1P item (or clear it and let the glue re-mint).
 - **Scoped keys** are hashed at rest server-side: a lost/rotated key can NEVER be re-read. Remediation = delete server key by alias + clear the item's credential field + re-run the glue (it re-mints create-if-absent).
