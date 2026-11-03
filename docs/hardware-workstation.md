@@ -285,8 +285,12 @@ shape Continue actually sends infills correctly (so Qwen's card is TRUE for that
 **FIM trigger latency is measured and over budget** at every real prompt size (§Leg 1), which is what
 keeps `fim-coder-3b` uncertified. Still open, and the gate is what keeps them open: `:1234` LAN
 exposure is an **owner decision that is still outstanding** (no firewall rule is added as a side
-effect), and the client render is verified only by `probe-client` while 1Password is signed out —
-`render-pi-config.py --check` needs `op`, which is a human step.
+effect). The client contract has two drift checks here and neither is a human step:
+`render-pi-config.py --vendor pi --host Domen_P14s --check`, whose credential arrives from the Debian
+engine's `0600` install across the WSL door (`scripts/lib/vault-env.sh` step 3 →
+`route=door:Debian`, [1password.md](1password.md) §Reading the vault from the Win11 seat — this seat
+installs no token of its own), and `probe-client`, the residency half. Only the second says which leg
+is loaded, because this endpoint does not police the `model` field.
 
 **Client contract — and the seat it is addressed to:** local models are
 served to **pi.dev running ON Win11**. `providers.laptop-lmstudio` in
