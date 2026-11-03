@@ -300,7 +300,7 @@ not this list, holds the steps, the file ownership and the converge host. Waves,
 10. ⏳ **The Win11 seat's serving legs** — **HD-474** FIM latency: the vision leg's declared 32k budget is exercised and
     closed, and Continue's tab path sits against its own 150–400 ms budget, so the owner decides whether the shipped prompt
     comes down or the leg stays out. The laptop's local **agent** leg is retired and the brief claims no converge host,
-    which is why it can run beside anything except a live pi-seat lane. → [prompt-laptop-legs.md](prompt-laptop-legs.md)
+    which is why it can run beside anything except a live pi-seat lane. → [prompt-win11.md](prompt-win11.md)
 11. ⏳ **The `scripts/` tree and the seat legs it still owes** — the tree is `lib/ gate/ ansible/ secrets/ git/ harness/
     bench/ hardware/ testdata/` with `validate-all.sh` + `render_all.py` at the root, root resolution is structural, and
     `gate/check_script_layout.py` holds it from inside `validate-all.sh`. ⏳ The legs: `pi-seat-sync.sh --check` on each

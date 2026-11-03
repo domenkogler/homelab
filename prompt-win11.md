@@ -1,8 +1,8 @@
-# `prompt-laptop-legs.md` — Lane brief · the Win11 seat: FIM + vision, nothing else
+# `prompt-win11.md` — Lane brief · the Win11 seat: FIM + vision, nothing else
 
-> **Role:** dispatch note for **one** lane session on the laptop's serving legs. **The rows are the authority** for what is
-> missing and how to do it — this file carries the contract, the order of work and the traps, nothing else:
-> [todo.md](todo.md) **HD-474** (row ids as of `16177f19` — re-derive with `grep -c "^| HD-<id> " todo.md` before
+> **Role:** dispatch note for **one** lane session on the **Win11 seat's** serving legs. **The rows are the authority** for
+> what is missing and how to do it — this file carries the contract, the order of work and the traps, nothing else:
+> [todo.md](todo.md) **HD-474** (row ids as of `04a9234f` — re-derive with `grep -c "^| HD-<id> " todo.md` before
 > quoting one).
 > **Linked from:** [todo-table.md](todo-table.md) §B0 · [todo.md](todo.md)
 
@@ -24,7 +24,8 @@ ruling and its measurements are in [docs/hardware-workstation.md](docs/hardware-
 is logged in [docs/services-ai-rejected.md](docs/services-ai-rejected.md) — do not restate or re-decide it here.
 
 **Read first:** [docs/hardware-workstation.md](docs/hardware-workstation.md) §Served leg ·
-[docs/services-ai.md](docs/services-ai.md) #28 · [docs/services-ai-rejected.md](docs/services-ai-rejected.md) →
+[docs/services-ai.md](docs/services-ai.md) #28 · [docs/services-ai-rejected.md](docs/services-ai-rejected.md) ·
+[docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1 (which shell and which interpreter answer on this box) →
 `scripts/bench/laptop/profiles.yml` (the dial) → [reports/hd474-laptop-leg/](reports/hd474-laptop-leg/README.md) for the raw
 measurements behind the numbers you will re-take.
 
@@ -33,6 +34,34 @@ measurements behind the numbers you will re-take.
 | # | Row | Do | Gate / trap |
 |---|-----|----|-------------|
 | 1 | **HD-474** | Two owner hands **on the Win11 seat**, in order: (1) `op signin`, then `python scripts\harness\render-pi-config.py --vendor pi --host Domen_P14s --check` — the render must carry exactly the vision + FIM rows and **no agent row**; (2) `powershell -File scripts\bench\laptop\win\lmstudio-llm.ps1 switch -Profile vision-qwen3vl-30b`, then `python scripts\bench\laptop-llm.py probe-client` | `probe-client` must **PASS, not SKIP** — a SKIP run taken from oldsrv is correct and proves nothing, and the same SKIP comes from a Windows interpreter run with a WSL working directory, so quote the interpreter and the cwd beside the verdict. Its residency half is load-bearing because the endpoint does **not** police the `model` field: with one leg resident, a request naming the other leg is answered by the resident one, so a stale row is silent, not loud. ⚠ Hostnames canonicalise (`Domen_P14s` == `domenp14s`). The FIM leg's **trigger latency** is measured and sits outside Continue's 150–400 ms budget above ~300–450 prompt tokens (`raw/100-fim-latency.txt`); what the row still owes is the owner's call on how much context the tab ships, not another measurement — `probe-fim` resolves the leg by its `insert` capability, not by the dial's name, and `probe-speed --ttft --prompt-file <real prose>` is the shape that measures it. While the call is open `fim-coder-3b` stays `certified: false` and the dial keeps `allow_uncertified: true` for that reason and no other |
+
+## Legs only this seat can run
+
+**This brief claims legs, not rows.** The ids below are **citations** to rows other briefs own — the map is
+[todo-table.md](todo-table.md) §B0 — and they are listed here because each leg's **subject is this host**, so no other
+box can produce its verdict: from inside WSL the seat driver names only `wsl` and `oldsrv`
+([prompt-laptop-wsl.md](prompt-laptop-wsl.md) §1), which is why a Win11 plane reads uncertified from the runner station.
+Re-derive the list at your own `HEAD`; never carry it over:
+
+```bash
+awk -F'|' '/^\| HD-/ && tolower($0) ~ /win11|windows seat/ {print $2}' todo.md   # rows whose prose names this box
+bash scripts/harness/pi-seat-sync.sh --seat win11 --check                        # this box's own plane verdicts
+```
+
+| Row | The part that needs a hand on THIS box |
+|---|---|
+| [HD-474](todo.md) | this brief's own row: the two owner hands in the Order-of-work table above — `op signin`, the render `--check`, `probe-client` |
+| [HD-1110](todo.md) | the seat's own `pi-seat-sync.sh --seat win11 --check` read, typed here; the row's `pi_auth`-drift half is repo work and is not this leg |
+| [HD-1118](todo.md) | leg (c): `install-tmux-conf.sh --check --strict` on this seat, where the tmux-less answer is a named SKIP and never a pass |
+| [HD-1180](todo.md) | this seat's own `async: true` launch that yields a child session file — the only thing that certifies the delegation plane here, and an owner hand, not a repo act |
+| [HD-1238](todo.md) | the `lsp-binaries` read of this seat's own carriers (the Volta image its `node` resolves, the .NET tool store) and the Startup entry that carries the MCP server here |
+| [HD-1123](todo.md) · [HD-443](todo.md) | this box's `~/.ssh` retirement steps, typed in a Win11 session — [docs/network-vpn.md](docs/network-vpn.md) §The Win11 `~/.ssh` retirement list |
+| [HD-1135](todo.md) · [HD-1137](todo.md) | the fork-price numbers that exist nowhere else: the interleaved A/B, and `validate-all.sh --time` / `--profile quick` run here |
+| [HD-1239](todo.md) | the CRLF re-derive of the handoff seal: a `--reseal` writes the seat's own line ending, so only a Windows seat proves the guard sees it |
+
+⛔ A leg that belongs to a **Debian** seat is not this box's work, and a green here says nothing about one: the seat
+face prints `SKIP` for the legs it cannot prove, and `PARTIAL` is the honest word for this seat's whole-tree verdict
+([docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1).
 
 ## ⛔ Traps that cost a round
 

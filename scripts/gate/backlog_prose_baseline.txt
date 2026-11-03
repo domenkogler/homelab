@@ -34,10 +34,10 @@ FIND	prompt-external.md/evidence	1
 FIND	prompt-external.md/glyph	0
 FIND	prompt-external.md/phrase	0
 FIND	prompt-external.md/verb-date	0
-FIND	prompt-laptop-legs.md/evidence	2
-FIND	prompt-laptop-legs.md/glyph	0
-FIND	prompt-laptop-legs.md/phrase	0
-FIND	prompt-laptop-legs.md/verb-date	0
+FIND	prompt-win11.md/evidence	2
+FIND	prompt-win11.md/glyph	0
+FIND	prompt-win11.md/phrase	0
+FIND	prompt-win11.md/verb-date	0
 FIND	prompt-laptop-wsl.md/evidence	1
 FIND	prompt-laptop-wsl.md/glyph	0
 FIND	prompt-laptop-wsl.md/phrase	1
@@ -271,7 +271,7 @@ BRIEF	prompt-dns-transport.md	106
 BRIEF	prompt-edge-identity.md	87
 BRIEF	prompt-engine-bearer-wsl.md	183
 BRIEF	prompt-external.md	115
-BRIEF	prompt-laptop-legs.md	81
+BRIEF	prompt-win11.md	110
 BRIEF	prompt-laptop-wsl.md	144
 BRIEF	prompt-litellm-consumers.md	76
 BRIEF	prompt-media-arrs.md	87

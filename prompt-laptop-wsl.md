@@ -71,7 +71,7 @@ Re-run `bash scripts/validate-all.sh` afterwards: **record the item count with `
    proves afterwards that it was taken off-station.
 4. **Win11-local legs stay Win11-local.** From inside WSL `pi-seat-sync.sh` names only the `wsl` and `oldsrv` seats
    (`scripts/harness/pi-seat-sync.sh` `SEATS`), so a WSL session cannot certify the Win11 seat: the runtime legs and the
-   Win11 `~/.ssh` retirement items are run in a Win11 session ([prompt-laptop-legs.md](prompt-laptop-legs.md) is a
+   Win11 `~/.ssh` retirement items are run in a Win11 session ([prompt-win11.md](prompt-win11.md) is a
    different brief on a different seat — do not merge them).
 
 ## 2. Bucket B — run here now, on a spark-served session
