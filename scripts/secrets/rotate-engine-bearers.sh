@@ -73,7 +73,11 @@ for it in $ITEMS; do
         | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])' 2>/dev/null)"
   [ -n "$id" ] || fail "$it: could not resolve an item id in $VAULT"
   # Round-trip: get the item, set `value` on the field whose id already exists, edit via pipe.
-  op item get "$id" --format json </dev/null 2>/dev/null \
+  # ⚠ `op item get <id>` REFUSES without --vault (`a vault query must be provided when this command
+  # is given an id`), and the refusal goes to stderr with empty stdout — which surfaces downstream as
+  # a JSONDecodeError, i.e. it reads like a broken parser rather than a usage error. Measured on
+  # op 2.39.0. Every by-id read in this file carries the vault for that reason.
+  op item get "$id" --vault "$VAULT" --format json </dev/null 2>/dev/null \
     | python3 -c '
 import json,sys
 item=json.load(sys.stdin); want=open(sys.argv[1]).read().rstrip("\n")
@@ -82,7 +86,7 @@ if not hit: sys.exit("no field with id=credential — refusing a fields-only tem
 hit[0]["value"]=want
 json.dump(item,sys.stdout)
 ' "$f" \
-    | op item edit "$id" >/dev/null 2>&1
+    | op item edit "$id" --vault "$VAULT" >/dev/null 2>&1
   rc=$?
   # Re-read and verify by hash — an op rc alone is not evidence (op 2.39 spurious HTTP errors).
   got="$(op read "op://$VAULT/$it/credential" </dev/null 2>/dev/null | sha256sum | cut -c1-12)"
