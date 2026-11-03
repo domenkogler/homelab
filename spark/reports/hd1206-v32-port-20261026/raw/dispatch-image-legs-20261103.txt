@@ -1,0 +1,17 @@
+HD-1206 — step 2 (A+ runtime dispatch), the legs readable WITHOUT a booted engine
+
+One read-only docker run inside the built image, no --gpus / -p / -d. Reads the plan table and
+cuteDSL availability in the artifact itself. capability=None here is a GPU-less container, so
+the plan-table KEY is read from the box's own nvidia-smi (12.1) and the dispatch itself can
+only be exercised on a booted engine — see runtime_dispatch.py.
+
+$ sudo docker run --rm --entrypoint python3 spark-ultrafast:v32-iter6d -c '<reads>'
+  capability= None
+  capability_table_keys= [(10, 0), (10, 3), (12, 1), (9, 0)]
+  sm121_plan_shapes= 16
+  sm121_shapes= [(1, 2560), (48, 2560), (96, 2560), (512, 2560), (640, 2560), (1280, 2560), (2560, 640), (2560, 3072), (2560, 6144), (6656, 2560), (8192, 2560), (10240, 320), (13952, 2560), (16384, 2560), (124160, 2560), (248320, 2560)]
+  is_available= True
+  plan (1280, 2560) present= True m1= SkinnyGemmConfig(num_rows=1, block_size=32, outputs_per_block=1, k_unroll=2, vector_width=8, static_k=2560)
+  plan (640, 2560) present= True m1= SkinnyGemmConfig(num_rows=1, block_size=256, outputs_per_block=1, k_unroll=1, vector_width=2, static_k=2560)
+  plan (1, 2560) present= True m1= SkinnyGemmConfig(num_rows=1, block_size=64, outputs_per_block=1, k_unroll=2, vector_width=8, static_k=2560)
+  plan (96, 2560) present= True m1= SkinnyGemmConfig(num_rows=1, block_size=128, outputs_per_block=4, k_unroll=2, vector_width=2, static_k=2560)

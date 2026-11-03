@@ -520,3 +520,12 @@ either: 0 files in the installed tree name it.
 gate can reach it; it does not say a real bf16 GEMM **lands on a plan instead of the `F.linear` fallback** at
 runtime. That is a dispatch read on a running engine, so no build or census can answer it, and it is the first
 check of the owner window (the row names it).
+
+**The window ran and the engine never booted, so that read is still owed.** The A+ claim is not falsified and
+not confirmed: `capability (12, 1)` (from the box), the 16-shape `QWEN4_EXP_SM121_GEMM_PLANS` table and
+`shape_dynamic_skinny_gemm.is_available() = True` are each **measured in the artifact**, but the image raises at
+import (`AttributeError: … 'Qwen4ExpNGramEmbedding' has no attribute 'forward_impl'`) while the registry
+inspects the model class, so the class was never constructed and no plan was ever exercised. `_runtime_ok` —
+the one leg that needs live bf16 tensors — stays INFERRED. The dispatch read is
+[`runtime_dispatch.py`](runtime_dispatch.py) on a booted engine; the rest of the window, the failure and the
+rollback: [`window-20261103.md`](window-20261103.md).
