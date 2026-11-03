@@ -320,13 +320,10 @@ not this list, holds the steps, the file ownership and the converge host. Waves,
     **The registry's prose is a rule with a checker** — [`gate/check_registry_prose.py`](scripts/gate/check_registry_prose.py)
     — so `scripts/README.md` is a facts-only map; print its count with `--show`, never a number typed into a handoff.
     The `harness` docs domain is REGISTERED: [prompt-scripts.md](prompt-scripts.md) §The taxonomy call and the hub
-    [docs/harness.md](docs/harness.md). **The `lsp-binaries` plane is live on all three seats**
-    ([`scripts/harness/seat-lsp-binaries.sh`](scripts/harness/seat-lsp-binaries.sh), set from the
-    `lsp_bin_*` pins, 15 mutations proved against its arms): it reads win11's Volta image and .NET
-    store and writes neither, so that seat's installs are owner legs, not lane legs. Its PATH adopt key
-    reads the RESOLVED directory and the PATH value as a list, and the win11 read asks the `.cmd`
-    spelling by name, so an export an operator already wrote is never duplicated and an installed .NET
-    tool is not called invisible (row HD-1238).
+    [docs/harness.md](docs/harness.md). **The `lsp-binaries` plane is live on all three seats** — its reads, its owner
+    legs, and the arms its mutation driver proves are [docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1 and row
+    **HD-1238**; re-derive the proof on the engine with `python3 scripts/bench/win/lsp-mutation-proof.py`. The plane
+    writes neither a Windows image nor a profile, so that seat's installs stay owner legs, not lane legs.
 12. ⏳ **Owner-gated tails** (exact steps in the rows): **HD-377** the Grafana render re-do · **HD-1103 + HD-1167** one Pi
     visit — the boot that makes the fstab `mode=` true, and the one-time re-render of `pi-eth0.nmconnection` that notifies
     `reload NetworkManager` · **HD-06** the UPS drill · **HD-411** the cockpit resume word · **HD-230 · HD-207** the
