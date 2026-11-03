@@ -29,6 +29,17 @@ for h in vps oldsrv spark pi nas; do printf '%-7s ' "$h"; timeout 15 ssh -o Batc
 Then the CONVENTIONS §0 ritual (the `CONVENTIONS.md` outline grep, `git status`, **your own worktree** — the guard refuses
 edits while the primary sits on `main`) and the prior-art sweep for whatever you are about to touch.
 
+**The gate has two faces, and this box is the engine that grades the other seat's tree half** (README §4 item 6, the `--face`
+block of [`scripts/validate-all.sh`](scripts/validate-all.sh)). Typing it with no `--face` flag **here** selects no face at all:
+on a Debian seat `auto` means the whole registry, tree legs and seat legs in one run — that is the form the pre-flight above
+uses. The split is the win11 seat's shape of the same registry: there `auto` is the **tree face**, run by
+[`scripts/harness/gate-snapshot.sh`](scripts/harness/gate-snapshot.sh) `--run` in the commit-stamped snapshot held in this
+engine's own ext4 — so a snapshot's green is a green about a tree, never about this seat — and the launcher then prints
+whether the change owes the **seat face** (`bash scripts/validate-all.sh --face seat`) from the `subject` globs the
+seat/joined registrations declare. `OWED NOW` means that run in this commit. `NOT OWED` still means the seat face is run at
+session close, because its subject is this host and no snapshot can prove it. `CANNOT ANSWER` is a boundary, never a pass —
+and a run taken INSIDE a snapshot prints `face: auto → tree`, grades no seat legs, and returns reds that are the engine's.
+
 **What this seat is (re-measure; do not trust this list):**
 
 | Fact | State (re-measure at your own `HEAD`) |
@@ -138,5 +149,9 @@ this box writes (its own `~/.ssh/config` is not in the tree, `ssh/aliases.tmpl` 
   by the row's own read-back — `PARKED` is a passing verdict here, a silent stall is not;
 - no timed number appears anywhere in the report if `$PI_PROVIDER=spark`;
 - `bash scripts/validate-all.sh` green **in this worktree** — name the item count you derived with `--list | wc -l`, name every
-  SKIP as a SKIP and the leg that would turn it into a verdict (a SKIP is not a pass, CONVENTIONS §6), then commit, push,
+  SKIP as a SKIP and the leg that would turn it into a verdict (a SKIP is not a pass, CONVENTIONS §6); here that run is the
+  whole registry, tree and seat legs together, so it already graded the seat half — but a run that printed a face split instead
+  (a snapshot run reading `face: auto → tree`, or a win11 session whose tree half this engine graded) has proved no seat leg,
+  and `bash scripts/validate-all.sh --face seat` on this box is the act that pays it. `NOT OWED by this diff` is an answer about
+  the diff, not a pass: the seat face is still the session-close act, and `CANNOT ANSWER` is a boundary (§0). Then commit, push,
   **stop** — merge, views and brief-death belong to the parent (O1/O7).
