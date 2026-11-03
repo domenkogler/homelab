@@ -23,7 +23,7 @@
 # drives load through that engine, so it refuses before its first read and before it
 # opens a file. Take the leg from an externally-served session standing on the
 # designated runner station (docs/orchestration.md §4, docs/harness-pi-seat-
-# identity.md §5a, prompt-laptop-wsl.md §0/§1). The driver stamps every run
+# identity.md §5a, prompt-wsl.md §0/§1). The driver stamps every run
 # <hostname>/agent:<PI_MODEL> — the shape run-scenario.sh lines 48-49 put in the
 # results CSV's `client` column — so provenance is checkable afterwards.
 #
@@ -109,7 +109,7 @@ if [ "$TEST" != "1" ] && { [ "${PI_PROVIDER:-}" = "spark" ] || printf '%s' "${PI
     "${PI_PROVIDER:-unset}" "${PI_MODEL:-unset}" >&2
   printf '       take NO timed number, and this driver drives load through that engine. Run it from\n' >&2
   printf '       an externally-served session on the designated runner station (the WSL Debian seat:\n' >&2
-  printf '       prompt-laptop-wsl.md §0/§1, docs/orchestration.md §4). Counter, log and inspect\n' >&2
+  printf '       prompt-wsl.md §0/§1, docs/orchestration.md §4). Counter, log and inspect\n' >&2
   printf '       READS stay legal from any session; this leg is not one of them.\n' >&2
   exit 3
 fi

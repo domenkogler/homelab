@@ -25,7 +25,7 @@ restarted between the legs, fails the run instead of printing a PASS.
 ## The act (one command, one seat)
 
 ⛔ **Seat:** take it from an **externally-served session on the designated runner station** (the
-WSL Debian seat — [prompt-laptop-wsl.md](../../../prompt-laptop-wsl.md) §0/§1,
+WSL Debian seat — [prompt-wsl.md](../../../prompt-wsl.md) §0/§1,
 [docs/orchestration.md](../../../docs/orchestration.md) §4, standing rule 9 in
 [todo-table.md](../../../todo-table.md) §C). The driver refuses a spark-served session with exit 3
 naming Rule 0 — verified in situ on the session that authored this file. It reads the box over

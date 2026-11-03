@@ -275,7 +275,7 @@ closed by definition, not by a change. ⛔ Never shred or delete a transcript (H
 
 ### Phase 0 — the seat (WSL Debian clone on the laptop)
 
-- [ ] `prompt-laptop-wsl.md` §0 pre-flight in full; record the gate count with `validate-all.sh --list | wc -l` and name every SKIP (tmux, the font plane, `ansible-playbook`, `rsync`, the venv symlink arms — HD-1202).
+- [ ] `prompt-wsl.md` §0 pre-flight in full; record the gate count with `validate-all.sh --list | wc -l` and name every SKIP (tmux, the font plane, `ansible-playbook`, `rsync`, the venv symlink arms — HD-1202).
 - [ ] Driver clone fast-forwarded: `git fetch origin && git merge --ff-only origin/main`. oldsrv will report `STALE-CLONE` from here until its **own** clone is fast-forwarded on oldsrv — not fixed from the laptop.
 - [x] `~/ansible-venv` present and `ansible-playbook` on PATH — **true on the WSL seat**, so that SKIP names the
   other seats only; `ansible all -m ping` answered from the driver, since every Phase-4 leg ran from it.
@@ -500,7 +500,7 @@ it (§7).
 The driver is the **WSL Debian clone on the laptop**: off-box for every target, so the self-converge guard never fires
 there, and [docs/deployment-ansible.md](docs/deployment-ansible.md) §Runner placement records that a **self-target**
 run from a seat dies at the transport (ProxyJump hop-back + `IdentitiesOnly`) — the oldsrv case. Lockout-class legs
-therefore belong to this seat whatever the model is (`prompt-laptop-wsl.md` §1). Read `echo $PI_PROVIDER` before Phase
+therefore belong to this seat whatever the model is (`prompt-wsl.md` §1). Read `echo $PI_PROVIDER` before Phase
 6: spark-served ⇒ Rule 0 binds the whole run, children included, and the flip is not available; the legs only that box
 may drive are its §2. That brief's §4 rehearse-everything rule is lifted **in this window only**, because the owner is
 present; nothing else in it changes.

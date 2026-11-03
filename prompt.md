@@ -18,7 +18,7 @@
 | seat | what it is | what it proves |
 |---|---|---|
 | `oldsrv` | the pi-dev seat; its clone `domen@oldsrv:~/source/homelab` is the **merge station** — merges land there, `scripts/validate-all.sh` runs there, and `git worktree list` there is the fleet's live set ([docs/harness-pi-engines.md](docs/harness-pi-engines.md)) | a full Debian verdict |
-| `wsl` (the laptop's WSL Debian clone) | the **runner station** for externally-served runs: off-box for every converge target, never the engine host, owner of no converge slot ([todo-table.md](todo-table.md) §C rule 9; state: [docs/harness-pi-seat-identity.md](docs/harness-pi-seat-identity.md) §5a; the legs only that box may drive: [prompt-laptop-wsl.md](prompt-laptop-wsl.md) §2) | a full Debian verdict |
+| `wsl` (the laptop's WSL Debian clone) | the **runner station** for externally-served runs: off-box for every converge target, never the engine host, owner of no converge slot ([todo-table.md](todo-table.md) §C rule 9; state: [docs/harness-pi-seat-identity.md](docs/harness-pi-seat-identity.md) §5a; the legs only that box may drive: [prompt-wsl.md](prompt-wsl.md) §2) | a full Debian verdict |
 | `win11` (Git-Bash) | an owner/cleanup seat, and a merge station too | `PARTIAL` by construction — see the grading rule below |
 
 Re-derive a seat's `ok=`/`problems=` count **on that seat**, never copy it from a handoff; derive rescue refs with
@@ -103,7 +103,7 @@ address. `python3`/bash/LF/UTF-8 no-BOM everywhere (`.gitattributes` pins `eol=l
 > [docs/orchestration.md](docs/orchestration.md) §4. Which rows are AI-doable with no owner step in front is the `Who`
 > column of [todo-table.md](todo-table.md) §B/§B9, never this list.
 
-**Seat brief (not a wave):** [prompt-laptop-wsl.md](prompt-laptop-wsl.md) — the WSL Debian runner station: its §0
+**Seat brief (not a wave):** [prompt-wsl.md](prompt-wsl.md) — the WSL Debian runner station: its §0
 pre-flight (this box's own gate green before you edit — re-derive the count with `--list | wc -l` and read the SKIPs by
 name), the legs only that box may drive (§2), what a spark-served session must not start there (§3), and the
 rehearse-everything rule for owner windows (§4). It claims **legs, not rows**, so it never takes a row out of the brief
@@ -156,7 +156,7 @@ never an agent's fallback:
 
 | # | step | from | why it sits there |
 |---|---|---|---|
-| 0 | the seat pre-flight + that seat's delegation plane — [prompt-laptop-wsl.md](prompt-laptop-wsl.md) §0 | the runner station | every converge in the window is driven **off-box** from there; an unverified delegation plane makes the run foreground-sequential |
+| 0 | the seat pre-flight + that seat's delegation plane — [prompt-wsl.md](prompt-wsl.md) §0 | the runner station | every converge in the window is driven **off-box** from there; an unverified delegation plane makes the run foreground-sequential |
 | 1 | the in-repo leak tools (**HD-1219 → HD-1216 → HD-1218**, the order is a dependency) + the whole-corpus gates — [prompt-secrets.md](prompt-secrets.md) §3, [prompt-external.md](prompt-external.md) | any seat, no converge host | they stop the *next* run-capture debt before the next window creates one. What is left is **per-seat legs run FROM those seats** — a read here certifies nothing there — and **HD-1228**'s per-seat re-derive, whose list is the **union** of the seat reads |
 | 2 | the rotations a ledger re-derive cannot go past — the residue of [prompt-update.md](prompt-update.md) Phase 3, driven from the briefs that own each item | one converge per host | Phase 7 is ONE commit and it drops only the lines whose **far end** moved |
 | 3 | **[prompt-update.md](prompt-update.md) Phase 6 — spark, last and solo** (OTA → pin converge → the third tailnet node → the engine-key rotation → HD-1206's flips) | an externally-served session on the station, owner present | the only Rule-0-gated step in the fleet; its legs are the card's order + HD-1206's row order, and its boot windows are ~20 min each |

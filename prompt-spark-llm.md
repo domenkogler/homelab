@@ -18,7 +18,7 @@ probe lane standing things up on the same box.
 **Rule 0 before anything timed:** `echo "provider=$PI_PROVIDER model=$PI_MODEL"` — a session whose own model is served by
 `spark/…` may take **no timed number** (counter / log / `/metrics` / `docker inspect` reads are legal from any session).
 Stamp every leg with `--client` and declare the seat in the session's first line. Timed legs belong on the **designated runner
-station** — the WSL Debian seat, off-box and not the engine host ([prompt-laptop-wsl.md](prompt-laptop-wsl.md) §0/§1, the rule in
+station** — the WSL Debian seat, off-box and not the engine host ([prompt-wsl.md](prompt-wsl.md) §0/§1, the rule in
 [todo-table.md](todo-table.md) §C rule 9): `run-scenario.sh` stamps `hostname/agent:PI_MODEL` by default, so a leg taken off-station is
 still identifiable afterwards in the results CSV's `client` column.
 

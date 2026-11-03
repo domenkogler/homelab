@@ -37,7 +37,7 @@ failure [`spark/llm-profiles/README.md`](spark/llm-profiles/README.md) records f
 
 | Part of this brief | Serve it from |
 |---|---|
-| the **campaign** items — the gate legs that must compare whole-corpus behaviour (HD-1117's `render_all.py --check` wiring, HD-1137's quick-subset comparison), and any future registry sweep, which is the same working set | the **designated runner station** with an externally-served model — [prompt-laptop-wsl.md](prompt-laptop-wsl.md) §0/§1, and the rule in [todo-table.md](todo-table.md) §C rule 9 |
+| the **campaign** items — the gate legs that must compare whole-corpus behaviour (HD-1117's `render_all.py --check` wiring, HD-1137's quick-subset comparison), and any future registry sweep, which is the same working set | the **designated runner station** with an externally-served model — [prompt-wsl.md](prompt-wsl.md) §0/§1, and the rule in [todo-table.md](todo-table.md) §C rule 9 |
 | the **prep** for those legs — measure the corpus, list the cells that must change, print what `python3 scripts/gate/check_registry_prose.py --show` prints | any seat, spark-served: it is read-only arithmetic and it is what makes the campaign one pass instead of a re-measurement |
 
 Row ownership does not move: this brief keeps the rows (§B0 is the index), the station brief claims **legs, not rows**.

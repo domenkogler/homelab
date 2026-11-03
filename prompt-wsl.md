@@ -1,4 +1,4 @@
-# `prompt-laptop-wsl.md` — Seat brief · the WSL Debian laptop seat: the neutral runner station
+# `prompt-wsl.md` — Seat brief · the WSL Debian laptop seat: the neutral runner station
 
 > **Role:** dispatch note for a session that runs **on the laptop's WSL Debian seat** (`DomenP14s`, WSL2, `~/source/homelab`).
 > This is a **seat** brief, not a domain brief: it claims **legs, not rows** — every row it touches stays owned by the domain

@@ -19,7 +19,7 @@ barred for the **whole run, children included** (Rule 0 in
 [`spark/llm-profiles/README.md`](../llm-profiles/README.md); the dispatch filter in
 [`docs/orchestration.md`](../../docs/orchestration.md) §4), because the session's own tokens land in the
 pool and in the counters it would then quote. The designated runner station is the **WSL Debian seat**
-([`prompt-laptop-wsl.md`](../../prompt-laptop-wsl.md) §0/§1, `todo-table.md` §C rule 9) — and standing on
+([`prompt-wsl.md`](../../prompt-wsl.md) §0/§1, `todo-table.md` §C rule 9) — and standing on
 that seat does **not** lift Rule 0: the seat answers *which box*, the model answers *whether a timed leg is
 allowed at all*, and rule 9 says the exclusion binds "the whole run wherever it sits".
 

@@ -27,7 +27,7 @@
 # quiet (preemption and prefix-cache deltas), and a spark-served session's own tokens land in
 # precisely those counters while competing for the pool it is grading. Take the act from an
 # externally-served session on the designated runner station (docs/orchestration.md §4,
-# prompt-laptop-wsl.md §0/§1). The run is stamped <hostname>/agent:<PI_MODEL>, the shape
+# prompt-wsl.md §0/§1). The run is stamped <hostname>/agent:<PI_MODEL>, the shape
 # run-scenario.sh writes into the results CSV's `client` column, so the seat is checkable after.
 #
 # READ-ONLY against the box by construction: every far-side command goes through host_read() and
@@ -152,7 +152,7 @@ if [ "$TEST" != "1" ] && { [ "${PI_PROVIDER:-}" = "spark" ] || printf '%s' "${PI
     "${PI_PROVIDER:-unset}" "${PI_MODEL:-unset}" >&2
   printf '       take no timed number and no engine-quiet window, and this act drives both of its\n' >&2
   printf '       legs through that engine. Run it from an externally-served session on the\n' >&2
-  printf '       designated runner station (the WSL Debian seat: prompt-laptop-wsl.md §0/§1,\n' >&2
+  printf '       designated runner station (the WSL Debian seat: prompt-wsl.md §0/§1,\n' >&2
   printf '       docs/orchestration.md §4). Counter, log and inspect READS stay legal from any\n' >&2
   printf '       session; this act is not one of them.\n' >&2
   exit 3

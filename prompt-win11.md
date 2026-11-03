@@ -40,7 +40,7 @@ measurements behind the numbers you will re-take.
 **This brief claims legs, not rows.** The ids below are **citations** to rows other briefs own — the map is
 [todo-table.md](todo-table.md) §B0 — and they are listed here because each leg's **subject is this host**, so no other
 box can produce its verdict: from inside WSL the seat driver names only `wsl` and `oldsrv`
-([prompt-laptop-wsl.md](prompt-laptop-wsl.md) §1), which is why a Win11 plane reads uncertified from the runner station.
+([prompt-wsl.md](prompt-wsl.md) §1), which is why a Win11 plane reads uncertified from the runner station.
 Re-derive the list at your own `HEAD`; never carry it over:
 
 ```bash

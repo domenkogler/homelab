@@ -10,4 +10,4 @@
 # A line belongs here only for a difference the repo has DECIDED to keep. A §B0 cell, a brief header
 # and a prompt.md pointer that have simply not been re-derived at the same tip are NOT carried debt:
 # they are one edit away from agreeing, and the fix is the commit that moves the row.
-prompt-laptop-wsl.md	HD-1154	WHY — a seat brief claims legs, not rows: §B0 gives this brief no row on purpose, and its own cell in the view says so, so the header naming the station-registration row can never agree with the index. The reference stays — a seat session must be able to find the row that created the station — and no domain brief should absorb it, or the seat becomes a second claimant on a domain lane's work.
+prompt-wsl.md	HD-1154	WHY — a seat brief claims legs, not rows: §B0 gives this brief no row on purpose, and its own cell in the view says so, so the header naming the station-registration row can never agree with the index. The reference stays — a seat session must be able to find the row that created the station — and no domain brief should absorb it, or the seat becomes a second claimant on a domain lane's work.

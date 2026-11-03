@@ -62,7 +62,7 @@
 # this script REFUSES before its first read and before it opens a file (`PI_PROVIDER=spark` or
 # `PI_MODEL=spark/…` exits 3, naming the rule). Take the act from an externally-served session on
 # the designated runner station, the WSL Debian seat (docs/orchestration.md §4, todo-table.md §C
-# rule 9, prompt-laptop-wsl.md §1). The run is stamped <hostname>/agent:<PI_MODEL>, the shape
+# rule 9, prompt-wsl.md §1). The run is stamped <hostname>/agent:<PI_MODEL>, the shape
 # run-scenario.sh writes into the results CSV's `client` column, so the seat is checkable after.
 # The contrast that decides which sibling script carries no guard at all: `/metrics`, `docker
 # inspect` and a `config.json` produce no timed number and no inference call and stay legal from
@@ -234,7 +234,7 @@ if [ "$TEST" != "1" ] && { [ "${PI_PROVIDER:-}" = "spark" ] || printf '%s' "${PI
   printf '       counters this act reads to prove the window was quiet.\n' >&2
   printf '       Basis: spark/llm-profiles/README.md Rule 0, todo-table.md §C rule 2.\n' >&2
   printf '       Run it from an externally-served session on the designated runner station\n' >&2
-  printf '       (docs/orchestration.md §4, todo-table.md §C rule 9, prompt-laptop-wsl.md §1).\n' >&2
+  printf '       (docs/orchestration.md §4, todo-table.md §C rule 9, prompt-wsl.md §1).\n' >&2
   printf '       /metrics, logs and `docker inspect` READS stay legal from any seat — see\n' >&2
   printf '       snapshot-metrics.sh and text-only-preflight.sh; this act is not one of them.\n' >&2
   exit 3

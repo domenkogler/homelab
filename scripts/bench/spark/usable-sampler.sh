@@ -33,7 +33,7 @@
 # number, and this driver both samples a window and drives load through that engine,
 # so it refuses before its first read and before it opens a file. Run it from an
 # externally-served session on the designated runner station (the WSL Debian seat:
-# prompt-laptop-wsl.md §0/§1, docs/orchestration.md §4). Every run is stamped
+# prompt-wsl.md §0/§1, docs/orchestration.md §4). Every run is stamped
 # <hostname>/agent:<PI_MODEL>, the shape run-scenario.sh lines 48-49 use.
 #
 # READ-ONLY against the box by construction: the far side runs one read loop over
@@ -130,7 +130,7 @@ if [ "$TEST" != "1" ] && { [ "${PI_PROVIDER:-}" = "spark" ] || printf '%s' "${PI
     "${PI_PROVIDER:-unset}" "${PI_MODEL:-unset}" >&2
   printf '       take NO timed number, and this driver both samples a window and drives load\n' >&2
   printf '       through that engine. Run it from an externally-served session on the designated\n' >&2
-  printf '       runner station (the WSL Debian seat: prompt-laptop-wsl.md §0/§1, docs/orchestration.md §4).\n' >&2
+  printf '       runner station (the WSL Debian seat: prompt-wsl.md §0/§1, docs/orchestration.md §4).\n' >&2
   exit 3
 fi
 

@@ -161,7 +161,7 @@ inside one session. The LIVE wave table is
   and it asks nothing about the model. So a session may be barred from a timed leg while standing on the one box that may
   drive a lockout-class converge, and the reverse is equally possible. Externally-served runs take the designated runner
   station (the WSL Debian laptop seat: off-box for every target, not the engine host, owner of no converge slot) — see
-  standing rule 9 in [todo-table.md](../todo-table.md) §C and [../prompt-laptop-wsl.md](../prompt-laptop-wsl.md), which is a
+  standing rule 9 in [todo-table.md](../todo-table.md) §C and [../prompt-wsl.md](../prompt-wsl.md), which is a
   **seat** brief: it claims **legs, not rows**, so the row→brief index in [todo-table.md](../todo-table.md) §B0 stays the single owner of every row and the
   station never becomes a second claimant on a domain lane's work.
 
