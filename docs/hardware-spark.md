@@ -824,12 +824,29 @@ must implement when it lands:
   hybrid-sleep.target` and sets `default.target = multi-user` whenever `spark_headless: true`
   (set false on a desktop-style DGX box to leave GDM + sleep as shipped). A headless box whose NIC is
   suspended is unrecoverable except by power-cycle — hence the mask.
+- **Platform updates go through the dashboard's Updates page, and that path is wider than the OTA's own
+  metadata.** The vendor door is `dgx-dashboard-admin` (root D-Bus): `apt-get install --only-upgrade`
+  over **every** upgradable package, then the firmware phase through `fwupd` (`refresh` → `upgrade` →
+  `/boot/efi/EFI/UpdateCapsule`), then the OTA metapackage, then a reboot — so the package set is the
+  box's whole `noble-updates` delta and includes whatever kernel image lives there, not the scoped list
+  in `/opt/nvidia/spark-ota-check/metadata/spark-ota-*.json`. The dpkg holds are respected, so the
+  `versions.yml` pins do not move with it. Read `nvidia-spark-ota-check is-ota-available` /
+  `installed-name` / `torn-score` (root) for the offer and the residue; a PGX has **no BMC**, so the
+  console that can rescue a failed flash is the serial `ttyS0` line the kernel cmdline already carries.
+- **The vendor's off-hours upgrade unit is masked (IaC-enforced).**
+  `nvidia-spark-run-apt-upgrade-once.service` runs `apt-get -y full-upgrade` and then reboots whenever
+  the installed `linux-modules-nvidia-580-open-nvidia-hwe-24.04` version stops matching the running
+  kernel — a condition one reboot after a kernel-package upgrade reproduces, on a metapackage the update
+  path itself upgrades. Its own `done` latch does not hold that shut, because the condition is on package
+  versions rather than on the latch alone. The `spark` role masks it beside the `dgx-dashboard`
+  tombstone: no unattended sweep and no unattended reboot on a host whose packages converge from a
+  committed pin set.
 - **DGX Dashboard on the LAN:** NVIDIA ships the dashboard bound to loopback only (no bind flag;
   remote access officially = SSH tunnel / NVIDIA Sync). The `spark-dashboard` Traefik sidecar (host-net,
   pinned `traefik_version`) publishes `spark_home_ip:11000 → 127.0.0.1:11000`, i.e. the dashboard is
   reachable at **`http://spark.kogler.si:11000`** on the Home VLAN with a local-user login (the dashboard's
-  own auth sits in front; never `0.0.0.0`, no public record; its Software-Update flow still needs the
-  SSH-tunnel path). Disable via the registry entry `enabled: false`.
+  own auth sits in front; never `0.0.0.0`, no public record). Disable via the registry entry
+  `enabled: false`.
 - **URL of record = the short name:** browse **`https://spark.kogler.si`** on the
   Home VLAN and **`https://spark.ts.kogler.si`** off-LAN. `db-spark.kogler.si` / `db-spark.ts.kogler.si`
   are **LEGACY**: still routed on both edges so old links work, but no new consumer may be written

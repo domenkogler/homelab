@@ -239,6 +239,35 @@
   become: true
   tags: [spark, docker_services]
 
+# ---- Vendor upgrade path, disarmed ----
+# `nvidia-spark-run-apt-upgrade-once.service` (vendor, `WantedBy=multi-user.target`) exists to run
+# `apt-get -y update` → driver+modules install → `apt-get -y full-upgrade` → `reboot`, gated on
+# `ConditionPathExists=!/var/lib/nvidia-spark-run-apt-upgrade-once/done`.
+#
+# Two shapes make that unacceptable on this fleet, and both are properties of the box rather than of the
+# window it was written for. (1) A `full-upgrade` plus a reboot is exactly what the hold discipline
+# forbids: no role ships a `state: latest` or an `upgrade:` task, because a pinned host converges to a
+# COMMITTED set and an unattended sweep moves packages nobody reviewed.
+# (2) The condition re-arms by construction — it fires whenever the installed
+# `linux-modules-nvidia-580-open-nvidia-hwe-24.04` version stops matching the RUNNING kernel, which one
+# reboot after a kernel-package upgrade reproduces — and the metapackage that carries the unit is
+# upgraded by the vendor update path itself, so a box that takes an OTA can walk straight back into a
+# second, unreviewed full-upgrade.
+#
+# A mask, not a disable: the vendor package re-enables a disabled unit on upgrade and cannot start a
+# masked one (the same reason the tombstone above masks rather than disables). The kernel and the
+# `linux-modules-*` pair keep their own APT-driven path — this removes the unattended sweep and the
+# reboot it schedules, not the vendor's ability to ship modules.
+- name: Disarm the vendor apt-upgrade-once unit (an unattended full-upgrade + reboot re-arms by design)
+  ansible.builtin.command: systemctl mask --now {{ item }}
+  register: _upgrade_once_mask
+  changed_when: "'masked' in _upgrade_once_mask.stdout + _upgrade_once_mask.stderr"
+  failed_when: _upgrade_once_mask.rc != 0 and 'already masked' not in _upgrade_once_mask.stderr
+  loop:
+    - nvidia-spark-run-apt-upgrade-once.service
+  become: true
+  tags: [spark, docker_services]
+
 # ---- OOM forensics watchdog ----
 # Continuous sampler + forensic bundle catcher for the global-OOM class. Installed
 # as a systemd unit that is OOM-immune (OOMScoreAdjust=-1000) because the killer takes
