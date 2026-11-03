@@ -361,7 +361,7 @@ docker_ce_version: "5:29.9.2"             # docker-ce + docker-ce-cli + docker-c
                                           # one line is the pin for all three.
 containerd_io_version: "2.4.2"            # containerd.io — its own upstream train, not the engine's.
 docker_buildx_plugin_version: "0.38.1"    # docker-buildx-plugin — `docker buildx`.
-docker_compose_plugin_version: "5.6.1"    # docker-compose-plugin — `docker compose`.
+docker_compose_plugin_version: "5.7.0"    # docker-compose-plugin — `docker compose`.
 # `python3-docker` is named by roles/docker WITHOUT a pin on purpose: it comes from the distro
 # archive, not from download.docker.com, so no suite version applies to it. It is a library, not the
 # engine, and it is not part of the held set.
