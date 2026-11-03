@@ -21,12 +21,13 @@ tags: [hardware, gpu, spark, gb10, grace-blackwell, ai]
 > `/mnt/spark_nvme`. Engine = **vLLM `spark-ai`** (B1: Qwen3.8-Flash-Next AWQ+PLE+MTP-3), ✅ enabled and
 > serving `spark/qwen3.8-flash-next` on `llm.kogler.si`.
 > ⏳ Open: the long-context / agentic certification tails (§Bench + engine selection), the
-> **text-only engine mode** (§Text-only engine mode) and the two LiteLLM tails below.
+> **text-only engine mode** (§Text-only engine mode) and the tails under **Remaining tails** below.
 >
-> **Remaining tails:** the LAN LiteLLM bootstrap-key glue aborts `rc2` on a stale `dsh` secret
-> (every `lan-litellm` converge is red until the owner remediates), and `spark/*` is deliberately not in
-> any `litellm_scoped_keys` allowlist — an owner call, not granted as a side-effect of registering the
-> model — so the dev harnesses cannot reach spark through the gateway
+> **Remaining tails:** the firmware half of `OTA2610` is not installed — `SOCFW`, `EC`/`EC Unfused` and
+> `USBPD` still sit below what the OTA metadata requires and this box's LVFS feed offers none of them, so
+> `nvidia-spark-ota-check installed-name` still answers `OTA2607` (§Remote management) — and `spark/*` is
+> deliberately not in any `litellm_scoped_keys` allowlist — an owner call, not granted as a side-effect
+> of registering the model — so the dev harnesses cannot reach spark through the gateway
 > ([services-rejected.md](services-rejected.md)).
 
 > **Artifact store:** the `spark-artifacts` role (`roles/spark-artifacts/`) downloads the
@@ -833,6 +834,21 @@ must implement when it lands:
   `versions.yml` pins do not move with it. Read `nvidia-spark-ota-check is-ota-available` /
   `installed-name` / `torn-score` (root) for the offer and the residue; a PGX has **no BMC**, so the
   console that can rescue a failed flash is the serial `ttyS0` line the kernel cmdline already carries.
+  **The button is two halves, and only the first lands by itself.** The package half applies: this box
+  runs kernel `7.0.0-1024-nvidia` with `kho=off` on the cmdline (the `nvidia-spark-grub-kho` package adds
+  the line), carries `nvidia-spark-cloud-init`, and at this level runs `dgx-dashboard` `0.39.3-5` and
+  `nvidia-spark-mlnx-firmware-manager` `6.0.1-1`. The firmware half does **not**: the phase is driven by
+  `fwupd` against the **LVFS** feed while the OTA's own check compares against NVIDIA's
+  required-component set, and LVFS offers nothing this metadata asks for — `fwupdmgr get-updates`
+  answers "No updates available" and calls Embedded Controller `3.5.8` the latest. So four components sit
+  below the metadata and stay there: `SOCFW` (`2.155.11` against `2.158.15` required), `EC` and `EC
+  Unfused` (`3.5.8` against `3.13.7`), `USBPD` (`5.22` against `0.5.25`). `/boot/efi/EFI/UpdateCapsule`
+  is consequently empty, and `nvidia-spark-ota-check` reads `installed-name` = **`OTA2607`** with
+  `torn=2.6` (151/155 checks, `required_satisfied=false`) while `/etc/dgx-release` holds
+  `DGX_OTA_VERSION` 7.6.0. Every package-side diff is *newer* than the metadata asks (dashboard
+  `0.39.3-5` over `0.39.3-4`, toolkit `1.20.1` over `1.20.0`), so those four firmware rows are the only
+  ones behind — a vendor-side gap that no local act closes until NVIDIA publishes them on LVFS. Per
+  component detail: [`spark/reports/ota2610-20261103/`](../spark/reports/ota2610-20261103/README.md) §6.
 - **The vendor's off-hours upgrade unit is masked (IaC-enforced).**
   `nvidia-spark-run-apt-upgrade-once.service` runs `apt-get -y full-upgrade` and then reboots whenever
   the installed `linux-modules-nvidia-580-open-nvidia-hwe-24.04` version stops matching the running
@@ -935,10 +951,10 @@ re-baselining before this loop finishes baselines against a disarmed engine.
 | **Serial number** | **`MP30A60N`** | `/etc/dgx-release` `DGX_SERIAL_NUMBER` = `sudo dmidecode -s system-serial-number` |
 | SKU string | `LENOVO_MT_30KL_BU_Think_FM_ThinkStation PGX` | `dmidecode -s system-sku-number` |
 | Firmware | UEFI **`S0QKT0EA`** dated 2026-07-13 (AMI), UEFI boot, TPM 2.0 (`/dev/tpm0` v2) | `hostnamectl` / `dmidecode -s bios-version` |
-| OS | Ubuntu **24.04.5 LTS** (noble), kernel `7.0.0-1019-nvidia` arm64 | `/etc/os-release`, `uname -mr` |
+| OS | Ubuntu **24.04.5 LTS** (noble), kernel `7.0.0-1024-nvidia` arm64, `kho=off` on the cmdline | `/etc/os-release`, `uname -mr`, `/proc/cmdline` |
 | DGX OS | OTA level **7.6.0** | `/etc/dgx-release` |
 | GPU | UUID `GPU-d5ad56cc-01cf-7521-4c4e-e215e7ccd76b`, PCI id `10de:2e12` @ `000f:01:00.0`, driver **580.178.04** (`nvidia-driver-580-open`; DGX OS/apt moves it with no IaC change — verify before use), compute cap **12.1** = **sm_121** | `nvidia-smi --query-gpu=...`, `lspci -nn`, `dpkg -l` |
-| CUDA / runtime | CUDA **13.0**, `nvidia-container-toolkit` **1.20.0** | `ls -d /usr/local/cuda-*`, `dpkg -l` |
+| CUDA / runtime | CUDA **13.0**, `nvidia-container-toolkit` **1.20.1** | `ls -d /usr/local/cuda-*`, `dpkg -l` |
 | machine-id | `a7c5519de45d4244be889d2af3749476` | `/etc/machine-id` |
 | Ethernet MAC | `38:a7:46:78:13:97` (`enP7s7`; `enP7s7.99` shares it — VLAN subinterface) | `ip -br link` |
 | Wi-Fi MAC | `ec:3a:56:cc:9f:70` (`wlP9s9`) — **DOWN**, unused on a headless box | `ip -br link` |
