@@ -14,18 +14,21 @@
 #   oldsrv_home_ip:4000, so the compose keeps that publish (that IS how host-net edges reach
 #   backends — see jellyfin/lan-litellm precedent). No 0.0.0.0 bind; no VPS-side exposure.
 #   LOCAL INFERENCE: the spark model entry uses `https://llm.kogler.si/v1` as base_url (LAN name
-#   -> spark_home_ip -> spark's own :443 name edge -> engine :8000) with the spark-llm_api bearer
-#   key. https, NOT http: spark's :80 edge is redirect-only and the OpenAI SDK does not follow a
-#   307 on POST /v1/chat/completions.
+#   -> spark_home_ip -> spark's own :443 name edge -> engine :8000) with this gateway's own
+#   `litellm-engine_api` bearer. https, NOT http: spark's :80 edge is redirect-only and the OpenAI
+#   SDK does not follow a 307 on POST /v1/chat/completions.
 #   The key reaches the entry as the container env `OPENAI_API_KEY` (the openai-provider
-#   credential, from 1P `spark-llm_api` below), so the DB row carries NO key and the literal never
+#   credential, from 1P `litellm-engine_api` below), so the DB row carries NO key and the literal never
 #   enters the Kopia-backed lan-litellm-db — `api_key: os.environ/…` in a DB param is NOT expanded
-#   by this LiteLLM version. Resolution: `extra_hosts` glue below — oldsrv's host resolv.conf is
+#   by this LiteLLM version. That item is this GATEWAY leg's own credential, not the harness key:
+#   the engine accepts both, and keeping them apart is what ends `spark-llm_api`'s triple use
+#   (HD-384). Seats and coding harnesses reach the engine directly with `spark-llm_api`.
+#   Resolution: `extra_hosts` glue below — oldsrv's host resolv.conf is
 #   public-only (WAN-out survival by design) and /etc/hosts is NOT inherited by containers, so a
 #   container cannot resolve home-split names itself. Management API stays docker-exec-only.
 #
 #   Secrets (all fail-closed): reuses the SAME 1Password items as the VPS instance — litellm_api,
-#   openrouter_api, litellm_db, spark-llm_api — and the db_backup DB06 story applies unchanged.
+#   openrouter_api, litellm_db, litellm-engine_api — and the db_backup DB06 story applies unchanged.
 #   On spark convergence the POSTGRES_* values fan out from the same vault items.
 #   → docs/deployment-ai-stack-secrets.md
 #   SCOPED KEYS: this instance mints its OWN — the registry entry carries `bootstrap_keys: true`
@@ -67,10 +70,10 @@ services:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
       LITELLM_MASTER_KEY: "{{ vault['litellm_api'].credential | replace('$','$$') }}"
       OPENROUTER_API_KEY: "{{ vault['openrouter_api'].credential | replace('$','$$') }}"
-      # spark engine bearer key (1P `spark-llm_api`) as the openai-provider credential, so
-      # the DB model entry carries NO key (this build does not expand os.environ/ in DB params).
-      # CAVEAT: a future bare `openai/…` entry without its own api_key inherits this key.
-      OPENAI_API_KEY: "{{ vault['spark-llm_api'].credential | replace('$','$$') }}"
+      # This gateway leg's OWN engine credential (1P `litellm-engine_api`) as the openai-provider
+      # credential, so the DB model entry carries NO key (this build does not expand os.environ/ in
+      # DB params). CAVEAT: a future bare `openai/…` entry without its own api_key inherits this key.
+      OPENAI_API_KEY: "{{ vault['litellm-engine_api'].credential | replace('$','$$') }}"
       # No Cohere provider: embed/rerank are local on the oldsrv RX 7600.
       STORE_MODEL_IN_DB: "true"
       DATABASE_URL: >-

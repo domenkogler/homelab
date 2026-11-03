@@ -389,8 +389,8 @@ _template_vault_items:
   immich-ml: {'immich-ml-internal_api'}
   kopia-agent: {'kopia_password', 'kopia-server-internal_api', 'kopia-server_fingerprint'}
   kopia-server: {'kopia_password', 'kopia-server-internal_api'}   # NB: kopia-server_fingerprint NOT fetched here — it cannot exist before kopia-server first start seeds it; only the AGENT (oldsrv, later play) consumes it
-  litellm: {'litellm_api', 'litellm_db', 'openrouter_api', 'spark-llm_api'}   # spark-llm_api → the container's OPENAI_API_KEY env, so the DB model entry carries NO key (v1.83.10 does not expand `os.environ/` in DB params; never put the literal into the Kopia-backed DB). Embed/rerank are local on oldsrv, so no cohere item
-  lan-litellm: {'litellm_api', 'litellm_db', 'openrouter_api', 'spark-llm_api'}   # LAN instance — same items as the VPS spine; a missing row here means the static pre-pass never fetches them and the compose render fails fail-closed on vault['litellm_api']. spark-llm_api for the same OPENAI_API_KEY reason
+  litellm: {'litellm_api', 'litellm_db', 'openrouter_api', 'litellm-engine_api'}   # litellm-engine_api → the container's OPENAI_API_KEY env (the GATEWAY leg's own engine credential, not the harness key), so the DB model entry carries NO key (v1.83.10 does not expand `os.environ/` in DB params; never put the literal into the Kopia-backed DB). Embed/rerank are local on oldsrv, so no cohere item
+  lan-litellm: {'litellm_api', 'litellm_db', 'openrouter_api', 'litellm-engine_api'}   # LAN instance — same items as the VPS spine; a missing row here means the static pre-pass never fetches them and the compose render fails fail-closed on vault['litellm_api']. litellm-engine_api for the same OPENAI_API_KEY reason
   mcp-victoriametrics: {'victoria-metrics_api'}   # MCP→VM basic auth (username/password)
   mcp-victorialogs: {'victoria-logs_api'}         # MCP→VL basic auth (username/password)
   matrix: {'matrix_api', 'matrix_password'}

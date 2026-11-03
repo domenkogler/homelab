@@ -13,7 +13,8 @@
 #   generation model (spark/qwen3.8-flash-next) is ALSO a runtime entry in THIS DB —
 #   `base_url: https://llm.kogler.si/v1` (LAN name → spark_home_ip → spark's own :443
 #   name edge → engine :8000) and NO api_key — the bearer arrives from the container's
-#   OPENAI_API_KEY env (1P `spark-llm_api`; name resolution via this service's extra_hosts
+#   OPENAI_API_KEY env (1P `litellm-engine_api`, this gateway leg's own credential rather than
+#   the harness key; name resolution via this service's extra_hosts
 #   glue). https, NOT http — spark's :80 edge is redirect-only and the OpenAI SDK will
 #   not follow a 307 on POST. The model create step is Admin-UI/API-only, never here.
 litellm_settings:
