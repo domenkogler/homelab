@@ -913,9 +913,10 @@ seats and the plane is pushed (`digest 773069cc32fb` on both, a shadow refusal c
 the operator-key duplicates are renamed away and the legs re-proved — five rc 0 from win11 Git-Bash with
 `SSH_AUTH_SOCK` empty, six rc 0 from WSL. ⚠ Those legs hold on the OpenSSL build only, which is step 2's build
 caveat, not a footnote.
-**Still owed on the win11 seat:** step 5's leftovers — `github_signing{,.pub}`, `Hetzner-SSH-key.pub`,
-`known_hosts.old` and four `config.bak-*` sit in `~/.ssh`, read by nothing and refused by nothing. Step 6 stays
-as ruled below, and its Debian `id_ed25519` carve-out is still blocked by the FQDN-leg dependence.
+**The win11 seat holds no step-5 leftovers:** `github_signing{,.pub}`, `Hetzner-SSH-key.pub`,
+`known_hosts.old` and the six `config.bak-*` copies sit in `~/.ssh/retired-20261018/`, named by no alias
+and read by nothing. Step 6 stays as ruled below, and its Debian `id_ed25519` carve-out is still blocked
+by the FQDN-leg dependence.
 
 1. **Place** `domen_ssh` (+ `.pub`) — `op read "op://Private/domen_ssh/private key"` from WSL into
    `C:\Users\domen\.ssh\domen_ssh`, `chmod 600`, then verify the fingerprint equals the table above. Write
