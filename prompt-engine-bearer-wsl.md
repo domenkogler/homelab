@@ -1,4 +1,4 @@
-# `prompt-update-wsl.md` — Lane brief · the WSL seat's half of the engine-bearer rotation
+# `prompt-engine-bearer-wsl.md` — Lane brief · the WSL seat's half of the engine-bearer rotation
 
 > **Rows it carries:** none, and it claims none. It runs the **consumer half** of a rotation the spark
 > seat has already performed; the rows stay owned by the briefs [todo-table.md](todo-table.md) §B0 assigns them to

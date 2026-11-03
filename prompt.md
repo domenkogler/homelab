@@ -109,7 +109,7 @@ name), the legs only that box may drive (§2), what a spark-served session must 
 rehearse-everything rule for owner windows (§4). It claims **legs, not rows**, so it never takes a row out of the brief
 that owns it.
 
-**Lane brief now open (not a wave):** [prompt-update-wsl.md](prompt-update-wsl.md) — the consumer half of the
+**Lane brief now open (not a wave):** [prompt-engine-bearer-wsl.md](prompt-engine-bearer-wsl.md) — the consumer half of the
 engine-bearer rotation. The engine accepts both rotated bearers and the superseded one 401s; what is left is every
 downstream holder (the two gateways, then each seat's rendered `models.json`), plus the two Rule-0 instruments only that
 station may take and the scheduled `alloy` pin bump. It claims **no rows** — the owning briefs keep them — and it dies
