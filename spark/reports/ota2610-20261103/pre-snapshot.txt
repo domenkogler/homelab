@@ -1,0 +1,166 @@
+=== pre-update snapshot 2026-11-03T12:28:26+01:00 seat=spark
+--- identity
+DGX_NAME="DGX Spark"
+DGX_PRETTY_NAME="NVIDIA DGX Spark"
+DGX_SWBUILD_DATE="2026-01-26-16-04-58"
+DGX_SWBUILD_VERSION="7.4.0"
+DGX_COMMIT_ID="6c74fd3"
+DGX_PLATFORM="30KL0002GF"
+DGX_SERIAL_NUMBER="MP30A60N"
+
+DGX_OTA_VERSION="7.5.0"
+DGX_OTA_DATE="Mon Sep 14 14:14:47 CEST 2026"
+
+DGX_OTA_VERSION="7.6.0"
+DGX_OTA_DATE="Mon Sep 14 20:42:16 CEST 2026"
+uname: 7.0.0-1019-nvidia   bios: S0QKT0EA
+--- cmdline
+BOOT_IMAGE=/boot/vmlinuz-7.0.0-1019-nvidia root=UUID=fa246c29-4b96-4ccc-9939-65bbdd49b3a5 ro init_on_alloc=0 iommu.passthrough=0 console=tty0 plymouth.ignore-serial-consoles plymouth.use-simpledrm earlycon=uart,mmio32,0x16A00000 console=tty0 console=ttyS0,921600 crashkernel=1G-:0M quiet splash initcall_blacklist=tegra234_cbb_init pci=pcie_bus_safe vt.handoff=7
+--- nvidia
+NVIDIA GB10, 580.178.04, 9A.0B.2D.00.00, 2398 MHz, 3003 MHz, GPU-d5ad56cc-01cf-7521-4c4e-e215e7ccd76b
+--- ota
+{
+  "name": "OTA2607",
+  "releaseDate": "2026-07-15T00:00:00.000Z"
+}
+{
+  "name": "OTA2607",
+  "releaseDate": "2026-07-15T00:00:00.000Z",
+  "torn": 1
+}
+--- platform + kernel packages
+dgx-dashboard 0.29.2-2
+dgx-oobe 0.25.1
+dgx-oobe-desktop 0.5.0-116
+dgx-release 7.6.0
+dgx-repo 25.10-2
+dgx-spark-mlnx-hotplug 26.01-1
+dgx-spark-ota-update-meta 26.04.1
+linux-image-6.17.0-1008-nvidia 6.17.0-1008.8
+linux-image-7.0.0-1019-nvidia 7.0.0-1019.19~24.04.2
+linux-image-nvidia-hwe-24.04 7.0.0-1019.19~24.04.2
+linux-modules-nvidia-580-open-7.0.0-1019-nvidia 7.0.0-1019.19~24.04.2+1
+linux-modules-nvidia-580-open-nvidia-hwe-24.04 7.0.0-1019.19~24.04.2+1
+linux-modules-nvidia-fs-6.17.0-1008-nvidia 6.17.0-1008.8
+linux-modules-nvidia-fs-7.0.0-1019-nvidia 7.0.0-1019.19~24.04.2
+linux-nvidia-hwe-24.04 7.0.0-1019.19~24.04.2
+nvidia-dgx-telemetry 7.3
+nvidia-driver-580-open 580.178.04-0ubuntu0.24.04.1
+nvidia-spark-avahi-conf 1.0-1
+nvidia-spark-baud-rate 25.09-1
+nvidia-spark-default-remove-nvidia-fs-pkg 25.09-2
+nvidia-spark-desktop-edge-ppa 1.1-1
+nvidia-spark-fstab-config 1.0.0-1
+nvidia-spark-grub-pci 1.0-1
+nvidia-spark-initcall-bl 1.0-1
+nvidia-spark-limits 1.0-1
+nvidia-spark-mlnx-firmware-manager 5.0.8-1
+nvidia-spark-ota-check 1.0.23-1
+nvidia-spark-realtek-mod-options 1.1-1
+nvidia-spark-repo 1.1-1
+nvidia-spark-run-apt-upgrade 25.10-2
+nvidia-spark-wifi-fw-ppa 1.2-1
+--- holds
+alloy
+containerd.io
+docker-buildx-plugin
+docker-ce
+docker-ce-cli
+docker-ce-rootless-extras
+docker-compose-plugin
+--- units
+dgx-dashboard.service                            enabled=enabled      active=active
+dgx-dashboard-admin.service                      enabled=enabled      active=active
+docker-compose@dgx-dashboard.service             enabled=masked       active=inactive
+docker-compose@spark-ai.service                  enabled=enabled      active=active
+docker-compose@spark-dashboard.service           enabled=enabled      active=active
+docker-compose@spark-dcgm.service                enabled=enabled      active=active
+docker-compose@dozzle-agent.service              enabled=enabled      active=active
+spark-gpu-clock-cap.service                      enabled=enabled      active=inactive
+spark-oom-watchdog.service                       enabled=enabled      active=active
+nvidia-spark-run-apt-upgrade-once.service        enabled=enabled      active=inactive
+nvidia-spark-mlnx-firmware-manager.service       enabled=enabled      active=inactive
+docker.service                                   enabled=enabled      active=active
+containerd.service                               enabled=enabled      active=active
+alloy.service                                    enabled=enabled      active=active
+fwupd.service                                    enabled=static       active=active
+tailscaled.service                               enabled=not-found    active=inactive
+default-target: multi-user.target
+masked units:
+  alsa-utils.service
+  cryptdisks-early.service
+  cryptdisks.service
+  docker-compose@dgx-dashboard.service
+  hwclock.service
+  multipath-tools-boot.service
+  nfs-common.service
+  nvsm-api-gateway.service
+  nvsm-core.service
+  nvsm-exporter.service
+  nvsm-mqtt.service
+  nvsm-notifier.service
+  nvsm.service
+  saned.service
+  screen-cleanup.service
+  sudo.service
+  x11-common.service
+  hibernate.target
+  hybrid-sleep.target
+  sleep.target
+  suspend.target
+--- containers
+dcgm-exporter-spark Up 2 weeks
+dozzle-agent Up 2 weeks (healthy)
+traefik-spark Up 2 weeks (healthy)
+vllm-qwen-spark Up 2 weeks (healthy)
+  vllm-qwen-spark started=2026-10-18T03:36:16.65764117Z restarts=0 img=sha256:4900c13edab97dd8deb5f429456ae72e3c093cbacb3381f98feb10788f379d92
+  dozzle-agent started=2026-10-18T03:47:24.056266239Z restarts=0 img=sha256:db7e19fd36189823c66239894e821561cb201248af35362ec6d39a08e23ff88b
+  dcgm-exporter-spark started=2026-10-18T03:36:16.593857503Z restarts=0 img=sha256:ec962b59c8440427ddc2901fdb2616070d91a29da089a6d68c03ab1abdcf8870
+  traefik-spark started=2026-10-18T03:36:16.582036813Z restarts=0 img=sha256:24841fe2de7304c149343d877d2923b4c8800a38ba015dea9174c23b20e344a0
+--- listeners
+  0.0.0.0:22
+  10.10.1.40:11000
+  10.10.1.40:11002
+  10.10.1.40:443
+  10.10.1.40:7007
+  10.10.1.40:80
+  127.0.0.1:11000
+  127.0.0.1:12345
+  127.0.0.1:631
+  127.0.0.1:8000
+  127.0.0.1:9098
+  127.0.0.1:9400
+  127.0.0.53%lo:53
+  127.0.0.54:53
+  [::1]:631
+  [::]:22
+  *:8080
+--- disk
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/nvme0n1p2  442G  256G  164G  61% /
+TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE
+Images          12        4         68.27GB   425.9MB (0%)
+Containers      4         4         507.9kB   0B (0%)
+Local Volumes   0         0         0B        0B
+Build Cache     170       0         44.97GB   4.864MB
+--- boot images
+/boot/vmlinuz-6.17.0-1008-nvidia
+/boot/vmlinuz-7.0.0-1019-nvidia
+--- fwupd devices
+  Embedded Controller          uefi_capsule 3.5.8
+  KEK CA                       uefi_kek     2023
+  SBAT                         uefi_sbat    1.5.4
+  SKHynix HFS001TEM4X169N      nvme         61700A30
+  TPM                          uefi_capsule 7.2.4.1
+  UEFI CA                      uefi_db      2023
+  UEFI Device Firmware         uefi_capsule 2.0.14
+  UEFI Device Firmware         uefi_capsule 0.5.22
+  UEFI Key Exchange Key        uefi_kek     
+  UEFI Signature Database      uefi_db      
+  UEFI dbx                     uefi_dbx     20230501
+  UEFI-PK-Formal-Key           uefi_pk      2025
+  Windows UEFI CA              uefi_db      2023
+--- markers
+  no reboot-required marker
+-rw-r--r-- 1 root root 0 May 24 18:12 /var/lib/nvidia-spark-run-apt-upgrade-once/done
+=== end
