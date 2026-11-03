@@ -636,8 +636,10 @@
 # THE FACE IS ALSO A SWITCH, and it stays one list. `--face tree` grades the legs whose subject is this
 # checkout, `--face seat` the legs whose subject is this host (seat and joined, since a leg that spans
 # both belongs with the state it cannot prove from a snapshot), `--face both` the whole registry in one
-# face run, and the default `--face auto` selects nothing so an un-flagged run is byte-identical to the
-# run it replaced. The point of the split is the price of a fork: the tree half is a commit-stamped
+# face run, and `--face auto` selects nothing ON A DEBIAN SEAT so an un-flagged run there is byte-identical
+# to the run it replaced. On the win11 class `auto` is the TREE face, with the seat half's debt printed from
+# the diff against each registration's `subject` words: the same registry and the same one item list, read on
+# the seat whose fork price makes the whole native run the thing worth avoiding. The point of the split is the price of a fork: the tree half is a commit-stamped
 # snapshot's work, so ONE engine invocation runs all of it in the engine's own pool rather than one door
 # trip per leg, and the seat half is the ~19 legs that must answer HERE because their subject is this
 # box. `harness/gate-snapshot.sh --run` is that driver; either face prints the commit it graded and the
@@ -901,7 +903,7 @@ fi
 [ "$LIST" = 1 ] || echo "route: $HL_WSL_WHY" >&2
 
 # `auto` ON THE WIN11 SEAT means the TREE face, and the seat half becomes a PRINTED verdict instead of a
-# paid wall (HD-1233). WHY the seat class and not the face: on this box `fork()+exec` costs two orders of
+# paid wall. WHY the seat class and not the face: on this box `fork()+exec` costs two orders of
 # magnitude more than the engine's, so an un-flagged run is ~106 tree legs at the snapshot's price plus 19
 # seat legs at this one — and the tree legs are the same bytes the snapshot grades, from the same commit.
 # The seat half cannot move: its subject is THIS host's state, so a snapshot of a checkout can never prove
@@ -1030,7 +1032,8 @@ _reg() {
   # registry still answers both questions and there is no second item list anywhere to forget. `tree`
   # is the half a commit-stamped snapshot can grade, `seat` is `seat` plus `joined` because a leg whose
   # subject spans both sides belongs with the host's own state, and `both` is the whole set in one face
-  # run. `auto` selects nothing, which is what keeps an un-flagged run byte-identical to the old one.
+  # run. `auto` selects nothing here, which is what keeps an un-flagged run byte-identical to the old one;
+  # the win11 class re-selects it to `tree` before this line, in the block beside the route probe.
   case "$FACE" in
     auto | both) : ;;
     tree) [ "${faces[$i]}" = tree ] || states[$i]=offface ;;
@@ -1499,8 +1502,10 @@ _report() {
   # and the whole gate would exit 1 while printing "OK: all validators passed".
   if [ "$PROFILE" = quick ]; then _not_proven; fi
   # The face's own honest tail, the same rule read off the other axis: a run that grades half the
-  # registry is a boundary, and a boundary prints what it did not look at. `auto` selects nothing, so it
-  # prints nothing new and an un-flagged run stays byte-identical to the one it replaced.
+  # registry is a boundary, and a boundary prints what it did not look at. On a Debian seat `auto` selects
+  # nothing and prints nothing new (an un-flagged run stays byte-identical to the one it replaced); on the
+  # win11 class `auto` becomes `tree`, so the seat half prints here — and it spells out the owed-now answer
+  # separately, because "did not run" and "not owed" are different sentences.
   if [ "$FACE" != auto ] && [ "$off" -gt 0 ]; then _face_not_proven "$off"; fi
   return 0
 }

@@ -159,6 +159,15 @@ A new service must clear this path (each step's owning doc is the anchor; violat
   `git worktree remove` — never `rm`/move/rename any worktree directory; on `path already exists`,
   abort and pick a new name instead of cleaning up — an `rm -rf` aimed at a colliding path
   destroys whichever worktree really lives there.
+  **Two faces, and the seat one closes the session:** on a Windows seat a full native run is ten-to-twenty
+  minutes of fork price, so the gate grades in faces — the **tree face** in the engine's commit-stamped
+  snapshot (`scripts/harness/gate-snapshot.sh --run`) and the **seat face** native (`bash
+  scripts/validate-all.sh --face seat`), selected from the `subject` each seat/joined registration declares.
+  An un-flagged run takes the tree face and PRINTS which seat legs the diff owes; `OWED NOW` runs the seat
+  face in the same change, and **`NOT OWED` does not discharge it** — the seat half's subject is this host's
+  state, which no snapshot of a checkout can see, so it is owed at every session close. The axis and the
+  conjunction it selects on are stated once in `scripts/lib/wsl-route.sh`; the words are graded by
+  `scripts/gate/check-leg-contract.sh`. (`--wsl off` is the engine-independent form and keeps the run whole.)
   **Mechanical enforcement:** this rule is ENFORCED, not prose-only — `scripts/gate/guard-session.sh`
   (pre-edit guard) refuses ANY edit-context while the **primary** checkout (`git-dir == git-common-dir`)
   sits on `main`, and `validate-all.sh` hard-fails when run from primary+main+DIRTY (committing

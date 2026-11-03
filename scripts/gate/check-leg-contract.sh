@@ -1691,7 +1691,7 @@ CONT
     'face seat; subject scripts/testdata/leg-contract/run.sh; item_q "a crossed leg called seat (needs rsync)" hl_wsl_route bash scripts/testdata/leg-contract/run.sh --check' \
     "a CROSSED line cannot be a seat leg: the runner crosses it, so the snapshot is being asked to grade it" 'FACE:'
 
-  # THE SUBJECT half (HD-1233). The subject is what lets a win11 launch name the seat legs a diff owes, so an
+  # THE SUBJECT half. The subject is what lets a win11 launch name the seat legs a diff owes, so an
   # unnamed one is a leg that can never be owed (it reads as "not owed" forever) and an unmatched one is a
   # glob that can never be hit — the same mute wearing a declaration's face. The two negatives are fenced
   # against the positive and against the tree-leg NOTE, because a rule that reddens everything is as useless

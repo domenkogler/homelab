@@ -145,6 +145,12 @@ task-specific dispatch. Do **not** bulk-read the repo.
 6. implement → `bash scripts/validate-all.sh` green → update `todo.md` + owning `docs/*.md` per
    lifecycle (the finding/✅ goes to the doc, the row keeps only the remaining `⏳` items and shrinks;
    close-out record = owning doc + commit; the frozen changelog/journal are archived)
+   → **on this seat the gate is two faces, and the second one is a session-close act**: an un-flagged run
+   takes the **tree face** in the engine's commit-stamped snapshot (`bash scripts/harness/gate-snapshot.sh
+   --run`, about a minute) and prints whether the change owes the **seat face** (`bash scripts/validate-all.sh
+   --face seat`) from the `subject` globs its seat/joined registrations declare. `OWED NOW` runs it in this
+   commit; `NOT OWED` still runs it at session close, because the seat half's subject is this host and no
+   snapshot can prove it. `CANNOT ANSWER` is a boundary and never a pass.
    → commit — **plain `git commit`, signing is retired (2026-10-08): `commit.gpgsign=false`, never
      `git commit -s` (that adds a `Signed-off-by` trailer, it signs nothing), and `%G?` → `N` is the expected
      value, not a failure; CONVENTIONS §6**
