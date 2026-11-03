@@ -26,6 +26,10 @@ FIND	prompt-edge-identity.md/evidence	1
 FIND	prompt-edge-identity.md/glyph	0
 FIND	prompt-edge-identity.md/phrase	0
 FIND	prompt-edge-identity.md/verb-date	0
+FIND	prompt-engine-bearer-wsl.md/evidence	1
+FIND	prompt-engine-bearer-wsl.md/glyph	0
+FIND	prompt-engine-bearer-wsl.md/phrase	1
+FIND	prompt-engine-bearer-wsl.md/verb-date	0
 FIND	prompt-external.md/evidence	1
 FIND	prompt-external.md/glyph	0
 FIND	prompt-external.md/phrase	0
@@ -81,7 +85,7 @@ FIND	prompt-update.md/verb-date	0
 FIND	todo.md/evidence	7
 FIND	todo.md/glyph	19
 FIND	todo.md/phrase	1
-FIND	todo.md/verb-date	7
+FIND	todo.md/verb-date	6
 ROW	HD-04	958
 ROW	HD-06	518
 ROW	HD-101	246
@@ -138,7 +142,7 @@ ROW	HD-1161	3702
 ROW	HD-1166	3056
 ROW	HD-1167	2541
 ROW	HD-1169	4621
-ROW	HD-1170	6560
+ROW	HD-1170	6789
 ROW	HD-1172	3683
 ROW	HD-1173	2481
 ROW	HD-1174	1562
@@ -150,10 +154,10 @@ ROW	HD-1181	12088
 ROW	HD-1182	4318
 ROW	HD-1183	1589
 ROW	HD-1197	1160
-ROW	HD-1202	2964
+ROW	HD-1202	2136
 ROW	HD-1203	855
 ROW	HD-1205	1748
-ROW	HD-1206	1851
+ROW	HD-1206	4017
 ROW	HD-1208	1434
 ROW	HD-1210	1173
 ROW	HD-1212	3321
@@ -162,7 +166,7 @@ ROW	HD-1214	1221
 ROW	HD-1215	1136
 ROW	HD-1216	2052
 ROW	HD-1218	4348
-ROW	HD-1219	2075
+ROW	HD-1219	2227
 ROW	HD-1220	1806
 ROW	HD-1221	903
 ROW	HD-1222	1080
@@ -172,7 +176,8 @@ ROW	HD-1228	1931
 ROW	HD-1233	2261
 ROW	HD-1234	1239
 ROW	HD-1235	1630
-ROW	HD-1236	1775
+ROW	HD-1237	1491
+ROW	HD-1238	4765
 ROW	HD-133	312
 ROW	HD-14	906
 ROW	HD-141	427
@@ -218,7 +223,7 @@ ROW	HD-369	2206
 ROW	HD-376	1961
 ROW	HD-377	3678
 ROW	HD-380	2226
-ROW	HD-384	1554
+ROW	HD-384	1522
 ROW	HD-397	1506
 ROW	HD-400	2742
 ROW	HD-401	1653
@@ -264,9 +269,10 @@ ROW	HD-495	2418
 ROW	HD-57	670
 BRIEF	prompt-dns-transport.md	106
 BRIEF	prompt-edge-identity.md	87
+BRIEF	prompt-engine-bearer-wsl.md	183
 BRIEF	prompt-external.md	115
 BRIEF	prompt-laptop-legs.md	81
-BRIEF	prompt-laptop-wsl.md	136
+BRIEF	prompt-laptop-wsl.md	144
 BRIEF	prompt-litellm-consumers.md	76
 BRIEF	prompt-media-arrs.md	87
 BRIEF	prompt-observability-alerting.md	105
