@@ -710,9 +710,10 @@ pi_pkg_lsp_scope: "fleet"
 # ---------------------------------------------------------------------------------------------
 # THE LANGUAGE SERVERS THEMSELVES — the binaries pi-lsp spawns, which the row above places NOT.
 # `scripts/harness/seat-lsp-binaries.sh` (plane `lsp-binaries`) is the owner: it reads the set here,
-# asks what each seat actually has, and installs what is missing or off-pin. Before that row these
-# were nine hand-run commands whose absence showed up as `lsp_*` answering "server skipped" on one
-# seat and a real diagnostic on another, with no check able to say so (HD-1238).
+# asks what each seat actually has, and installs what is missing or off-pin on the seats whose carriers
+# it may write — it READS win11's Volta image and .NET tool store and writes neither. Before that owner
+# these were nine hand-run commands whose absence showed up as `lsp_*` answering "server skipped" on
+# one box and a real diagnostic on another, with no check able to say so.
 #
 # Four fields per entry, because the PACKAGE, the COMMAND pi-lsp spawns, the version and the
 # installer are four different facts:
