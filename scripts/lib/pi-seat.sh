@@ -831,24 +831,36 @@ hl_seat_skip_line() {
 }
 
 # hl_path_persist <mark> <dir> [file...] — put <dir> on the PATH of the shells reading those files,
-# under <mark>, idempotently. Sets HL_PATH_WROTE=1 when a byte was written. The rule is the
-# installer's: only a directory that EXISTS on this box is persisted, because a PATH line to a
-# layout this seat never had teaches the next reader to trust a path that leads nowhere. Files that
-# do not exist are skipped rather than created — a shell's startup files are its owner's business.
+# under <mark>, idempotently. Sets HL_PATH_WROTE=1 when a byte was written and HL_PATH_ADOPTED=1 when
+# it wrote nothing because the file ALREADY exports that directory.
+# The rule is the installer's: only a directory that EXISTS on this box is persisted, because a PATH
+# line to a layout this seat never had teaches the next reader to trust a path that leads nowhere.
+# Files that do not exist are skipped rather than created — a shell's startup files are its owner's
+# business. ⚠ And an existing line that already does the job is ADOPTED rather than duplicated: a
+# startup file carrying two exports of one directory leaves a later reader unable to tell which line
+# anyone owns, and the mark — whose whole job is to answer that question — cannot see a line an
+# operator typed by hand. So the mark is the write key and the DIRECTORY is the adopt key.
 # Marks stay per-caller on purpose ("distinct from install-pi-debian.sh's, because both installers
 # legitimately run on one box and each must know whether IT persisted").
 hl_path_persist() {
   local __mark="${1:?hl_path_persist: needs a mark}" __dir="${2:?hl_path_persist: needs a dir}" __f __wrote=0
   HL_PATH_WROTE=0
+  HL_PATH_ADOPTED=0
   [ -d "$__dir" ] || return 0
   shift 2
   [ "$#" -gt 0 ] || set -- "$HOME/.bashrc" "$HOME/.profile"
   for __f in "$@"; do
     [ -e "$__f" ] || continue
     grep -qF "$__mark" "$__f" && continue
+    # Two stages and no regex: grep the PATH lines, then ask those for the directory as a literal.
+    if grep -E '^[[:space:]]*(export[[:space:]]+)?PATH=' "$__f" 2>/dev/null | grep -qF -- "$__dir"; then
+      HL_PATH_ADOPTED=1
+      continue
+    fi
     { printf '\n%s\nexport PATH="%s:$PATH"\n' "$__mark" "$__dir"; } >> "$__f" || return 1
     __wrote=1
   done
+  [ "$__wrote" = 1 ] && HL_PATH_ADOPTED=0
   [ "$__wrote" = 1 ] && HL_PATH_WROTE=1
   return 0
 }
@@ -956,6 +968,17 @@ case "$1" in found-it) echo /home/x/.local/bin/found-it; exit 0;; *) exit 1;; es
 '
   else printf 'NOT CAUGHT: an unresolvable command was not rc 1
 '; _fails=$((_fails+1)); fi
+
+  # 5. an existing line that already exports the directory is ADOPTED, not duplicated: the hand-typed
+  #    line an operator left behind satisfies the requirement, and a second block for one directory is
+  #    the state no later read can attribute. The mark never lands, nothing is written.
+  printf '# existing\nexport PATH="%s:$PATH"\n' "$_t/exist" > "$_t/bashrc2"
+  bash -c ". '$_lib'; hl_path_persist '# fixture mark' '$_t/exist' '$_t/bashrc2'; echo \$HL_PATH_WROTE \$HL_PATH_ADOPTED" > "$_t/w4"
+  if [ "$(cat "$_t/w4")" = "0 1" ] && [ "$(grep -c 'fixture mark' "$_t/bashrc2")" = 0 ] \
+     && [ "$(wc -l < "$_t/bashrc2")" = 2 ]; then
+    printf 'ok: an unmarked export of the same directory is adopted, never duplicated\n'
+  else printf 'NOT CAUGHT: the adopt arm wrote [%s] marks=%s lines=%s\n' "$(cat "$_t/w4")" \
+    "$(grep -c 'fixture mark' "$_t/bashrc2")" "$(wc -l < "$_t/bashrc2")"; _fails=$((_fails+1)); fi
 
   [ "$_fails" -eq 0 ] || printf 'seat-plane lib self-test: %s arm(s) NOT caught
 ' "$_fails" >&2

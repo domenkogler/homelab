@@ -276,8 +276,12 @@ installer: none
 #
 # `installer: debian cockpit wsl` rather than `none`, unlike the `mcp-server` row: these ARE part of
 # what a from-zero seat must have to answer the same questions as its siblings, and the owner installs
-# them from the pins with no interactive step. The `win11` seat is NOT named: its carriers are Volta's
-# npm tree and a .NET global tool under `%USERPROFILE%`, and the owner's answer there is SKIP at rc 2.
+# them from the pins with no interactive step. The `win11` seat IS named, and its carriers are named
+# with it: the npm entries sit in the Volta image that seat's `node` resolves to, the .NET entry in
+# `%USERPROFILE%\.dotnet\tools`, and the astral ones in `~/.local/bin` (which holds no astral binary,
+# so the honest answer there is MISSING rather than SKIP). The plane READS all three and WRITES nothing
+# on that seat — installing into another tool's image would make this plane the owner of a mess nobody
+# can attribute, which is also why `installer` names no win11 installer.
 # Naming the seat without naming its carriers would have the fan-out report a seat as converged
 # because a Debian code path happened to run — the failure mode this registry exists to prevent.
 plane: lsp-binaries
@@ -286,5 +290,5 @@ owner: seat-lsp-binaries.sh
 runner: bash
 check: --check --strict
 push: --push
-seats: wsl oldsrv
+seats: win11 wsl oldsrv
 installer: debian cockpit wsl

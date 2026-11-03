@@ -44,6 +44,21 @@
 #   astral        <cmd> --version                                        — these two accept it
 #   A probe that DIES is rc 2, never a missing binary: CONVENTIONS §6.
 #
+#   WHERE THE RECORD ROOT IS (a seat fact, not a constant): a Debian seat keeps its npm globals in the
+#   `npm --prefix ~/.local` layout; win11 keeps them in a Volta image whose NODE VERSION MOVES under
+#   the seat, so the root there is derived from the node an interactive shell resolves (a pinned image
+#   version turns every Volta upgrade into a MISSING for every entry).
+#   HOW `dotnet` IS FOUND: a name this process already resolves needs no asking; a name it does not is
+#   looked up through the SAME interactive shell the visibility read uses. On the cockpit seat the only
+#   dotnet is a ~/.local/bin wrapper that a non-interactive shell never sees, and a probe that execs a
+#   name it cannot find answers NO-PROBE forever. That is a read that was measured, not imagined.
+#
+# WHAT THIS PLANE DOES NOT WRITE
+#   On win11 it writes NOTHING. The set there lives inside a Volta image and inside a .NET global-tool
+#   store, and a plane that installs into another tool's image owns a mess nobody can attribute. So that
+#   seat answers verdicts from those records, and a `--push` there prints NO-INSTALLER and changes no
+#   byte. It is NOT a SKIP: a short win11 set stays a red leg that names which entries are short.
+#
 # VERDICTS   (per entry, and the run reports the worst one it saw)
 #   OK                  installed at the pin and resolvable by a session
 #   MISSING             no record of it at all
@@ -95,6 +110,7 @@ DOTNET="${LSP_DOTNET:-dotnet}"
 PATH_MARK="# pi-seat lsp binaries (seat-lsp-binaries.sh)"
 MODE="check"; STRICT=0; KEYS=(); NAME=(); CMD=(); VER=(); VIA=()
 DOTNET_LIST=""
+NM="$LSP_ROOT/lib/node_modules"   # the record root; set_roots moves it on a win11 seat
 
 err()  { printf 'seat-lsp-binaries: %s\n' "$*" >&2; }
 stop() { printf 'FATAL: %s\n' "$*" >&2; exit 2; }
@@ -119,24 +135,44 @@ read_set() {
   [ "${#KEYS[@]}" -gt 0 ] || stop "no lsp_bin_* rows in $VERSIONS — an empty set is not a set that is satisfied"
 }
 
+# --- where the records live, which is a SEAT fact and not a constant -----------------------------
+# set_roots resolves the npm record root for the seat this box is. A Debian seat keeps the layout the
+# installer writes; win11 gets it from the node an interactive shell resolves, so a Volta upgrade moves
+# the root with the seat instead of leaving the plane behind.
+set_roots() {
+  local _n=""
+  NM="$LSP_ROOT/lib/node_modules"
+  [ "${SEAT:-}" = win11 ] || return 0
+  _n="$(hl_path_resolved node)" || _n=""
+  [ -n "$_n" ] || stop "win11: no node resolves for an interactive shell, so the image holding this seat's npm globals cannot be located - a plane that guesses that path calls every server MISSING"
+  NM="${_n%/*}/node_modules"
+  [ -d "$NM" ] || stop "win11: node resolves to $_n with no node_modules beside it - that is not a global npm layout this plane can read"
+}
+
 # --- one probe per `via`, and a dead probe is never read as absent --------------------------------
 ver_read() { # ver_read <i> — prints "<version>|<detail>", rc 0 read · 1 absent · 2 probe died
-  local i="$1" pkg="${NAME[$i]}" cmd="${CMD[$i]}" via="${VIA[$i]}" f out="" rc=0
+  local i="$1" pkg="${NAME[$i]}" cmd="${CMD[$i]}" via="${VIA[$i]}" f out="" rc=0 dt=""
   case "$via" in
     npm|npm-lib)
-      f="$LSP_ROOT/lib/node_modules/$pkg/package.json"
+      f="$NM/$pkg/package.json"
       [ -r "$f" ] || return 1
       # Not anchored and not layout-dependent: a probe that depends on how npm happened to wrap the
       # file is a probe that reports "absent" for an installed server.
       out="$(sed -nE 's/.*"version"[[:space:]]*:[[:space:]]*"([^"]*)".*/\1/p' "$f" | head -1)"
       [ -n "$out" ] || return 2
-      if [ "$via" = npm-lib ] && [ ! -f "$LSP_ROOT/lib/node_modules/$pkg/lib/tsserver.js" ]; then
+      if [ "$via" = npm-lib ] && [ ! -f "$NM/$pkg/lib/tsserver.js" ]; then
         printf '%s|no lib/tsserver.js' "$out"; return 0
       fi
       printf '%s|' "$out"; return 0 ;;
     dotnet)
+      # A name this process resolves needs no asking; a name it does not is looked up the way a session
+      # would look it up. Executing a name that is not there is what turns one seat's wrapper into a
+      # permanent NO-PROBE, and that happened on the cockpit seat.
+      if command -v "$DOTNET" >/dev/null 2>&1; then dt="$DOTNET"
+      else dt="$(hl_path_resolved "${DOTNET##*/}")" || dt=""; fi
+      [ -n "$dt" ] || dt="$DOTNET"
       if [ -z "$DOTNET_LIST" ]; then
-        DOTNET_LIST="$("$DOTNET" tool list -g 2>/dev/null)" || return 2
+        DOTNET_LIST="$("$dt" tool list -g 2>/dev/null)" || return 2
       fi
       out="$(printf '%s\n' "$DOTNET_LIST" | awk -v p="$pkg" '$1 == p { print $2; exit }')"
       [ -n "$out" ] || return 1
@@ -144,8 +180,11 @@ ver_read() { # ver_read <i> — prints "<version>|<detail>", rc 0 read · 1 abse
     astral)
       # The astral installer lands a STANDALONE binary in ~/.local/bin, so that file is what is
       # asked; resolving through this process's PATH would ask a different question than the seat's.
-      [ -x "$LOCAL_BIN/$cmd" ] || return 1
-      out="$("$LOCAL_BIN/$cmd" --version 2>&1)" || rc=$?
+      # A .exe is the same answer on a Windows seat, where that is the only spelling that exists.
+      f="$LOCAL_BIN/$cmd"
+      [ -x "$f" ] || f="$LOCAL_BIN/$cmd.exe"
+      [ -x "$f" ] || return 1
+      out="$("$f" --version 2>&1)" || rc=$?
       [ "$rc" = 0 ] || return 2
       # grep -oE and not a sed group: `.*([0-9]+\.[0-9]+).*` is greedy and reads "ruff 0.17.3" as "7.3",
       # which would report every astral server as off-pin.
@@ -199,6 +238,7 @@ do_check() {
     2:*) stop "the plane registry at $(hl_seat_registry_path) cannot be read — the leg cannot tell whether this box owes language servers, and an install run on that guess writes into a HOME nobody audited" ;;
     1:*) hl_seat_skip_line "$PLANE_ID" "no language-server set"; return 2 ;;
   esac
+  set_roots
   assess
   say_read
   if [ "$VERDICT" = NO-PROBE ]; then stop "a version probe died rather than answered — an unread version is not evidence of a missing server"; fi
@@ -210,6 +250,10 @@ do_check() {
 
 install_one() { # install_one <i> — the installer for one `via`; rc 0 when the command ran
   local i="$1" pkg="${NAME[$i]}" v="${VER[$i]}" via="${VIA[$i]}"
+  if [ "${SEAT:-}" = win11 ]; then
+    printf '  NO-INSTALLER win11 for %s - this plane reads the Volta image and the .NET tool store, it does not write either\n' "$pkg"
+    return 1
+  fi
   case "$via" in
     npm|npm-lib) command -v "$NPM" >/dev/null 2>&1 || { printf '  NO-INSTALLER npm for %s\n' "$pkg"; return 1; }
       "$NPM" --prefix "$LSP_ROOT" install -g "$pkg@$v" >/dev/null 2>&1 ;;
@@ -234,9 +278,18 @@ do_push() {
     1:*) hl_seat_skip_line "$PLANE_ID" "no language-server set"; return 2 ;;
   esac
   # The PATH block FIRST: installing into a directory a session cannot see produces a seat that is
-  # correct and still answers "server skipped".
-  hl_path_persist "$PATH_MARK" "$LOCAL_BIN" || stop "cannot write the PATH block into the seat's startup files"
-  [ "${HL_PATH_WROTE:-0}" = 1 ] && printf 'path: persisted %s under this plane'"'"'s mark\n' "$LOCAL_BIN"
+  # correct and still answers "server skipped". On win11 there is no such block to write: that seat's
+  # PATH comes from the Windows profile and the Volta bin dir, so exporting ~/.local/bin there would
+  # put a directory holding nothing relevant in front of the entries that are.
+  if [ "${SEAT:-}" = win11 ]; then
+    printf 'path: win11 resolves its servers through the Windows PATH, so no ~/.local/bin export is written here\n'
+  else
+    hl_path_persist "$PATH_MARK" "$LOCAL_BIN" || stop "cannot write the PATH block into the seat's startup files"
+    [ "${HL_PATH_WROTE:-0}" = 1 ] && printf 'path: persisted %s under this plane'"'"'s mark\n' "$LOCAL_BIN"
+    [ "${HL_PATH_WROTE:-0}" = 0 ] && [ "${HL_PATH_ADOPTED:-0}" = 1 ] && \
+      printf 'path: adopted the export of %s that was already there - no block written\n' "$LOCAL_BIN"
+  fi
+  set_roots
   assess
   local i n=0
   for i in "${!KEYS[@]}"; do
@@ -376,7 +429,7 @@ EOS
   run() { # run <expect-rc> <args...> — the REAL CLI, under the fixture environment
     local want="$1"; shift
     PI_SEAT="${PS:-wsl}" VERSIONS="$t/repo/IaC/ansible/group_vars/all/versions.yml" \
-    LSP_ROOT="$t/root" LSP_NPM="$t/bin/npm" LSP_DOTNET="$t/bin/dotnet" HL_SHELL_PROBE="$t/bin/probe" \
+    LSP_ROOT="$t/root" LSP_NPM="$t/bin/npm" LSP_DOTNET="${LSPDOT:-$t/bin/dotnet}" HL_SHELL_PROBE="$t/bin/probe" \
     LSP_ASTRAL_FETCH="$t/bin/fetch" \
     ST_LOG="$t/log" ST_TOOLS="$t/tools" ST_RESOLVE="$t/resolve" PREFIX="$t/root" \
     PATH="$t/bin:$PATH" HOME="$t/home" bash "${BASH_SOURCE[0]}" "$@" > "$t/out" 2>&1
@@ -461,10 +514,75 @@ EOS
   VERSIONS="$t/v3.yml" LSP_ROOT="$t/root" PI_SEAT=wsl bash "${BASH_SOURCE[0]}" --check --strict > "$t/out" 2>&1
   [ $? -eq 2 ] && grep -qi 'unknown installer' "$t/out" || { printf 'NOT CAUGHT an unknown via was accepted\n'; fails=$((fails+1)); }
 
-  # 9. a seat the row does not name answers SKIP at rc 2 and installs NOTHING.
-  rm -f "$t/log"; PS=win11 run 2 --push
+  # 9. a box the row does not name answers SKIP at rc 2 and installs NOTHING. (win11 is NOT this arm
+  #    any more: the row names it now, and arm 13 is what proves what it answers there.)
+  rm -f "$t/log"; PS=aboxnobodycallsaseat run 2 --push
   [ -s "$t/log" ] && { printf 'NOT CAUGHT --push installed packages off-scope\n'; fails=$((fails+1)); }
-  grep -q '^SKIP: win11' "$t/out" || { printf 'NOT CAUGHT an off-scope seat did not answer SKIP\n'; fails=$((fails+1)); }
+  grep -q '^SKIP: aboxnobodycallsaseat' "$t/out" || { printf 'NOT CAUGHT an off-scope box did not answer SKIP\n'; fails=$((fails+1)); }
+
+  # 10. a version probe that DIES is rc 2 with a FATAL, never MISSING. The seat this catches is a
+  #     half-finished npm install: `package.json` exists and carries no `version`, so a reader that
+  #     calls an unread version "absent" would `--push` a reinstall at a seat whose server is already
+  #     on disk, and `--check` would answer green at a seat that has nothing installed. A branch nobody
+  #     plants is a branch nobody tests, so the state is planted here rather than trusted.
+  mkdir -p "$t/root/lib/node_modules/bash-language-server"
+  printf '{\n  "name": "bash-language-server"\n}\n' > "$t/root/lib/node_modules/bash-language-server/package.json"
+  run 2 --check --strict
+  grep -qi 'probe died' "$t/out" \
+    || { printf 'NOT CAUGHT a dead version probe did not stop the run\n'; fails=$((fails+1)); }
+  grep -q 'NO-PROBE' "$t/out" \
+    || { printf 'NOT CAUGHT a dead version probe was read as MISSING\n'; fails=$((fails+1)); }
+  printf '{\n  "version": "5.8.1"\n}\n' > "$t/root/lib/node_modules/bash-language-server/package.json"
+
+  # 11. the dotnet read is an EXACT row match in `tool list -g`, and it never runs the apphost.
+  #     One fixture proves both halves: a tool whose name CONTAINS this one's sorts ahead of it, so a
+  #     substring read returns 9.9.9 for a tool that is at the pin; and the apphost planted here is
+  #     the probe that reports a working seat as broken on a box whose .NET runtime lives in a
+  #     ~/.dotnet prefix (the `DOTNET_ROOT` trap), so the plane must read the record and exec nothing.
+  printf 'roslyn-language-server-classic 9.9.9 roslyn-language-server-classic\nroslyn-language-server 5.13.0-1.26514.10 roslyn-language-server\n' > "$t/tools"
+  : > "$t/trap"; ST_TRAP="$t/trap"; export ST_TRAP
+  printf '#!/bin/sh\necho ran-apphost >> "$ST_TRAP"\nprintf "roslyn-language-server 0.0.0\\n"\n' > "$t/root/bin/roslyn-language-server"
+  chmod +x "$t/root/bin/roslyn-language-server"
+  run 0 --check --strict
+  if grep -q 'ran-apphost' "$t/trap"; then
+    printf 'NOT CAUGHT the plane ran the dotnet apphost to read a version\n'; fails=$((fails+1))
+  fi
+  printf 'roslyn-language-server 5.13.0-1.26514.10 roslyn-language-server\n' > "$t/tools"
+  rm -f "$t/root/bin/roslyn-language-server"
+
+  # 12. the dotnet read uses the SAME interactive shell as the visibility read when the plain name is
+  #     not resolvable. On the cockpit seat the only dotnet is a ~/.local/bin wrapper that a
+  #     non-interactive shell never sees, so a plane that execs the bare name reads NO-PROBE forever on
+  #     a box whose tool is at the pin. LSPDOT points the plane at a name nothing resolves directly.
+  printf '#!/bin/sh\nif [ "$1" = tool ] && [ "$2" = list ]; then printf "roslyn-language-server 1.2.3 roslyn-language-server\\n"; exit 0; fi\nexit 0\n' > "$t/bin/dotnet-i"
+  chmod +x "$t/bin/dotnet-i"
+  { printf 'dotnet-absent=%s/bin/dotnet-i\n' "$t"; cat "$t/resolve"; } > "$t/resolve2" && mv "$t/resolve2" "$t/resolve"
+  LSPDOT=dotnet-absent run 1 --check --strict
+  grep -q 'DRIFT(version) 1.2.3' "$t/out" \
+    || { printf 'NOT CAUGHT a dotnet carrier reachable only through an interactive shell was never read\n'; fails=$((fails+1)); }
+  printf 'bash-language-server=%s/bash-language-server\nruff=%s/ruff\nroslyn-language-server=%s/roslyn-language-server\n' "$PATH_OK" "$PATH_OK" "$PATH_OK" > "$t/resolve"
+
+  # 13. win11 is IN SCOPE: the row names it, so the answer there is a verdict and not a SKIP. The set is
+  #     read from the node image that seat's node actually resolves (a Volta layout: the shims and
+  #     node_modules sit beside node.exe), and a push there WRITES NOTHING while still naming what is
+  #     short. Both halves matter: a SKIP would hide a short seat, and a push that installed into the
+  #     image would make this plane the owner of somebody else's tree.
+  mkdir -p "$t/volta/node/1.2.3/node_modules/bash-language-server" "$t/volta/node/1.2.3/node_modules/yaml-language-server"
+  : > "$t/volta/node/1.2.3/node"
+  printf '{\n  "version": "5.8.1"\n}\n' > "$t/volta/node/1.2.3/node_modules/bash-language-server/package.json"
+  printf '{\n  "version": "2.0.0"\n}\n' > "$t/volta/node/1.2.3/node_modules/yaml-language-server/package.json"
+  printf 'node=%s/volta/node/1.2.3/node\nbash-language-server=%s/volta/node/1.2.3/bash-language-server\nyaml-language-server=%s/volta/node/1.2.3/yaml-language-server\nruff=%s/ruff\nroslyn-language-server=%s/win-tools/roslyn-language-server.cmd\n' "$t" "$t" "$t" "$PATH_OK" "$t" > "$t/resolve"
+  rm -f "$t/log"
+  PS=win11 run 1 --check --strict
+  grep -q '^SKIP' "$t/out" && { printf 'NOT CAUGHT win11 answered SKIP after the row took it in\n'; fails=$((fails+1)); }
+  grep -q 'MISSING' "$t/out" || { printf 'NOT CAUGHT the Volta image was not read (a short win11 set answered OK)\n'; fails=$((fails+1)); }
+  grep -q 'bash-language-server.*OK' "$t/out" || { printf 'NOT CAUGHT a server present in the Volta image was not OK\n'; fails=$((fails+1)); }
+  printf '# existing\n' > "$HOME/.bashrc"
+  PS=win11 run 1 --push
+  [ -s "$t/log" ] && { printf 'NOT CAUGHT a win11 push wrote into the seat image\n'; fails=$((fails+1)); }
+  grep -q 'lsp binaries (seat-lsp-binaries.sh)' "$HOME/.bashrc" \
+    && { printf 'NOT CAUGHT a win11 push wrote a ~/.local/bin export that seat does not use\n'; fails=$((fails+1)); }
+  grep -q 'NO-INSTALLER win11' "$t/out" || { printf 'NOT CAUGHT a win11 push did not say it writes nothing\n'; fails=$((fails+1)); }
 
   printf '\nself-test: %s\n' "$([ "$fails" -eq 0 ] && echo "OK — all canaries caught" || echo "$fails canary/canaries NOT caught")"
   return "$fails"
