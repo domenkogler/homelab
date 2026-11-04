@@ -1927,6 +1927,13 @@ face tree; item_x "installs into a fixture HOME through stub installers across a
 # caught in the concurrent run and passed standalone, the documented pool-flake class). The cheap and
 # meaningful half IS gated: the --check --strict item below.
 face tree; item_x "~25 CLI launches against a fixture settings.json: HD-1135 measured 97 s on this seat even after the fork diet — a self-test for the settings harness, not a tree check" "pi-settings-config.sh --self-test (HD-1110: the harness keys of ~/.pi/agent/settings.json)" st_pi_settings_selftest
+# The `paseo` seat plane had NO gated leg: its self-test (the arms, the merge carrier for the stored
+# hash, and the value-canary that proves its own bite) ran only when someone remembered to ask. Measured
+# 3 s on this seat, and it is sandboxed — a fixture HOME and a stub CLI — so it is cheap enough to belong
+# in quick and touches no seat state, which is why only the self-test half is registered: the
+# `--check --strict` half answers DRIFT on a seat whose push has not run, and that is deploy state
+# (HD-1137's rule), not a tree fact.
+face joined; subject scripts/harness/seat-paseo.sh; item_q "seat-paseo.sh --self-test (HD-411: every arm's verdict, the merge carrier that writes the vault's stored hash where no CLI can, the seat whose CLI its transport cannot resolve, and the never-print canary that must stay caught in --check, --check --strict and --push alike)" bash scripts/harness/seat-paseo.sh --self-test
 # The clone's own pre-push gate. The SELF-TEST is gated; the `--check --strict` half is NOT, on
 # the HD-1137 rule: a clone's hooks are deploy state, and an item that reddens every session
 # worktree that has not yet run `install-hooks.sh --push` would make one lane's unset-up seat
