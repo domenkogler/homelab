@@ -739,6 +739,8 @@ Client → Technitium (DHCP-pushed chain, see below)
     seat on loopback ([services-ai.md](services-ai.md) §9b-1). No plain `pi-oldsrv.kogler.si` exists in any
     zone (the `ha`/`spark` reasoning: MagicDNS answers extra_records client-side, so a plain name is
     a second door nobody asked for), so `dig pi-oldsrv.kogler.si` returning nothing is the design working.
+    `paseo-oldsrv.kogler.si` is the same class in the same shape — one `.ts`-only row, one router on oldsrv's
+    `websecure-ts`, a daemon on loopback — so an empty answer for it is the same thing working.
   Verify with the control name in the same call — `dig +short llitellm.kogler.si` resolves, so an empty
   answer for one of these means the record, not the resolver.
 

@@ -2504,3 +2504,39 @@ Run everything as root on oldsrv (`sudo -n`); the cockpit itself always runs as 
    side (Volta is Windows-only): `volta install @earendil-works/pi-coding-agent@<pi_host_npm_version>`, the
    version read from `IaC/ansible/group_vars/all/versions.yml` — never bare `@latest`, which moves a seat
    ahead of its pin instead of to it (CONVENTIONS §7).
+
+12. **The Paseo seat leg — the daemon the cockpit is being compared against.** Same `domen` account, the same
+   loopback-only posture; the placement and the auth decision are
+   [docs/services-ai.md](docs/services-ai.md) §9b-1, and **`roles/seat` owns the unit, both drop-ins and the
+   password env file** — so only two things here are human: the CLI install and the one vault item.
+   ```bash
+   # a. The CLI, against the pinned Node from step 1. The package is @getpaseo/cli: `npm i -g paseo` is a
+   #    name-squat, and neither the role nor the seat plane installs either one (CONVENTIONS §7).
+   sudo -u domen env PATH=/home/domen/.local/share/pi-node/current/bin:$PATH npm install -g @getpaseo/cli
+   # b. The daemon's password — catalog-generated (deployment-secrets.md class 1), minted by the script
+   #    from the WSL runner; `--create` never overwrites an existing item.
+   bash scripts/secrets/provision-vault.sh
+   # c. The host side. `--tags seat` is the seat leg alone; the door is scoped to traefik-internal so no
+   #    sibling container is restarted, and BOTH tags are owed (`scripts/README.md` §Tags & surgical runs).
+   bash scripts/ansible/ansible-run.sh playbooks/home_servers.yml --limit oldsrv.kogler.si --tags seat
+   bash scripts/ansible/ansible-run.sh playbooks/home_servers.yml --limit oldsrv.kogler.si \
+     --tags docker_services,traefik-internal -e docker_services_scope=traefik-internal
+   ```
+   **Verify** — ask the UNIT, not a login shell: a systemd user unit reads neither `~/.bashrc` nor
+   `~/.profile`, so `bash -lc which paseo` proves nothing about it.
+   ```bash
+   sudo -u domen XDG_RUNTIME_DIR=/run/user/$(id -u domen) systemctl --user show paseo.service \
+     -p Environment -p ActiveState      # PASEO_LISTEN=<loopback>:<paseo_ports.oldsrv> + both pi dirs + ~/.local/bin
+   sudo -u domen bash -lc 'paseo daemon status'        # listen: …:6769, localDaemon: running
+   ```
+   `daemon.hostnames` and `daemon.trustedProxies` are set by the same converge THROUGH the CLI
+   (`paseo daemon config set`), because `~/.paseo/config.json` also carries seat state the role does not
+   own. Behind the proxy the daemon still sees the public `Host`, so without that name it 403s what the ACL
+   allowed: `curl -s -o /dev/null -w '%{http_code}\n' --resolve paseo-oldsrv.ts.kogler.si:443:$(tailscale ip -4) https://paseo-oldsrv.ts.kogler.si/api/daemon/socket`
+   must answer **401** (the password gate), and the same call with any other name **404** (no router).
+
+   The laptop seats have no unit, so their own `config.json` arms — bind, relay off, the password hash —
+   converge through `scripts/harness/seat-paseo.sh` inside
+   `bash scripts/harness/pi-seat-sync.sh --check|--push`, and the phone path onto a laptop is the elevated
+   `scripts/harness/win/paseo-seat-door.ps1`: two inbound rules scoped to the tailnet range and one portproxy
+   whose target is **loopback**, because a tailnet-IP listener cannot bind while Tailscale is down.
