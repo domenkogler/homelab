@@ -345,33 +345,84 @@ print("saved")
 EOS
   chmod +x "$t/bin/paseo"
 
-  # A vault fixture, in vault_read.py's --values shape: the hash is $2b$12$ + 22 + 31 chars.
-  printf '%s\n' '{"items":{"i1":{"title":"paseo_password","version":1,"fields":[{"label":"password","value":"plaintext"},{"label":"bcrypt_hash","value":"$2b$12$stubstubstubstubstubstubstubstubstubstubstubstubstubst"}]}}}' > "$t/vault.json"
-  printf '%s\n' '{"items":{"i1":{"title":"paseo_password","version":1,"fields":[{"label":"password","value":"plaintext"}]}}}' > "$t/vault-nohash.json"
+  # The fixture's secrets, named ONCE and shaped like the real item's: `password` 32, `bcrypt_hash`
+  # 60 (docs/deployment-secrets.md, paseo_password). They are the bytes the value-canary below
+  # refuses to see in output, so a fixture that spelled them some other way could disarm that scan
+  # without touching it.
+  local STUB_HASH STUB_PLAIN STUB_FOREIGN
+  STUB_HASH='$2b$12$'"$(printf 'a%.0s' {1..53})"
+  STUB_PLAIN="$(printf 'b%.0s' {1..32})"
+  STUB_FOREIGN='$2a$10$'"$(printf 'c%.0s' {1..53})"   # a hash that is NOT the item's (arm 7)
+
+  # A vault fixture, in vault_read.py's --values shape.
+  printf '{"items":{"i1":{"title":"paseo_password","version":1,"fields":[{"label":"password","value":"%s"},{"label":"bcrypt_hash","value":"%s"}]}}}\n' \
+    "$STUB_PLAIN" "$STUB_HASH" > "$t/vault.json"
+  printf '{"items":{"i1":{"title":"paseo_password","version":1,"fields":[{"label":"password","value":"%s"}]}}\n' \
+    "$STUB_PLAIN" > "$t/vault-nohash.json"
+
+  # --- the value-canary ------------------------------------------------------------------
+  # Every rc assertion below proves WORDING and rc; none of them proves NEVER-PRINT. That gap is how
+  # paseo_password's bcrypt hash reached three run captures: a `--check` drift line printed the arm's
+  # value, every arm stayed green, and the self-test reported "all canaries caught". So each arm's
+  # output is scanned too, in whatever mode that arm runs, for three shapes — a bcrypt hash, a bare
+  # 32-char token (the minted shape of every value in this vault), and the fixture's own bytes.
+  # Shapes are stated, not derived from the fixtures: editing a fixture value must not blind the scan.
+  local SCAN_BCRYPT='\$2[aby]\$[0-9]{2}\$[./A-Za-z0-9]{53}'
+  local SCAN_TOKEN='(^|[^A-Za-z0-9])[A-Za-z0-9]{32}([^A-Za-z0-9]|$)'
+
+  secret_scan() { # secret_scan <file> — the secret SHAPES in a run's output, never the bytes: this
+    # report lands in a run capture too, so it names shapes and no value (§3).
+    local found=""
+    grep -qE -- "$SCAN_BCRYPT" "$1" 2>/dev/null && found="$found a-bcrypt-hash"
+    grep -qE -- "$SCAN_TOKEN" "$1" 2>/dev/null && found="$found a-32-char-token"
+    grep -qF -e "$STUB_HASH" -e "$STUB_PLAIN" "$1" 2>/dev/null && found="$found the-stubbed-vault-value"
+    printf '%s' "${found# }"
+  }
+
+  redact() { # redact — the shape of every secret-shaped string, for a diagnostic that dumps output.
+    sed -E 's%\$2[aby]\$[0-9]{2}\$[./A-Za-z0-9]{53}%[a bcrypt hash]%g; s%(^|[^A-Za-z0-9])[A-Za-z0-9]{32}([^A-Za-z0-9]|$)%[a 32-char token]%g'
+  }
+
+  run_cli() { # run_cli <script> <args...> — one real invocation of a seat-paseo script in the fixture
+    # seat; the output lands in "$t/out" and the exit status is the return value. A copy of this file
+    # lives in a marker-complete tree whose scripts/lib IS this one, so it reads the same registry.
+    local script="$1"; shift
+    env -u REPO PI_SEAT="${PI_SEAT:-wsl}" PASEO_BIN="$t/bin/paseo" PASEO_HOME_DIR="$t/home/.paseo" \
+        ST_CFG="$CFG" HL_VAULT_READ_FIXTURE="${FIXTURE:-$t/vault.json}" \
+        bash "$script" "$@" > "$t/out" 2>&1
+  }
 
   run_at() { # run_at <expect-rc> <name> <args...> — every arm drives the REAL CLI path
     local want="$1" name="$2"; shift 2
-    local rc=0
-    env PI_SEAT="${PI_SEAT:-wsl}" PASEO_BIN="$t/bin/paseo" PASEO_HOME_DIR="$t/home/.paseo" \
-        ST_CFG="$CFG" HL_VAULT_READ_FIXTURE="${FIXTURE:-$t/vault.json}" \
-        bash "${BASH_SOURCE[0]}" "$@" > "$t/out" 2>&1 || rc=$?
-    if [ "$rc" = "$want" ]; then printf 'ok   rc %s  %s\n' "$rc" "$name"
-    else printf 'NOT CAUGHT  wanted rc %s, got %s  %s\n%s\n' "$want" "$rc" "$name" "$(sed 's/^/        /' "$t/out")"; fails=$((fails + 1)); fi
+    local rc=0 leak note=' (no secret-shaped output)'
+    run_cli "${BASH_SOURCE[0]}" "$@" || rc=$?
+    leak="$(secret_scan "$t/out")"
+    if [ -n "$leak" ]; then
+      printf 'NOT CAUGHT  %s — the output carries %s; the bytes are never echoed here\n' "$name" "$leak"
+      fails=$((fails + 1)); note=''
+    fi
+    if [ "$rc" = "$want" ]; then printf 'ok   rc %s  %s%s\n' "$rc" "$name" "$note"
+    else printf 'NOT CAUGHT  wanted rc %s, got %s  %s\n%s\n' "$want" "$rc" "$name" "$(redact < "$t/out" | sed 's/^/        /')"; fails=$((fails + 1)); fi
   }
-  wsl_converged() { printf '%s\n' '{"version":1,"daemon":{"relay":{"enabled":false},"listen":"0.0.0.0:6768","auth":{"password":"$2b$12$stubstubstubstubstubstubstubstubstubstubstubstubstubst"}}}' > "$CFG"; }
+
+  # seat_cfg <relay> <listen> <password> — the one spelling of a seat's config.json in this fixture.
+  seat_cfg() { printf '{"version":1,"daemon":{"relay":{"enabled":%s},"listen":"%s","auth":{"password":"%s"}}}\n' \
+      "$1" "$2" "$3" > "$CFG"; }
+  wsl_converged() { seat_cfg false "0.0.0.0:6768" "$STUB_HASH"; }
 
   # 1. every arm right → OK, rc 0.
   wsl_converged; PI_SEAT=wsl run_at 0 "converged seat" --check --strict
   grep -q '^OK:' "$t/out" || { printf 'NOT CAUGHT the converged case printed no OK line\n'; fails=$((fails + 1)); }
+  grep -q '^OK:' "$t/out" || { printf 'NOT CAUGHT the converged case printed no OK line\n'; fails=$((fails + 1)); }
 
   # 2. THE DEFECT THIS ROW CLOSES: the relay is ON. A seat that can reach the vendor relay is the
   #    state the house posture refuses, and a check that stayed green over it is a mute gate.
-  printf '%s\n' '{"version":1,"daemon":{"relay":{"enabled":true},"listen":"0.0.0.0:6768","auth":{"password":"$2b$12$stubstubstubstubstubstubstubstubstubstubstubstubstubst"}}}' > "$CFG"
+  seat_cfg true "0.0.0.0:6768" "$STUB_HASH"
   PI_SEAT=wsl run_at 1 "relay on" --check --strict
   grep -q 'daemon.relay.enabled' "$t/out" || { printf 'NOT CAUGHT a relay-on seat was not named\n'; fails=$((fails + 1)); }
 
   # 3. the bind: loopback on a laptop seat is the state where the phone never arrives.
-  printf '%s\n' '{"version":1,"daemon":{"relay":{"enabled":false},"listen":"127.0.0.1:6768","auth":{"password":"$2b$12$stubstubstubstubstubstubstubstubstubstubstubstubstubst"}}}' > "$CFG"
+  seat_cfg false "127.0.0.1:6768" "$STUB_HASH"
   PI_SEAT=wsl run_at 1 "loopback-only bind on a laptop seat" --check --strict
   grep -q 'daemon.listen' "$t/out" || { printf 'NOT CAUGHT a laptop seat bound to loopback was not named\n'; fails=$((fails + 1)); }
 
@@ -397,7 +448,7 @@ EOS
 
   # 7. the hash is READ, never derived: a foreign hash reddens, and an item with no bcrypt_hash
   #    cannot answer the arm at all — an unproven password is not a verified one.
-  printf '%s\n' '{"version":1,"daemon":{"relay":{"enabled":false},"listen":"0.0.0.0:6768","auth":{"password":"$2b$12$someotherhashnottheitem"}}}' > "$CFG"
+  seat_cfg false "0.0.0.0:6768" "$STUB_FOREIGN"
   PI_SEAT=wsl run_at 1 "a hash that is not the item's" --check --strict
   grep -q 'daemon.auth.password' "$t/out" || { printf 'NOT CAUGHT a seat carrying a foreign hash stayed green\n'; fails=$((fails + 1)); }
   wsl_converged; FIXTURE="$t/vault-nohash.json" PI_SEAT=wsl run_at 1 "the item carries no bcrypt_hash" --check --strict
@@ -424,6 +475,67 @@ EOS
   PI_SEAT=oldsrv run_at 1 "oldsrv push leaves the door arms and the bind alone" --push
   grep -q '"listen": *"127.0.0.1:6768"' "$CFG" || { printf 'NOT CAUGHT the oldsrv push rewrote the bind the unit owns\n'; fails=$((fails + 1)); }
   grep -q 'wrong.example' "$CFG" || { printf 'NOT CAUGHT the oldsrv push wrote a door arm roles/seat owns\n'; fails=$((fails + 1)); }
+
+  # 10. THE CANARY FOR THE CANARY: the scan must fire on every shape it claims to catch, and stay
+  #     silent on the redacted wording a clean run prints. An unproven scan is the same mute gate in
+  #     a better costume, so both halves are asserted here (CONVENTIONS §6).
+  local plant hits
+  for plant in "$STUB_HASH" "token=$STUB_PLAIN" "want=$STUB_FOREIGN"; do
+    printf 'DRIFT: daemon.auth.password=%s\n' "$plant" > "$t/plant"
+    hits="$(secret_scan "$t/plant")"
+    if [ -n "$hits" ]; then printf 'ok   the leak scan catches %s\n' "$hits"
+    else printf 'NOT CAUGHT  the leak scan ignored a planted value\n'; fails=$((fails + 1)); fi
+  done
+  printf 'DRIFT: daemon.listen=127.0.0.1:6768 want=0.0.0.0:6768 daemon.auth.password=a bcrypt hash (60 chars) want=a bcrypt hash (60 chars)\n' > "$t/clean"
+  hits="$(secret_scan "$t/clean")"
+  [ -z "$hits" ] || { printf 'NOT CAUGHT the leak scan fired on the redacted wording: %s\n' "$hits"; fails=$((fails + 1)); }
+  printf 'ok   the leak scan stays silent on the redacted wording it is supposed to accept\n'
+  # And the diagnostic that dumps a failing arm's output must not report a leak by committing one:
+  # this self-test's own stdout lands in a run capture, the same class the leak was found in.
+  printf 'DRIFT: daemon.auth.password=%s want=%s\n' "$STUB_HASH" "$STUB_PLAIN" > "$t/dump"
+  local shown; shown="$(redact < "$t/dump")"
+  hits="$(printf '%s\n' "$shown" | secret_scan /dev/stdin)"
+  if [ -n "$hits" ]; then
+    printf 'NOT CAUGHT  the rc-mismatch diagnostic still carried %s\n' "$hits"; fails=$((fails + 1))
+  elif ! printf '%s' "$shown" | grep -q '\[a bcrypt hash\].*\[a 32-char token\]'; then
+    printf 'NOT CAUGHT  the redactor changed nothing (it runs, but it matches nothing)\n'; fails=$((fails + 1))
+  else printf 'ok   the rc-mismatch diagnostic is redacted before it is printed\n'; fi
+
+  # 11. PROOF OF BITE. This copy's `describe_secret` prints what it is handed — the exact edit that
+  #     put the bcrypt hash in three run captures, and one every rc assertion here stayed green
+  #     over. The scan must redden it in EVERY mode, the push's `wrote` line and every drift line
+  #     included. If these arms go green, the canary is decoration.
+  local mut="$t/mut" lib_dir
+  lib_dir="$(dirname "$(hl_seat_registry_path)")"   # the lib that owns this harness, found by the
+  mkdir -p "$mut/IaC/ansible" "$mut/docs" "$mut/scripts/harness"    # registry's own location, not by depth
+  : > "$mut/docs/index.md"
+  ln -s "$lib_dir" "$mut/scripts/lib"   # the same registry, the same vault reader: only the script is mutated
+  python3 - "${BASH_SOURCE[0]}" "$mut/scripts/harness/seat-paseo.sh" <<'PY' || { printf 'NOT CAUGHT the mutant could not be built — the bite is unproven\n'; fails=$((fails + 1)); }
+import sys
+src = open(sys.argv[1]).read()
+anchor = 'describe_secret() {\n  case "$1" in'
+if src.count(anchor) != 1:
+    raise SystemExit('the mutation anchor is gone: the canary has no witness')
+open(sys.argv[2], 'w').write(src.replace(
+    anchor,
+    'describe_secret() {\n  printf "%s" "$1"   # MUTANT: hands back the value, which is the leak under test\n  return\n  case "$1" in'))
+PY
+  bite() { # bite <mode name> <args...> — the mutant must leak, and the scan must say so
+    local name="$1"; shift
+    local hits rc=0
+    seat_cfg false "0.0.0.0:6768" "$STUB_FOREIGN"
+    run_cli "$mut/scripts/harness/seat-paseo.sh" "$@" || rc=$?
+    hits="$(secret_scan "$t/out")"
+    if [ -n "$hits" ] && grep -qE '^(DRIFT|OK)' "$t/out"; then
+      printf 'ok   the mutated copy leaks in %s and the scan catches it (%s)\n' "$name" "$hits"
+    elif ! grep -qE '^(DRIFT|OK)' "$t/out"; then
+      printf 'NOT CAUGHT  the mutant never reached the wording under test in %s (rc %s)\n' "$name" "$rc"
+      fails=$((fails + 1))
+    else printf 'NOT CAUGHT  the mutated copy printed nothing the scan recognises in %s (rc %s)\n' "$name" "$rc"; fails=$((fails + 1)); fi
+  }
+  bite '--check --strict' --check --strict
+  bite '--check' --check
+  bite '--push' --push
 
   printf '\nself-test: %s\n' "$([ "$fails" -eq 0 ] && echo "OK — all canaries caught" || echo "$fails canary/canaries NOT caught")"
   return "$fails"
