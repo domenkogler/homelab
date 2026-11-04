@@ -18,7 +18,9 @@
 #                          the schema holds a single listener, which is why the ports live in the
 #                          `paseo_ports` map (group_vars/all/main.yml) and not in this file.
 #   daemon.auth.password   the bcrypt hash from the vault item `paseo_password` — READ, never
-#                          derived here, so a rotation cannot leave a seat answering on its own.
+#                          derived here, so a rotation cannot leave a seat answering on its own. The
+#                          ONE arm merged into the file instead of written through the CLI, because no
+#                          `paseo` command will carry it (THE CARRIER, below).
 #
 # WHAT THIS PLANE DOES NOT WRITE, AND WHY
 #   On `oldsrv` the unit carries the bind (PASEO_LISTEN) and the password (its 0600 env file), so
@@ -44,19 +46,28 @@
 #   the half that execs the CLI to merge a value, refuses for its absence. Asking in both halves bought
 #   `MISSING` on a green seat; refusing only in the write half still refuses a seat that cannot write.
 #
-#   ONE ARM HAS NO CLI CARRIER, measured on the 0.15.0 CLI: `daemon config set` refuses any path
-#   under `daemon.auth` ("Use daemon set-password to change the daemon password"), and `daemon
-#   set-password` reads the PLAINTEXT from a terminal and bcrypts it itself — with a fresh salt, so
-#   its output is a different 60-char string for the same value. So the password arm is READ and
-#   compared here (shape and length in the verdict, never bytes) and NOTHING here writes it: on a
-#   seat with no unit the hash has no carrier this plane may use, which is the open half of HD-411.
-#   `daemon.listen` and `daemon.relay.enabled` carry on being written through the CLI, which merges.
+#   ONE ARM HAS NO CLI CARRIER, measured on the 0.15.0 CLI. `daemon config set` refuses any path under
+#   `daemon.auth` — `Error: Use daemon set-password to change the daemon password.`, rc 1, the file
+#   untouched — and `daemon set-password` reads its PLAINTEXT from a TERMINAL (`needs a terminal to read
+#   the password` over a pipe) and bcrypts what it reads with a FRESH SALT, so it answers a different
+#   60-char string for the same value and can never produce the stored hash this arm compares against.
+#   `daemon.auth.password` is therefore MERGED into config.json by `merge_auth_hash`: the same file the
+#   CLI writes for every other arm, at the mode the CLI writes it (0600), every other key carried
+#   through the same parse, and a rename behind it so a file that cannot be written is left alone. That
+#   is a merge into the CLI's OWN file, not a second source of truth: the value still lives in the
+#   vault item and is never derived here. A vault read that fails leaves the arm UNWRITTEN and the bytes
+#   exactly as found — the `DRIFT(auth)` refusal that keeps an unproven password unproven rather than
+#   half-written. `daemon.listen` and `daemon.relay.enabled` are carried by the CLI alone, which merges
+#   for them; a push that cannot exec the CLI therefore lands this one arm (merging a file needs no
+#   binary) and then names the arms it could NOT carry, instead of reporting a run that converged the
+#   seat.
 #
 # VERDICTS
 #   OK                every arm this seat owes is what the seat owes
 #   MISSING           no config.json — no daemon has ever run on this seat; in the WRITE half only,
-#                     also no `paseo` CLI this shell can exec. The READ half never asks for the
-#                     binary: it parses config.json itself (see THE CARRIER, BELOW).
+#                     also no `paseo` CLI this shell can exec, and then that line names the arms it
+#                     could not carry. The READ half never asks for the binary: it parses config.json
+#                     itself (see THE CARRIER, BELOW).
 #   DRIFT(<arm>)      that arm is not what the seat owes (the line quotes the value it found)
 #   DRIFT             more than one arm is off; each is named
 #   REFUSAL           config.json is not readable as JSON — the bytes are left exactly as found
@@ -80,6 +91,10 @@
 #   back) must redden that scan. This is the arm that was missing when `paseo_password`'s hash
 #   reached three run captures through a `--check` drift line: rc and wording were proven, never-print
 #   was not.
+#   The merge that carries the auth arm keeps the same rule: the hash arrives on the python child's
+#   STDIN — never in argv, which `ps` shows to the whole machine — that child prints nothing when it
+#   succeeds, and the `wrote` line for the arm goes through `describe_secret` as its drift line does. A
+#   merge that fails names the file and never the value.
 #
 # Env (sandbox hooks for --self-test only): PASEO_BIN, PASEO_HOME_DIR, PI_SEAT, HL_REGISTRY, and
 #   vault_read.py's own HL_VAULT_READ_FIXTURE.
@@ -205,6 +220,64 @@ if not hashes:
 print(hashes[0])' || { VAULT_NOTE="$(tail -1 "$ERRFILE" 2>/dev/null)"; return 1; }
 }
 
+# merge_auth_hash <hash> — the carrier for the ONE arm the CLI refuses to write, the arm's value
+# merged into $CONFIG_JSON. WHY the CLI is not the carrier here, both halves measured on 0.15.0:
+# `daemon config set daemon.auth.password …` answers `Error: Use daemon set-password to change the
+# daemon password.` at rc 1 and leaves the file untouched, and `daemon set-password` reads a PLAINTEXT
+# from a terminal (a pipe answers `needs a terminal to read the password`) and bcrypts it with a FRESH
+# SALT — so it cannot be pointed at the stored hash, which is what `assess` compares this arm against.
+# This is NOT a second source of truth: it writes the same config.json the CLI writes for every other
+# arm, at the 0600 the CLI writes it at, and the value it writes is READ from the vault item, never
+# derived here. Everything outside the one dotted path is carried through the same parse, and the write
+# lands as a rename of a sibling temp file, so a file that cannot be written is left exactly as found.
+# The hash arrives on STDIN, never in argv, and nothing here prints it: a refusal names the file and the
+# shape of the problem, never the value (CONVENTIONS §3).
+merge_auth_hash() {
+  printf '%s' "$1" | python3 -c '
+import json, os, sys, tempfile
+path, arm = sys.argv[1], sys.argv[2]
+want = sys.stdin.read().strip()
+if not want:
+    sys.stderr.write("seat-paseo: no value on stdin to merge\n"); raise SystemExit(1)
+try:
+    with open(path) as fh:
+        doc = json.load(fh)
+except json.JSONDecodeError:
+    sys.stderr.write("seat-paseo: %s is not JSON — nothing was merged\n" % path); raise SystemExit(1)
+except OSError as exc:
+    sys.stderr.write("seat-paseo: %s could not be read (%s)\n" % (path, exc.strerror or type(exc).__name__)); raise SystemExit(1)
+if not isinstance(doc, dict):
+    sys.stderr.write("seat-paseo: %s is not a JSON object — nothing was merged\n" % path); raise SystemExit(1)
+parts = arm.split(".")
+cur = doc
+for i, part in enumerate(parts[:-1]):
+    nxt = cur.get(part)
+    if nxt is None:
+        nxt = cur[part] = {}
+    elif not isinstance(nxt, dict):
+        # A scalar sitting where the arm needs an object is a shape to refuse, not to overwrite: the
+        # merge carries the arm in, it does not decide what another author meant.
+        sys.stderr.write("seat-paseo: %s holds a non-object at %s — nothing was merged\n"
+                         % (path, ".".join(parts[:i + 1]))); raise SystemExit(1)
+    cur = nxt
+cur[parts[-1]] = want
+fd, tmp = tempfile.mkstemp(prefix=".config.json.", dir=os.path.dirname(path) or ".")
+try:
+    os.fchmod(fd, 0o600)                      # the secret is never world-readable, not even in the temp
+    with os.fdopen(fd, "w") as fh:
+        json.dump(doc, fh, indent=2)           # the shape the CLI itself writes: 2-space indent, file order
+        fh.write("\n")
+    os.replace(tmp, path)                      # atomic: a failed write cannot leave a half config
+    os.chmod(path, 0o600)
+except OSError as exc:
+    try:
+        os.unlink(tmp)
+    except OSError:
+        pass
+    sys.stderr.write("seat-paseo: %s could not be written (%s)\n" % (path, exc.strerror or type(exc).__name__)); raise SystemExit(1)
+' "$CONFIG_JSON" "daemon.auth.password"
+}
+
 # --- the assess: one path for --check and for the read-back after --push -----------------
 assess() {
   local arm want got bad=""
@@ -259,9 +332,12 @@ scope_verdict() {
 # prelude — scope, render, and the states that are not verdicts about the arms: no config (no daemon has
 # ever run) for both halves, and no CLI for the WRITE half only (THE CARRIER above). Nothing here
 # asks a login or interactive shell: widening the probe would replace one over-report with another,
-# and the half that writes must know whether IT can exec the carrier it is standing on.
-# Sets VERDICT/REASON and returns 0 (assess) or 1 (already answered).
+# and the half that writes must know whether IT can exec the carrier it is standing on. The CLI answer
+# is recorded in CLI_OK rather than answered here, because ONE arm has no CLI carrier at all and must
+# still be landed on a seat whose CLI this transport cannot resolve.
+# Sets VERDICT/REASON/CLI_OK and returns 0 (assess) or 1 (already answered).
 prelude() {
+  CLI_OK=1
   seat_scope
   [ "$SCOPE" = here ] || { scope_verdict; return $?; }
   seat_render || stop "seat $SEAT has no Paseo render — a seat this plane knows nothing about"
@@ -274,9 +350,7 @@ prelude() {
   # that THIS shell cannot exec it — and never that the seat has no such package, which is the
   # over-report the read half must not carry.
   [ "$MODE" = push ] || return 0
-  command -v "$PASEO_BIN" >/dev/null 2>&1 || {
-    printf 'MISSING: no `paseo` CLI this shell can exec — the arms are READ from %s, but writing them needs @getpaseo/cli on this transport'"'"'s PATH (⛔ never the squatted `paseo` package); nothing was written\n' "$CONFIG_JSON"
-    return 1; }
+  command -v "$PASEO_BIN" >/dev/null 2>&1 || CLI_OK=0
   return 0
 }
 
@@ -298,7 +372,7 @@ do_check() {
 
 do_push() {
   prelude || return $?
-  local arm want got wrote=0
+  local arm want got wrote=0 cli_refused=""
   mapfile -t ARMS < <(owed_arms)
   # A REFUSAL is settled BEFORE any write: no parse, no write, bytes untouched.
   read_cfg >/dev/null || { assess; verdict_out; return 1; }
@@ -315,14 +389,31 @@ do_push() {
     fi
     got="$(read_cfg | awk -F'\t' -v k="$arm" '$1==k{print $2}')"
     [ "${got//[[:space:]]/}" = "${want//[[:space:]]/}" ] && continue
+    if [ "$arm" = daemon.auth.password ]; then
+      # No CLI carrier for this arm — see `merge_auth_hash`. It lands (or refuses) whatever this
+      # transport can exec the CLI from, which is the point of carrying it through the file.
+      merge_auth_hash "$want" || { printf 'DRIFT(%s): the write did not take\n' "$arm"; return 1; }
+      printf 'wrote %s = %s from %s\n' "$arm" "$(describe_secret "$want")" "$VAULT_ITEM"
+      wrote=1
+      continue
+    fi
+    if [ "$CLI_OK" = 0 ]; then
+      cli_refused="$cli_refused $arm"      # named below; the merge above is not a way to write these
+      continue
+    fi
     "$PASEO_BIN" --home "$PASEO_HOME" daemon config set "$arm" "$want" >/dev/null 2>&1 || {
       printf 'DRIFT(%s): the write did not take\n' "$arm"; return 1; }
-    case "$arm" in
-      daemon.auth.password) printf 'wrote %s = %s from %s\n' "$arm" "$(describe_secret "$want")" "$VAULT_ITEM" ;;
-      *) printf 'wrote %s = %s\n' "$arm" "$want" ;;
-    esac
+    printf 'wrote %s = %s\n' "$arm" "$want"
     wrote=1
   done
+  # The refusal this half owes a CLI it cannot exec, and it is still a refusal at rc 1 whether or not
+  # the merge above had anything to write: an arm the CLI carries is an arm this run did not converge.
+  if [ "$CLI_OK" = 0 ]; then
+    printf 'MISSING: no `paseo` CLI this shell can exec — %s (those arms ride @getpaseo/cli on this transport'"'"'s PATH alone, ⛔ never the squatted `paseo` package)%s\n' \
+      "$([ -n "$cli_refused" ] && printf 'not written: %s' "${cli_refused# }" || printf 'nothing the CLI carries needed writing')" \
+      "$([ "$UNIT" = no ] && printf '; `daemon.auth.password` needs no CLI and is carried by the merge above')"
+    return 1
+  fi
   assess
   [ "$VERDICT" = OK ] && { printf 'OK: re-read config.json — the arms this seat owes are the render%s\n' \
       "$([ "$wrote" = 0 ] && printf ' (nothing needed writing)')"; return 0; }
@@ -332,7 +423,7 @@ do_push() {
 
 # --- self-test: stubs, so no daemon, no vault, no seat -----------------------------------
 self_test() {
-  local t fails=0 CFG want CLI
+  local t fails=0 CFG want CLI m ino
   t="$(mktemp -d)" || { err "mktemp failed"; return 1; }
   # shellcheck disable=SC2064
   trap "rm -rf '$t'" RETURN
@@ -600,6 +691,123 @@ PY
   CLI="$NO_CLI" PI_SEAT=wsl run_at 1 "no CLI and no config, push" --push
   [ -e "$CFG" ] && { printf 'NOT CAUGHT --push created a config on a seat with no carrier\n'; fails=$((fails + 1)); }
   CLI="$t/bin/paseo"   # restore the default carrier for anything that runs after this arm
+
+  # 13. THE CARRIER `daemon.auth.password` now has, bred in BOTH directions. The CLI cannot carry this
+  #     arm: `daemon config set` refuses any `daemon.auth.*` path and `daemon set-password` reads a
+  #     PLAINTEXT from a terminal and salts it fresh, so the push merges the vault's stored hash into
+  #     the same config.json the CLI writes. Four states are bred, because each is a way the merge could
+  #     go green while being wrong: (a) a seat owed the arm and its config lacks it — the item's hash
+  #     lands, the file still re-reads, and every key the merge does not own survives; (b) a seat whose
+  #     hash already matches is NOT rewritten; (c) a vault that cannot be read leaves the arm unwritten
+  #     and the bytes identical; (d) a file that cannot be parsed is still a REFUSAL, never a file to
+  #     merge over.
+  # cfg_same_except_auth <after> <before> — every key/value outside `daemon.auth` survived the merge,
+  # compared as parsed JSON so the re-serialisation the merge does cannot fail the check.
+  cfg_same_except_auth() {
+    python3 - "$1" "$2" <<'PY'
+import json, sys
+def strip(path):
+    with open(path) as fh:
+        doc = json.load(fh)
+    daemon = doc.get("daemon")
+    if isinstance(daemon, dict):
+        daemon.pop("auth", None)
+    return doc
+sys.exit(0 if strip(sys.argv[1]) == strip(sys.argv[2]) else 1)
+PY
+  }
+  # cfg_auth_is_the_item — the arm in the file is the fixture item's hash, compared inside python so the
+  # bytes never cross this script's stdout (§3).
+  cfg_auth_is_the_item() {
+    python3 - "$CFG" "$t/vault.json" <<'PY'
+import json, sys
+with open(sys.argv[1]) as fh:
+    got = json.load(fh).get("daemon", {}).get("auth", {}).get("password")
+with open(sys.argv[2]) as fh:
+    want = [f["value"] for f in json.load(fh)["items"]["i1"]["fields"] if f.get("label") == "bcrypt_hash"][0]
+sys.exit(0 if got == want else 1)
+PY
+  }
+  cfg_ino() { python3 -c 'import os,sys; print(os.stat(sys.argv[1]).st_ino)' "$1"; }
+  # mode_of / msys_here — the mode as the platform reports it. MSYS derives it from the ACL, so a strict
+  # 0600 read-back only means anything on a POSIX seat: the same carve-out and the same wording
+  # seed-seat-ssh-config.sh's arm 1f states, said rather than passed silently.
+  mode_of() { stat -c %a "$1" 2>/dev/null || stat -f %Lp "$1" 2>/dev/null || echo '?'; }
+  msys_here() { case "$(uname -s 2>/dev/null)" in MINGW*|MSYS*|CYGWIN*) return 0 ;; *) return 1 ;; esac; }
+
+  # (a) the arm is owed and absent: the hash lands, the keys survive, the file re-reads at 0600.
+  printf '%s\n' '{"version":1,"daemon":{"relay":{"enabled":false},"listen":"0.0.0.0:6768","cors":{"allowedOrigins":["https://app.paseo.sh"]}},"app":{"baseUrl":"https://app.paseo.sh"}}' > "$CFG"
+  chmod 600 "$CFG"; cp "$CFG" "$t/auth.before"
+  PI_SEAT=wsl run_at 0 "push merges the vault hash into a config that lacks the arm" --push
+  grep -q '^wrote daemon.auth.password = a bcrypt hash (60 chars) from paseo_password' "$t/out" \
+    || { printf 'NOT CAUGHT the auth merge did not report the arm it wrote\n'; fails=$((fails + 1)); }
+  grep -q '^OK: re-read' "$t/out" \
+    || { printf 'NOT CAUGHT the push did not re-read the arm it merged\n'; fails=$((fails + 1)); }
+  cfg_auth_is_the_item || { printf 'NOT CAUGHT the arm in config.json is not the vault item hash\n'; fails=$((fails + 1)); }
+  cfg_same_except_auth "$CFG" "$t/auth.before" \
+    || { printf 'NOT CAUGHT the merge changed a key outside daemon.auth\n'; fails=$((fails + 1)); }
+  m="$(mode_of "$CFG")"
+  if [ "$m" = 600 ]; then printf 'ok   the merge lands its config at 0600\n'
+  elif msys_here; then printf 'ok   MSYS reports mode %s from the ACL — the 0600 read-back runs on a Debian seat\n' "$m"
+  else printf 'NOT CAUGHT the merge left the config mode %s, not 600\n' "$m"; fails=$((fails + 1)); fi
+
+  # (b) the hash already matches: nothing is rewritten. The INODE is the witness — a re-write renames a
+  # new file over the old one, and a converge that rewrote a secret it agrees with would burn the vault
+  # read and the file for nothing, every leg, forever.
+  ino="$(cfg_ino "$CFG")"
+  PI_SEAT=wsl run_at 0 "a matching hash is not rewritten" --push
+  grep -q '^wrote ' "$t/out" && { printf 'NOT CAUGHT the push rewrote an auth arm that already matched\n'; fails=$((fails + 1)); }
+  [ "$ino" = "$(cfg_ino "$CFG")" ] \
+    || { printf 'NOT CAUGHT a converged seat had its config.json rewritten anyway\n'; fails=$((fails + 1)); }
+  m="$(mode_of "$CFG")"
+  if [ "$m" = 600 ]; then printf 'ok   a converged seat keeps its config at 0600\n'
+  elif msys_here; then printf 'ok   MSYS reports mode %s from the ACL — the 0600 read-back runs on a Debian seat\n' "$m"
+  else printf 'NOT CAUGHT a no-op push left the config mode %s, not 600\n' "$m"; fails=$((fails + 1)); fi
+
+  # (c) the vault cannot answer: the arm stays unwritten and the file byte-identical, and the run still
+  # reddens — an unproven password never reads as a written one.
+  cp "$CFG" "$t/vault-fail.before"
+  FIXTURE="$t/vault-nohash.json" PI_SEAT=wsl run_at 1 "a vault that cannot answer leaves the arm unwritten" --push
+  grep -q '^DRIFT(auth):' "$t/out" \
+    || { printf 'NOT CAUGHT a failed vault read reached the merge\n'; fails=$((fails + 1)); }
+  cmp -s "$CFG" "$t/vault-fail.before" \
+    || { printf 'NOT CAUGHT --push wrote the config when the vault could not be read\n'; fails=$((fails + 1)); }
+
+  # (d) an unparseable file is a REFUSAL, not a file to merge over: the arm being absent and the file
+  # being unreadable are two different facts and only the first is this merge's business.
+  printf '%s\n' '{"version":1,"daemon":' > "$CFG"; cp "$CFG" "$t/broken.before"
+  PI_SEAT=wsl run_at 1 "push refuses to merge over an unparseable config" --push
+  grep -q '^REFUSAL:' "$t/out" \
+    || { printf 'NOT CAUGHT an unparseable config was merged over instead of refused\n'; fails=$((fails + 1)); }
+  cmp -s "$CFG" "$t/broken.before" \
+    || { printf 'NOT CAUGHT --push rewrote a config it could not parse\n'; fails=$((fails + 1)); }
+  # And a shape the merge cannot walk — a scalar where `daemon.auth` must be an object — is refused the
+  # same way rather than overwritten with the shape the merge would have liked.
+  printf '%s\n' '{"version":1,"daemon":{"relay":{"enabled":false},"listen":"0.0.0.0:6768","auth":"not-an-object"}}' > "$CFG"
+  cp "$CFG" "$t/scalar.before"
+  PI_SEAT=wsl run_at 1 "push refuses to merge over a scalar daemon.auth" --push
+  cmp -s "$CFG" "$t/scalar.before" \
+    || { printf 'NOT CAUGHT the merge overwrote a daemon.auth it could not walk\n'; fails=$((fails + 1)); }
+
+  # 14. THE MERGE IS NOT A BACK DOOR FOR THE CLI ARMS. Arm 12 proved the READ half does not need the
+  #     binary; this proves the WRITE half lands ONLY the arm that genuinely needs no binary. A seat
+  #     whose relay and bind are both wrong and whose CLI is invisible must still get the auth arm (the
+  #     CLI could not write it anyway) and must still be REFUSED the two arms the CLI carries, unwritten
+  #     and at rc 1. Delete the gate and the CLI arms get written here without a carrier.
+  printf '%s\n' '{"version":1,"daemon":{"relay":{"enabled":true},"listen":"127.0.0.1:6768"}}' > "$CFG"
+  CLI="$NO_CLI" PI_SEAT=wsl run_at 1 "no CLI: the auth arm lands by the merge, the CLI arms stay refused" --push
+  grep -q '^wrote daemon.auth.password' "$t/out" \
+    || { printf 'NOT CAUGHT the auth arm was withheld for want of a CLI that cannot carry it\n'; fails=$((fails + 1)); }
+  grep -q '^MISSING:' "$t/out" \
+    || { printf 'NOT CAUGHT a push with no CLI carried no refusal\n'; fails=$((fails + 1)); }
+  grep -q '^wrote daemon.listen\|^wrote daemon.relay.enabled' "$t/out" \
+    && { printf 'NOT CAUGHT the push wrote a CLI arm with no CLI\n'; fails=$((fails + 1)); }
+  grep -q '"enabled": true' "$CFG" \
+    || { printf 'NOT CAUGHT the merge overwrote the relay arm the CLI owns\n'; fails=$((fails + 1)); }
+  grep -q '"listen": "127.0.0.1:6768"' "$CFG" \
+    || { printf 'NOT CAUGHT the merge overwrote the bind the CLI owns\n'; fails=$((fails + 1)); }
+  cfg_auth_is_the_item || { printf 'NOT CAUGHT the auth arm did not reach config.json\n'; fails=$((fails + 1)); }
+  CLI="$t/bin/paseo"
 
   printf '\nself-test: %s\n' "$([ "$fails" -eq 0 ] && echo "OK — all canaries caught" || echo "$fails canary/canaries NOT caught")"
   return "$fails"
