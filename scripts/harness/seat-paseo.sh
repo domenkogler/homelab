@@ -32,6 +32,14 @@
 #   place a binary no pin in versions.yml names (CONVENTIONS §7), and the package is
 #   `@getpaseo/cli`: `npm i -g paseo` is a name-squat.
 #
+#   ONE ARM HAS NO CLI CARRIER, measured on the 0.15.0 CLI: `daemon config set` refuses any path
+#   under `daemon.auth` ("Use daemon set-password to change the daemon password"), and `daemon
+#   set-password` reads the PLAINTEXT from a terminal and bcrypts it itself — with a fresh salt, so
+#   its output is a different 60-char string for the same value. So the password arm is READ and
+#   compared here (shape and length in the verdict, never bytes) and NOTHING here writes it: on a
+#   seat with no unit the hash has no carrier this plane may use, which is the open half of HD-411.
+#   `daemon.listen` and `daemon.relay.enabled` carry on being written through the CLI, which merges.
+#
 # VERDICTS
 #   OK                every arm this seat owes is what the seat owes
 #   MISSING           no CLI on PATH, or no config.json — no daemon has ever run on this seat
@@ -47,7 +55,17 @@
 #   bash scripts/harness/seat-paseo.sh                  # --check
 #   bash scripts/harness/seat-paseo.sh --check --strict # the seat-leg form
 #   bash scripts/harness/seat-paseo.sh --push           # write the delta, then re-read it
-#   bash scripts/harness/seat-paseo.sh --self-test      # stubs; no daemon, no vault, no seat
+#   bash scripts/harness/seat-paseo.sh --self-test      # stubs + the value-canary; no daemon, no vault, no seat
+#
+# NEVER-PRINT, AND HOW IT IS PROVEN
+#   Every verdict goes to a fan-out log, so a line that prints a credential VALUE is a leak, not a
+#   verdict. `describe_secret` is the guard on the credential arms — shape and length, never bytes
+#   (CONVENTIONS §3) — and `--self-test` now proves the guard rather than asserting it: each arm's
+#   output is scanned for a bcrypt shape, a bare 32-char token and the fixture's own values, in every
+#   mode the arm runs, and a mutated copy of this file (one whose `describe_secret` hands the value
+#   back) must redden that scan. This is the arm that was missing when `paseo_password`'s hash
+#   reached three run captures through a `--check` drift line: rc and wording were proven, never-print
+#   was not.
 #
 # Env (sandbox hooks for --self-test only): PASEO_BIN, PASEO_HOME_DIR, PI_SEAT, HL_REGISTRY, and
 #   vault_read.py's own HL_VAULT_READ_FIXTURE.
