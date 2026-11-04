@@ -133,13 +133,15 @@
 - name: seat | Check the Paseo binary the unit will exec
   # The launcher lands in the pinned Node dir's bin (`npm -g @getpaseo/cli` against that Node).
   # ⛔ `npm i -g paseo` is a name-squat and would put an unrelated binary on this path.
+  # The register is NOT named `seat_paseo_bin`: a registered variable shadows the group var of
+  # that name for every later task on the host, and the next task would then exec a result dict.
   ansible.builtin.stat:
     path: "{{ seat_paseo_bin }}"
-  register: seat_paseo_bin
+  register: seat_paseo_bin_stat
 
 - name: seat | Refuse to render the Paseo unit whose binary is absent
   ansible.builtin.assert:
-    that: seat_paseo_bin.stat.exists
+    that: seat_paseo_bin_stat.stat.exists
     fail_msg: >-
       {{ seat_paseo_bin }} does not exist — @getpaseo/cli is not installed for
       {{ seat_user }}. Install it against the pinned Node (`npm i -g @getpaseo/cli`, NEVER the
@@ -154,6 +156,16 @@
     owner: "{{ seat_user }}"
     group: "{{ seat_user }}"
     mode: "0700"
+
+- name: seat | Ensure the Paseo unit's drop-in directory exists
+  # template() creates a file, never its parents, and a first-time seat has no paseo.service.d —
+  # the pi-web drop-ins above only land because that directory already had an owner.
+  ansible.builtin.file:
+    path: "{{ seat_unit_dir }}/paseo.service.d"
+    state: directory
+    owner: "{{ seat_user }}"
+    group: "{{ seat_user }}"
+    mode: "0755"
 
 - name: seat | Render the Paseo user unit
   ansible.builtin.template:
@@ -181,6 +193,16 @@
     group: "{{ seat_user }}"
     mode: "0644"
   notify: seat | reload and restart paseo
+
+- name: seat | Ensure the directory that holds the Paseo credential
+  # 0700 before the 0600: template() will not create the parent, and a no_log task that fails for
+  # a missing directory reports nothing a reader can act on.
+  ansible.builtin.file:
+    path: "{{ seat_paseo_env_file | dirname }}"
+    state: directory
+    owner: "{{ seat_user }}"
+    group: "{{ seat_user }}"
+    mode: "0700"
 
 - name: seat | Render the Paseo password env file
   # The daemon's only identity gate: the `.ts` router carries no forward-auth, so without this
@@ -215,8 +237,14 @@
   become_user: "{{ seat_user }}"
   environment:
     HOME: "{{ seat_home }}"
+    # The launcher is `#!/usr/bin/env node`, so this leg needs the same PATH the unit gets — without
+    # it the CLI exits 127 with `env: node: not found` and the read looks like a broken daemon.
+    PATH: "{{ seat_path }}"
   register: seat_paseo_hostnames_live
   changed_when: false
+  # A read: it must answer in check mode too, or the `when` below evaluates from_json on an empty
+  # stdout and a --check run fails on a filter, not on a defect (the linger task's lesson).
+  check_mode: false
 
 - name: seat | Set the daemon's Host allowlist for the .ts door
   # Without it the daemon answers 403 to `Host: paseo-oldsrv.ts.kogler.si`: the ACL allows the
@@ -235,6 +263,9 @@
   become_user: "{{ seat_user }}"
   environment:
     HOME: "{{ seat_home }}"
+    # The launcher is `#!/usr/bin/env node`, so this leg needs the same PATH the unit gets — without
+    # it the CLI exits 127 with `env: node: not found` and the read looks like a broken daemon.
+    PATH: "{{ seat_path }}"
   when: (seat_paseo_hostnames_live.stdout | from_json).get('value', none) != seat_paseo_hostnames
   notify: seat | reload and restart paseo
 
@@ -252,8 +283,14 @@
   become_user: "{{ seat_user }}"
   environment:
     HOME: "{{ seat_home }}"
+    # The launcher is `#!/usr/bin/env node`, so this leg needs the same PATH the unit gets — without
+    # it the CLI exits 127 with `env: node: not found` and the read looks like a broken daemon.
+    PATH: "{{ seat_path }}"
   register: seat_paseo_proxies_live
   changed_when: false
+  # A read: it must answer in check mode too, or the `when` below evaluates from_json on an empty
+  # stdout and a --check run fails on a filter, not on a defect (the linger task's lesson).
+  check_mode: false
 
 - name: seat | Set the daemon's trusted-proxy list
   # The home edge runs `network_mode: host`, so every proxied request arrives from loopback. Naming
@@ -272,6 +309,9 @@
   become_user: "{{ seat_user }}"
   environment:
     HOME: "{{ seat_home }}"
+    # The launcher is `#!/usr/bin/env node`, so this leg needs the same PATH the unit gets — without
+    # it the CLI exits 127 with `env: node: not found` and the read looks like a broken daemon.
+    PATH: "{{ seat_path }}"
   when: (seat_paseo_proxies_live.stdout | from_json).get('value', none) != seat_paseo_trusted_proxies
   notify: seat | reload and restart paseo
 

@@ -7,7 +7,9 @@
                           shebang is `#!/usr/bin/env node`, so node must be reachable too.
      * seat_local_bin   — where `claude` is installed on this fleet; without it the daemon starts
                           fine and simply has no second provider, which is a silent downgrade.
+   seat_path is that string in ONE place (group_vars/all/seat.yml) — the `paseo daemon config …` legs in
+   the role run through the same PATH, because the launcher is `#!/usr/bin/env node`.
    Prove it the way the unit sees it — `systemctl --user show -p Environment` — because `bash -lc
    which paseo` asks a login shell that this unit never is. #}
 [Service]
-Environment=PATH={{ seat_pi_bin }}:{{ seat_pi_node_bin }}:{{ seat_local_bin }}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
+Environment=PATH={{ seat_path }}

@@ -22,6 +22,11 @@ seat_pi_bin: "/home/{{ seat_user }}/.pi/agent/bin"
 # systemd-user default PATH. The paseo unit carries it anyway: the daemon spawns providers as
 # children, and a missing one is a seat that works with half its providers and says nothing.
 seat_local_bin: "/home/{{ seat_user }}/.local/bin"
+# THE seat PATH — ONE string, two readers: the `Environment=PATH=` the paseo unit carries, and the
+# environment of the `paseo daemon config …` legs in roles/seat. The launcher's shebang is
+# `#!/usr/bin/env node`, so a CLI call made without this PATH exits 127 with `env: node: not found`
+# — and a PATH written twice is a PATH that drifts.
+seat_path: "{{ seat_pi_bin }}:{{ seat_pi_node_bin }}:{{ seat_local_bin }}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin"
 seat_unit_dir: "/home/{{ seat_user }}/.config/systemd/user"
 seat_pi_web_bin: ".pi/agent/bin/pi-web"   # written by `pi install npm:@ygncode/pi-web`
 seat_pi_web_vault_item: cockpit-pi-web_api  # token source; never a literal (§6)
