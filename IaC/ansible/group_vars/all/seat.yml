@@ -18,6 +18,10 @@ seat_pi_node_bin: "/home/{{ seat_user }}/.local/share/pi-node/current/bin"
 # removes the node-dir symlink, so the unit PATH must carry BOTH dirs: with only the
 # node dir, every chat send dies `exec: "pi": executable file not found in $PATH`.
 seat_pi_bin: "/home/{{ seat_user }}/.pi/agent/bin"
+# `claude` on this fleet is a --user install, so it answers at ~/.local/bin and nowhere in the
+# systemd-user default PATH. The paseo unit carries it anyway: the daemon spawns providers as
+# children, and a missing one is a seat that works with half its providers and says nothing.
+seat_local_bin: "/home/{{ seat_user }}/.local/bin"
 seat_unit_dir: "/home/{{ seat_user }}/.config/systemd/user"
 seat_pi_web_bin: ".pi/agent/bin/pi-web"   # written by `pi install npm:@ygncode/pi-web`
 seat_pi_web_vault_item: cockpit-pi-web_api  # token source; never a literal (§6)

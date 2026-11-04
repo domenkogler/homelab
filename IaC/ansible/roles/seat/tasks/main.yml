@@ -19,6 +19,16 @@
 #     node-dir-only PATH goes blind. Rendering ONE drop-in and not the other
 #     reproduces exactly that failure.
 #
+# THE PASEO LEG AT THE BOTTOM IS THE SAME SHAPE, NOT A COPY (HD-411): a user unit, a bind drop-in,
+# a PATH drop-in, a 0600 credential file, linger. Two differences are load-bearing:
+#   * the credential is a PASSWORD the daemon hashes itself (`PASEO_PASSWORD`), not a bearer the
+#     proxy validates — it is the only identity behind the `paseo-oldsrv-ts` door, so a converge
+#     that cannot read the vault item must fail rather than start an open daemon.
+#   * ~/.paseo/config.json is NEVER templated here. It carries seat state this role does not own
+#     (cors, features, app.baseUrl), so the two keys the door needs (daemon.hostnames,
+#     daemon.trustedProxies) are set THROUGH the CLI, which merges. The `paseo` seat plane owns the
+#     rest of that file (listen, relay, auth) on the seats that carry no unit at all.
+#
 # What stays OUT of this file, deliberately:
 #   * the pi harness itself (pinned Node tarball, the pi npm package, the pi-web
 #     package, ~/.pi/agent/skills, the rendered model contract) — that is
@@ -111,6 +121,160 @@
   no_log: true
   notify: seat | reload and restart pi-web
 
+# ---------------------------------------------------------------------------
+# THE PASEO LEG (HD-411) — the seat's own daemon, the surface the cockpit above is being
+# compared against and eventually replaced. Same three-part shape on purpose: a unit, a bind
+# drop-in, a PATH drop-in, plus the credential file. What differs is the credential KIND (a
+# password the daemon hashes itself, not a bearer the proxy validates) and one extra arm: the
+# daemon's OWN Host allowlist, because behind Traefik the request still arrives carrying the
+# public Host and the default allowlist is loopback-only.
+# ---------------------------------------------------------------------------
+
+- name: seat | Check the Paseo binary the unit will exec
+  # The launcher lands in the pinned Node dir's bin (`npm -g @getpaseo/cli` against that Node).
+  # ⛔ `npm i -g paseo` is a name-squat and would put an unrelated binary on this path.
+  ansible.builtin.stat:
+    path: "{{ seat_paseo_bin }}"
+  register: seat_paseo_bin
+
+- name: seat | Refuse to render the Paseo unit whose binary is absent
+  ansible.builtin.assert:
+    that: seat_paseo_bin.stat.exists
+    fail_msg: >-
+      {{ seat_paseo_bin }} does not exist — @getpaseo/cli is not installed for
+      {{ seat_user }}. Install it against the pinned Node (`npm i -g @getpaseo/cli`, NEVER the
+      squatted `paseo` package) and re-converge; do NOT create the file by hand.
+
+- name: seat | Ensure the daemon home exists
+  # 0700 is the mode the CLI gives it on its own first start, so the converge adds the directory
+  # without teaching the seat a permission the tool would not have chosen.
+  ansible.builtin.file:
+    path: "{{ seat_home }}/.paseo"
+    state: directory
+    owner: "{{ seat_user }}"
+    group: "{{ seat_user }}"
+    mode: "0700"
+
+- name: seat | Render the Paseo user unit
+  ansible.builtin.template:
+    src: paseo.service.j2
+    dest: "{{ seat_unit_dir }}/paseo.service"
+    owner: "{{ seat_user }}"
+    group: "{{ seat_user }}"
+    mode: "0644"
+  notify: seat | reload and restart paseo
+
+- name: seat | Render BOTH Paseo drop-ins — the loopback bind
+  ansible.builtin.template:
+    src: paseo-loopback-bind.conf.j2
+    dest: "{{ seat_unit_dir }}/paseo.service.d/loopback-bind.conf"
+    owner: "{{ seat_user }}"
+    group: "{{ seat_user }}"
+    mode: "0644"
+  notify: seat | reload and restart paseo
+
+- name: seat | Render BOTH Paseo drop-ins — the unit PATH the providers need
+  ansible.builtin.template:
+    src: paseo-on-path.conf.j2
+    dest: "{{ seat_unit_dir }}/paseo.service.d/on-path.conf"
+    owner: "{{ seat_user }}"
+    group: "{{ seat_user }}"
+    mode: "0644"
+  notify: seat | reload and restart paseo
+
+- name: seat | Render the Paseo password env file
+  # The daemon's only identity gate: the `.ts` router carries no forward-auth, so without this
+  # file the tailnet ACL would be the whole door. 0600 + no_log (§6).
+  ansible.builtin.template:
+    src: paseo-env.j2
+    dest: "{{ seat_paseo_env_file }}"
+    owner: "{{ seat_user }}"
+    group: "{{ seat_user }}"
+    mode: "0600"
+    lstrip_blocks: true
+  no_log: true
+  notify: seat | reload and restart paseo
+
+# The two config.json arms the door needs, written THROUGH THE CLI and never by templating the
+# file: ~/.paseo/config.json also carries seat state this role does not own (cors, features,
+# app.baseUrl), so the only correct writer of ONE key is the tool that merges it. Each arm is
+# read first, so a re-converge reports no change. The `paseo` seat plane owns listen/relay/auth;
+# these two are what the `paseo-oldsrv-ts` router cannot work without.
+
+- name: seat | Read the daemon's Host allowlist
+  ansible.builtin.command:
+    argv:
+      - "{{ seat_paseo_bin }}"
+      - "--home"
+      - "{{ seat_home }}/.paseo"
+      - daemon
+      - config
+      - get
+      - daemon.hostnames
+  become: true
+  become_user: "{{ seat_user }}"
+  environment:
+    HOME: "{{ seat_home }}"
+  register: seat_paseo_hostnames_live
+  changed_when: false
+
+- name: seat | Set the daemon's Host allowlist for the .ts door
+  # Without it the daemon answers 403 to `Host: paseo-oldsrv.ts.kogler.si`: the ACL allows the
+  # peer, the router matches the name, and the daemon itself refuses it.
+  ansible.builtin.command:
+    argv:
+      - "{{ seat_paseo_bin }}"
+      - "--home"
+      - "{{ seat_home }}/.paseo"
+      - daemon
+      - config
+      - set
+      - daemon.hostnames
+      - "{{ seat_paseo_hostnames | to_json }}"
+  become: true
+  become_user: "{{ seat_user }}"
+  environment:
+    HOME: "{{ seat_home }}"
+  when: (seat_paseo_hostnames_live.stdout | from_json).get('value', none) != seat_paseo_hostnames
+  notify: seat | reload and restart paseo
+
+- name: seat | Read the daemon's trusted-proxy list
+  ansible.builtin.command:
+    argv:
+      - "{{ seat_paseo_bin }}"
+      - "--home"
+      - "{{ seat_home }}/.paseo"
+      - daemon
+      - config
+      - get
+      - daemon.trustedProxies
+  become: true
+  become_user: "{{ seat_user }}"
+  environment:
+    HOME: "{{ seat_home }}"
+  register: seat_paseo_proxies_live
+  changed_when: false
+
+- name: seat | Set the daemon's trusted-proxy list
+  # The home edge runs `network_mode: host`, so every proxied request arrives from loopback. Naming
+  # it is what lets the daemon read the real peer from the forwarded header instead of the proxy.
+  ansible.builtin.command:
+    argv:
+      - "{{ seat_paseo_bin }}"
+      - "--home"
+      - "{{ seat_home }}/.paseo"
+      - daemon
+      - config
+      - set
+      - daemon.trustedProxies
+      - "{{ seat_paseo_trusted_proxies | to_json }}"
+  become: true
+  become_user: "{{ seat_user }}"
+  environment:
+    HOME: "{{ seat_home }}"
+  when: (seat_paseo_proxies_live.stdout | from_json).get('value', none) != seat_paseo_trusted_proxies
+  notify: seat | reload and restart paseo
+
 - name: seat | Read the linger state
   # check_mode: false — a read that reports "not changed" in check mode is fine;
   # the point is that check mode must not claim linger is already on.
@@ -150,3 +314,25 @@
     (seat_unit_live.rc | default(1)) != 0
     or seat_pi_node_bin not in (seat_unit_live.stdout | default(''))
     or seat_pi_bin not in (seat_unit_live.stdout | default(''))
+
+- name: seat | Prove the Paseo unit carries its bind and its PATH
+  # `show -p Environment`, not `bash -lc which paseo`: the question is what the UNIT was handed,
+  # and a login shell reads two startup files that this unit never will — the reading that passes
+  # under `bash -lc` is the one that proves nothing. BOTH pi dirs plus the account's own bin, and
+  # the PASEO_LISTEN the bind drop-in renders, because a drop-in that exists but was never reloaded
+  # is the state where the file is right and the daemon answers somewhere else.
+  ansible.builtin.command: systemctl --user show -p Environment paseo.service
+  become: true
+  become_user: "{{ seat_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ seat_uid }}"
+    DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ seat_uid }}/bus"
+  changed_when: false
+  when: not ansible_check_mode
+  register: seat_paseo_unit_live
+  failed_when: >-
+    (seat_paseo_unit_live.rc | default(1)) != 0
+    or seat_pi_node_bin not in (seat_paseo_unit_live.stdout | default(''))
+    or seat_pi_bin not in (seat_paseo_unit_live.stdout | default(''))
+    or seat_local_bin not in (seat_paseo_unit_live.stdout | default(''))
+    or ('PASEO_LISTEN=' ~ seat_bind ~ ':' ~ seat_paseo_port) not in (seat_paseo_unit_live.stdout | default(''))

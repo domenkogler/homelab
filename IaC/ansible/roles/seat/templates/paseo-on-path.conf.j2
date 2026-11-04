@@ -1,0 +1,13 @@
+{# roles/seat — paseo drop-in 2 of 2: the PATH a USER unit never gets.
+   The daemon spawns its providers as children (`pi` for the pi provider, `claude` for the Claude
+   one) and a systemd USER unit is handed neither ~/.bashrc nor ~/.profile, so its PATH is the
+   sbin/bin defaults. Three directories, because the three binaries live in three layouts:
+     * seat_pi_bin      — pi's OWN launcher dir (~/.pi/agent/bin), where `pi update` migrates a seat.
+     * seat_pi_node_bin — the pinned Node dir: `paseo` and the `pi` symlink both live here, and pi's
+                          shebang is `#!/usr/bin/env node`, so node must be reachable too.
+     * seat_local_bin   — where `claude` is installed on this fleet; without it the daemon starts
+                          fine and simply has no second provider, which is a silent downgrade.
+   Prove it the way the unit sees it — `systemctl --user show -p Environment` — because `bash -lc
+   which paseo` asks a login shell that this unit never is. #}
+[Service]
+Environment=PATH={{ seat_pi_bin }}:{{ seat_pi_node_bin }}:{{ seat_local_bin }}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin

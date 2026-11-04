@@ -1,0 +1,10 @@
+{# roles/seat — paseo drop-in 1 of 2: the bind.
+   PASEO_LISTEN is the carrier because `paseo daemon run` takes no --listen flag (its own --help
+   lists only --home), and the daemon resolves the address in this order: CLI flag, PASEO_LISTEN,
+   then daemon.listen in ~/.paseo/config.json. So the address the repo renders is what answers,
+   whatever a hand-run `paseo daemon config set daemon.listen …` left in the seat's config.
+   The number is `paseo_ports[seat_name]`, the SAME value the `paseo-oldsrv-backend` service dials:
+   loopback :6767 on this box belongs to Bazarr (`bazarr_host_port`), which is why the seat cannot
+   take upstream's default 6767 here. #}
+[Service]
+Environment=PASEO_LISTEN={{ seat_bind }}:{{ seat_paseo_port }}

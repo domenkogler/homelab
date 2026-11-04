@@ -180,7 +180,7 @@
   "counts": {
     "cloudflare": 22,
     "headscale:plain": 8,
-    "headscale:ts_only": 29,
+    "headscale:ts_only": 30,
     "technitium:primary": 35,
     "technitium:secondary": 51,
     "technitium:secondary-pi": 51
@@ -230,9 +230,19 @@
     ],
     "ts_only": [
       {
+        "name": "aurral.ts.kogler.si",
+        "type": "A",
+        "value": "100.64.0.3"
+      },
+      {
         "name": "auto.ts.kogler.si",
         "type": "A",
         "value": "100.64.0.1"
+      },
+      {
+        "name": "bazarr.ts.kogler.si",
+        "type": "A",
+        "value": "100.64.0.3"
       },
       {
         "name": "cockpit-nas.ts.kogler.si",
@@ -260,6 +270,16 @@
         "value": "100.64.0.6"
       },
       {
+        "name": "lidarr-ydl.ts.kogler.si",
+        "type": "A",
+        "value": "100.64.0.3"
+      },
+      {
+        "name": "lidarr.ts.kogler.si",
+        "type": "A",
+        "value": "100.64.0.3"
+      },
+      {
         "name": "litellm.ts.kogler.si",
         "type": "A",
         "value": "100.64.0.1"
@@ -275,6 +295,21 @@
         "value": "100.64.0.1"
       },
       {
+        "name": "media.ts.kogler.si",
+        "type": "A",
+        "value": "100.64.0.3"
+      },
+      {
+        "name": "metabase.ts.kogler.si",
+        "type": "A",
+        "value": "100.64.0.3"
+      },
+      {
+        "name": "paseo-oldsrv.ts.kogler.si",
+        "type": "A",
+        "value": "100.64.0.3"
+      },
+      {
         "name": "pi-dev.ts.kogler.si",
         "type": "A",
         "value": "100.64.0.3"
@@ -285,22 +320,22 @@
         "value": "100.64.0.3"
       },
       {
-        "name": "spark.ts.kogler.si",
+        "name": "profilarr.ts.kogler.si",
         "type": "A",
-        "value": "100.64.0.1"
+        "value": "100.64.0.3"
       },
       {
-        "name": "stats.ts.kogler.si",
+        "name": "prowlarr.ts.kogler.si",
         "type": "A",
-        "value": "100.64.0.1"
+        "value": "100.64.0.3"
       },
       {
-        "name": "traefik.ts.kogler.si",
+        "name": "radarr.ts.kogler.si",
         "type": "A",
-        "value": "100.64.0.1"
+        "value": "100.64.0.3"
       },
       {
-        "name": "media.ts.kogler.si",
+        "name": "sab.ts.kogler.si",
         "type": "A",
         "value": "100.64.0.3"
       },
@@ -315,39 +350,24 @@
         "value": "100.64.0.3"
       },
       {
+        "name": "slskd.ts.kogler.si",
+        "type": "A",
+        "value": "100.64.0.3"
+      },
+      {
         "name": "sonarr.ts.kogler.si",
         "type": "A",
         "value": "100.64.0.3"
       },
       {
-        "name": "radarr.ts.kogler.si",
+        "name": "spark.ts.kogler.si",
         "type": "A",
-        "value": "100.64.0.3"
+        "value": "100.64.0.1"
       },
       {
-        "name": "lidarr.ts.kogler.si",
+        "name": "stats.ts.kogler.si",
         "type": "A",
-        "value": "100.64.0.3"
-      },
-      {
-        "name": "prowlarr.ts.kogler.si",
-        "type": "A",
-        "value": "100.64.0.3"
-      },
-      {
-        "name": "bazarr.ts.kogler.si",
-        "type": "A",
-        "value": "100.64.0.3"
-      },
-      {
-        "name": "profilarr.ts.kogler.si",
-        "type": "A",
-        "value": "100.64.0.3"
-      },
-      {
-        "name": "sab.ts.kogler.si",
-        "type": "A",
-        "value": "100.64.0.3"
+        "value": "100.64.0.1"
       },
       {
         "name": "torrent.ts.kogler.si",
@@ -355,24 +375,9 @@
         "value": "100.64.0.3"
       },
       {
-        "name": "aurral.ts.kogler.si",
+        "name": "traefik.ts.kogler.si",
         "type": "A",
-        "value": "100.64.0.3"
-      },
-      {
-        "name": "slskd.ts.kogler.si",
-        "type": "A",
-        "value": "100.64.0.3"
-      },
-      {
-        "name": "lidarr-ydl.ts.kogler.si",
-        "type": "A",
-        "value": "100.64.0.3"
-      },
-      {
-        "name": "metabase.ts.kogler.si",
-        "type": "A",
-        "value": "100.64.0.3"
+        "value": "100.64.0.1"
       }
     ]
   },

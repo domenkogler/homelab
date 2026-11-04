@@ -1,0 +1,8 @@
+# {{ ansible_managed }}
+# roles/seat — the Paseo daemon's password (never a literal, §6). This is the daemon's ONLY
+# identity gate: the `.ts` door carries no forward-auth (a phone client cannot complete an
+# Authentik sub-request), so with no password here the tailnet ACL would be the whole door.
+# The item carries `password` + the `bcrypt_hash` of that same value; the laptop seats have no
+# env file and take the hash into ~/.paseo/config.json through the `paseo` seat plane, so the two
+# carriers must stay one value — rotate the item, then re-converge and re-push.
+PASEO_PASSWORD={{ lookup('community.general.onepassword', seat_paseo_password_vault_item, field='password', vault=op_vault) }}

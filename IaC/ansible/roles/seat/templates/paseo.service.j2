@@ -1,0 +1,29 @@
+{# roles/seat — the Paseo daemon unit (HD-411).
+   A systemd USER unit under the seat account, the same carrier as the pi-web unit it replaces.
+   `daemon run` is the FOREGROUND form; `daemon start` is the CLI's own supervisor and would fight
+   this unit for the same home. ExecStart names the binary rather than trusting PATH — PATH is what
+   the daemon's CHILDREN need, which is what the on-path drop-in is for. #}
+[Unit]
+Description=Paseo daemon — the coding seat's agent host
+Documentation=https://paseo.sh/docs/cli
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart={{ seat_paseo_bin }} daemon run
+Restart=on-failure
+RestartSec=5
+
+# House posture: the relay stays OFF on every seat. The relay is the vendor's path out of the
+# tailnet; the `.ts` router is the path in. It is an env override because the daemon applies
+# PASEO_RELAY_ENABLED over whatever ~/.paseo/config.json carries, so the posture survives a seat
+# that once had it switched on.
+Environment=PASEO_RELAY_ENABLED=false
+
+# The daemon's own password (0600, rendered by this role). `-` = optional: the unit must start
+# while the env file is being re-rendered, and the password is read at start, never at parse.
+EnvironmentFile=-{{ seat_paseo_env_file }}
+
+[Install]
+WantedBy=default.target

@@ -244,6 +244,21 @@ http:
         - websecure-ts
       service: pi-oldsrv-backend
       tls: true
+    # The Paseo daemon under `domen` (HD-411) — the SAME posture as `pi-oldsrv-ts` above, and for
+    # the same reasons: the daemon binds loopback, this listener exists only on oldsrv's own tailnet
+    # address, and the peer set is whatever the ACL grants `tag:dev:443` (nothing else — a phone on a
+    # non-443 port times out BY DESIGN, so the answer to a timeout is a router, never an ACL widening).
+    # ⛔ No `tailscale0`-address bind as an alternative: plain HTTP, no cert, `no matching peer`.
+    # NO forward-auth: a phone-driven client cannot complete an Authentik sub-request, and the
+    # daemon's own password (roles/seat → ~/.config/paseo/env) is the identity this door needs.
+    # Behind this proxy the daemon still sees `Host: paseo-oldsrv…`, so daemon.hostnames must carry
+    # the name (seat_paseo_hostnames) or the daemon 403s what the ACL just allowed.
+    paseo-oldsrv-ts:
+      rule: "Host(`paseo-oldsrv.{{ tailnet_base_domain }}`)"
+      entryPoints:
+        - websecure-ts
+      service: paseo-oldsrv-backend
+      tls: true
     # --- home-hosted *arr / media / downloaders / music trio over the TAILNET (the arr door) ---
     # Away-from-home path for the whole home set: node-direct on oldsrv's OWN tailnet address, the
     # same posture as ha-ts / pi-oldsrv-ts / cockpit-nas-ts — NO VPS hop, so it works during a
@@ -482,6 +497,13 @@ http:
       loadBalancer:
         servers:
           - url: "http://127.0.0.1:{{ cockpit_pi_web_port }}"
+    # The Paseo daemon under `domen`, loopback-bound on `paseo_ports.oldsrv` — the SAME variable
+    # the seat's bind drop-in renders, so the door and the daemon cannot disagree (§2). Loopback
+    # 6767 is Bazarr's, which is why this is not upstream's default 6767.
+    paseo-oldsrv-backend:
+      loadBalancer:
+        servers:
+          - url: "http://127.0.0.1:{{ paseo_port }}"
     dns-pi-backend:
       loadBalancer:
         servers:

@@ -19,3 +19,20 @@
     systemctl --user is-active --quiet pi-web.service
   changed_when: true
   tags: always
+
+- name: seat | reload and restart paseo
+  listen: seat | reload and restart paseo
+  become: true
+  become_user: "{{ seat_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ seat_uid }}"
+    DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ seat_uid }}/bus"
+  ansible.builtin.shell: |
+    set -euo pipefail
+    systemctl --user daemon-reload
+    systemctl --user enable paseo.service
+    # `config set` saves without applying to a running daemon, so the restart IS the apply step.
+    systemctl --user restart paseo.service
+    systemctl --user is-active --quiet paseo.service
+  changed_when: true
+  tags: always

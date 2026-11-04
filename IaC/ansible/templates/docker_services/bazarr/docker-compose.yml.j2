@@ -27,7 +27,11 @@ services:
       - services-internal
     ports:
       # Loopback publish so the host-net home edge can reach the backend.
-      # (paseo's 6767 binds the TAILNET address — no conflict with this loopback bind.)
+      # ⛔ THIS is what owns loopback :6767 on oldsrv. Upstream's default Paseo daemon port is the
+      # same number, so the seat takes `paseo_ports.oldsrv` (6769) instead of that default — check
+      # `paseo_ports` in group_vars/all/main.yml before moving either one. Any claim here that the
+      # conflict resolves itself is wrong in every direction: both bind loopback, neither the
+      # tailnet address.
       - "{{ bazarr_bind }}:{{ bazarr_host_port }}:6767"
     volumes:
       - /srv/docker/bazarr/config:/config

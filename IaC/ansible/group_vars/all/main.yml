@@ -498,6 +498,10 @@ zone_kogler_si:
   # `pi-dev.kogler.si` answer is retired with it: the cockpit binds loopback, so the VPS
   # edge could never serve it and its 502 was a dead hop, not a surface.
   - { name: pi-dev.kogler.si,        internal: false, tailnet: node, ts_router: false }
+  # The Paseo daemon seat (`paseo-oldsrv-ts`, on oldsrv's OWN tailnet listener — `ts_router` stays
+  # false for the same reason `pi-oldsrv`'s does: the router lives on the home edge, not on the
+  # tailnet edge, so no VPS route is published for it).
+  - { name: paseo-oldsrv.kogler.si,  internal: false, tailnet: node, ts_router: false }
   # --- names with NO Technitium record: published publicly, resolved by Cloudflare alone ---
   # `pairdrop` rides alongside `drop`. Neither has a docker_services entry, so
   # nothing here invents them: they are declared, which is the point of the list.
