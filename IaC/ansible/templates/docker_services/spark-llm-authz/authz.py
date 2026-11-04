@@ -240,7 +240,7 @@ def healthcheck() -> int:
     return 0 if ok else 1
 
 
-# ---- self-test: fixtures over loopback, ZERO vault and ZERO egress (CONVENTIONS §6, todo-table §C7) ----
+# ---- self-test: fixtures over loopback, ZERO vault and ZERO egress (CONVENTIONS §6, todo-table.md §C rule 7) ----
 
 # Fixture bytes, not credentials: unique, non-secret, and greppable so the log-capture arm can
 # prove THESE strings never reach the log.

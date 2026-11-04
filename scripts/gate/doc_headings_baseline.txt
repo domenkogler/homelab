@@ -308,7 +308,6 @@
 2	todo.md	todo.md	§9b
 1	todo.md	todo.md	§9b's
 1	todo.md	todo.md	§Alert
-1	todo.md	todo.md	§C
 1	todo.md	todo.md	§Convergence
 1	todo.md	todo.md	§Per-Subnet
 1	todo.md	todo.md	§Recovery
