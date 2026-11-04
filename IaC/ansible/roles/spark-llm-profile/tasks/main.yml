@@ -578,7 +578,7 @@
       pinned-revision-match={{ spark_llm_ple_revision_ok | default('n/a') }}.
       Downloads are EXPLICIT by design (84 GB + 1 G link). Stage them first:
       ansible-playbook -i inventory.ini playbooks/spark.yml --limit spark
-      --tags spark-artifacts -e spark_artifacts_fetch='["b1-awq","ple-int4","nvfp4-mixed","ple-nvfp4"]'
+      --tags spark-artifacts -e '{"spark_artifacts_fetch":["b1-awq","ple-int4","nvfp4-mixed","ple-nvfp4"]}'
       (sets: spark_artifact_sets in group_vars/spark.yml).
   tags: [spark, spark-llm-profile, llm]
 

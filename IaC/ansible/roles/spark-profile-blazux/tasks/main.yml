@@ -167,7 +167,7 @@
       - blazux_ckpt.results[0].stat.exists
     fail_msg: >-
       {{ spark_profile_blazux_hybrid_src }} is not staged. Fetch it first — it is an explicit act,
-      never a side effect of this role: `--tags spark-artifacts -e spark_artifacts_fetch='["nvfp4-nvidia"]'`
+      never a side effect of this role: `--tags spark-artifacts -e '{"spark_artifacts_fetch":["nvfp4-nvidia"]}'`
       (132.7 GB onto XFS at spark_nvfp4_nvidia_revision).
   tags: [spark, spark-profile-blazux, llm]
 

@@ -76,7 +76,7 @@ tailscale_node_expected_ip: "{{ tailnet_spark_ip }}"
 spark_llm_profile: fast
 spark_llm_allow_uncertified: false
 # Big artifact downloads stay explicit: --tags spark-artifacts with
-# -e spark_artifacts_fetch='["b1-awq","ple-int4","nvfp4-mixed","ple-nvfp4"]'
+# -e '{"spark_artifacts_fetch":["b1-awq","ple-int4","nvfp4-mixed","ple-nvfp4"]}'
 # ════════════════════════════════════════════════════════════════════════
 # AI stack is NOT enabled: benches + winner-engine promotion are deploy-gated.
 # spark.enabled flips to true in group_vars/home_servers.yml after bench certification.

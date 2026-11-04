@@ -201,7 +201,10 @@ spark_llm_authz_memory_limit: "64M"   # compose `limits.memory` — MUST be a st
 # To stage the NVFP4 lane deliberately:
 #   ansible-playbook -i inventory.ini playbooks/spark.yml --limit spark \
 #     --tags spark-artifacts \
-#     -e spark_artifacts_fetch='["b1-awq","ple-int4","nvfp4-mixed","ple-nvfp4"]'
+#     -e '{"spark_artifacts_fetch":["b1-awq","ple-int4","nvfp4-mixed","ple-nvfp4"]}'
+# The JSON form is the one to write, not `-e spark_artifacts_fetch='["x"]'`: the key=value form arrives
+# as a STRING, so the `selectattr('key','in', …)` that builds spark_artifacts degrades to a substring
+# test and a failure message prints the set one character at a time. Proved on the nvfp4-nvidia staging.
 # Disk: the two NVFP4-lane sets measured 88.6 GB + 28.8 GB = 117 GB of XFS, and BOTH are offloaded
 # to the nas (/tank/data/gpu-weights/spark/, byte-verified there), because the only arm that names
 # them is the rejected `nv-patch`.
@@ -301,11 +304,13 @@ spark_artifact_sets:
       expect_lines: 65536
 
   # ---- the blazux v0.33 lineage (bz-v33-*) — XFS, NOT `/` ----
-  # 132.7 GB + the 13 GB conversion below does not fit `/` above its 150 GB floor (162 G free), and it
-  # fits XFS with room to spare — 294 G free once the `nv-patch` sets came off the box (store note
-  # above). The PLE table is NOT split out: it ships inside the
+  # 132.7 GB is STAGED here and the 13 GB conversion below lands beside it; neither fits `/` above its
+  # 150 GB floor (162 G free, and the v33 base+image want `/` for the build). XFS reads 170 G free after
+  # the staging, which is the room the hybrid conversion spends (~157 G after). The PLE table is NOT split out: it ships inside the
   # checkpoint (`model-fp8-mtp-ple.safetensors`) and the blazux hook mmaps it from /model in place.
   nvfp4-nvidia:
+    # STAGED ON THE BOX — 25 files / 132,734,506,847 B at revision fc694b54…, byte-for-byte the HF tree
+    # (the `-e '{"spark_artifacts_fetch":["nvfp4-nvidia"]}'` leg; the JSON-form rule is in the store note).
     - repo_id: "nvidia/Qwen3.8-Flash-Next-NVFP4"
       kind: weights
       revision: "{{ spark_nvfp4_nvidia_revision }}"
