@@ -2535,12 +2535,33 @@ Run everything as root on oldsrv (`sudo -n`); the cockpit itself always runs as 
    allowed: `curl -s -o /dev/null -w '%{http_code}\n' --resolve paseo-oldsrv.ts.kogler.si:443:$(tailscale ip -4) https://paseo-oldsrv.ts.kogler.si/api/daemon/socket`
    must answer **401** (the password gate), and the same call with any other name **404** (no router).
 
-   The laptop seats have no unit, so their own `config.json` arms — the bind and the relay — converge
-   through `scripts/harness/seat-paseo.sh` inside
-   `bash scripts/harness/pi-seat-sync.sh --check|--push`. The password hash is NOT among the arms that
-   push can write: no `paseo` command writes a path under `daemon.auth` (`config set` refuses it and
-   `set-password` hashes a plaintext read from a terminal), so on a seat with no unit that arm is read
-   and compared only, and writing it is a named act, not a converge. The phone path onto a laptop is the
+   The laptop seats have no unit, so their own `config.json` arms converge through
+   `scripts/harness/seat-paseo.sh`, run inside
+   `bash scripts/harness/pi-seat-sync.sh --check|--push` on the seats its `seats:` list names (`wsl`,
+   `oldsrv`). The bind and the relay ride the CLI (`paseo daemon config set`); no `paseo` command writes a
+   path under `daemon.auth` (`config set` refuses it, `set-password` hashes a plaintext read from a
+   terminal), so the plane merges `paseo_password`'s `bcrypt_hash` into that same `config.json` at 0600 and
+   prints the arm's shape and never its bytes.
+   ```bash
+   # a. A seat the plane names: the whole delta, one arm at a time, read back after the write.
+   bash scripts/harness/seat-paseo.sh --check --strict && bash scripts/harness/seat-paseo.sh --push
+   # b. A seat it does not name (win11): run the same merge with that seat in scope and the plane row
+   #    extended in a COPY of the registry — the render then asks for that seat's own arms, and only the
+   #    drifted arm is written. ⛔ never by editing scripts/lib/seat-planes.yml to say `win11`.
+   awk '/^plane: paseo/{f=1} f&&/^seats:/{print "seats: wsl oldsrv win11"; f=0; next} {print}' \
+     scripts/lib/seat-planes.yml > "$tmp/planes.yml"
+   PI_SEAT=win11 HL_REGISTRY="$tmp/planes.yml" PASEO_HOME_DIR="$(cygpath -u "$LOCALAPPDATA")/.paseo" \
+     bash scripts/harness/seat-paseo.sh --check --strict    # then the same command with --push
+   ```
+   **Then make the daemon re-read it** — a merged arm cannot reach a live process by itself. Ask the seat:
+   `paseo daemon reload` (it names the paths it applied and the paths needing a restart), or restart the
+   daemon from the desktop app where the daemon is desktop-managed.
+   **Verify** — one unauthenticated request, from a peer the ACL grants (the phone, or another of the
+   owner's nodes — a tagged node holds `:443` only, so an `oldsrv` probe on `6767`/`6768` times out by
+   design and is not a verdict): `curl -s -o /dev/null -w '%{http_code}\n' http://<seat>:<paseo_port>/api/agents`
+   must answer **401**. **404** means the arm is in the file and not in the process — the seat is a
+   passwordless agent runner behind whatever the firewall lets in, and the reload is owed again.
+   The phone path onto a laptop is the
    elevated `scripts/harness/win/paseo-seat-door.ps1`: two inbound rules scoped to the tailnet range and
    one portproxy whose target is **loopback**, because a tailnet-IP listener cannot bind while Tailscale
    is down. A headless seat answers nothing until something starts its daemon — nothing in the repo does,

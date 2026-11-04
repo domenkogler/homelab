@@ -29,12 +29,12 @@ on Windows and nowhere in WSL) → [docs/security.md](docs/security.md) (the tai
 | | **win11** | **wsl** (Debian) | **oldsrv** (`ssh oldsrv-domen`) |
 |---|---|---|---|
 | CLI | 0.15.0, bundled: `AppData\Local\Programs\paseo\resources\bin\paseo.cmd` | 0.15.0, `~/.local/share/pi-node/current/bin/paseo` | **same path**, invisible to a non-login shell |
-| `~/.paseo` | present | present | **absent** — the daemon has never run there |
-| `daemon.listen` | `127.0.0.1:6767` | `127.0.0.1:6768` | unset (default `127.0.0.1:6767`) |
-| daemon | running, `desktopManaged: true`, providers `claude`+`pi` available | stopped | stopped |
-| relay | **on** (house posture says off) | on | n/a |
-| password | **set** — bcrypt in `config.json`; vault item `paseo_password`, field name **unverified** (`op` was signed out) | unset | unset |
-| transport facts | tailnet node `domen-p14s` (`tailscale ip -4`), Windows profile **Private**; firewall allows `node.exe`, **nothing for `Paseo.exe`**, which is the daemon's image | NAT address from `hostname -I`, **no tailnet inside the distro**; Windows reaches it at that address *and* at `localhost` | tailnet node `oldsrv` (`tag:dev`); loopback `:6767` is **Bazarr**, `:31415` is `pi-web` |
+| `~/.paseo` | present | present | present — the rendered unit runs the daemon there |
+| `daemon.listen` | `0.0.0.0:6767` | `0.0.0.0:6768` in the file; the **running process** still answers on `127.0.0.1:6768` | the unit's `PASEO_LISTEN` drop-in: `127.0.0.1:6769` |
+| daemon | running, `desktopManaged: true`, worker image `Paseo.exe` | running but **hand-started** — no unit, no linger, so nothing restarts it | running under `paseo.service` (`ActiveState=active`, `PASEO_RELAY_ENABLED=false`) |
+| relay | off | off | off |
+| password | the `paseo_password` bcrypt hash in `config.json` | the same hash in `config.json`, **not yet read by the running daemon** — `/api/agents` answers `404`, where the installed gate answers `401` | the item's plaintext in the unit's 0600 env file |
+| transport facts | tailnet node `domen-p14s` (`tailscale ip -4`), the Tailscale adapter lands in the **Private** profile; both door rules scope to the tailnet `/10`, the portproxy targets loopback, and a non-tailnet source gets nothing | NAT address from `hostname -I`, **no tailnet inside the distro**; Windows reaches it at that address *and* at `localhost` | tailnet node `oldsrv` (`tag:dev`); loopback `:6767` is **Bazarr**, `:31415` is `pi-web`, Paseo binds `:6769` |
 
 ```bash
 P=~/AppData/Local/Programs/paseo/resources/bin/paseo.cmd; cmd //c "$(cygpath -w "$P") daemon status"   # win11
