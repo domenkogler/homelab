@@ -47,12 +47,17 @@
   the commands it would have run.
 .PARAMETER Show
   Print the command list and nothing else - the artifact the owner needs to run the parked leg.
+.PARAMETER SelfTest
+  Grade the two READERS (scope comparison, portproxy table) against planted shapes, with no firewall,
+  no netsh and no tailscale. What the -Push verdict is built from, so the verdict is proved apart from
+  the machine it describes.
 #>
 [CmdletBinding()]
 param(
   [switch]$Check,
   [switch]$Push,
-  [switch]$Show
+  [switch]$Show,
+  [switch]$SelfTest
 )
 $ErrorActionPreference = 'Stop'
 
@@ -104,6 +109,69 @@ function Show-Commands {
   Write-Host 'networking to avoid the portproxy (the dns-route and llm-path planes read ip route).'
 }
 
+function Test-TailnetScope {
+  param([string]$Remote)
+  # One /10 is written THREE ways by the tools that read a rule: netsh prints `100.64.0.0/10`,
+  # Get-NetFirewallAddressFilter prints `100.64.0.0/255.192.0.0`, and a range form exists too. A verdict
+  # that compares text therefore inherits whichever form the cmdlet chose, and a check that can never
+  # pass is a check that gets scrolled past — the failure this function replaces was exactly that: a
+  # correctly scoped rule reported as OPEN TO THE LAN. Normalize, then judge the network.
+  if ([string]::IsNullOrWhiteSpace($Remote)) { return $false }
+  foreach ($part in ($Remote -split '[,;]')) {
+    $t = $part.Trim()
+    if ($t -eq '') { continue }
+    if ($t -match '^(\d{1,3}(?:\.\d{1,3}){3})\s*/\s*(\d{1,2}|\d{1,3}(?:\.\d{1,3}){3})$') {
+      # Read BOTH groups into locals first: `-match` overwrites $Matches, so a second -match used to
+      # classify the suffix would erase the very group it was deciding about (measured: the /10 form
+      # fell to the mask branch and came back scoped-wrong while the mask form passed — the split that
+      # proved the reader, not the rule, was the defect).
+      $ip = $Matches[1]; $suffix = $Matches[2]
+      $o = ([IPAddress]$ip).GetAddressBytes()
+      $bits = 0
+      if ($suffix.Contains('.')) {
+        foreach ($b in ([IPAddress]$suffix).GetAddressBytes()) {
+          for ($i = 0; $i -lt 8; $i++) { $bits += (($b -shr $i) -band 1) }
+        }
+      } else { $bits = [int]$suffix }
+      # 100.64.0.0/10 is 100.64.0.0 – 100.127.255.255: the second octet masked with 192 must read 64.
+      if ($bits -ne 10 -or $o[0] -ne 100 -or (($o[1] -band 192) -ne 64)) { return $false }
+      continue
+    }
+    if ($t -match '^100\.64\.0\.0\s*-\s*100\.127\.255\.255$') { continue }
+    return $false   # Any, an empty-list word, an FQDN list: an unknown shape never passes as scoped
+  }
+  return $true
+}
+
+function Get-PortProxyRows {
+  param([string]$Text)
+  # `netsh interface portproxy show` prints a COLUMN table and never an `ip:port` token, so a substring
+  # match on "100.64.0.2:6768" cannot hit even when the entry is there — the verifier could not see what
+  # the push had just written, and a correct box read as broken forever. Read the row.
+  $out = @()
+  foreach ($line in ($Text -split "`r?`n")) {
+    if ($line -match '^\s*(\d{1,3}(?:\.\d{1,3}){3})\s+(\d+)\s+(\d{1,3}(?:\.\d{1,3}){3})\s+(\d+)\s*$') {
+      $out += [pscustomobject]@{ listen = $Matches[1]; lport = [int]$Matches[2]
+                                 connect = $Matches[3]; cport = [int]$Matches[4] }
+    }
+  }
+  $out
+}
+
+function Test-PortProxy {
+  param($Rows, [string]$Listen, [int]$Port)
+  $mine = @($Rows | Where-Object { $_.lport -eq $Port })
+  if ($mine.Count -eq 0) { return [pscustomobject]@{ state = 'absent'; detail = "no entry listens on :$Port" } }
+  if ($mine.Count -gt 1) { return [pscustomobject]@{ state = 'ambiguous'; detail = "$($mine.Count) entries listen on :$Port" } }
+  if ($mine[0].listen -ne $Listen) {
+    return [pscustomobject]@{ state = 'stale listen address'; detail = "listens on $($mine[0].listen), this box is $Listen" }
+  }
+  if ($mine[0].connect -ne '127.0.0.1' -or $mine[0].cport -ne $Port) {
+    return [pscustomobject]@{ state = 'wrong target'; detail = "forwards to $($mine[0].connect):$($mine[0].cport), the target must be 127.0.0.1:$Port" }
+  }
+  [pscustomobject]@{ state = 'present'; detail = "$Listen -> 127.0.0.1:$Port" }
+}
+
 function Get-State {
   # Everything readable without elevation. An unreadable read is reported as unreadable: a rule
   # this shell could not list is NOT a rule that is absent, and printing it as absent is how a
@@ -134,28 +202,26 @@ function Do-Check {
   Write-Host ("daemon    : {0} ({1})" -f $st.PaseoExe, $(if ($st.ExePresent) { 'present' } else { 'NOT PRESENT - a rule for a missing image allows nothing' }))
   Write-Host ("tailnet   : {0}" -f $(if ($st.tailnetIp) { $st.tailnetIp } else { 'tailscale did not answer - the portproxy cannot be targeted' }))
   if ($st.admin) {
+    $bad = 0
     foreach ($r in $st.rules) {
-      if (-not $r.present) { Write-Host ("rule      : {0} - ABSENT" -f $r.name); continue }
-      $ok = ($r.remote -eq $TailnetRange)
+      if (-not $r.present) { Write-Host ("rule      : {0} - ABSENT" -f $r.name); $bad++; continue }
+      $ok = Test-TailnetScope -Remote ([string]$r.remote)
       Write-Host ("rule      : {0} - enabled={1} port={2} remote={3} action={4}{5}" -f `
-        $r.name, $r.present, $r.port, $r.remote, $r.action, $(if ($ok) { '' } else { '  NEVER remote is not the tailnet range - this rule is open to the LAN' }))
+        $r.name, $r.present, $r.port, $r.remote, $r.action, $(if ($ok) { '' } else { '  NEVER remote is not exactly 100.64.0.0/10 - this rule reaches past the tailnet' }))
+      if (-not $ok) { $bad++ }
     }
     if ($st.tailnetIp) {
-      $want = "{0}:{1}" -f $st.tailnetIp, $WslPort
-      if ($st.proxy -match [regex]::Escape($want) -and $st.proxy -match '127\.0\.0\.1' ) {
-        Write-Host ("portproxy : {0} -> 127.0.0.1:{1} - present" -f $st.tailnetIp, $WslPort)
-      } else {
-        Write-Host ("portproxy : no entry for {0} -> 127.0.0.1:{1}" -f $st.tailnetIp, $WslPort)
-      }
+      $v = Test-PortProxy -Rows (Get-PortProxyRows -Text $st.proxy) -Listen $st.tailnetIp -Port $WslPort
+      if ($v.state -eq 'present') { Write-Host ("portproxy : {0}" -f $v.detail) }
+      else { Write-Host ("portproxy : {0} - NEVER {1}" -f $v.state, $v.detail); $bad++ }
     }
   } else { foreach ($n in $st.notes) { Write-Host "note      : $n" } }
-  Write-Host ''
-  Show-Commands
+  # The command list is the artifact for a leg that is NOT yet done; reprinting it under a box that
+  # just verified is how a correct state keeps looking unfinished.
+  if (-not $st.admin -or $bad -gt 0) { Write-Host ''; Show-Commands }
   # Exit codes the fan-out understands: 0 everything owed is true, 1 a rule is off-scope/absent or
   # the proxy is not there, 2 this shell could not read the state it was asked about.
   if (-not $st.admin) { return 2 }
-  $bad = ($st.rules | Where-Object { -not $_.present -or ($_.remote -ne $TailnetRange) }).Count
-  if ($st.tailnetIp -and $st.proxy -notmatch [regex]::Escape(("{0}:{1}" -f $st.tailnetIp, $WslPort))) { $bad++ }
   if ($bad -gt 0) { return 1 }
   return 0
 }
@@ -192,9 +258,54 @@ function Do-Push {
   netsh interface portproxy add v4tov4 listenaddress=$ip listenport=$WslPort `
     connectaddress=127.0.0.1 connectport=$WslPort | Out-Null
   Write-Host ("portproxy: {0}:{1} -> 127.0.0.1:{1} (loopback target, so it survives a reboot)" -f $ip, $WslPort)
-  Do-Check
+  return (Do-Check)
 }
 
+function Do-SelfTest {
+  # The verdict is only worth what its readers are worth, and neither reader can be graded against a
+  # live firewall. Every shape below is one the tools really print.
+  $fail = 0
+  $scope = @(
+    @('100.64.0.0/10',            $true,  'netsh form'),
+    @('100.64.0.0/255.192.0.0',   $true,  'Get-NetFirewallAddressFilter form of the SAME /10'),
+    @('100.64.0.0-100.127.255.255', $true, 'range form'),
+    @('Any',                      $false, 'every source'),
+    @('',                         $false, 'unread / empty'),
+    @('100.64.0.0/255.255.0.0',   $false, 'a /16: wider than the tailnet'),
+    @('10.10.1.0/255.255.255.0',  $false, 'the LAN'),
+    @('0.0.0.0/0',                $false, 'the world'),
+    @('100.64.0.0/10,8.8.8.8',    $false, 'the tailnet plus a second source'),
+    @('192.168.1.0-192.168.1.255', $false, 'a LAN range')
+  )
+  foreach ($c in $scope) {
+    $got = Test-TailnetScope -Remote $c[0]
+    if ($got -ne $c[1]) { Write-Host ("NOT CAUGHT scope {0} ({1}): got {2}" -f $c[0], $c[2], $got); $fail++ }
+  }
+  $tbl = @"
+
+Listen on ipv4:             Connect to ipv4:
+
+Address         Port        Address         Port
+--------------- ----------  --------------- ----------
+100.64.0.2      6768        127.0.0.1       6768
+"@
+  $cases = @(
+    @((Get-PortProxyRows -Text $tbl), '100.64.0.2', 'present', 'the table a correct box prints'),
+    @((Get-PortProxyRows -Text ''),   '100.64.0.2', 'absent',  'no rows at all'),
+    @((Get-PortProxyRows -Text ($tbl -replace '100\.64\.0\.2', '100.64.9.9')), '100.64.0.2', 'stale listen address', 'a proxy left from an old tailnet address'),
+    @((Get-PortProxyRows -Text ($tbl -replace '127\.0\.0\.1', '172.20.40.1')),  '100.64.0.2', 'wrong target', 'an address-targeted proxy that dies at a reboot'),
+    @((Get-PortProxyRows -Text ($tbl + "`n" + ($tbl -replace '100\.64\.0\.2', '100.64.9.9'))), '100.64.0.2', 'ambiguous', 'two entries on one port')
+  )
+  foreach ($c in $cases) {
+    $got = (Test-PortProxy -Rows $c[0] -Listen $c[1] -Port 6768).state
+    if ($got -ne $c[2]) { Write-Host ("NOT CAUGHT portproxy {0}: got {1}" -f $c[3], $got); $fail++ }
+  }
+  if ($fail -gt 0) { Write-Host ("self-test: {0} NOT caught" -f $fail); return 1 }
+  Write-Host 'self-test: OK -- the scope reader passes every rendering of 100.64.0.0/10 and fails every wider shape, and the portproxy reader parses the netsh table (present, absent, stale listen, wrong target, ambiguous) -- so the -Check verdict is the state, not the string form the cmdlet happened to use'
+  return 0
+}
+
+if ($SelfTest) { exit (Do-SelfTest) }
 if ($Show) { Show-Commands; exit 0 }
 if ($Push) { exit (Do-Push) }
 exit (Do-Check)
