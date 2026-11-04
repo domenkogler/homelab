@@ -281,6 +281,13 @@ CATALOG = [
     # LiteLLM containers consume it as `OPENAI_API_KEY` once the spark half has converged (the
     # engine only starts accepting it at its next boot) — ordering is in services-ai.md §4.
     ("API Credential", "litellm-engine_api", lambda: [f"credential={gen_token(32)}"]),
+    # HD-411: the Paseo coding-seat daemon's password. TWO fields, because the daemon takes the
+    # credential through two carriers: `PASEO_PASSWORD` in the unit's env file (hashed at start by
+    # resolveAuthConfig) is the IaC-managed one on oldsrv, while a seat with no systemd unit —
+    # win11's desktop-managed daemon — carries `daemon.auth.password` in ~/.paseo/config.json,
+    # which is where the `paseo` seat plane writes THIS hash. Minting the hash once here is what
+    # stops the two carriers disagreeing after a rotation (bcrypt-on-separate-python helper, HD-205).
+    ("Password", "paseo_password", lambda: paseo_password_item()),
 ]
 
 # Items never auto-rotated by this tool (external/app coupling). Kept here as a
@@ -544,6 +551,19 @@ def bcrypt_hash(password: str) -> str:
     if r.returncode != 0:
         raise RuntimeError(f"bcrypt failed: {r.stderr.strip()}")
     return r.stdout.strip()
+
+
+def paseo_password_item() -> list[str]:
+    """Paseo daemon password (HD-411): plaintext + the bcrypt hash of THAT same value.
+
+    One value, two carriers: the env file's plaintext is hashed at daemon start, the persisted
+    config wants the hash. Deriving the hash inside the seat plane instead would let a rotated
+    item and a seat's config.json disagree, so the pair is generated together here.
+    gen_pw's pool carries no `$`, `&` or `#` (HD-270 / HD-346 / HD-06), which is also what makes
+    the value safe to drop into a systemd EnvironmentFile and into a client's env untouched.
+    """
+    pw = gen_pw()
+    return [f"password={pw}", f"bcrypt_hash={bcrypt_hash(pw)}"]
 
 
 def homelable_login_item() -> list[str]:

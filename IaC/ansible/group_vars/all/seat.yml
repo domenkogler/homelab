@@ -6,6 +6,9 @@
 # =====================================================================
 seat_enable: false
 seat_user: domen                      # the account itself is roles/access's
+seat_name: oldsrv                     # WHICH harness seat this box is: win11 | wsl | oldsrv. It is the
+                                      # key into `paseo_ports`, and the same three names the seat plane
+                                      # registry uses in its `seats:` list — one vocabulary, two readers.
 seat_bind: 127.0.0.1                  # loopback only: peers reach the cockpit through the
                                       # pi-oldsrv-ts router, never a LAN interface
 seat_pi_web_port: "{{ cockpit_pi_web_port }}"   # one port value, two consumers (IaC §2)
@@ -18,6 +21,26 @@ seat_pi_bin: "/home/{{ seat_user }}/.pi/agent/bin"
 seat_unit_dir: "/home/{{ seat_user }}/.config/systemd/user"
 seat_pi_web_bin: ".pi/agent/bin/pi-web"   # written by `pi install npm:@ygncode/pi-web`
 seat_pi_web_vault_item: cockpit-pi-web_api  # token source; never a literal (§6)
+# --- the Paseo leg (HD-411): the seat's own daemon, replacing the cockpit above ---
+seat_paseo_bin: "{{ seat_pi_node_bin }}/paseo"  # @getpaseo/cli's launcher sits in the PINNED Node
+                                      # dir's bin, because the CLI is installed `npm -g` against that
+                                      # Node. ⛔ The package is `@getpaseo/cli`; `npm i -g paseo` is a
+                                      # name-squat and this path is how that shows up.
+seat_paseo_port: "{{ paseo_port }}"   # the seat's entry in `paseo_ports` (group_vars/all/main.yml);
+                                      # the SAME value the `paseo-oldsrv-ts` backend dials (§2)
+seat_paseo_env_file: "/home/{{ seat_user }}/.config/paseo/env"
+seat_paseo_password_vault_item: paseo_password   # item named in a var, so no template carries a
+                                      # lookup literal — the seat_pi_web_vault_item shape
+seat_paseo_hostnames: ["paseo-oldsrv.{{ tailnet_base_domain }}"]
+                                      # the daemon's OWN Host allowlist. Behind Traefik the request
+                                      # still carries the public Host, and the default allowlist is
+                                      # loopback-only, so without this row the door 403s exactly what
+                                      # the ACL just allowed.
+seat_paseo_trusted_proxies: ["127.0.0.1"]
+                                      # the traefik-internal edge is `network_mode: host`, so the
+                                      # proxy arrives as loopback; without this the daemon reads every
+                                      # request as coming from the proxy and the real-peer checks fall
+                                      # back to that address.
 # tmux is a package DECISION of the seat, not a hand `apt install` on a production host.
 seat_packages:
   - tmux

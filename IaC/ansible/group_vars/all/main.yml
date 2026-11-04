@@ -228,16 +228,26 @@ zfs_exporter_host: "{{ (network_static_hosts | selectattr('name', 'equalto', 'na
 zfs_exporter_port: 9198
 
 # ==== Coding cockpit on oldsrv — reserved ports ====
-# Two surfaces run SIMULTANEOUSLY for the one comparison window the owner asked for, so each gets its
-# own number and neither is ever written as a literal. Both bind oldsrv's TAILNET address, never
-# 0.0.0.0 — the pi-web binary refuses a non-loopback bind without PI_WEB_TOKEN, and the headscale
-# ACL is the outer gate.
+# Two surfaces ran SIMULTANEOUSLY for the comparison window, so each got its own number and
+# neither is written as a literal. Neither binds `0.0.0.0`: both bind LOOPBACK on oldsrv and are
+# reached only through the `*-ts` router on the tailnet listener (`seat_bind`), so the tailnet ACL
+# plus that router are the outer gate. (The claim that these bind the tailnet address lived in two
+# comments and was false in both — see the bazarr compose note.)
 cockpit_pi_web_port: 31415           # upstream's own default (its README names it); keep the number so
                                      # `/web` links and the QR from `/remote` stay correct without config
-paseo_port: 6767                       # Upstream's own default (its Docker run maps 6767, CLI pairs to host:6767),
-                                     # kept like cockpit_pi_web_port so pairing needs no extra config.
-                                     # Any other number this file once reserved is freed — do not reuse
-                                     # it, or the two files disagree about what was allocated.
+
+# ==== The Paseo coding seats — the daemon port, per seat (HD-411) ====
+# ONE map, not one number: `daemon.listen` is a single string in the daemon's schema, so a seat
+# cannot hold two values, and the number that is correct on the laptop seats is a COLLISION on the
+# always-on one — loopback `:6767` on oldsrv belongs to Bazarr (`bazarr_host_port`). A single
+# `paseo_port: 6767` therefore described a daemon that could not start on that box.
+paseo_ports:
+  win11: 6767     # upstream's default; the desktop app manages this daemon, so keep its number
+  wsl: 6768       # the second laptop seat, reached by the app at localhost:6768
+  oldsrv: 6769    # loopback 6767 here is `bazarr_host_port`; `paseo-oldsrv-backend` points here
+# Key: `seat_name` (group_vars/all/seat.yml) — the same three names seat-planes.yml uses in `seats:`.
+# Fail-loud on an unknown seat rather than defaulting to the colliding number (CONVENTIONS §4).
+paseo_port: "{{ paseo_ports[seat_name] }}"
 
 # ==== Kopia off-site target: Hetzner Storage Box backup (SSH/SFTP) ====
 # The backup Box (u653424) supports SSH/SFTP only (no S3/object storage).
