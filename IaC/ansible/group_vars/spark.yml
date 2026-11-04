@@ -19,6 +19,21 @@ docker_services:
   # (B1 baseline, spark/BENCHMARK-PLAN.md). Deploy-gated: flip `enabled: true` once the
   # node is provisioned + partition done + weights downloaded.
   - { name: spark-ai, template_dir: spark-ai, public: false, enabled: true }  # B1 engine (vLLM AWQ+PLE+MTP3) — enabled; the teardown/enable contract is in the entry above
+  # The inference edge's forwardAuth verifier: a client bearer is verified HERE and traded for the
+  # engine's one internal key, so rotating a client credential costs a rendered config instead of an
+  # engine restart. The trade is fail-closed by ruling — verifier down = inference dark.
+  # NOTHING ROUTES TO IT: attaching the `forwardAuth` middleware to the llm routers is its own act,
+  # so the cutover stays a one-line hot-reload with a one-line rollback. `enabled: false` is a
+  # credential gate and not a parking bay — the client-token item is not in the vault yet, a
+  # verifier with no client tokens admits nobody by contract, and the extra-template render refuses
+  # on the missing item BEFORE `up -d`, so enabling it early reddens the converge instead of
+  # starting a stack that could only ever refuse. Enabling it is one change with three parts: this
+  # flag, the item's name in `_template_vault_items.spark-llm-authz`, and the
+  # docs/deployment-secrets.md row that naming it makes `check_vault_docs.py` demand.
+  # Host-net, publishes nothing, listens on 127.0.0.1:9500 only; never a Traefik frontend itself.
+  # Image digest-pinned in group_vars/all/versions.yml.
+  - { name: spark-llm-authz, template_dir: spark-llm-authz, public: false, enabled: false,
+      extra_config_mode: '0600', extra_config_owner_uid: 0 }
   # DCGM exporter — GPU util/temp/power/energy/SM-clock/XID for the LLM dashboard.
   # Loopback-only :9400 (no Traefik route, no LAN, no auth) scraped by spark's Alloy
   # `prometheus.scrape "dcgm"`. The GB10 has NO other GPU telemetry source (no nvidia hwmon
@@ -129,6 +144,16 @@ spark_dcgm_exporter_port: 9400
 # able to eat into the 105 GiB engine cage on a host with an OOM history.
 # Set above the observed peak so the cap can never OOM the exporter in normal operation.
 spark_dcgm_exporter_memory_limit: "256M"   # compose `limits.memory` — MUST be a string (docker compose schema)
+
+# ---- spark-llm-authz (the edge's forwardAuth verifier) ----
+# The loopback port the spark Traefik edge dials for an auth subrequest. Host-net + no published
+# port, so this address exists on 127.0.0.1 and on nothing else. Declared here rather than
+# `| default()`-ed in the template for the same reason as spark_dcgm_exporter_port (CONVENTIONS §1).
+spark_llm_authz_port: 9500
+# Chosen bound, not a measured one: CPython serving a stdlib HTTP server with no imports beyond the
+# standard library. Like the DCGM cap it bounds blast radius — a leak in this sidecar must not be
+# able to eat into the engine's memory cage on a host with an OOM history.
+spark_llm_authz_memory_limit: "64M"   # compose `limits.memory` — MUST be a string
 
 # ==== Artifact SETS + the explicit download opt-in =================
 # The manifest stays generic (roles/spark-artifacts maps repo → XFS dir), but it

@@ -74,6 +74,15 @@ _extra_templates:
   spark-dashboard:
     - dynamic/routes.yml.j2     # DGX dashboard/jupyter LAN bridge (file-provider routes; compose renders docker-compose.yml.j2 separately)
     - dynamic/tls.yml.j2        # consumer default-store TLS — a raw-copy-only edge serves TRAEFIK DEFAULT CERT
+  spark-llm-authz:
+    # The verifier's credential set: the client bearers it accepts plus the engine's ONE internal key,
+    # rendered 0600 root:root by `extra_config_mode` on the registry entry (mode and owner move
+    # together — the reader inside the container runs as root precisely so it can open this file).
+    # The program itself, authz.py, is a STATIC file in the same directory and is deliberately NOT
+    # listed here: rendering a program through Jinja would eat any future `{{`, and the compose states
+    # the one consequence — a static file's content is invisible to `up -d` and to the post-up restart
+    # guard in tasks/deploy-service.yml alike, so editing it takes a restart of this stack.
+    - authz-config.json.j2
   # crowdsec: no extra templates. The RouterOS acquisition lands in the config mount via the
   # monitoring role (acquis-routeros.yml.j2 -> /srv/docker/crowdsec/config/acquis.d/). Do NOT re-add one
   # here: CrowdSec reads /etc/crowdsec/acquis.d/ only, and an empty entry breaks the stub-dir loops.
@@ -438,6 +447,14 @@ _template_vault_items:
   rustdesk-server: {'rustdesk_login'}   # the hbbs/hbbr keypair (username=public, password=secret); NOT catalog-generated (rustdesk-utils mints it, manual-value class) and NOT auto-rotatable (rotating orphans every enrolled client)
   signal-cli-rest-api: {'signal-internal_api', 'signal_api'}
   spark-ai: {'spark-llm_api', 'litellm-engine_api'}   # spark's only vault items: the engine accepts the harness key AND the gateway's own credential, which is what ends spark-llm_api's triple use
+  # The edge verifier's own read: the ONE internal key it hands Traefik to put on the forwarded
+  # request. It is listed here rather than inherited from spark-ai's row because derive mode fetches
+  # per enabled service IN SCOPE, so a `-e docker_services_scope=spark-llm-authz` run must resolve it
+  # on its own. `spark-client_api` — the client bearer this verifier would accept — is NOT in the
+  # vault, and naming it here would fail the pre-pass for EVERY spark service before a single deploy
+  # task runs; the registry entry sits at `enabled: false` while that is true, and a disabled
+  # service's items are never fetched.
+  spark-llm-authz: {'spark-llm_api'}
   technitium: {'technitium_login', 'technitium_api'}
   traefik: {'cloudflare_api', 'crowdsec-bouncer_api'}
   traefik-tailnet: {'crowdsec-bouncer_api', 'tailscale-sidecar_api'}   # middlewares LAPI key + sidecar auth key

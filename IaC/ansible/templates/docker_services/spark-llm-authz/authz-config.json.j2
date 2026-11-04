@@ -1,0 +1,23 @@
+{#  authz-config.json — the credential set spark-llm-authz verifies against, rendered from the
+    vault. JSON because the verifier is stdlib-only and `json` is the parser it has; the extension
+    names the consumer, the way headscale's extra_records.json does. Rendered root:root 0600
+    (`extra_config_mode` on the registry entry) because it carries plaintext VALUES — the same
+    rendered-config pattern spark-ai uses for its vault values — and the verifier reads it as root,
+    again like the engine reads its own --api-key from its rendered compose.
+
+    SHAPE (the program's contract, and the reason a wrong shape is a refusal and not a crash):
+      engine_token   the ONE internal key the engine accepts, which the verifier hands to Traefik
+                     to put on the forwarded request. No client ever holds it.
+      client_tokens  the bearers the edge accepts from clients. A LIST: the verifier compares
+                     against every entry, so a second client is one more name below, not a code
+                     change. An absent or empty list admits nobody — that is a refusal by contract,
+                     never a configured state to ship. #}
+{#  FAIL LOUD, on purpose: every value here is a direct vault read with no `default()`, no
+    `| default(...)` and no empty-string sentinel, so an unfetched item is an Ansible error that
+    names the item instead of a config that renders and serves nothing. `spark-client_api` is the
+    harness/direct client's own bearer and is not in the vault yet, which is exactly why the service
+    is `enabled: false` in group_vars/spark.yml until it is — see the enable contract in
+    docker-compose.yml.j2. #}
+{%- set client_tokens = [vault['spark-client_api'].credential] -%}
+{"engine_token": {{ vault['spark-llm_api'].credential | to_json }},
+ "client_tokens": {{ client_tokens | to_json }}}

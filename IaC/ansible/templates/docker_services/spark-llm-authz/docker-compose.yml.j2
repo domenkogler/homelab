@@ -1,0 +1,107 @@
+# spark-llm-authz docker-compose.yml — the inference edge's forwardAuth verifier
+#   WHAT: a stdlib-only Python listener that answers Traefik's `forwardAuth` subrequests on this
+#   box. A client's bearer is checked against a rendered set of CLIENT tokens; on a match the
+#   subrequest RESPONSE carries `Authorization: Bearer <internal engine key>`, which Traefik's
+#   `forwardAuth.authResponseHeaders` copies onto the forwarded request in place of the client's.
+#   The engine therefore authenticates ONE internal key that no client ever holds, and rotating a
+#   client credential costs a config render instead of an engine restart — client credentials stop
+#   living in the engine's argv, which is where they cost ~20 min of cold load every time one moved.
+#
+#   TRAFFIC: nothing routes here yet. Attaching the middleware to the `llm-kogler` routers is a
+#   deliberate separate act, so the cutover stays a one-line hot-reload of a file-provider table
+#   with a one-line rollback; a verifier that is attached by surprise and one that is attached on
+#   purpose must not be the same commit. The service is `enabled: false` in the group_vars registry
+#   for a different reason — the client credential item does not exist in the vault yet, and a
+#   verifier with no client tokens admits nobody, so deploying it now would only add a
+#   `restart: unless-stopped` around a service that can refuse every request. Enabling it is three
+#   acts and they are one change: `enabled: true` on that registry entry, the item's name added to
+#   `_template_vault_items.spark-llm-authz` (the derive set is where a missing item fails loudly),
+#   and the `docs/deployment-secrets.md` §Master Secret List row that `check_vault_docs.py` demands
+#   as soon as the item is named anywhere the IaC reads. Order matters: the extra-template render
+#   in deploy-service.yml runs long before `up -d`, so an enabled-but-unseeded item stops the deploy
+#   with a red run instead of starting a stack that trusts an empty allow-list.
+#
+#   FAIL CLOSED, in both directions: an unreadable, missing, unparsable or empty-token config is a
+#   refusal and never an allow, and "this service is down means inference is dark" is the accepted
+#   cost of putting the check at the edge rather than in the engine.
+#
+#   EXPOSURE: `network_mode: host` and no `ports:` at all — the program binds 127.0.0.1 and
+#   publishes nothing, so there is no LAN address at which this socket exists. That is also how the
+#   edge reaches it: spark's Traefik edge (`spark-dashboard`) is itself host-net, so the auth
+#   subrequest arrives over the host loopback. It is never a Traefik frontend of its own and carries
+#   no router labels.
+#
+#   SECRETS: TWO values, and both live in exactly one place — the rendered
+#   /opt/spark-llm-authz/authz-config.json, root:root 0600 (the same plaintext-in-a-rendered-config
+#   pattern spark-ai uses for its vault values, and the reason the verifier runs as root inside the
+#   container: the reader must be able to open that file). This compose file carries no value, only
+#   item names, so it stays world-readable like every other rendered compose here.
+#   `spark-llm_api` is the engine's own key — the one the engine will keep accepting; `spark-client_api`
+#   is the harness/direct client's bearer, the credential the edge verifies and never forwards.
+#   Rotating either one lands without a restart twice over: the render's guarded restart picks it
+#   up, and the program re-reads the file on every request.
+#
+#   THE PROGRAM is `authz.py`, a static file in this directory bind-mounted read-only. That choice
+#   has one consequence worth stating: an EXTRA's rendered content change is what the post-up
+#   restart guard watches, and a static file is invisible to BOTH it and `up -d` (which recreates on
+#   container-spec changes only). Editing authz.py therefore needs
+#   `docker compose restart spark-llm-authz` — or any config rotation, which does restart it.
+#
+#   HARDENING: cap_drop ALL with no cap_add (a high loopback port needs no capability), no-new-privileges,
+#   read-only rootfs, tmpfs /tmp, a hard memory cap so a leak in this sidecar cannot cost the pool
+#   the engine is caged in on a host with a documented OOM history. Image: `python:3.12-slim`
+#   digest-pinned in group_vars/all/versions.yml — the program is stdlib-only, so there is no build
+#   step and no dependency set to track.
+services:
+  spark-llm-authz:
+    image: "{{ spark_llm_authz_image }}"
+    container_name: spark-llm-authz
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    # Host network, no published port: the listener binds 127.0.0.1 and the edge that dials it
+    # lives on this same host network. (No `networks:` block — the validator requires every DECLARED
+    # network to be external, and this service needs membership in none.)
+    network_mode: host
+    # Runs as root because the credential file is 0600 root:root and is re-read per request; the
+    # boundary is the dropped capabilities plus the socket's absence from every LAN address.
+    entrypoint:
+      - python3
+    command:
+      - /authz.py
+    environment:
+      TZ: "{{ timezone }}"
+      AUTHZ_CONFIG: /config/authz-config.json
+      AUTHZ_BIND: "127.0.0.1"
+      AUTHZ_PORT: "{{ spark_llm_authz_port }}"
+      # read_only rootfs: skip the __pycache__ write that would otherwise fail on every start.
+      PYTHONDONTWRITEBYTECODE: "1"
+    volumes:
+      - ./authz.py:/authz.py:ro
+      - ./authz-config.json:/config/authz-config.json:ro
+    healthcheck:
+      # The program probes its own listener, so the probe and the served path cannot drift apart.
+      # It proves the process and its socket only: a broken credential file answers 200 here and
+      # 401 on the auth path, which is the honest split — the denial is the verdict, not a crash.
+      test: ["CMD", "python3", "/authz.py", "--healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          # A chosen bound, not a measured one: CPython running a stdlib HTTP server with no
+          # imports beyond the standard library. It exists so the worst a leak here can cost the
+          # engine's memory cage is this number. Quoted because compose's schema requires a string.
+          memory: "{{ spark_llm_authz_memory_limit }}"
+    logging:
+      driver: "{{ spark_logging_driver }}"
+      options:
+        max-size: "{{ spark_logging_max_size }}"
+        max-file: "{{ spark_logging_max_file }}"
+    restart: unless-stopped

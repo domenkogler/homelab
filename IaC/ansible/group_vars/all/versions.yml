@@ -583,6 +583,22 @@ spark_ar_hybrid_extra_tensors_sha256: "e9e4786a8ef584c9cb112b0a2ce7063cb72db8e00
 # Digest is the load-bearing pin; the tag is documentation.
 spark_dcgm_exporter_image: "nvidia/dcgm-exporter:3.3.5-3.4.1-ubuntu22.04@sha256:ec962b59c8440427ddc2901fdb2616070d91a29da089a6d68c03ab1abdcf8870"
 
+# spark-llm-authz (the inference edge's forwardAuth verifier) — the interpreter, not an application.
+# `python:3.12-slim` because the verifier is stdlib-only Python: the pin buys a runtime and there is
+# no dependency set to review, so the digest is the whole claim. Resolved ANONYMOUSLY from a seat and
+# from NO fleet host (CONVENTIONS §7) — anonymous HTTPS reads, no pull, no daemon involved:
+#   curl -s https://hub.docker.com/v2/repositories/library/python/tags/3.12-slim \
+#     | jq -r '.digest, .last_updated, (.images[] | "\(.architecture)/\(.os) \(.digest)")'
+#   → manifest-list digest sha256:b18b261e1b49… , and an `arm64/linux` entry in the same answer.
+# Cross-read against the registry itself, which answers the SAME digest for the tag and serves it as
+# an OCI image index whose linux/arm64/v8 entry is sha256:b224e2fe306f… (the child GB10 pulls):
+#   curl -s -H "Authorization: Bearer $(curl -s 'https://auth.docker.io/token?service=registry.docker.io&scope=repository:library/python:pull' | jq -r .access_token)" \
+#     -H 'Accept: application/vnd.oci.image.index.v1+json' \
+#     https://registry-1.docker.io/v2/library/python/manifests/3.12-slim | jq -r '.manifests[].platform | "\(.architecture)/\(.os) \(.variant)"'
+# The PIN is the index digest — that is what the ref resolves to and what the daemon then picks a
+# platform child from; the tag beside it is documentation, never the reference (CONVENTIONS §7).
+spark_llm_authz_image: "python:3.12-slim@sha256:b18b261e1b4974b4f321451ad5251ded85abb22c2b8b262da527dda1d031ab30"
+
 # DGX Dashboard LAN bridge — the dashboard + admin
 # JupyterLab are exposed by the `spark-dashboard` Traefik file-provider edge
 # (host-net, entrypoints spark_home_ip:11000/11002 → 127.0.0.1:11000/11002), which
