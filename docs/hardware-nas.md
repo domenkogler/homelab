@@ -9,6 +9,7 @@ tags: [hardware, nas, zfs]
 # HP MicroServer Gen8
 
 > **Role:** Detail — the dedicated ZFS storage server (`nas.kogler.si`).
+> **Linked from:** `hardware.md`, `index.md`, `storage.md`, `backup.md`, `hardware-spark.md`, `hardware-ups.md`
 > **Status: ✅ provisioned and live** (`storage.yml` converged): ZFS pools `tank` (mirror) + `bulk`
 > (RAIDZ2) imported with datasets/props applied, NFS exports to oldsrv (`/tank/data`, `/bulk/media`,
 > `/bulk/data/immich-thumbs`), sanoid/syncoid timers, Samba, `zfs_exporter` + `nut_exporter` (NUT
@@ -112,6 +113,17 @@ tags: [hardware, nas, zfs]
   - Originals and user-files live on the live Box — there is no NAS copy.
   - `tank` holds **user data only**; the media library lives on the `bulk` pool.
     Full layout: [`storage.md`](storage.md)
+
+> **Two plain directories, not datasets**, sit in the `tank` filesystem and hold other hosts' off-box
+> copies: `tank/data/host-images/<host>/` — `docker save` archives of a host's engine images, sha256- and
+> zstd-verified by sidecars (spark's pair: the `fast` and `reasoning` built lineages, whose image IDs have
+> no registry digest, so those files plus that box's image store are the only copies) — and
+> `tank/data/gpu-weights/<host>/` — weight sets taken off a host's scratch disk for capacity, each with a
+> `MANIFEST.txt` (what / how / proof / restore) and a per-set path+size list. Being directories, neither
+> is snapshotted or syncoid-replicated: they are verified capacity offloads, not a backup layer, and the
+> knowledge for each stays with the host it came from (spark's: [`hardware-spark.md`](hardware-spark.md),
+> the "Artifact store" note). The copy path for both runs **through oldsrv**, the only host that can ssh
+> spark and mounts this export (`/mnt/nas/data`).
 
 > **Topology locked: MIRROR, not raidz1 (owner decision).** Even though
 > OpenZFS 2.3+ adds single-disk RAIDZ expansion, mirror wins at this size: fast block-copy resilver,

@@ -11,7 +11,7 @@ tags: [hardware, gpu, spark, gb10, grace-blackwell, ai]
 > **Role:** Detail — the headless AI inference node (`spark.kogler.si`): the homelab's big-model generation
 > tier. It is the machine that took the place of the planned Ryzen/Proxmox build
 > ([deployment-rejected.md](deployment-rejected.md)).
-> **Links to:** `hardware-gpu.md`, `services-ai.md`, `hardware-workstation.md`, `network-vlans.md`
+> **Links to:** `hardware-gpu.md`, `services-ai.md`, `hardware-workstation.md`, `network-vlans.md`, `hardware-nas.md`
 > **Linked from:** `hardware.md`, `index.md`, `services-ai.md`
 
 > **Status: 🟢 PROVISIONED + LIVE.** First-class IaC host alongside nas/oldsrv/vps/pi
@@ -51,6 +51,8 @@ tags: [hardware, gpu, spark, gb10, grace-blackwell, ai]
 > `rsync -aH /mnt/nas/data/gpu-weights/spark/<set>/ ansible-admin@spark.kogler.si:<the set's local_dir>`
 > **run on oldsrv** (one hop, no relay disk, ~45 MB/s per stream and ~85 MB/s for the path — a single
 > stream is the floor, parallel streams are how a large set goes faster), and XFS must have the room.
+> The nas side of both archive dirs — directories, not datasets, so nothing snapshots or replicates them
+> — is recorded in [`hardware-nas.md`](hardware-nas.md).
 
 > **vLLM metrics → Grafana:** the spark-ai compose publishes `:8000` **loopback-only**
 > (`spark_metrics_publish: true`, `127.0.0.1`) so the spark Alloy can scrape vLLM's Prometheus
