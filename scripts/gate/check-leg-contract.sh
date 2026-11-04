@@ -77,6 +77,14 @@
 #                registration would leave the FACE and REGISTRATION walks with no finding anywhere. The
 #                `late_ok` / `late_seen` arms are the pair that keeps that shut — the legal two-word line
 #                stays green, and a two-word line may not hide a contradicted face word.
+#   RECEIPT      a registration whose argv is a FUNCTION defined in the launcher may not `exit` in that
+#                function's body. `_launch_one` runs the argv inside the launch subshell and writes
+#                `$RUN/$i.rc` AFTER it returns — so an `exit` there replaces the subshell, the receipt is
+#                never written, and the leg's verdict silently leaves the report while the run ends in the
+#                run-count audit red that names nobody. Blocks `return`; only the runner `exit`s. An argv
+#                that names an external file is NOT this shape: `exit` in a child script ends the CHILD, and
+#                the subshell still writes the rc. A function the launcher SOURCES is out of scope — this
+#                walk reads the registration file it grades, not every file that file loads.
 #   LABEL        the text a registration PRINTS is code, because it sits inside a double-quoted argument on
 #                a line the launcher EXECUTES while it builds the registry. An unescaped backtick pair there
 #                is a COMMAND SUBSTITUTION that runs at REGISTRATION time, before any leg launches and
@@ -126,7 +134,9 @@
 #   an error string, a redirection and a line continuation naming the declaration must answer rc 0.
 #   Four arms grade the LABEL rule: the two shapes that must redden (a bare backtick pair, a dollar-paren)
 #   and the two that must stay silent (the same text with the backslash the author meant, and a comment that
-#   quotes such a line). Two more grade the SECOND decision word, `late` — one that the legal two-word line
+#   quotes such a line). Three arms grade the RECEIPT rule: a registration block whose FAIL branch `exit`s
+#   reddens, the same block reporting with `return` stays green, and a block that only PRINTS the word stays
+#   silent. Two more grade the SECOND decision word, `late` — one that the legal two-word line
 #   stays green, one that proves the strip reaches past the first semicolon-space.
 #   Six more arms grade the FACE derivation, one per way a word on a registration line can stop matching
 #   the leg: a tree leg that reads `$HOME/.pi`, a tree leg that opens a socket, a registration with no
@@ -180,6 +190,7 @@ _asked=""
 _note="nothing read"
 SHOW_FACES=0                       # --faces: face_walk prints one row per registration, not just the counts
 label_n=0                          # registration lines label_walk weighed, for the denominator line
+block_n=0                          # registrations whose argv is a launcher-defined BLOCK, for that same line
 _face_note="faces not weighed"
 declare -A _face_cache=()          # leg path (+ mode) -> its fact counts, for the width of one check_tree run
 declare -A _fx_cache=()            # leg path -> its fixture-on-the-dispatch-path evidence, same reason
@@ -1021,6 +1032,98 @@ face_walk() {
 }
 
 # --------------------------------------------------------------------------- #
+# THE RECEIPT, read as the mechanism it is.                                           #
+# --------------------------------------------------------------------------- #
+# exit_cmd <line> — is `exit` a COMMAND on this line? Both halves are needed, for the reason `at_cmd`
+# states: POSITION settles that a quoted, printed or commented occurrence is prose, and the WORD boundary
+# settles that an assignment or a name merely beginning with the four letters (`exit_status=1`) is not the
+# builtin. Every occurrence is weighed, not only the first: a line whose earlier `exit` is inside a string
+# still carries a real one after it.
+exit_cmd() {
+  local _l="" _post=""
+  tail_comment "$1"; _l="$_tc"
+  while :; do
+    case "$_l" in *exit*) : ;; *) return 1 ;; esac
+    if at_cmd "$_l" exit; then
+      _post="${_l#*exit}"
+      # shellcheck disable=SC1001  # the bracket expression is a CASE PATTERN over characters, not a quote
+      case "$_post" in '' | [$' \t;)|&#']*) return 0 ;; esac
+    fi
+    _l="${_l#*exit}"
+  done
+}
+
+# block_exit_walk — every registration whose argv is a FUNCTION this launcher defines, weighed for one
+# question: does that function's body `exit`?
+#
+# WHY IT IS A RULE AND NOT A NOTE. `_launch_one` launches `( set +e; <argv>; _lr=$?; … >"$RUN/$i.rc" ) &`
+# — the rc first and the stamp after, deliberately, because a function call clobbers `$?`. An argv that IS
+# a shell function therefore runs in that subshell, and an `exit` in its body exits the SUBSHELL: the
+# receipt line is never written, `_report` finds no file, and the run dies in the run-count audit while the
+# leg that lost its verdict is named only by that audit's new tag list. The three seat-state blocks carried
+# the shape and were fixed by hand; this is the fence that keeps the shape from coming back, because it is
+# invisible to `bash -n`, to a green converge and to every gate that reads a leg's OUTPUT rather than its
+# receipt.
+#
+# WHAT IS NOT THIS SHAPE, stated so the rule cannot be widened by accident: an argv naming an external
+# file (`bash <path>`, the leg-registration form) runs that file as a CHILD process, where `exit` is
+# correct and ends only the child; and an argv naming a function the launcher SOURCES (`hl_wsl_route`,
+# `pin`) has its body in another file — that file's own gates weigh it. Only a function defined in THIS
+# text is weighed.
+block_exit_walk() {
+  local _line="" _rest="" _fn="" _fn_defs="" _l="" _t="" _hd="" _h="" _n=0 _ln=0 _in="" _blk_n=0
+  block_n=0
+  fn_index "$_va" _fn_defs
+  while IFS= read -r _line; do
+    _n=$((_n + 1))
+    # The same decision-word strip every other walk applies, so a `face …; late; item_…` line is weighed
+    # as the registration underneath it rather than dropping out of this walk silently.
+    case "$_line" in
+      'face '* | 'late;'* | 'subject '*) dec_strip "$_line"; _rest="$_sw" ;;
+      *) _rest="$_line" ;;
+    esac
+    case "$_rest" in item*) : ;; *) continue ;; esac                 # a comment, a definition: registers nothing
+    case "${_rest%%[[:space:]]*}" in *'('*) continue ;; esac          # `item_q() { …` defines; it registers nothing
+    _fa_leg="" _fa_fn="" _fa_flags=""
+    face_args "$_rest"
+    _fn="$_fa_fn"
+    [ -n "$_fn" ] || continue          # an external argv: `exit` in it ends the child, not the subshell
+    _blk_n=$((_blk_n + 1))
+    # The body, counted in THIS file's lines so a finding names a line a reader can open. The shape is
+    # `blk_body`'s — the definition at a line start, the body up to the first line that OPENS with a
+    # closing brace — walked rather than cut, for the reason that function states (a whole-string cut is
+    # quadratic in a 179 KB text on the seat whose whole measurement is the price of a fork).
+    _in="" _hd="" _ln=0
+    while IFS= read -r _l; do
+      _ln=$((_ln + 1))
+      if [ -z "$_in" ]; then
+        [ "$_ln" = 1 ] && continue
+        case "$_l" in "$_fn"'() '*) _in=1 ;; esac
+        continue                                                    # the definition line runs no statement
+      fi
+      case "$_l" in '}'*) break ;; esac
+      _t="${_l#"${_l%%[![:space:]]*}"}"
+      # A heredoc body is text the block WRITES, not calls it makes — the same invariant `wrap_scan`
+      # states. A rule that accuses a generated script's own `exit` is a rule that gets muted.
+      if [ -n "$_hd" ]; then
+        case "$_t" in "$_hd") _hd="" ;; esac
+        continue
+      fi
+      case "$_t" in
+        *'<<'*) _h="${_t##*<<}"; _h="${_h#-}"
+                _h="${_h#"${_h%%[A-Za-z_]*}"}"                   # drop what precedes the tag: blanks, dash, quote
+                _hd="${_h%%[![:alnum:]_]*}" ;;
+      esac
+      case "$_t" in '' | '#'*) continue ;; esac
+      exit_cmd "$_t" || continue
+      fail "RECEIPT: validate-all.sh:$_ln — \`$_fn\` is a registration block and its body \`exit\`s here, so on that branch it replaces the launch subshell and \`\$RUN/<item>.rc\` is never written: the leg's verdict leaves the report and the run ends in the run-count audit naming it. Report with \`return\` instead (the runner is the only \`exit\`); the rc-then-stamp order at the launch site is deliberate and is not the thing to change."
+    done <<<"$_va"
+  done <<<"$_va"
+  block_n=$_blk_n
+  return 0
+}
+
+# --------------------------------------------------------------------------- #
 # THE LABEL, read as the code it is.                                                   #
 # --------------------------------------------------------------------------- #
 # label_walk — every registration line, for one question: does the TEXT of the line command-substitute?
@@ -1268,6 +1371,11 @@ check_tree() {
     done
   done
 
+  # THE RECEIPT — every registration that names a launcher-defined block, for the one shape that removes a
+  # leg's verdict from the report without failing anything a reader can see. It runs beside the LABEL walk
+  # because both are questions about a registration LINE's argv rather than about the leg it names.
+  block_exit_walk
+
   # THE LABELS — the same registration lines, asked the one question the launcher cannot ask itself: does
   # the TEXT of a line run something? It runs before the face half because a label that command-substitutes
   # splices its output into every other line this file prints.
@@ -1293,7 +1401,7 @@ check_tree() {
 
   # The honest denominator, printed whether or not anything was found: a rule that read nothing must
   # never look like a pass.
-  _note="declarations $decl_n in $decl_files file(s) · wrapped legs $resolved/$wrapped registration(s) named a leg path · labels $label_n registration line(s) scanned · tools the probe asks: $(printf '%s\n' "$_asked" | wc -w) · $_face_note"
+  _note="declarations $decl_n in $decl_files file(s) · wrapped legs $resolved/$wrapped registration(s) named a leg path · labels $label_n registration line(s) scanned · blocks $block_n registration(s) naming a launcher function, weighed for a receipt-eating exit · tools the probe asks: $(printf '%s\n' "$_asked" | wc -w) · $_face_note"
   if [ "$decl_n" = 0 ]; then
     if [ "$wrapped" != 0 ]; then
       printf 'CANNOT RUN: %s registration(s) cross the door and nothing in this tree declares its\n' "$wrapped"
@@ -1838,6 +1946,41 @@ self_test() {
 }
 printf 'ok  the leg ran\n'
 LEG
+
+  # THE RECEIPT half, in three arms, because the rule has one loud direction and two silent ones: the legal
+  # shape (a block that reports with `return`) must stay GREEN, a block that only SPELLS the word must stay
+  # silent, and the planted body that `exit`s must RED. The green arms are what keep this rule from being
+  # widened into "no exit in any function", which is the false-positive class that gets a checker muted.
+  _st_multiline receipt_exit 1 scripts/validate-all.sh \
+    "a registration block whose FAIL branch 'exit's eats its own \$RUN/<item>.rc — the leg's verdict leaves the report and the run dies naming it" <<'BLK'
+blk_st_receipt() {
+  case "${1:-}" in
+    ok) echo "OK: the planted block reported" ;;
+    *) echo "FAIL: the planted block went red on that branch"; exit 1 ;;
+  esac
+}
+face tree; item_q "the planted receipt-eating block" blk_st_receipt
+BLK
+  _st_multiline receipt_return 0 scripts/validate-all.sh \
+    "the house shape — a block that reports with 'return' — is the legal one, so the rule is not 'no exit anywhere'" <<'BLK'
+blk_st_receipt_ok() {
+  case "${1:-}" in
+    ok) echo "OK: the planted block reported"; return 0 ;;
+    *) echo "FAIL: the planted block went red on that branch"; return 1 ;;
+  esac
+}
+face tree; item_q "the planted block that returns its verdict" blk_st_receipt_ok
+BLK
+  _st_multiline receipt_prose 0 scripts/validate-all.sh \
+    "a block that PRINTS or COMMENTS the word runs nothing — an accusing checker is a checker that gets muted" <<'BLK'
+blk_st_receipt_prose() {
+  # the finding this rule prints says: report with `return`; only the runner `exit`s
+  echo "see the RECEIPT rule: a block must not exit, it must return"
+  local exit_status=0
+  return "$exit_status"
+}
+face tree; item_q "the planted block that only spells the word" blk_st_receipt_prose
+BLK
 
   # The door half, in the tree: the declaring leg driven by four planted answers. Its verdicts print
   # themselves, so a failure here names the arm — and the leg it drives is the same file the real-tree

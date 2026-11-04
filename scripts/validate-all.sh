@@ -1592,7 +1592,7 @@ blk_ansible_syntax() {
         echo "FAIL: ansible reported a duplicate mapping key while parsing $pb — it keeps the LAST"
         echo "      definition and drops the first, so the earlier one is dead (HD-1098):"
         grep -A3 "Found duplicate mapping key" "$SC_DIR/$n.err" | sed 's/^/  /'
-        exit 1
+        return 1
       fi
       if [ "$rc" -ne 0 ]; then
         # unchanged HD-197 semantics: a real syntax failure still fails this item (the
@@ -1602,7 +1602,7 @@ blk_ansible_syntax() {
         rc_all="$rc"
       fi
     done
-    [ "$rc_all" -eq 0 ] || exit "$rc_all"
+    [ "$rc_all" -eq 0 ] || return "$rc_all"
     echo "OK: all playbooks pass --syntax-check (parallel, $GATE_NPAR at a time)"
   else
     echo "SKIP: ansible-playbook not functional on this host (absent or native-Windows WinError 87) — syntax gate runs under WSL/CI"
@@ -1629,7 +1629,7 @@ blk_bash_n_sweep() {
           ;;
       esac
     done
-    [ "$bash_fail" -eq 0 ] || exit 1
+    [ "$bash_fail" -eq 0 ] || return 1
     echo "OK: all bash/sh scripts pass bash -n"
   else
     echo "SKIP: bash not on PATH — bash -n sweep runs under WSL/CI"
@@ -1656,7 +1656,7 @@ blk_py_compile_sweep() {
       "${_pc[@]}" -m py_compile "$f" >/dev/null 2>&1 || { echo "py_compile FAIL ($f) under ${_pc[*]}" >&2; py_fail=$((py_fail+1)); }
     done
   fi
-  [ "$py_fail" -eq 0 ] || exit 1
+  [ "$py_fail" -eq 0 ] || return 1
   echo "OK: all scripts/*.py compile under ${_pc[*]} (${#pys[@]} files, one interpreter start)"
 }
 

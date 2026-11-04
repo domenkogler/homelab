@@ -45,6 +45,9 @@
 - name: Resolve the account and group behind the Samba force-owner names
   ansible.builtin.shell: "id -u {{ storage_user }}; getent group {{ storage_group }} | cut -d: -f3"
   changed_when: false
+  # check_mode: false, because the assert below dereferences this read: without it a `--check` run
+  # skips the shell and the assert fires on an undefined dict instead of previewing smb.conf.
+  check_mode: false
   register: _samba_owner_ids
   tags: [samba, storage]
 
