@@ -218,15 +218,21 @@ deploy-service.yml and are BIND-MOUNTED into the containers. Two consequences:
    runs a guarded post-up restart (`docker_compose_v2: state: restarted`) for that ONE service when a
    non-`.env` extra actually changed. Idempotent converges never fire it; first boot is safe (`up`
    created the containers moments earlier).
-2. **Exclusions are semantic, not arbitrary:** `.env.j2` extras (kopia-server/agent) feed compose
+2. **Exclusions are semantic, not arbitrary — the list in `deploy-service.yml` is five names, and
+   the doc must name all five.** `.env.j2` extras (kopia-server/agent) feed compose
    `${}` interpolation, where a change IS a spec change and `up -d` already recreated — restarting
-   again would be a double bounce. `traefik` / `traefik-ha` dynamic files sit in the file-provider
-   watch dir and hot-reload in-process; restarting Traefik would only drop edge traffic. VictoriaMetrics
+   again would be a double bounce. `traefik` / `traefik-ha` / **`traefik-internal`** dynamic files sit
+   in the file-provider watch dir (`--providers.file.watch=true`) and hot-reload in-process;
+   restarting any of them would only drop edge traffic — on `traefik-internal` that bounces the whole
+   home LAN edge, which is every LAN-facing route at once. **`spark-dashboard`** is also spark's
+   `llm.kogler.si` name edge, so a bounce there is a 502 window on the inference path.
+   **`traefik-tailnet`**'s `tailscale-sidecar` sibling makes `docker compose restart` flaky — it can
+   fail `cannot join network namespace of a non running container`. VictoriaMetrics
    (and VictoriaLogs) is restarted deliberately: its config churn costs one short gap, while the HTTP
    auth (basic auth via victoria-metrics_api/victoria-logs_api) is read at startup only.
-
-If a future extra must NOT trigger this restart, extend the guard's exclusion list in
-deploy-service.yml rather than bypassing the render registration.
+   ⛔ **A file-provider edge added to the registry WITHOUT being added to that exclusion list
+   restarts a healthy stack on every converge** — the guard's list is the one place the property
+   lives, so extend it in `deploy-service.yml` rather than bypassing the render registration.
 
 3. **A renamed or retired extra has to be REMOVED, not merely unregistered.** "Copy template files"
    copies the template DIR and never deletes, so a file a service stopped rendering survives every

@@ -26,16 +26,16 @@ tags: [services, media, arr, photos, streaming]
 > ⏳ **Prowlarr holds 0 indexers and 0 synced apps, so no request can be searched end-to-end** — the
 > request half of this stack is live (§Request → import wiring) and the acquisition half is not.
 >
-> ✅ **Recyclarr `@daily` sync verified on the box (HD-318(b), 2026-10-18)** — image 8.7.2, `Up 9 days`
-> (`StartedAt` 2026-10-08T17:24:54Z, `RestartCount=0`); ten consecutive fires `iteration=0`…`9` (00:00 local,
-> 2026-10-09→18), each processing **both** configured instances `radarr-homelab` + `sonarr-homelab`, zero
-> `[ERR]`/`[WRN]` lines; `/config` carries the image's own uid 1000, and the date the sync actually landed is
-> **2026-09-28** (fix `5dbe85a6`) — the 2026-09-15 `bind_owner_uid` sweep set 1005, so every run before it died
-> on `Access to the path '/config/cache' is denied`. It authenticates and ships nothing, by ruling (§Catalog):
-> both instances' `state/*/*-mappings.json` are `{"mappings": []}`. ⚠ Two traps: `recyclarr sync` **exits 0 even
-> when it skips every config**, so only log lines and the `state/` mtimes are evidence (an `Up` container proves
-> nothing); and **Lidarr is not a configured instance** — no `lidarr:` block in `recyclarr.yml`, no
-> `state/lidarr/` — so this service has never touched Lidarr.
+> ✅ **Recyclarr's `@daily` sync authenticates and lands on both instances** — image 8.7.2, `Up` with
+> `RestartCount=0`; every fire at 00:00 local processes **both** configured instances `radarr-homelab` +
+> `sonarr-homelab` with zero `[ERR]`/`[WRN]` lines. The trap that made it land: `/config` must carry the
+> image's own uid **1000**, because a `bind_owner_uid` of 1005 dies on `Access to the path '/config/cache'
+> is denied` — so a converge that changes that uid silently breaks every run again. It authenticates and
+> ships nothing, by ruling (§Catalog): both instances' `state/*/*/quality-profile-mappings.json` are
+> `{"mappings": []}`. ⚠ Two traps: `recyclarr sync` **exits 0 even when it skips every config**, so only
+> log lines and the `state/` mtimes are evidence (an `Up` container proves nothing); and **Lidarr is not a
+> configured instance** — no `lidarr:` block in `recyclarr.yml`, no `state/lidarr/` — so this service has
+> never touched Lidarr.
 > ✅ **Immich SSO is live** (`foto.kogler.si` → Authentik). The settings are NOT compose env:
 > Immich v3 has no OAuth env vars, so `roles/docker_services/tasks/immich-seed.yml` PUTs them into the
 > service's own database config (why an env block is inert:
@@ -66,7 +66,7 @@ Subdomains are relative to `kogler.si` (no port, no suffix). Network codes (`P/I
 | Lidarr-URL-DL | lidarr-ydl | I | 150–300 / 500 | Lidarr-YouTube-Downloader (angrido/lidarr-downloader) — acquisition **#3**: YouTube → Lidarr (Newznab + SABnzbd emulation, yt-dlp + PO-token sidecar), up to 320 kbps MP3/M4A/Opus; internal-only UI |
 | Slskd | slskd | I | 60–140 / 250 | Soulseek P2P daemon (slskd/slskd) — **gluetun WireGuard sidecar, VPN-locked egress**, acquisition **#2**; no inbound port → fetch-only peer (search + download, no upload credit); own login |
 | Tube Archivist | tube | I | 300–700 / 1200 | Personal YouTube (bbilly1/tubearchivist + ES + redis) — headless yt-dlp (bundled), channel/playlist subs, **no Google account**; internal-only; own login · `tube` subdir on nas `bulk/media` · needs `vm.max_map_count` · **⏳ disabled** — ES `path.repo` problem, see §Music Pillar
-| Recyclarr | — | I | 40–80 / 200 | TRaSH custom formats + quality profiles sync (`@daily` inside the container, no UI) — the **service runs**; the **quality-profile policy ships nothing**, by ruling: the `quality_definition:` block stays commented because enabling it rewrites the live Radarr/Sonarr profiles, and the ruled position is that this stays off — a later yes is a new decision, never drift: [deployment-secrets.md](deployment-secrets.md) §the `sonarr_api`/`radarr_api` rows |
+| Recyclarr | — | I | 40–80 / 200 | TRaSH custom formats + quality profiles sync (`@daily` inside the container, no UI) — the **service runs**; the **quality-profile policy ships nothing**, by ruling: the `quality_definition:` block stays commented because enabling it rewrites the live Radarr/Sonarr profiles, and the ruled position is that this stays off — a later yes is a new decision, never drift: [hardware-oldsrv.md](hardware-oldsrv.md) §Docker Services carries both standing rulings (the policy, and recyclarr as a retired policy hand), and the keys it would consume are [deployment-secrets.md](deployment-secrets.md) §the `sonarr_api`/`radarr_api` rows |
 
 ## Storage & Import (Media / *arr)
 

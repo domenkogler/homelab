@@ -48,7 +48,7 @@ prompt.md handoff check (same run):
     context) but still OPEN in todo.md → handoff/backlog mismatch (exit 1).
   * prompt_info — §2 SESSION entries that are pure history (all-done, no open
     ⏳) → compressible to the owning docs (INFO only).
-  * Sub-IDs (HD-318a) inherit their parent row's open-ness; phase-done prose
+  * Sub-IDs (`<id><letter>`) inherit their parent row's open-ness; phase-done prose
     ("IaC done … ⏳ deploy") on an open row is NOT a contradiction.
 
 Marker grammar (provable: `python3 scripts/gate/check_todo_done.py --self-test`): a completion
@@ -164,8 +164,8 @@ _STEM_RE = re.compile(r"^(\d+)([A-Za-z]*)$")
 # Ids where a letter-suffixed row is a GENUINE sub-task of the same-numbered parent, so the
 # pair is legal. EMPTY, and measured rather than assumed (2026-10-01): `grep -o '^| HD-[0-9]+[A-Z]'
 # todo.md` finds no letter-suffixed row except the HD-336b one, so today the gate has no exemption
-# to make. Sub-ID notation is common in prose (HD-318a/c/d appear 19 times) but NEVER headed a row
-# — `git log -S '| HD-318a' -- todo.md` is empty — so no legal pair has ever been exercised here.
+# to make. Sub-ID notation is common in prose but has NEVER headed a row — a row id is always
+# the bare `HD-<n>` form — so no legal pair has ever been exercised here.
 # That is why the self-test breeds one (HD-900 + HD-900z) instead of trusting the registry: an
 # exemption path with no live case is exactly the untested branch that rots. Adding a stem here
 # REQUIRES its reason in the comment next to it.
@@ -221,7 +221,7 @@ def find_duplicate_ids(subtasks: frozenset[str] = SUBTASK_PAIRS) -> list[tuple[s
     reference sweeps.
 
     A row that is a REAL sub-task of one parent (one outcome genuinely split in two, the way
-    HD-318 was split in prose) is legitimate and is resolved by adding the stem to `SUBTASK_PAIRS`,
+    a parent row was split in prose) is legitimate and is resolved by adding the stem to `SUBTASK_PAIRS`,
     which records WHY the pair is legal — the exemption must be an assertion with a reason, never a
     silent widening of the gate. `grep -o '^| HD-[0-9]*' | sort | uniq -d` cannot make this
     distinction at all (it truncates any `<n>a` to `<n>`), which is why that recipe stays a hint and
@@ -400,7 +400,7 @@ def scan_prompt(open_ids: set[str], text: str | None = None) -> tuple[list[str],
     for ident, ctxs in sorted(hds.items()):
         any_open = any(_ctx_is_open(c) for c in ctxs)
         any_done = any(_ctx_is_done(c) for c in ctxs)
-        # Sub-IDs (HD-318a / HD-318b) are part of their parent row (HD-318);
+        # Sub-IDs (`<id><letter>`) are part of their parent row;
         # they are never "deleted/done" on their own while the parent is open.
         base = ident[:-1] if ident[-1:].isalpha() else ident
         is_open_row = (ident in open_ids) or (base in open_ids)
@@ -461,7 +461,7 @@ def scan_brief_refs(todo: Path = TODO,
     """(dangling refs `[(file, line, id)]`, tokens examined, briefs examined).
 
     A reference dangles when todo.md carries no `^| HD-<id>` row for the token. A letter-suffixed
-    id (HD-318a) is satisfied by its PARENT row, which is the same inheritance `scan_prompt` applies
+    id (`<id><letter>`) is satisfied by its PARENT row, which is the same inheritance `scan_prompt` applies
     to status claims: a sub-ID is part of its parent's row, it never has a row of its own. An
     orphan sub-ID whose parent is gone is still a dead pointer and still fails.
     """

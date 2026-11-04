@@ -385,7 +385,9 @@ here (its record is the owning doc + the commit). Run `todo.md` for the full sta
 > Phase 1 (VPS edge + Authentik live).
 > **Status:** ✅ **Phase 3 COMPLETE + LIVE 2026-09-08** — full `home_servers.yml` converge **failed=0**, every
 > role green, service set Up + healthy; the RO-path fix batch and the kopia-agent leg closed the same day
-> (**HD-318a**), HA standby cold-render completed (**HD-318c**), and the music pillar landed 2026-09-14/15
+> (the agent's `user@host` identity and its TLS trust anchor were the two halves), HA standby cold-render
+> completed (`home-assistant-standby` compose + keepalived BACKUP, rendered cold), and the music pillar
+> landed 2026-09-14/15
 > (**HD-362**). The three knowns this row used to carry (kopia-agent VPS-gated, signal-cli unlinked, "do not
 > re-converge monitoring until Victoria") are **all closed** — record: `docs/hardware-oldsrv.md` + the commits.
 > ⏳ What is left on oldsrv is listed in its deploy-gated block below.
@@ -436,7 +438,7 @@ here (its record is the owning doc + the commit). Run `todo.md` for the full sta
    **not** a per-template TODO list. New services are added by dropping a template under
    `docker_services/<name>/` and listing it in `home_servers.yml` — no per-template placeholder caveats.
 
-- [x] **HA standby** — ✅ **HD-318c closed + LIVE 2026-09-08**: `home-assistant-standby` compose + keepalived
+- [x] **HA standby** — ✅ **CLOSED + LIVE 2026-09-08**: `home-assistant-standby` compose + keepalived
    (`ha-vrrp_password`, BACKUP instance) rendered cold at `/opt/home-assistant-standby`; the registry row is
    `enabled: false` by design (it starts on failover, not on boot).
 
@@ -465,11 +467,11 @@ HD-358 (Seerr → \*arr link — IaC-seeded by `roles/docker_services/tasks/arr-
 
 - [ ] **HD-57** — Finance stack: the tokens + EB app creation are owner steps; then the n8n import/categorization
       flows, the WG AllowedIPs scope for the :5006 API leg, and the first live verify. · [services-finance.md](docs/services-finance.md)
-- [x] **HD-318(b)** — ✅ **CLOSED + LIVE 2026-10-18**: the recyclarr `@daily` sync landed and keeps landing — ten
-      consecutive fires (`iteration=0`…`9`, 2026-10-09→18), each processing both configured instances
-      `radarr-homelab` + `sonarr-homelab`, zero `[ERR]`/`[WRN]`. The fix that made it land is `5dbe85a6`
-      (**2026-09-28**, `bind_owner_uid` 1005 → the image's own 1000), not the 2026-09-15 sweep this line used to
-      cite. Measured facts, plus the Lidarr gap: the status block of [services-media.md](docs/services-media.md)
+- [x] **HD-318(b)** — ✅ **CLOSED + LIVE 2026-10-18**: the recyclarr `@daily` sync landed and keeps landing —
+      every fire processes both configured instances `radarr-homelab` + `sonarr-homelab` with zero
+      `[ERR]`/`[WRN]`. The fix that made it land is `bind_owner_uid` 1005 → the image's own 1000 (a 1005 bind
+      dies on `/config/cache` being denied). Measured facts, the standing rulings and the Lidarr gap: the status
+      block of [services-media.md](docs/services-media.md)
 - [x] **HD-350** — **CLOSED 2026-09-23.** oldsrv's `traefik-cert-sync.pub` is authorized on the VPS (the grant has
       been in `ansible-admin`'s `authorized_keys` since 2026-09-15 — `SHA256:VX0TbLr…`, matching
       [deployment-secrets.md](docs/deployment-secrets.md)), and the pull now lands: `traefik-cert-pull.service`
@@ -566,11 +568,8 @@ HD-358 (Seerr → \*arr link — IaC-seeded by `roles/docker_services/tasks/arr-
       (no doubled `http://`, no empty host). ⛔ **Nothing was clicked — deliberately:** a click is a real takeover,
       and this row's acceptance is the eyeball, not the trigger. The standby itself is still undeployed, which is
       **HD-1109**'s cold create, not a card defect. · [smart-home-failover.md](docs/smart-home-failover.md)
-- [ ] **HD-318(g)** — the HA **ZHA** radio on the Pi (the one serial device no converge can reach — it is host
 - [ ] **HD-319** — **[MANUAL, owner]** confirm the 3 rekuperator group addresses (12/1/*) answer on the KNX bus
       (some `GroupValueRead` warnings remain); the render-from-`.knxproj` + dashboard are live. · [smart-home.md](docs/smart-home.md)
-      hardware, not a container): after a physical re-seat, grant the serial device **dialout access + a stable
-      `/dev/serial/by-id` symlink** and **re-run `home_servers.yml`** (not just `docker_services.yml`). · [smart-home.md](docs/smart-home.md)
 
 
 ---

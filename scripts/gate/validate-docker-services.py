@@ -201,7 +201,7 @@ def _load_ssot_ctx():
     ):
         if k in data:
             ctx[k] = data[k]
-    # PrivadoVPN WireGuard endpoint SSOT (HD-318c) — plain non-secret values live in
+    # PrivadoVPN WireGuard endpoint SSOT — plain non-secret values live in
     # group_vars/home_servers.yml (oldsrv), consumed by the qbittorrent gluetun
     # compose template. Loaded from the SSOT here (not mock) so the validator render
     # cannot drift from the real group_vars (HD-189 principle).

@@ -142,15 +142,30 @@ How `--tags` actually behaves in THIS repo — verified against `site.yml`,
 - **Consequences / gotchas:**
   - `--tags <service>` alone (e.g. `--tags opencloud`) matches no include line — the deploy-loop
     include carries `docker_services` alone (`roles/docker_services/tasks/main.yml:216`) — so the
-    file is never parsed and the run is a SILENT NO-OP. Always pair role + service:
-    `--tags "docker_services,opencloud"`.
+    file is never parsed and the run is a SILENT NO-OP. A service tag never opens its own file;
+    it only selects tasks *inside* a file another tag loaded.
+  - **The same filter, two scopes — `docker_services,<svc>` is surgical on one shape and the whole
+    role on the other.** Selection is a union, so the filter always names the role tag; what
+    decides the blast radius is whether the play carries `[docker_services]` on its `roles:` entry:
+    - **entry tagged** (`playbooks/vps.yml:50`): rule 1 cascades that tag into every task of the
+      role, so `--tags docker_services,opencloud` selects the whole role — every service deploys,
+      not one. Adding the service name buys nothing here.
+    - **entry bare** (`playbooks/home_servers.yml:49` pulls `- docker_services` with no tag): the
+      direct `main.yml` tasks carry `[docker_services]` themselves and run, while
+      `deploy-service.yml`'s children — tagged only `"{{ svc.name }}"` — are selected one by one,
+      so `--tags docker_services,opencloud` deploys opencloud and leaves its siblings alone.
+    Neither shape is ever narrowed by **removing** tags: a filter shrinks only by naming fewer tags,
+    and naming fewer than both halves of this pair reaches nothing at all. So the per-service name
+    is never the lever — read the play's `roles:` entry first, and when the scope must be one
+    service regardless of shape, use the scope var below.
   - TRUE surgical convergence needs the **`docker_services_scope`** var:
     `--tags docker_services -e docker_services_scope=<service>` deploys a single service, or a
     comma-list for several: `-e docker_services_scope="forgejo,traefik"`. Without it, the include
     lines' `tags: docker_services` (union selection) run every direct-role `main.yml` task
     (networks, teardown, homepage, cert-pull, authentik-lane) even when only one inner service is
     matched — the scope var gates those platform tasks AND collapses the deploy loop to the scoped
-    service(s), so a surgical run is genuinely scoped (nothing else even iterates).
+    service(s), so a surgical run is genuinely scoped (nothing else even iterates). This is the
+    only form that is surgical on **both** shapes above, which is why it is the recommended one.
   - Handlers are tag-filtered too: a handler must match the filter (or carry `tags: always`)
     or it is skipped even when notified by a task that ran. EVERY role handler carries
     `tags: always`, so a
@@ -216,7 +231,8 @@ guard restarts the stack once its siblings are Up. **Only `--check` is safe in t
 A green `PLAY RECAP` does not mean the service deployed. A service's own deploy
 tasks carry `tags: "{{ svc.name }}"` (`roles/docker_services/tasks/deploy-service.yml`), so
 `--tags monitoring,docker_services` renders the loop and **silently skips every inner task** — see the
-silent-no-op rule above. Include the service name (or use `docker_services_scope=`), then verify the **artefact**
+silent-no-op rule above. On a bare-role play, include the service name; on either shape use
+`docker_services_scope=`; then verify the **artefact**
 rather than the recap: `docker ps` for the container, and for telemetry a backend query (e.g.
 `VM {job="dcgm"}`).
 
@@ -568,7 +584,7 @@ point: the guard carries no `default()` and no `failed_when`.
 | `… --tags cockpit` | **refused** — the role writes `/etc/pam.d/cockpit`, and that file decides who may authenticate to the web console at all: a converge can take away the console it is being driven from (both bad-PAM failure modes, deny-everyone and an `auth` rule after the `session` rules enforcing nothing, look like a green run) |
 | `… --tags network --check`, `--tags storage --check`, `--tags tailscale-node --check` | allowed — the classifier reads those role dirs and finds no `check_mode: false` line in them at all, which is what *check-safe* means, and it is what makes the runner's read-only proof possible. The claim is the gate's own `[check_mode: false]` line (`python3 scripts/gate/check_self_converge_guard.py`), not this table: a role that gains one flips that line and the run with it |
 | `… --tags cockpit --check` | allowed. `roles/cockpit/tasks/maint-user.yml` carries eight `check_mode: false` tasks, every one a read or a hash computation (`getent`, `ls`, `grep`, `sshd -T`, `openssl passwd -6`) whose stdout the next assert consumes. They are there because a read-back SKIPPED under `--check` yields an empty stdout and the assert beside it then fails closed on a box whose state AGREES with the vault. So the tasks are reads and `homelab_guard_check_safe: true` is an honest claim — which the gate now verifies rather than assumes: it reads the line through a trailing comment (YAML ends a plain scalar at ` #`, and every one of these lines carries the in-file comment), classifies the carrying task, and treats a read-only module (`stat`/`slurp`/`find`/`get_state`/`*_facts`) or a `command`/`shell` declaring `changed_when: false` as a read-back. A ninth line on a `copy`/`template`/`user`/`service` — or on a `command` with no `changed_when` — reddens by `file:line` and `check_safe: false` follows. Setting `check_safe: false` here would be the wrong fix: it would refuse every legitimate `--check` of cockpit from the controller, which is the read this row exists to keep possible |
-| `… --tags docker_services,<svc>` | allowed, and no lockout-role task runs — this is the everyday case a self-hosted runner exists for |
+| `… --tags docker_services,<svc>` | allowed — no lockout-role task is in the selected set, so the guard is silent. ⚠ **Allowed is not the same as surgical:** what that filter actually reaches depends on how the play pulls the role (see §Tags & surgical runs → "The same filter, two scopes"), and on a play whose `roles:` entry carries `[docker_services]` it runs the whole role |
 
 Any run whose target is **not** the controller is untouched by the guard (proven, not assumed).
 

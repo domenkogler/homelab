@@ -196,7 +196,7 @@ CATALOG = [
     ("API Credential", "forgejo_api",             lambda: [f"credential={gen_pw()}"]),
     ("API Credential", "openrouter_api",          lambda: [f"credential={gen_pw()}"]),
     ("API Credential", "cohere_api",              lambda: [f"credential={gen_pw()}"]),
-    # HD-318: sonarr/radarr API keys — catalog-created PLACEHOLDER so the Phase-3
+    # sonarr/radarr API keys — catalog-created PLACEHOLDER so the Phase-3
     # render (recyclarr needs them) can run before the services are up. After first
     # boot, OVERWRITE the vault value with the instance's real config.xml ApiKey and
     # re-run recyclarr (same pattern as forgejo_api above).
@@ -236,7 +236,7 @@ CATALOG = [
     # the SMTP relay creds are the shared `smtp_login` item (not auto-gen here).
     ("Login",       "grafana_login",              lambda: [f"password={gen_pw()}"]),
     ("API Credential", "kopia-server-internal_api", lambda: [f"username=kopia@{gen_token(16)}", f"credential={gen_pw()}"]),
-    # HD-318a: kopia-server TLS trust anchor — NOT a generated password: it is the SHA-256
+    # kopia-server TLS trust anchor — NOT a generated password: it is the SHA-256
     # fingerprint of the persisted self-signed cert under /srv/docker/kopia-server/config/tls.crt
     # (lowercase hex). The catalog CANNOT generate it (it must equal the live cert's fingerprint) —
     # provision-vault.sh seeds it by RE-READING the host file after the server cert is in place.
@@ -298,7 +298,7 @@ NOT_AUTO_ROTATABLE = {
     "onlyoffice-rabbitmq_login",  # RABBITMQ_DEFAULT_* applies at first mnesia init; AMQP_URI couples both sides
     "authentik_password",   # Django SECRET_KEY — invalidates the running instance
     "kopia_password",       # repo master password on live repo
-    "kopia-server_fingerprint",  # HD-318a: TLS trust anchor — must match the live kopia-server cert; rotate = regenerate cert + re-pin BOTH sides manually
+    "kopia-server_fingerprint",  # TLS trust anchor — must match the live kopia-server cert; rotate = regenerate cert + re-pin BOTH sides manually
     # Phase 1 additions (2026-08-22): external/app-coupled — rotate via vault + redeploy,
     # never auto-regenerate:
     "authentik_login",      # bootstrap admin — created at Authentik first boot from this value
@@ -307,8 +307,8 @@ NOT_AUTO_ROTATABLE = {
     "forgejo_api",          # real token issued by the Forgejo UI after first boot
     "openrouter_api",       # external provider API key
     "cohere_api",           # external provider API key
-    "sonarr_api",           # real key issued by the Sonarr instance config.xml after first boot (HD-318)
-    "radarr_api",           # real key issued by the Radarr instance config.xml after first boot (HD-318)
+    "sonarr_api",           # real key issued by the Sonarr instance config.xml after first boot
+    "radarr_api",           # real key issued by the Radarr instance config.xml after first boot
     "openclaw_gateway_token",   # consumed by the running gateway
     "openclaw-opencloud_api",   # OpenCloud app-password pair
     "pi-harness_forgejo_api",   # pi-dev PR-only Forgejo token (HD-268c)

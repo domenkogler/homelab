@@ -216,16 +216,20 @@ oldsrv, same host, same URL, same minute:
 | `wget --no-config` — what the VS Code server installer actually calls | no verdict: the flag drops **every** config file, `~/.wgetrc` included |
 | the VS Code **CLI's** own downloader (Go), same host, same wedge | completed — it races both families, so it survives where `wget` does not |
 
-The home v6 egress is **selectively** dead: it reaches some prefixes and not others — and what that costs
-depends on whether the downloader races. `wget` has no Happy Eyeballs, so given the AAAA-first answer it dies
-on the v6 attempt (FAILED unpinned, `302` pinned, same host same minute). `curl` 8.14 survives the *same* URL
-because it tries both families and v4 answers in ~90 ms — 0.42 s unpinned against 0.09 s pinned. So **"curl
-works by default" is a race result, not a healthy v6 path**: a downloader without Happy Eyeballs, a longer
-race timeout, or a busy link reads this same box as offline. That is why the failure keeps getting misattributed to "this host has no internet" or "the
-mirror is down" — a 0-byte artifact left in a download directory is the tell, and the discriminator costs
-three commands: `curl -6` a host known to answer v6 (the control, per habit (b) above) and `curl -4` the
-failing one. MTU/PMTU is **not** a candidate here: it dies at connect, not mid-transfer, which points at
-prefix reachability.
+**The home v6 path is not selectively dead — the fast-failing names publish no `AAAA` at all.** The table
+above predates the prefix read further down, and read alone it invites the wrong conclusion: what it
+measures is that a downloader which does not race dies on the *AAAA-first* answer, not that some prefixes are
+filtered. What that costs depends entirely on whether the downloader races — `wget` has no Happy Eyeballs, so
+given the AAAA-first answer it dies on the v6 attempt (FAILED unpinned, `302` pinned, same host same minute).
+`curl` 8.14 survives the *same* URL because it tries both families and v4 answers in ~90 ms — 0.42 s
+unpinned against 0.09 s pinned. So **"curl works by default" is a race result, not a healthy v6 path**: a
+downloader without Happy Eyeballs, a longer race timeout, or a busy link reads this same box as offline. That
+is why the failure keeps getting misattributed to "this host has no internet" or "the mirror is down" — a
+0-byte artifact left in a download directory is the tell, and the discriminator costs three commands:
+`curl -6` a host known to answer v6 (the control, per habit (b) above) and `curl -4` the failing one.
+**MTU/PMTU is not a candidate either**: it dies at connect, not mid-transfer. Neither is the router: what the
+names that fail have in common is no `AAAA`, which the prefix read below settles with an independent-resolver
+control rather than a counter.
 
 **Seat-local remedy, and the size of it.** `prefer-family = IPv4` in `~/.wgetrc` plus `ipv4` in `~/.curlrc`
 (both `0600`, user-scoped) makes a downloader run as that user pick A first — proven both directions on the
@@ -238,16 +242,13 @@ Remote-SSH installer calls wget with `--no-config` — its log prints the probe,
 support flag '--no-config'` — and the flag drops every config file, `~/.wgetrc` included. Measured on the
 artifact URL, same minute: rc file in effect → `302`; `wget --no-config` → no verdict. So the split is not
 "command-line tools vs an IDE", it is **who races**: `wget` never does (dead), `curl` and the Go CLI both do
-(alive). The one lever that reaches a downloader refusing to read its config sits a layer lower, in the
-resolver library: `precedence ::ffff:0:0/96 100` in `/etc/gai.conf` makes glibc hand A first to *every*
-process. That is the converged form — `roles/common` var `ipv4_first_address_family`, on for `home_servers`
-alone (where the asymmetry is measured) and deliberately off on the VPS, where v4-first would mask HD-460's
-v6 parity work. It is selectable on its own — `--tags address-family` expands only that write, so a
-resolver change never drags apt, docker or the network legs into the same wave.
-**State on oldsrv:** the managed block is in `/etc/gai.conf`, `getent ahosts update.code.visualstudio.com`
-answers `v4 v6` (it was `v6 v4`), `wget --no-config` on the artifact URL returns `302` (it returned no
-verdict), and the control `curl -6 https://www.google.com` still returns `200` — the preference
-deprioritizes v6, it does not break it.
+(alive). The lever that reaches a downloader refusing to read its config sits a layer lower, in the
+resolver library — the three-lever ladder below says which lever reaches which process, and why picking
+the wrong one repeats the failure.
+**State on oldsrv:** the managed `precedence ::ffff:0:0/96 100` block is in `/etc/gai.conf`,
+`getent ahosts update.code.visualstudio.com` answers `v4 v6` (it was `v6 v4`), `wget --no-config` on the
+artifact URL returns `302` (it returned no verdict), and the control `curl -6 https://www.google.com` still
+returns `200` — the preference deprioritizes v6, it does not break it.
 
 **The prefix read the row owed, taken 2026-10-19 (read-only) — and it closes the finding, in the opposite
 direction.** There is no dead prefix class on this network.
@@ -270,18 +271,37 @@ The `AAAA first` row in that table stays true for names that publish both famili
 non-racing `wget` still needed the gai.conf lever, so nothing here reopens it. Nothing was found that a router
 rule could touch, which is the only clean outcome the paragraph below anticipates: **no rule change is
 warranted by this finding, and none was made.** The counter-only discriminator was never needed — the
-independent-resolver control answered the ours-vs-upstream question more cheaply, and it is the read to reuse.
+independent-resolver control answers the ours-vs-upstream question more cheaply, and it is the read to reuse.
+Every `-6` verdict in that table is a verdict and not an undetermined read, because the source is proven in
+the same sitting: a host with no global v6 route prints the same words as a filtered destination (§the probe
+habits above).
 
-Two honest residuals:
+**The residuals that stay true, and what each one means for the next reader:**
 
-1. The **0-byte-artifact class is not closed by this**: a name with no `AAAA` still defeats a downloader that
-   will not fall back, and the lever for that is client-side family handling (landed as
-   `ipv4_first_address_family`), not the router. Caveat for the old table: `curl -4` of
-   `download.windowsupdate.com/c/msdownload/update/` from this same box tonight also returns `000` — that cell
-   was a bare directory path, not a file, so it no longer reproduces as written.
-2. `pppoe-telekom` carries **no global address of its own**: RouterOS originates router-side v6 from the
-   delegated-prefix address on `vlan10-home`, which upstream routes back to the router — a shape note, not a
-   defect, but it makes a router-originated v6 probe a weak control. Prove v6 from a host.
+1. **The 0-byte-artifact class is not closed by the DNS finding**: a name that publishes no `AAAA` still
+defeats a downloader that will not fall back, and the lever for that is client-side family handling, not the
+router — see the three layers below. ⚠ **One row of the egress table above no longer reproduces as written:**
+`curl -4` of `download.windowsupdate.com/c/msdownload/update/` also returns `000`. That cell is a bare
+*directory* path, not a file, so it is not evidence about the prefix in either direction — read that row as a
+shape note about directory URLs, never quote it as a reachability datum.
+2. **`pppoe-telekom` carries no global address of its own**: RouterOS originates router-side v6 from the
+delegated-prefix address on `vlan10-home`, which upstream routes back to the router. That is a shape note
+rather than a defect, but it makes a **router-originated v6 probe a weak control** — probe v6 from a host, and
+prove the source before writing anything down about the destination.
+
+**The family-preference ladder, cheapest to broadest** — three levers, each reaching a strictly larger set of
+processes, and picking the wrong one is why "I set the rc file and it still failed" keeps recurring:
+
+| Lever | Where | Reaches | Does not reach |
+|---|---|---|---|
+| `prefer-family = IPv4` in `~/.wgetrc` + `ipv4` in `~/.curlrc` | the seat, that user, `0600` | `wget` and `curl` run as that user | any tool fetching through its own HTTP stack (a Node binary, an IDE's downloader), and `wget --no-config`, which drops every rc file |
+| `precedence ::ffff:0:0/96 100` in `/etc/gai.conf` via `roles/common`'s `ipv4_first_address_family` | the host, every process | glibc hands A first to **every** process, `wget --no-config` and non-racing downloaders included | non-glibc resolvers (musl, Go's own resolver) |
+| resolver-side `address-family` (`--tags address-family`) | owns the `/etc/gai.conf` write above and nothing else | a resolver change with no apt/docker/network legs dragged into the same wave | — |
+
+The gai.conf lever is on for `home_servers` alone (where the asymmetry is measured) and deliberately off on
+the VPS, where v4-first would mask the v6 parity work ([services-vps.md](services-vps.md) §IPv6 dual-stack on
+the VPS). The rc files are seat state, not fleet state: each seat that downloads needs its own, and
+`~/.wgetrc`/`~/.curlrc` are user-scoped so a service running as another user is untouched.
 
 ```bash
 # the whole re-derivation, read-only

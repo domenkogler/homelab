@@ -107,6 +107,24 @@ Containers start at boot via systemd units **before any user logs in**:
 > remote agents (:7007) — home logs never reach the VPS. GPU-enabled containers are listed in `hardware-gpu.md`.
 > **There is no family-LLM serving tier here:** big-model generation runs on spark, vision on the
 > workstation ([`services-ai.md`](services-ai.md) §9).
+>
+> **⛔ Two standing rulings on this box's media stack — do not re-open either, and do not read
+> them as "recyclarr is unused":**
+> **1. The quality-profile policy is OFF and nothing ships.** recyclarr's `@daily` sync runs and
+> authenticates on the box and *writes no profile*: the `quality_definition:` block in its rendered
+> `recyclarr.yml` stays commented (enabling it rewrites the live Radarr/Sonarr quality profiles),
+> and `/srv/docker/recyclarr/config/state/*/*/quality-profile-mappings.json` carry
+> `{"mappings": []}`. A converge must not un-comment that block as a side effect, and no lane
+> re-points the policy at Profilarr instead.
+> **2. recyclarr itself is ruled OFF as a policy hand, and the owner's
+> `Pick the recyclarr quality profile` row is RETIRED — not parked, not owed.** The ruling is the
+> one the policy states; a later yes is a **new decision, never drift**, so it never returns to a
+> queue as outstanding work, and the retired row's input must not be re-asked. (The container
+> itself stays `Up` — OFF is the policy switch, not the service.)
+> The service, its tiers, its traps (an `Up` container proves nothing — `recyclarr sync` exits 0
+> even when it skips every config) and its Lidarr gap are in
+> [services-media.md](services-media.md) — its Catalog table and its recyclarr status block; the two
+> API items it consumes are [deployment-secrets.md](deployment-secrets.md) §Master Secret List (canonical).
 
 ---
 
