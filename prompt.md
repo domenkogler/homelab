@@ -352,7 +352,7 @@ not this list, holds the steps, the file ownership and the converge host. Waves,
     full list is derived in [todo-table.md](todo-table.md) §B0. The ids worth naming: **HD-1100** (the PG 16→18 legs —
     owner-paced, one cluster per window, spanning every host so no one domain brief owns it), **HD-1228** (re-derive the
     ledger's STALE block ON EACH SEAT and commit the union — the deletion commit is [prompt-update.md](prompt-update.md)
-    Phase 7's), **HD-1135** (the fork diet's unmeasured win11 half), **HD-1083** (the edge routes still waiting on an owner
+    Phase 7's), **HD-1083** (the edge routes still waiting on an owner
     eyeball), **HD-1176** (the WSL seat's artifacts, now with a `dns-route` plane, plus the headscale MagicDNS `SERVFAIL`
     question and the suspend/resume + away re-measure), and **HD-454 · 406 ·
     412 · 440** ([todo-table.md](todo-table.md) §D — hands and plain rows). Re-derive the count with the command in

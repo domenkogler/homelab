@@ -52,7 +52,7 @@ bash scripts/harness/pi-seat-sync.sh --seat win11 --check                       
 |---|---|
 | [HD-474](todo.md) | this brief's own row: the render `--check` above, which is a repo leg this seat answers unattended, and the residency half (`probe-client`), which sits behind the `lmstudio-llm.ps1 switch` owner hand |
 | [HD-1110](todo.md) | the seat's own `pi-seat-sync.sh --seat win11 --check` read, typed here; the row's `pi_auth`-drift half is repo work and is not this leg |
-| [HD-1135](todo.md) · [HD-1137](todo.md) | the fork-price numbers that exist nowhere else: the interleaved A/B, and `validate-all.sh --time` / `--profile quick` run here |
+| [HD-1137](todo.md) | the `validate-all.sh --time` / `--profile quick` verdict sets run here, beside the fork-price numbers the seat doc now carries |
 
 ⛔ A leg that belongs to a **Debian** seat is not this box's work, and a green here says nothing about one: the seat
 face prints `SKIP` for the legs it cannot prove, and `PARTIAL` is the honest word for this seat's whole-tree verdict
