@@ -167,8 +167,6 @@ SECRET_FIELD_KEYS = ("password", "old-password", "credential", "token", "secret"
 # values are COUNTED and named by item rather than matched. The shape scanner is the instrument there.
 MIN_VALUE_LEN = 8
 DEFAULT_MAX_FILE_MB = 64
-# Run-capture patterns under the pi temp roots and $SESSION_DIR.
-CAPTURE_PATTERNS = ("output-*.log", "events.jsonl", "session.jsonl", "logs/*.log")
 # A ceiling on printed findings: 200 lines of the same item is a wall, not a report.
 MAX_PRINTED = 40
 # Bump when the needle selection or the matching changes: it is part of the history cache key, so the
@@ -251,74 +249,12 @@ def repo_tree_files() -> list[str]:
     return out
 
 
-def capture_files(home: Path | None = None) -> list[str]:
-    """Flat view of every store — the scan set. The VERDICT view is `capture_stores()`; a run that
-    decides per class on "is the corpus non-empty" without naming its stores is the HD-1181 failure
-    shape (scratch keeping a store-less checkout green)."""
-    return sorted({p for s in capture_stores(home).values() for p in s["files"]})
-
-
-# The run-capture class is not one corpus, it is STORES, and they are not interchangeable:
-# `pi-transcripts` (~/.pi/agent/sessions) is the PERSISTENT store the ledger debts sit in — it
-# survives a reboot, so its ABSENCE proves nothing while its PRESENCE proves absence of a hit;
-# `pi-subagents-*` scratch roots and a per-session `$SESSION_DIR` live under /tmp, so they are
-# wiped (their absence can be evidence of closure, their presence is no evidence about the
-# persistent store at all). A guard that judges the class on "corpus non-empty" lets scratch keep
-# the corpus non-empty when the transcript store is absent — that is how a store-less checkout
-# exits 0 and prints live debts as STALE. So: every run-capture verdict NAMES the stores it read,
-# and the class is JUDGED only when the persistent store was READ.
-def capture_stores(home: Path | None = None) -> dict[str, dict]:
-    """store name -> {files, read, why}. READ means the store's root exists and was scanned — zero
-    files in a READ store still proves absence there; a root that is not there was NOT READ and
-    cannot close a debt recorded in it."""
-    home = Path(home) if home else Path.home()
-    stores: dict[str, dict] = {}
-    sess = home / ".pi" / "agent" / "sessions"
-    files = [str(p) for p in sess.rglob("*.jsonl")] if sess.is_dir() else []
-    stores["pi-transcripts"] = {
-        "files": files,
-        "read": sess.is_dir(),
-        "why": f"scanned {sess}" if sess.is_dir() else f"no store at {sess} on this seat",
-    }
-    scratch: list[str] = []
-    roots: list[str] = []
-    tmp = os.environ.get("TMPDIR", "/tmp")
-    roots += sorted(glob.glob(os.path.join(tmp, "pi-subagents-*")))
-    if tmp != "/tmp":
-        roots += sorted(glob.glob("/tmp/pi-subagents-*"))
-    for root in roots:
-        for pat in CAPTURE_PATTERNS:
-            scratch += [p for p in glob.glob(os.path.join(root, "**", pat), recursive=True)
-                        if os.path.isfile(p)]
-    stores["pi-subagents-scratch"] = {
-        "files": sorted(set(scratch)),
-        "read": bool(roots),
-        "why": f"scanned {len(roots)} root(s)" if roots else f"no pi-subagents-* root under {tmp}",
-    }
-    if os.environ.get("SESSION_DIR"):
-        sd = os.environ["SESSION_DIR"]
-        sfiles: list[str] = []
-        if os.path.isdir(sd):
-            for pat in CAPTURE_PATTERNS:
-                sfiles += [p for p in glob.glob(os.path.join(sd, "**", pat), recursive=True)
-                           if os.path.isfile(p)]
-        stores["session-dir"] = {"files": sorted(set(sfiles)), "read": os.path.isdir(sd),
-                                 "why": f"scanned {sd}" if os.path.isdir(sd)
-                                        else f"SESSION_DIR points nowhere ({sd})"}
-    return stores
-
-
-def stores_note(stores: dict[str, dict]) -> str:
-    """The line that makes the verdict name its stores — a run must say WHERE it looked, because
-    'checked the captures' is false whenever only scratch answered."""
-    read = [f"{name} ({len(s['files'])} file(s); {s['why']})" for name, s in sorted(stores.items())
-            if s["read"]]
-    unread = [f"{name} ({s['why']})" for name, s in sorted(stores.items()) if not s["read"]]
-    line = "run-capture stores read: " + (", ".join(read) or "NONE")
-    if unread:
-        line += " — NOT READ: " + ", ".join(unread)
-    return line
-
+# The capture-store walk MOVED to scripts/lib/capture_stores.py so the seat-side act
+# (scripts/secrets/redact.py) can share one walk without importing a gate. Re-exported here
+# on purpose: `check_secret_debt.py` asserts `capture_stores` is present in THIS module's
+# namespace, and a second copy of the walk is the twin every gate in this repo exists to catch.
+from capture_stores import (CAPTURE_PATTERNS, capture_files, capture_stores,  # noqa: F401,E402
+                            stores_note)
 
 def expand(paths: list[str]) -> list[str]:
     out: list[str] = []
@@ -1851,12 +1787,13 @@ def mutation_test() -> int:
         # credential through the lib twin — so it goes into a throwaway `scripts/gate/` with a copied
         # lib, and $REPO points it back at THIS checkout. A copy left inside the tree would be an
         # untracked file every other tree-walking gate has to explain. A missing second copy is not a
-        # skipped mutant but a `ModuleNotFoundError` that reads as "nothing broke".
+        # skipped mutant but a `ModuleNotFoundError` that reads as "nothing broke" — which is why
+            # `capture_stores.py` is in the list: the capture walk this file re-exports is imported now.
         with tempfile.TemporaryDirectory() as td:
             fake = Path(td) / "scripts"
             (fake / "lib").mkdir(parents=True)
             (fake / "gate").mkdir()
-            for _lib in ("repo_root.py", "vault_env.py", "vault_read.py"):
+            for _lib in ("repo_root.py", "vault_env.py", "vault_read.py", "capture_stores.py"):
                 shutil.copy(ROOT / "scripts" / "lib" / _lib, fake / "lib" / _lib)
             mutant = fake / "gate" / "leak-mutant.py"
             mutant.write_text(mutated, encoding="utf-8")
