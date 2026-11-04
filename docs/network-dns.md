@@ -952,6 +952,13 @@ black hole with extra steps.
 | **tailnet** | **the client's own netmap** (headscale `extra_records`, answered by MagicDNS locally) | pinned names → a **tailnet address** (VPS edge, oldsrv's node, later the Pi's node) | every home box dying, headscale dying, the WAN dying — resolution is cached on the device; only reachability varies |
 | **LAN** | the Pi's Technitium (the tertiary instance) | internal answers: the VIP for `ha`, oldsrv's edge for the media family, the VPS for public names | oldsrv dying; **not** the Pi dying → fixed by the dual-resolver decision below |
 
+⚠ **A `.ts` answer is evidence about the netmap, never about a Technitium instance — and the vantage decides
+what you may conclude.** On a tailnet-attached client `Resolve-DnsName -Server <instance> -DnsOnly` answers
+the whole `*.ts.kogler.si` namespace out of the local netmap regardless of the `-Server` it was given, so
+asking an instance for a `.ts` name from such a box proves nothing about that instance. Attribution needs
+either a vantage with no tailnet interface (where a `.ts` name simply does not answer) or
+`dig @100.100.100.100` on a tailnet node — which is the plane that answers it.
+
 **The rulings, each with the reason that holds it:**
 
 1. **No split-DNS.** Splitting the zone to a tailnet resolver would
@@ -1297,10 +1304,12 @@ Three mechanisms close it — one command, one schedule, one gate:
    [`dns-seed.service`](../IaC/ansible/roles/docker_services/templates/dns-seed.service.j2) +
    [`dns-seed.timer`](../IaC/ansible/roles/docker_services/templates/dns-seed.timer.j2)
    (interval `dns_seed_interval`, default 5m). The timer runs a no-op-if-synced `docker compose up -d` on
-   the local Technitium compose — this starts the container if it is down (self-healing a stopped DNS tier)
-   and, because zones live in the persistent `/etc/dns` bind, an up-to-date compose == an up-to-date zone.
-   It is the **trigger, not a memory**: an edited SSOT + a scoped converge that skipped the seed self-heals
-   within the interval. The VPS `:53` publish stays source-restricted (nftables FORWARD gate) — a
+   the local Technitium compose. What that self-heals is a **stopped container**, and nothing else: the
+   compose file carries no record list, and the persistent `/etc/dns` bind only holds what a converge's seed
+   tail already wrote there. So the timer reconciles the **service**, never the **record set** — an edited
+   zone row stays unanswered until [`playbooks/dns-seed.yml`](../IaC/ansible/playbooks/dns-seed.yml) (or a
+   converge whose loop includes the seed tail) runs, however many ticks pass. The VPS `:53` publish stays
+   source-restricted (nftables FORWARD gate) — a
    compose up on an unchanged spec does not recreate/re-publish it.
 
 3. **Static drift gate** — [`scripts/gate/check_dns_seed_drift.py`](../scripts/gate/check_dns_seed_drift.py)
