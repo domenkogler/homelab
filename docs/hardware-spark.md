@@ -39,6 +39,19 @@ tags: [hardware, gpu, spark, gb10, grace-blackwell, ai]
 > `--tags spark-artifacts`. Weights are ~169 G + ~30 G of tables — **regenerable, not backed up**
 > (same pattern as oldsrv `/srv/models/immich-ml`).
 
+> **What the box does NOT keep**, and how to get it back: the two sets the rejected `nv-patch` arm
+> names — `nvfp4-mixed` (archive dir `nvfp4-mixed/` = spark's `models/Qwen3.8-Flash-Next-mixed-NVFP4-FP8/`)
+> and `ple-nvfp4` (archive dir `ple-nvfp4/` = spark's `ples_nvfp4/`) — are offloaded to the nas at
+> **`/tank/data/gpu-weights/spark/`**, so `nv-patch` cannot boot until they are restored and no
+> `spark_artifacts_fetch` list needs to carry them. They sit beside the engine-image archive
+> `/tank/data/host-images/spark/` (`docker save` of the `fast` and `reasoning` images, sha256- and
+> zstd-verified by sidecars; the built lineage has no registry digest, so that archive plus spark's
+> image store are its only copies). Neither host can ssh the other, so **every copy runs through
+> oldsrv**, which can ssh spark and mounts the nas export at `/mnt/nas/data`:
+> `rsync -aH /mnt/nas/data/gpu-weights/spark/<set>/ ansible-admin@spark.kogler.si:<the set's local_dir>`
+> **run on oldsrv** (one hop, no relay disk, ~45 MB/s per stream and ~85 MB/s for the path — a single
+> stream is the floor, parallel streams are how a large set goes faster), and XFS must have the room.
+
 > **vLLM metrics → Grafana:** the spark-ai compose publishes `:8000` **loopback-only**
 > (`spark_metrics_publish: true`, `127.0.0.1`) so the spark Alloy can scrape vLLM's Prometheus
 > `/metrics` (`prometheus.scrape "vllm"` — the same pattern as Traefik's `127.0.0.1:8082` metrics

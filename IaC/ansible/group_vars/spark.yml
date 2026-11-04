@@ -200,9 +200,13 @@ spark_llm_authz_memory_limit: "64M"   # compose `limits.memory` — MUST be a st
 #   ansible-playbook -i inventory.ini playbooks/spark.yml --limit spark \
 #     --tags spark-artifacts \
 #     -e spark_artifacts_fetch='["b1-awq","ple-int4","nvfp4-mixed","ple-nvfp4"]'
-# Disk: 296 GB free after the B1 staging; nvfp4-mixed core 81.3 GB (the 183.7 GB checkpoint less
-# its own 102.4 GB BF16 table) + ples_nvfp4 28.8 GB ≈ 110 GB → fits. Staged on the box: 117 GB
-# (the delta is the download cache) with 185 GB free after — spark/reports/hd469-fast/README.md.
+# Disk: the two NVFP4-lane sets measured 88.6 GB + 28.8 GB = 117 GB of XFS, and BOTH are offloaded
+# to the nas (/tank/data/gpu-weights/spark/, byte-verified there), because the only arm that names
+# them is the rejected `nv-patch`.
+# Restoring one is an oldsrv-side rsync, and XFS has to hold it — the "Artifact store" note in
+# docs/hardware-spark.md carries the path and the command. Every set NOT named by a live or scheduled
+# arm stays off the box on purpose — the store is sized by what an arm can actually boot, not by what
+# the manifest can fetch.
 spark_artifacts_fetch: [b1-awq, ple-int4]
 
 spark_artifact_sets:
@@ -229,6 +233,7 @@ spark_artifact_sets:
       # mount root — the nesting + flatten pair is what made the 30 GB land.
       local_dir: "{{ spark_xfs_mount }}/ples_int4"
   nvfp4-mixed:
+    # OFFLOADED to /tank/data/gpu-weights/spark/nvfp4-mixed/ on the nas — not staged on spark.
     # primitive-ai/Qwen3.8-Flash-Next-mixed-NVFP4-FP8 — checkpoint 183.7 GB (ct-experts 67.99 +
     # fp8-tail 2.68 + carry-model-bf16 10.66 + its OWN BF16 PLE table 102.4 GB in 43 `ple-bf16-*`
     # shards, which the overlay stubs) ⇒ core 81.3 GB. The full repo listing is ≈191 GB because it
@@ -253,6 +258,8 @@ spark_artifact_sets:
       exclude: ["model-plefp8-*"]
       trim_pattern: "ngram"
   ple-nvfp4:
+    # OFFLOADED to /tank/data/gpu-weights/spark/ple-nvfp4/ on the nas — not staged on spark. Its
+    # tables are the MEASURED-BAD set that killed `nv-patch`, so nothing on this box reads them.
     - repo_id: "primitive-ai/Qwen3.8-Flash-Next-PLE-quant"
       kind: tables
       subdir: "ples_nvfp4"
@@ -293,7 +300,8 @@ spark_artifact_sets:
 
   # ---- the blazux v0.33 lineage (bz-v33-*) — XFS, NOT `/` ----
   # 132.7 GB + the 13 GB conversion below does not fit `/` above its 150 GB floor (162 G free), and it
-  # fits XFS (185 G free) with ~40 G to spare. The PLE table is NOT split out: it ships inside the
+  # fits XFS with room to spare — 294 G free once the `nv-patch` sets came off the box (store note
+  # above). The PLE table is NOT split out: it ships inside the
   # checkpoint (`model-fp8-mtp-ple.safetensors`) and the blazux hook mmaps it from /model in place.
   nvfp4-nvidia:
     - repo_id: "nvidia/Qwen3.8-Flash-Next-NVFP4"

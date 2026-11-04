@@ -318,7 +318,9 @@ recreated after a config change — and a block that never produces output is a 
 > (see the table above), because a Soulseek FLAC is not re-fetchable the way a movie is. Splitting it out
 > with sanoid is not available: it is a directory, not a dataset, and sanoid names datasets only
 > (§The slot-numbering rule). Immich thumbs/encoded-video and ML weights are regenerable, also excluded
-> (face thumbnails are the one exception — see above).
+> (face thumbnails are the one exception — see above). spark's off-box copies — the engine-image archive and
+> its offloaded weight sets under `/tank/data/` — are an offload for capacity, not a backup layer; the
+> "Artifact store" note in [hardware-spark.md](hardware-spark.md) owns them.
 
 ---
 
