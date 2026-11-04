@@ -3,10 +3,10 @@
 > **Role:** dispatch note for **one** session whose own model is NOT served by the spark engine. Every item here is
 > selected by *which model serves the session*, never by *which box it stands on* — the two axes are separate and a
 > launch states both ([docs/orchestration.md](docs/orchestration.md) §4). Two halves, and they are not the same kind
-> of claim: **(1) five rows this brief owns** — work that must hold the whole corpus in view at once, which a
+> of claim: **(1) four rows this brief owns** — work that must hold the whole corpus in view at once, which a
 > locally-served 262 144-token context at ~11 tok/s cannot carry across a compaction boundary; **the rows are the
 > authority** for what is missing and how to do it, this file carries only the contract, the order and the traps:
-> [todo.md](todo.md) **HD-1169 · HD-1157 · HD-1156 · HD-1117 · HD-1149**
+> [todo.md](todo.md) **HD-1169 · HD-1157 · HD-1156 · HD-1117**
 > (row ids as of `dc890c67` — re-derive with `grep -c "^| HD-<id> " todo.md` before quoting one).
 > **(2) legs this brief does NOT own** — the timed spark engine legs Rule 0 bars a spark-served session from running.
 > Those rows stay on the spark brief's §B0 cell and in its card; this file adds the seat rule and the run order and
@@ -21,8 +21,7 @@ Its timed legs sit inside the **one** spark bench window — read `scripts/bench
 it says whether a window is accruing, and a later sitting may find it closed, in which case report the closed window
 and park the leg. ⛔ never start a second window, never run the sampler's start line (parent-only, a lane may not leave
 a process behind), never beside
-a spark-slot converge or a probe lane standing things up on that box. HD-1149's `samba.yml` check-mode half is a **NAS
-host-present leg → park it (O4)**, it is not this lane's converge.
+a spark-slot converge or a probe lane standing things up on that box.
 
 ## 0. Before anything timed or claimed (the seat question, answered mechanically)
 
@@ -49,7 +48,6 @@ every run. That is the whole case for hiring a different model — not for a big
 | 2 | **HD-1157** | (a) a state-word read over the vault item table: parse §Master Secret List of [docs/deployment-secrets.md](docs/deployment-secrets.md) row by row and FAIL when a `field=` cell is prose or a state claim, and widen the derived set to the `group_vars` `*_item:` scalars; (b) resolve the Owning-spec link in [scripts/gate/check_registry_prose.py](scripts/gate/check_registry_prose.py) with the same resolution `check_doc_path_refs.py` already implements | `check_vault_docs.py` (it has **no** `--self-test` arm), `check_registry_prose.py --self-test`; both are ratchet changes — land with the finding count **at rest, measured in this commit** (the `check_md_tables.py` one-finding-at-rest lesson). Trap: the *anchor* half of that cell is HD-1156's hole, its own row — do not fix a source set twice |
 | 3 | **HD-1156** | make a bare number stop matching a lettered sub-number (refuse a prefix hit whose remainder starts with a LETTER) while keeping the spelled-name tie-break and the retried token window green; then the two measured holes — the retried window may no longer DROP a LETTERED sub-number to find a match (the bare-number degradation self-test (h) records is KEPT, so do not "fix" that arm), and the source set takes root-level `.md` and `scripts/**` as sources too | `python3 scripts/gate/check_doc_headings.py --self-test`, then `--show-baseline` for [scripts/gate/doc_headings_baseline.txt](scripts/gate/doc_headings_baseline.txt) **in the same commit**. Trap: the pointer-repoint half is already done — do not re-repoint; the scale is whatever the plain `python3 scripts/gate/check_doc_headings.py` summary prints at your commit — re-derive it, never quote a stored figure — and that scale is exactly why this row is here and not in a spark-served lane |
 | 4 | **HD-1117** | the one real code leg: a content-hash cache over the corpus `check_secrets.py` walks (~1.5 k files today, ~5 s of the 12 s wall), keyed ALSO on the scanner version; keep the six pool-flaking items as measured state with their `POOL DIAGNOSTIC`, not as speculative fixes | `python3 scripts/gate/check_secrets.py`, `python3 scripts/render_all.py --check --no-write`, and `bash scripts/validate-all.sh --list \| wc -l` diffed against an earlier commit. Trap: **a cached green is not a green**; the gawk half is **done** — the pool diagnostic passes the load as `-v lavg=` in `scripts/validate-all.sh`, because `load` is a gawk builtin on the Win11 seat (HD-1202's seat-parity leg), and HD-1117's row still carries that ⚠ as open, which the tree contradicts; the `item_x` arms never run alone, so a full-profile run is the only honest witness |
-| 5 | **HD-1149** | answer the two audit questions, and they are two different mechanisms: `home_assistant` is pulled **bare** by both playbooks that use it, so its Pi/standby sub-files ride the include line's own tag, while `cockpit` is pulled **with** a `roles:` tag, where dropping that tag is what would silently unreach its children — do not carry one answer for both. Then the `samba.yml` check-mode assert that fails because the lookup above it is skipped in check mode | `python3 scripts/gate/check_tag_coverage.py --self-test`; the 8-leg live witness is full-profile-only and pays for an ansible venv — buy it when a tag or an include line changes, not per keystroke. Trap: the NAS `--check` half is owner-present (O4 park), and [docs/deployment-ansible.md](docs/deployment-ansible.md) still calls the gate's registration "the owner's checkpoint" when it is a normal item — fix that stale line in the same change |
 
 ## Order of work — the spark window (legs only; the rows are the spark brief's)
 

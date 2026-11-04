@@ -110,7 +110,7 @@ rehearse-everything rule for owner windows (§4). It claims **legs, not rows**, 
 that owns it.
 
 **Model brief (not a seat):** [prompt-external.md](prompt-external.md) — work gated by *which model serves the session*,
-not by the box: the Rule-0 legs a spark-served session may not run (**HD-1169 · 1157 · 1156 · 1117 · 1149** are the
+not by the box: the Rule-0 legs a spark-served session may not run (**HD-1169 · 1157 · 1156 · 1117** are the
 whole-corpus rows a locally-served 262k context cannot hold), and the timed spark legs that belong to one bench window.
 
 **The gate's two faces (a seat fact, not a brief):** the win11 seat grades the same registry in two faces — `face tree`
@@ -333,8 +333,7 @@ not this list, holds the steps, the file ownership and the converge host. Waves,
     visit — the boot that makes the fstab `mode=` true, and the one-time re-render of `pi-eth0.nmconnection` that notifies
     `reload NetworkManager` · **HD-06** the UPS drill · **HD-411** the cockpit resume word · **HD-230 · HD-207** the
     decisions taken at the drill · **HD-1173** the live tails (the parked `dsh` + `pi-dev` harness IaC comes out, and
-    `pi-dev.ts.kogler.si` becomes a second name on the existing `pi-oldsrv-backend`) · **HD-1139** is a closed finding: no
-    dead prefix class, no rule change warranted · **HD-1140**: the ledger owns the laptop's Home reservation, a
+    `pi-dev.ts.kogler.si` becomes a second name on the existing `pi-oldsrv-backend`) · **HD-1140**: the ledger owns the laptop's Home reservation, a
     `network_static_hosts` row plus a find-guarded `rb4011_*_delta` in the Pi's shape, so the apply rides an existing router
     window · **HD-1175** owes the root-only read of the previous boot's journal and `pstore`, which no rule reaches from a
     user session, and there is no out-of-band power path at all (**HD-454**'s posture; its WoL re-test is unrun) · **HD-1170**
@@ -354,8 +353,7 @@ not this list, holds the steps, the file ownership and the converge host. Waves,
     ledger's STALE block ON EACH SEAT and commit the union — the deletion commit is [prompt-update.md](prompt-update.md)
     Phase 7's), **HD-1083** (the edge routes still waiting on an owner
     eyeball), **HD-1176** (the WSL seat's artifacts, now with a `dns-route` plane, plus the headscale MagicDNS `SERVFAIL`
-    question and the suspend/resume + away re-measure), and **HD-454 · 406 ·
-    412 · 440** ([todo-table.md](todo-table.md) §D — hands and plain rows). Re-derive the count with the command in
+    question and the suspend/resume + away re-measure), and **HD-454 · 406 · 412** ([todo-table.md](todo-table.md) §D — hands and plain rows). Re-derive the count with the command in
     [todo-table.md](todo-table.md) §B0 rather than a number typed here.
 14. **Decisions the fleet leaves open** (none has a domain brief; each is one call, and the evidence that makes it
     actionable is named with it). The gates named here are indexed in [scripts/README.md](scripts/README.md)
