@@ -244,9 +244,7 @@ stated here is the channel each one closes through:
 - **owner:** `immich_oidc` (an owner call — ruling S4), `pgvector_db`, which closes when the owner deletes the
   item **with** the retired paths it guards (a vault write there is the divergence the guard names), and the item the
   ledger titles `slskd slskd@kogler.si` — a value **no IaC file reads**, so the close is the owner rotating it or
-  retiring the item, never a re-render — and `paseo_password`, whose line sits on **all three seats** and whose far
-  end does not exist (the daemon it was minted for is not installed), so the close is the owner's vault act alone
-  with nothing to propagate.
+  retiring the item, never a re-render.
 - **nobody:** the `pppoe_login` and Soulseek-account lines — containment is the only act available, it lowers the
   copy count, and it closes nothing.
 

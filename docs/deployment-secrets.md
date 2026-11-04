@@ -57,6 +57,17 @@ Rule of thumb: if Ansible must read it, it lives in `Homelab-ansible`; if it exi
 provider console or for console break-glass, it lives in **Homelab (human)**. The split is the blast-radius
 boundary — a leaked automation token never exposes break-glass credentials.
 
+**The same boundary bounds the leak eye, and that cuts both ways.** Every gate leg's needle set is what the
+automation account answers, which is ONE vault: ask for another by title and the shared reader answers `the
+SDK's vault list has no vault titled '…'` — a vault the account does not answer is a boundary, never an
+empty fleet. So a value in **Homelab (human)** is unreadable by `check_secret_leak.py`, and
+`check_secret_debt.py` prints `GONE` for any register line naming it. ⛔ **Moving an item between vaults is
+not a rotation**: the bytes are unchanged, every capture that ever printed them still holds a working
+credential, and the gate's green on such a pair is blindness, not closure. A debt whose item left the
+answered vault therefore stays in `scripts/gate/secret_debt_register.txt` with `path: human` until the owner
+rotates it where it now lives; the proof is the far end (a login, a fresh handshake), never a run, and the
+line is deleted by hand in the rotation commit.
+
 ---
 
 ## 1Password as Sole Secrets Backend
