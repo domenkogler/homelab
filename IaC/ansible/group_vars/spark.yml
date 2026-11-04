@@ -125,12 +125,20 @@ spark_ultrafast_build: false
 # the built lineage's reference is the ID pinned in versions.yml, and this flag only decides whether
 # a converge is allowed to build a new candidate for that pin.
 spark_profile_fast8_build: false
+# The blazux v0.33 lineage's opt-in switch (roles/spark-profile-blazux) — same reasoning: it pulls a
+# ~10 GB base image, builds a third party's patch set and runs a one-time checkpoint conversion
+# (+13 GB on XFS). It decides only whether a converge may build a CANDIDATE for
+# spark_vllm_blazux_v33_image; nothing here flips a profile.
+spark_profile_blazux_build: false
 spark_models_roots:
   xfs: "{{ spark_models_dir }}"
   os: "{{ spark_models_dir_os }}"
 # Upstream clone + built-image build tree (roles/spark-ultrafast-build). Kept off the data
 # store on purpose: it is build input, not serving data, and it must survive artifact pruning.
 spark_ultrafast_src_dir: /opt/homelab/ultrafast-src
+# The blazux recipe checkout — the build context itself (the recipe is built as published, so there
+# is no staged copy to keep apart from it).
+spark_blazux_src_dir: /opt/homelab/blazux-src
 # The v0.32 lineage's BUILD directory — a copy of the recipe's build inputs, re-anchored by
 # roles/spark-profile-fast8/files/port_v32.py. Never the checkout above: the checkout has to stay
 # byte-for-byte the pinned commit for the provenance assert to mean anything, and a build definition
@@ -282,6 +290,28 @@ spark_artifact_sets:
       dest: "draft-vocab-ids-K65536.txt.gz"
       decompress: true
       expect_lines: 65536
+
+  # ---- the blazux v0.33 lineage (bz-v33-*) — XFS, NOT `/` ----
+  # 132.7 GB + the 13 GB conversion below does not fit `/` above its 150 GB floor (162 G free), and it
+  # fits XFS (185 G free) with ~40 G to spare. The PLE table is NOT split out: it ships inside the
+  # checkpoint (`model-fp8-mtp-ple.safetensors`) and the blazux hook mmaps it from /model in place.
+  nvfp4-nvidia:
+    - repo_id: "nvidia/Qwen3.8-Flash-Next-NVFP4"
+      kind: weights
+      revision: "{{ spark_nvfp4_nvidia_revision }}"
+      local_dir: "{{ spark_models_dir }}"
+      subdir: "Qwen3.8-Flash-Next-NVFP4-nvidia"
+  nvfp4-nvidia-hybrid:
+    # NOT a download — roles/spark-profile-blazux converts the four dense side-layer shards of
+    # nvfp4-nvidia to blockwise FP8 with the recipe's own tools/fp8_convert.py (blazux MODE=hybrid,
+    # "~20 % faster decode at the same quality"). Every other file is a HARD LINK into the source
+    # directory (same XFS), so the cost is the four rewritten shards, not a second checkpoint. The
+    # marker is the converter's own `.prepared`, so a profile that names this set cannot boot on a
+    # box where the conversion never ran.
+    - kind: built
+      local_dir: "{{ spark_models_dir }}"
+      subdir: "Qwen3.8-Flash-Next-NVFP4-nvidia-fp8hybrid"
+      marker: ".prepared"
 
   mtpdense-t80:
     # NOT a download — roles/spark-ultrafast-build CONVERTS nine drafter modules out of
@@ -481,6 +511,9 @@ spark_llm_checkpoints:
   Qwen3.8-Flash-Next-W4A16-AutoRound-hybrid-mtpdense-g32:
     quant_method: gptq
     basis: "MEASURED: the built g32 drafter variant of the same AR target"
+  Qwen3.8-Flash-Next-NVFP4-nvidia-fp8hybrid:
+    quant_method: modelopt
+    basis: "READ from config.json at spark_nvfp4_nvidia_revision (quant_method modelopt, quant_algo MIXED_PRECISION), not yet from a staged copy: the hybrid conversion rewrites four shards + the index and leaves config.json alone, and the converge re-reads the staged file before any boot"
   Qwen3.8-Flash-Next-mixed-NVFP4-FP8:
     quant_method: compressed-tensors
     weight_format: float-quantized
@@ -1707,6 +1740,96 @@ spark_llm_profiles:
     uncertified_reason: "Same CHANGEME gate as u4-pin (a placeholder substring is an invisible no-op). On this arm the pin also competes with the drafter's KV, so record prefix-hit rate from /metrics across a real session, not a synthetic one."
     certified_evidence: ""
 
+  # ── bz-v33-*: the blazux v0.33 recipe — a DIFFERENT lineage AND different weights ──
+  # WHAT THESE ARMS ARE: blazux/qwen3.8-Flash-DGX's `mtp-fast` profile (its vLLM 0.33 default) built as
+  # published at spark_blazux_upstream_commit, on NVIDIA's own NVFP4 export prepared as its `hybrid`
+  # layout (NVFP4 experts + blockwise-FP8 side layers). Upstream measures 42.6 tok/s solo / 128.3 tok/s
+  # at 8 concurrent and ~3,400 tok/s cold prefill on one GB10 (the recipe's own VLLM-033 notes at the pin) — numbers
+  # for THEIR box and THEIR bench, never a claim on this one until a Rule-0 leg runs.
+  # WHY TWO ARMS: the pair is a dtype control on ONE lineage, the shape `fast-v32-bf16` / `fast8` uses:
+  # gates 8–9 read MTP acceptance and quality old-dtype vs new-dtype, which needs the bf16 cell of the
+  # same engine. Neither arm is a control for `fast` — weights AND engine differ — so their comparison
+  # with `fast` is a paired-battery question (gate 6), not an attribution.
+  # WHAT IS NOT AS PUBLISHED, and why each one is a contract and not a taste:
+  #   * YaRN off, max_model_len 262,144 (theirs: YaRN factor 4, 500k) — the client contract is 262,144
+  #     and static YaRN scaling touches every request, short ones included.
+  #   * max_num_seqs 8 (theirs 16) — `fast`'s ceiling, so the per-stream pool arithmetic is comparable.
+  #   * the pool is a fixed 20 GB like `fast` (theirs: 13 GiB fp8), so the two lanes are priced on the
+  #     same bytes; the engine's own `GPU KV cache size` line is the number of record.
+  #   * our template's fixed argv (`--api-key`, served id, `--trust-remote-code`, the parsers,
+  #     `--override-generation-config`) — the four-anchor client contract (docs/spark-llm-profiles.md §Client contract).
+  # ⚠ KEPT as published, and named so a gate reads it: `--mamba-ssm-cache-dtype bfloat16`. The SGLang
+  # recipe for this model measured bf16 recurrent state degrading speculative-decode sampling (6/20 →
+  # 0/20 on its repeated-sample probe); blazux's tournament reads parity. Gate 8 is the leg that sees it.
+  # NOT A RE-DECIDE of the retired NVFP4 rows (docs/services-ai-rejected.md): `fast` NVFP4 died on
+  # `VLLM_GDN_DECODE_KERNEL=triton` JIT on the day-0 build, and `nv-patch` on `ples_nvfp4` carrying no
+  # n-gram tensor. This is a different checkpoint (nvidia/, not primitive-ai), a different table (the
+  # checkpoint's own FP8 one) and a different engine build, and neither failure's cause is present.
+  _bz_x: &bz_x
+    <<: *u_x
+    image: blazux-v33
+    models_root: xfs
+    model_subdir: Qwen3.8-Flash-Next-NVFP4-nvidia-fp8hybrid
+    ple_offload: false            # no primitive-ai CPU-offload trio
+    ple_overlay: false
+    ple_mmap: false               # `ple_mmap` here means the ULTRAFAST hook + Saren's separate table (its
+                                  # revision is asserted against spark_ple_fp8_revision); this lineage's hook
+                                  # is switched by VLLM_PLE_MMAP=1 in spark_llm_blazux_env and reads the
+                                  # table inside the checkpoint, so there is no table dir to pair or stat
+    ple_dispatch: false
+    ple_host_subdir: ""
+    ple_container_dir: ""
+    lineage_env: blazux           # renders spark_llm_blazux_env + spark_llm_blazux_cudagraph_args
+    prompt_tokens_details: true   # the recipe passes --enable-prompt-tokens-details; prefill tok/s needs it
+    enforce_eager: false          # breakable PIECEWISE graphs — the hook ends a graph segment itself
+    max_num_seqs: 8
+    max_cudagraph_capture_size: 8
+    max_num_batched_tokens: 16384 # mtp-fast's BATCH_TOKENS ("larger prefill batch increases peak memory")
+    kv_cache_memory: "20000000000"
+    pool_ceiling_bytes: 20000000000   # per-profile, like `fast`; the certified 16 GiB global still binds the rest
+    spec_config:
+      method: mtp
+      num_speculative_tokens: 3
+      draft_lm_head_quantization: nvfp4   # mtp-fast's NVFP4 proposal head; needs the V2 runner (in the env list)
+    health_start_period: 2400s
+    artifact_sets: [nvfp4-nvidia, nvfp4-nvidia-hybrid]
+    fixed_cost_bytes: 90000000000
+    fixed_cost_basis: "DERIVED — not measured on this box: upstream's v0.32 boot at GPU_MEM 0.80 reserves
+      16.43 GiB of KV (the recipe's own VLLM-032 notes at the pin), i.e. 0.80 × 121.62 GiB − 16.43 GiB ≈ 80.9 GiB =
+      86.8e9 B of non-KV engine budget, rounded UP to 90.0e9 for this arm's 16,384-token batch. 90.0e9 +
+      the 20 GB pool = 110.0e9, inside the 113.000e9 global host floor. Gate 7's watchdog curve on the
+      first boot replaces this figure."
+    certified: false
+
+  bz-v33-bf16:
+    <<: *bz_x
+    label: "UNCERTIFIED — blazux v0.33 mtp-fast on NVIDIA NVFP4-hybrid, bf16 KV (the dtype control; lineage unbuilt)"
+    kv_cache_dtype: auto          # = 644,599 slots = 2.46 × the window at 31,027 B/token, a projection
+    uncertified_reason: >-
+      (a) THE LINEAGE IS UNBUILT: spark_vllm_blazux_v33_image is empty, so roles/spark-llm-profile
+      refuses this arm before render. Build it with roles/spark-profile-blazux and pin the ID it prints.
+      (b) THE WEIGHTS ARE NEW HERE: nvfp4-nvidia + its hybrid conversion have never been staged or booted
+      on this box, so gates 0–7 and a paired gate-6 battery against `fast` are all owed.
+    certified_evidence: ""
+
+  bz-v33-fp8:
+    <<: *bz_x
+    label: "UNCERTIFIED — blazux v0.33 mtp-fast on NVIDIA NVFP4-hybrid, fp8 KV (4.18 × the window projected; lineage unbuilt, fp8 unproven)"
+    kv_cache_dtype: fp8           # 20e9 / 18,251 = 1,095,830 slots = 4.18 × the window (136,978 tok/stream at
+                                  # seqs 8). Upstream's own boot reads ~15.0 KB/token (8 GiB → 573,208 tokens),
+                                  # which would be ~1.33M here — a third party's read, not ours
+    uncertified_reason: >-
+      (a) as bz-v33-bf16: the lineage is unbuilt and the weights have never booted here.
+      (b) fp8 IS REFUSED until proven ON THE BUILT IMAGE: `blazux-v33` is not in
+      spark_llm_fp8_kv_capable_images, and enters it only on the box leg of
+      scripts/bench/spark-fp8-image-probe.py --image <the pinned ID> (UNDECIDED is not a verdict). The
+      recipe's Dockerfile already greps the native fp8 read path at build time, which is source evidence
+      and not that verdict.
+      (c) GATES 8–9 against bz-v33-bf16: upstream's own record on this model has fp8 KV both at
+      tournament parity (88.4 % vs 87.8 %, native v0.31+) and, under its earlier local patch, a
+      long-reasoning case falling 6/6 → 2/6 — so gate 9's battery decides, not the needles.
+    certified_evidence: ""
+
 # The shared argv/env fragments live in the "Shared argv/env fragments" section below — that
 # section is the only definition. A duplicated copy of it here is DEAD TEXT: Ansible keeps the
 # LAST mapping key and only warns, so editing the earlier copy changes nothing.
@@ -1757,6 +1880,37 @@ spark_llm_ple_dispatch_env:
   - "VLLM_USE_DEEP_GEMM=0"
   - "VLLM_FP8_HYBRID=1"
 
+# The blazux lineage's runtime knobs, as the recipe's serve script renders them for the `mtp-fast`
+# profile at the pinned commit — one list, rendered only for `lineage_env: blazux`. Disjoint from the
+# ultrafast lists above on purpose: the two mmap hooks read DIFFERENT variables (`MADVISE` vs
+# `MADV_RANDOM`, no FAST_PATH here), and `VLLM_PLE_MMAP_DIR` is deliberately absent because the table
+# ships inside the checkpoint and the hook reads it from /model.
+spark_llm_blazux_env:
+  - "VLLM_PLE_MMAP=1"
+  - "VLLM_PLE_MMAP_WORKERS=32"
+  - "VLLM_PLE_MMAP_PREWARM=0"
+  - "VLLM_PLE_MMAP_MADVISE=random"
+  - "VLLM_PLE_MMAP_FAST_ROWS=0"
+  - "VLLM_QSA_EXACT_TOPK=0"
+  - "VLLM_QSA_DET_TOPK=1"
+  - "VLLM_QSA_DET_LIB=/opt/llm/kernel-det/_C_det.so"
+  - "VLLM_USE_FLASHINFER_SAMPLER=1"
+  - "VLLM_ALLOW_LONG_MAX_MODEL_LEN=0"
+  - "VLLM_FP8_HYBRID=1"
+  - "VLLM_USE_DEEP_GEMM=0"
+  - "VLLM_USE_V2_MODEL_RUNNER=1"
+  - "HF_HUB_OFFLINE=1"
+# Its CUDA-graph shape: PIECEWISE with the recipe's own splitting-op list, whose names are the
+# qwen4_exp ops (the ultrafast list above still names the day-0 qwen3_8_flash_next ops) plus the
+# hook's `ple_mmap_lookup_ids`. Compact JSON so one item is one argv word.
+spark_llm_blazux_cudagraph_args:
+  - "-cc.cudagraph_mode=PIECEWISE"
+  - '-cc.splitting_ops=["vllm::unified_attention_with_output","vllm::unified_mla_attention_with_output","vllm::mamba_mixer2","vllm::mamba_mixer","vllm::short_conv","vllm::qwen4_exp_ple_short_conv","vllm::qwen4_exp_qsa_with_output","vllm::linear_attention","vllm::qwen_gdn_attention_core","vllm::qwen_gdn_attention_core_fused_norm_packed","vllm::gdn_attention_core_xpu","vllm::olmo_hybrid_gdn_full_forward","vllm::sparse_attn_indexer","vllm::rocm_aiter_sparse_attn_indexer","vllm::deepseek_v4_attention","vllm::hpc_rope_norm_forward","vllm::unified_kv_cache_update","vllm::unified_mla_kv_cache_update","vllm::ple_mmap_lookup_ids"]'
+  - "--load-format"
+  - "safetensors"
+  - "--mamba-ssm-cache-dtype"
+  - "bfloat16"
+
 # Resolve the active profile. Unknown profile name = undefined key = the render
 # aborts (fail-loud); roles/spark-llm-profile names the valid list up front.
 # Engine entrypoints per engine family. A DICT, not a Jinja-templated alias, on purpose:
@@ -1786,6 +1940,10 @@ spark_llm_profile_images:
   # base-lineage control) and `fast8` (fp8 KV, the capacity arm) — while `certified: false` is what still
   # gates them. CONVENTIONS §7 — an empty pin would BE the refusal; this one is a value.
   ultrafast-v32: "{{ spark_vllm_ultrafast_v32_image }}"
+  # The blazux v0.33 lineage (roles/spark-profile-blazux): the recipe built as published on
+  # spark_vllm_v33_base_image. EMPTY until a build prints its ID — that empty pin is what refuses
+  # `bz-v33-bf16` and `bz-v33-fp8` today.
+  blazux-v33: "{{ spark_vllm_blazux_v33_image }}"
   sglang: "{{ spark_sglang_image }}"
 
 # The `<base>` axis of a profile's canonical identity `<arm>-<base>-<kv>`
@@ -1803,6 +1961,8 @@ spark_llm_base_tokens:
   base: day0                      # 0.1.dev20073+g8e685d198 — a nightly, not a release
   ultrafast: day0                 # the same 0.1.dev20073+g8e685d198, patched: the version string does not move
   ultrafast-v32: v32              # 0.32.0, from spark_vllm_v32_base_image
+  blazux-v33: v33                 # 0.33.0 is the TAG spark_vllm_v33_base_image names, not yet a read: no
+                                  # build exists on the box. The first build re-reads it with the form above
   sglang: sglang                  # no vLLM inside to read, so the engine name is the honest token
 
 # Resolve the active profile for roles (roles/spark-llm-profile reads this as a real

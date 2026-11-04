@@ -1,0 +1,60 @@
+---
+# roles/spark-profile-blazux — the blazux v0.33 lineage as DATA, driven through the SAME shared
+# machinery as every other lineage (roles/spark-ultrafast-build: checkout_pinned + build_lineage).
+# Runs from playbooks/spark.yml only when `spark_profile_blazux_build` is true (group_vars/spark.yml).
+#
+# What differs from roles/spark-profile-fast8, and why: that lineage PORTS a recipe written for another
+# base, so it stages a copy and re-anchors it. This one builds a recipe that already targets its base
+# (blazux's Dockerfile `FROM vllm/vllm-openai:v0.33.0@sha256:d825baf9…`), so the pinned checkout IS the
+# build context and nothing in it is edited — the clean-tree assert in checkout_pinned.yml is what
+# keeps "we built what they published" true.
+
+spark_profile_blazux_lineage:
+  key: spark-profile-blazux
+  pin: "{{ spark_vllm_blazux_v33_image }}"        # "" is legal and IS the gate
+  pin_var: spark_vllm_blazux_v33_image
+  tag: "{{ spark_vllm_blazux_v33_tag }}"
+  # Every other lineage's names: writing one would untag an image another arm (or the rollback) needs.
+  reserved_tags: "{{ spark_vllm_ultrafast_live_tags + [spark_vllm_ultrafast_v32_tag] }}"
+  commit: "{{ spark_blazux_upstream_commit }}"
+  src_dir: "{{ spark_blazux_src_dir }}"
+  chdir: "{{ spark_blazux_src_dir }}"
+  plan_cmd: ""
+  # Network ON, unlike fast8's `--network none`: the recipe ADDs five kernel-det sources from a pinned
+  # jschmied commit, each with `--checksum=sha256:…`, so the fetch is content-addressed. The base is
+  # pulled by digest from the recipe's own FROM line, which the role asserts equals
+  # spark_vllm_v33_base_image before building.
+  build_cmd: "docker build -t {{ spark_vllm_blazux_v33_tag }} ."
+  build_drafter: false
+
+# The recipe's MODE=hybrid layout, prepared here instead of by its own scripts/prepare-hybrid.sh (upstream path, not in git here): that
+# script works on the HF cache's symlinked snapshots, while roles/spark-artifacts stages REAL files
+# with `--local-dir`, so a `cp -a` of it would copy 132.7 GB. A hard-link copy on the same XFS costs
+# nothing, and tools/fp8_convert.py never writes through a link — it renames each shard it converts
+# to `<shard>.bf16.bak` and writes the FP8 shard as a new file — so the source directory is untouched.
+# The index is the one file it rewrites in place, which is why it is copied rather than linked.
+spark_profile_blazux_hybrid_src: "{{ spark_models_dir }}/Qwen3.8-Flash-Next-NVFP4-nvidia"
+spark_profile_blazux_hybrid_dst: "{{ spark_models_dir }}/Qwen3.8-Flash-Next-NVFP4-nvidia-fp8hybrid"
+
+# Read in the BUILT image after the build — the markers the recipe's own Dockerfile steps leave. A
+# build that exits 0 with one of these missing is a patch that did not land.
+spark_profile_blazux_artifact_probes:
+  - path: /usr/local/lib/python3.12/dist-packages/vllm/models/qwen4_exp/nvidia/ngram_embedding.py
+    pattern: _ple_mmap_apply(Qwen4ExpNGramEmbedding)
+    evidence: Dockerfile — the PLE-mmap hook appended to the module that DEFINES the class
+  - path: /usr/local/lib/python3.12/dist-packages/vllm_ple_mmap.py
+    pattern: Qwen4ExpPLEDeviceEmbedding
+    evidence: src/vllm_ple_mmap.py _install() — the v0.32+ embedding class the hook swaps out
+  - path: /usr/local/lib/python3.12/dist-packages/vllm/third_party/flash_linear_attention/ops/utils.py
+    pattern: spark-fla-shmem
+    evidence: Dockerfile — the GB10 shared-memory constant
+  - path: /usr/local/lib/python3.12/dist-packages/vllm/third_party/flash_linear_attention/ops/chunk_delta_h.py
+    pattern: spark-fla-warps
+    evidence: Dockerfile — fla#953 num_warps pin
+  - path: /usr/local/lib/python3.12/dist-packages/vllm/models/qwen4_exp/nvidia/qsa.py
+    pattern: _fp8_hybrid_separate_qsa(quant_config, prefix)
+    evidence: Dockerfile — the FP8-hybrid QSA projection split
+  - path: /usr/local/lib/python3.12/dist-packages/vllm/models/qwen4_exp/nvidia/qsa.py
+    pattern: '"fp8_e4m3"'
+    evidence: Dockerfile — the native fp8 main-KV read path (source evidence only; the fp8 verdict is
+      scripts/bench/spark-fp8-image-probe.py's box leg)

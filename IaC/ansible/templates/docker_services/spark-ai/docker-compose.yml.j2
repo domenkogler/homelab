@@ -61,6 +61,11 @@
     through to the `else` below, which would render the BASE
     digest under an fp8 profile (EngineCore dies on the BF16-only QSA guard, restart loop). #}
 {%   set engine_image = spark_vllm_ultrafast_v32_image %}
+{% elif profile.image == 'blazux-v33' %}
+{#  The blazux recipe built as published on the v0.33 base. Same rule as the branch above: its pin is
+    EMPTY until a build prints an ID, the gate refuses the arm first, and it must never fall through to
+    the `else`, which would boot the day-0 base under a blazux argv (unknown env, wrong op names). #}
+{%   set engine_image = spark_vllm_blazux_v33_image %}
 {% elif profile.image == 'sglang' %}
 {%   set engine_image = spark_sglang_image %}
 {% else %}
@@ -77,6 +82,9 @@
 {% set command_extra = [] %}
 {% if profile.cudagraph_piecewise %}{%   set command_extra = command_extra + spark_llm_ultrafast_cudagraph_args %}{% endif %}
 {% if profile.prompt_tokens_details %}{%   set command_extra = command_extra + spark_llm_ultrafast_diag_args %}{% endif %}
+{% if profile.get('lineage_env', '') == 'blazux' %}{%   set command_extra = command_extra + spark_llm_blazux_cudagraph_args %}{% endif %}
+{#  `lineage_env` names a recipe whose runtime knobs are not the ultrafast ones. Read with .get() under
+    StrictUndefined; absent = "" = every existing profile renders byte-identically. #}
 {# The pin VALUE is emitted with to_json, NOT wrapped in hand-written quotes. Two reasons, both
    measured: a hand-quoted value reaches argv WITH the quote characters inside it, so the engine
    matches `'<text>'` and the pin is an invisible no-op; and the real value is a multi-line block
@@ -196,6 +204,13 @@ services:
       # The kernel-dispatch env set (QWEN38NEXT_* / VLLM_*_GEMM / VLLM_FP8_HYBRID…).
       # Rendered ONLY when the profile opts in.
 {%   for e in spark_llm_ple_dispatch_env %}
+      - {{ e }}
+{%   endfor %}
+{% endif %}
+{% if profile.get('lineage_env', '') == 'blazux' %}
+      # The blazux recipe's runtime knobs (one SSOT list: spark_llm_blazux_env) — its own mmap hook,
+      # deterministic QSA top-k, the FP8-hybrid dispatch and the V2 runner its NVFP4 proposal head needs.
+{%   for e in spark_llm_blazux_env %}
       - {{ e }}
 {%   endfor %}
 {% endif %}

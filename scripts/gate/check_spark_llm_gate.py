@@ -105,6 +105,8 @@ def patterns_from_role():
          "whose build has no --never-evict-kv-cache-* argument"),
         ("spark_llm_fp8_kv_capable_images", "refuses an fp8 KV cache on an image lineage whose "
          "build carries no fp8 main-KV read path (the #55557 qsa.py guard)"),
+        ("(spark_llm.get('lineage_env', '') == 'blazux') == (spark_llm.image == 'blazux-v33')",
+         "refuses a recipe's runtime knobs on another lineage's image, and that image without them"),
         ("spark_llm_os_min_free_bytes", "checks free space on the root the artifacts use"),
         ("spark_llm_ple_pairing", "refuses a checkpoint/PLE-table combination nobody weighed "
          "(HD-489 tail B10)"),
@@ -241,6 +243,12 @@ def vllm_verdicts(profile, cat):
         f"container={profile.get('ple_container_dir')!r} offload={profile.get('ple_offload')} "
         "\u2014 VLLM_PLE_MMAP_DIR points at /ple-table, so the table must be mounted there "
         "and the primitive-ai CPU-offload env must not render with it")
+    # A recipe's runtime knobs and its image, both directions: blazux's env switches on a hook only
+    # that build installs, and that build without its env loads the 47.7 GiB table resident.
+    out["lineage-env"] = (
+        (profile.get("lineage_env", "") == "blazux") == (img == "blazux-v33"),
+        f"lineage_env={profile.get('lineage_env', '')!r} on image={img!r} \u2014 `lineage_env: blazux` "
+        "and `image: blazux-v33` are declared together or not at all")
     out["ple-dispatch"] = (
         not profile.get("ple_dispatch") or profile.get("ple_mmap"),
         "ple_dispatch: true on a non-mmap arm renders kernel-dispatch env ("
@@ -391,6 +399,9 @@ def canary(cat, pats):
         # the v32 lineage exists to make impossible.
         ("fp8-lineage", lambda p: p.update(kv_cache_dtype="fp8")),
         ("cost-labelled", lambda p: p.update(fixed_cost_basis="guessed from the brochure")),
+        # blazux's env on the certified lane's `base` image: the hook it switches on is not installed
+        # there, so the table would load resident while the env claims it is mmapped.
+        ("lineage-env", lambda p: p.update(lineage_env="blazux")),
         ("cudagraph-cap", lambda p: p.update(max_cudagraph_capture_size=16)),
         ("ple-dispatch", lambda p: p.update(ple_dispatch=True)),   # dispatch on a non-mmap arm
         # HD-489 tail B10. Each breach is bred from the CERTIFIED lane so the pairing is the only

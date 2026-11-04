@@ -2,7 +2,7 @@
 
 > **Role:** dispatch note for **one** lane session on the **spark** GB10 engine. **The rows are the authority** for what is
 > missing and how to do it — this file carries the contract, the order of work and the traps, nothing else:
-> [todo.md](todo.md) **HD-469 · HD-473 · HD-475 · HD-489 · HD-494 · HD-1206 · HD-1214 · HD-1215 · HD-1220 · HD-1221 · HD-1222 · HD-376 · HD-400 · HD-359 · HD-367 · HD-380**
+> [todo.md](todo.md) **HD-469 · HD-473 · HD-475 · HD-489 · HD-494 · HD-1206 · HD-1214 · HD-1215 · HD-1220 · HD-1221 · HD-1222 · HD-1242 · HD-376 · HD-400 · HD-359 · HD-367 · HD-380**
 > (row ids as of `c1fdbd66` — re-derive with `grep -c "^| HD-<id> " todo.md` before quoting one).
 > **Linked from:** [todo-table.md](todo-table.md) §B0 · [todo.md](todo.md)
 
@@ -48,6 +48,7 @@ the test plan) → [docs/hardware-spark.md](docs/hardware-spark.md) §Unified-me
 | 14 | **HD-1220** | The RadixAttention × KV-dtype grid, now that the digest is pinned: converge `sg-radix-bf16` uncertified → read `--help-all` + the engine version line + the boot-log pool line → flip the profile for the other three cells (`sg-no_radix-bf16`, `sg-radix-fp8`, `sg-no_radix-fp8`) | **Read the pool line before the timer**: a pool below 262,144 makes both legs fail identically and that is a pool verdict, not a radix verdict. The legs differ by ONE rendered flag (`radix_cache`) — a hand-run `docker run` with an extra flag is a different engine, not a control. Never enable `--enable-hierarchical-cache` here: host RAM is the same pool |
 | 15 | **HD-1221** | Price the STATE side of the sglang pool — `--mamba-full-memory-ratio`, `--enable-unified-memory`, `--enable-int8-mamba-checkpoint` — on the `sg-radix-bf16` shape | 36 of 48 layers are GDN, so the state budget is a coordinate of this pool and no arm sets any of the three; fp8 KV (fixed on the release line, unverified on GB10) is a fourth coordinate, not a substitute. Read the split from the boot log HD-1220 already owes before touching one |
 | 16 | **HD-1222** | Price the fp8 cells as numerics, not as pool: settle where the KV scales come from, then run paired gates 8–9 against `sg-radix-bf16` | `--quantization-param-path` is unset so the scales are 1.0 and no artifact set ships a calibrated file; fp8 prices at 1.70–1.89×, which on a ~93k pool lands ~160k — under the contract, so the cell is a measurement of the dtype's cost, not a route to 262,144 |
+| 17 | **HD-1242** | The blazux v0.33 lineage: stage `nvfp4-nvidia`, build with `-e spark_profile_blazux_build=true --tags spark-profile-blazux`, pin the printed ID, run the fp8 probe's box leg on it, then flip `bz-v33-bf16` → `bz-v33-fp8` | The build stops on the unpinned-ID red **by design** — that red is the step's success. Read the `GPU KV cache size` line before any timer. These arms change the weights too, so their comparison with `fast` is a paired gate-6 battery, never an attribution; `bz-v33-bf16` is the dtype control for gates 8–9, not a control for `fast` |
 
 ## ⛔ Traps that cost a round
 

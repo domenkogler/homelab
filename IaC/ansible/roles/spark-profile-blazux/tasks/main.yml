@@ -1,0 +1,217 @@
+---
+# roles/spark-profile-blazux — build the blazux v0.33 lineage and prepare the checkpoint its arms name.
+# Opt-in twice: playbooks/spark.yml runs this role only when `spark_profile_blazux_build` is true
+# (group_vars/spark.yml, default false), and the build itself runs only while the lineage's OWN pin
+# (spark_vllm_blazux_v33_image) does not already resolve on the box. It never touches the engine: the
+# arms `bz-v33-bf16` / `bz-v33-fp8` boot only through roles/spark-llm-profile, after the ID this role
+# prints is pinned in group_vars/all/versions.yml.
+#
+# Order, each step a refusal rather than a hope:
+#   1. the pinned recipe, clean (shared checkout_pinned.yml)
+#   2. its Dockerfile's FROM is the registry-verified base pin — a recipe bump cannot move the base
+#   3. the build + ID re-read (shared build_lineage.yml), with that body's unpinned fail deferred
+#   4. the markers each Dockerfile step leaves, read in the built image
+#   5. no other lineage's tag was moved
+#   6. the hybrid checkpoint, from the staged nvfp4-nvidia set
+#   7. the deliberate red while the ID is unpinned
+
+- name: Check out the pinned blazux recipe
+  ansible.builtin.include_role:
+    name: spark-ultrafast-build
+    tasks_from: checkout_pinned
+    apply:
+      tags: [spark, spark-profile-blazux, llm]
+  vars:
+    bc_repo: "{{ spark_blazux_upstream_repo }}"
+    bc_commit: "{{ spark_profile_blazux_lineage.commit }}"
+    bc_src_dir: "{{ spark_profile_blazux_lineage.src_dir }}"
+  tags: [spark, spark-profile-blazux, llm]
+
+- name: Read the recipe's own base image line
+  ansible.builtin.command:
+    cmd: grep -m1 '^FROM ' Dockerfile
+    chdir: "{{ spark_blazux_src_dir }}"
+  changed_when: false
+  check_mode: false
+  register: blazux_from
+  tags: [spark, spark-profile-blazux, llm]
+
+- name: Assert the recipe builds FROM the pinned v0.33 base
+  # The recipe names its base by digest, so the pin here is a SECOND copy of upstream's choice. Keeping
+  # them equal is what makes spark_vllm_v33_base_image the review surface: a recipe bump that moves the
+  # base fails here instead of silently re-basing the lineage.
+  ansible.builtin.assert:
+    that:
+      - (blazux_from.stdout | trim) == ('FROM ' ~ spark_vllm_v33_base_image)
+    fail_msg: >-
+      {{ spark_blazux_src_dir }}/Dockerfile says '{{ blazux_from.stdout | trim }}', but
+      spark_vllm_v33_base_image is '{{ spark_vllm_v33_base_image }}'. Re-verify the new base on the
+      registry (the curl in group_vars/all/versions.yml: arm64/linux present, never a -cu129 tag) and
+      move both pins in one commit — never edit the checkout to make them agree.
+  tags: [spark, spark-profile-blazux, llm]
+
+- name: Ask whether the blazux lineage still needs building
+  ansible.builtin.command:
+    cmd: "docker image inspect --format '{{ '{{' }}.Id{{ '}}' }}' {{ spark_vllm_blazux_v33_image if spark_vllm_blazux_v33_image | length > 0 else spark_vllm_blazux_v33_tag }}"
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  register: blazux_pre
+  tags: [spark, spark-profile-blazux, llm]
+
+- name: Decide whether this run builds
+  ansible.builtin.set_fact:
+    spark_profile_blazux_will_build: "{{ not (blazux_pre.rc == 0 and spark_vllm_blazux_v33_image | length > 0) }}"
+  tags: [spark, spark-profile-blazux, llm]
+
+- name: Build the blazux lineage and re-read its ID
+  ansible.builtin.include_role:
+    name: spark-ultrafast-build
+    tasks_from: build_lineage
+    apply:
+      tags: [spark, spark-profile-blazux, llm]
+  vars:
+    bl_key: "{{ spark_profile_blazux_lineage.key }}"
+    bl_pin: "{{ spark_profile_blazux_lineage.pin }}"
+    bl_pin_var: "{{ spark_profile_blazux_lineage.pin_var }}"
+    bl_tag: "{{ spark_profile_blazux_lineage.tag }}"
+    bl_reserved_tags: "{{ spark_profile_blazux_lineage.reserved_tags }}"
+    bl_commit: "{{ spark_profile_blazux_lineage.commit }}"
+    bl_src_dir: "{{ spark_profile_blazux_lineage.src_dir }}"
+    bl_chdir: "{{ spark_profile_blazux_lineage.chdir }}"
+    bl_plan_cmd: "{{ spark_profile_blazux_lineage.plan_cmd }}"
+    bl_build_cmd: "{{ spark_profile_blazux_lineage.build_cmd }}"
+    bl_build_drafter: "{{ spark_profile_blazux_lineage.build_drafter }}"
+    # The probes, the tag re-read and the hybrid conversion below all need the built image, so the
+    # shared body's unpinned-ID fail would end the one run that can perform them. It is re-placed last.
+    bl_fail_unpinned: false
+    bl_head: "{{ bc_head.stdout }}"
+  tags: [spark, spark-profile-blazux, llm]
+
+- name: Read each Dockerfile step's marker in the built image
+  # A `--rm` grep on a stopped image: no GPU, no network, no engine touched. rc 0 is the only pass.
+  ansible.builtin.command:
+    cmd: >-
+      docker run --rm --network none --memory 2g --entrypoint grep
+      {{ spark_vllm_blazux_v33_tag }} -c -F {{ item.pattern | quote }} {{ item.path }}
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  register: blazux_probes
+  loop: "{{ spark_profile_blazux_artifact_probes }}"
+  loop_control:
+    label: "{{ item.pattern }}"
+  tags: [spark, spark-profile-blazux, llm]
+
+- name: Read the deterministic top-k kernel library the env points at
+  ansible.builtin.command:
+    cmd: >-
+      docker run --rm --network none --memory 2g --entrypoint test
+      {{ spark_vllm_blazux_v33_tag }} -f /opt/llm/kernel-det/_C_det.so
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  register: blazux_detlib
+  tags: [spark, spark-profile-blazux, llm]
+
+- name: Assert every recipe step landed in the built image
+  ansible.builtin.assert:
+    that:
+      - blazux_probes.results | rejectattr('rc', 'equalto', 0) | list | length == 0
+      - blazux_detlib.rc == 0
+    fail_msg: >-
+      The built {{ spark_vllm_blazux_v33_tag }} is missing
+      {{ blazux_probes.results | rejectattr('rc', 'equalto', 0) | map(attribute='item.evidence') | list | join(' · ') }}{{
+      '' if blazux_detlib.rc == 0 else ' · /opt/llm/kernel-det/_C_det.so (VLLM_QSA_DET_LIB in spark_llm_blazux_env points at it)' }}.
+      `docker build` exits 0 when a printf or sed matches nothing, so this read is the only proof the
+      step ran. Do not pin this ID.
+  tags: [spark, spark-profile-blazux, llm]
+
+- name: Read every other lineage's tags after this build
+  when: spark_profile_blazux_will_build | bool
+  ansible.builtin.command:
+    cmd: "docker image inspect --format '{{ '{{' }}.Id{{ '}}' }}' {{ item }}"
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  register: blazux_reserved
+  loop: "{{ spark_profile_blazux_lineage.reserved_tags }}"
+  tags: [spark, spark-profile-blazux, llm]
+
+- name: Assert this build moved no other lineage's tag
+  # `fast` is the rollback for every arm here; its tags are the only names its image has.
+  when: spark_profile_blazux_will_build | bool
+  ansible.builtin.assert:
+    that:
+      - blazux_reserved.results | rejectattr('rc', 'equalto', 0) | list | length == 0
+    fail_msg: >-
+      After this build {{ blazux_reserved.results | rejectattr('rc', 'equalto', 0) | map(attribute='item') | list | join(', ') }}
+      no longer resolves. Re-tag the live image from its pinned ID ({{ spark_vllm_ultrafast_image }})
+      BEFORE anything prunes; this lineage writes exactly one name, {{ spark_vllm_blazux_v33_tag }}.
+  tags: [spark, spark-profile-blazux, llm]
+
+# ---- The hybrid checkpoint (artifact set nvfp4-nvidia-hybrid) ----
+- name: Check the staged NVIDIA checkpoint and the hybrid marker
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  register: blazux_ckpt
+  loop:
+    - "{{ spark_profile_blazux_hybrid_src }}/config.json"
+    - "{{ spark_profile_blazux_hybrid_dst }}/.prepared"
+  tags: [spark, spark-profile-blazux, llm]
+
+- name: Refuse the conversion until the NVIDIA checkpoint is staged
+  when: not blazux_ckpt.results[1].stat.exists
+  ansible.builtin.assert:
+    that:
+      - blazux_ckpt.results[0].stat.exists
+    fail_msg: >-
+      {{ spark_profile_blazux_hybrid_src }} is not staged. Fetch it first — it is an explicit act,
+      never a side effect of this role: `--tags spark-artifacts -e spark_artifacts_fetch='["nvfp4-nvidia"]'`
+      (132.7 GB onto XFS at spark_nvfp4_nvidia_revision).
+  tags: [spark, spark-profile-blazux, llm]
+
+- name: Convert the side layers to blockwise FP8 (async)
+  # Hard links, then the recipe's own converter inside the built image. The two `rm` lines replace the
+  # LINK with a real copy for the only file the converter rewrites in place (the index), so the source
+  # checkpoint is never written through. `--user` keeps the new files owned like the rest of the tree.
+  when: not blazux_ckpt.results[1].stat.exists
+  ansible.builtin.shell:
+    cmd: |
+      set -euo pipefail
+      src={{ spark_profile_blazux_hybrid_src | quote }}
+      dst={{ spark_profile_blazux_hybrid_dst | quote }}
+      rm -rf "$dst"
+      cp -al "$src" "$dst"
+      rm -f "$dst/model.safetensors.index.json"
+      cp "$src/model.safetensors.index.json" "$dst/model.safetensors.index.json"
+      docker run --rm --network none --user "$(id -u):$(id -g)" \
+        -v {{ spark_models_dir | quote }}:/models \
+        -v {{ (spark_blazux_src_dir ~ '/tools') | quote }}:/tools:ro \
+        --entrypoint python3 {{ spark_vllm_blazux_v33_tag }} \
+        /tools/fp8_convert.py "/models/$(basename "$dst")" | tee "$dst/fp8_convert.log"
+      n=$(python3 -c "import json,sys; print(sum(1 for k in json.load(open(sys.argv[1]))['weight_map'] if k.endswith('weight_scale_inv')))" "$dst/model.safetensors.index.json")
+      [ "$n" -gt 0 ] || { echo "conversion produced no fp8 tensors"; exit 1; }
+      touch "$dst/.prepared"
+      echo "fp8 side-layer tensors: $n"
+    executable: /bin/bash
+  become: true
+  become_user: "{{ ansible_user }}"
+  async: 3600
+  poll: 30
+  register: blazux_hybrid
+  tags: [spark, spark-profile-blazux, llm]
+
+# ---- The deliberate red, placed after the legs that need the built image ----
+- name: Refuse to continue while the blazux image ID is unpinned
+  when: spark_vllm_blazux_v33_image | length == 0
+  ansible.builtin.fail:
+    msg: >-
+      Lineage 'spark-profile-blazux' built and passed its marker reads; the hybrid checkpoint is
+      {{ 'prepared' if (blazux_ckpt.results[1].stat.exists or (blazux_hybrid is succeeded)) else 'NOT prepared' }}.
+      Its immutable ID is {{ bl_built.stdout | trim }}. Record it as spark_vllm_blazux_v33_image in
+      IaC/ansible/group_vars/all/versions.yml (one commit), then run the box leg of
+      scripts/bench/spark-fp8-image-probe.py --image <that ID> before `blazux-v33` may enter
+      spark_llm_fp8_kv_capable_images. The tag {{ spark_vllm_blazux_v33_tag }} is never served
+      (CONVENTIONS §7).
+  tags: [spark, spark-profile-blazux, llm]

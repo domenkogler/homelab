@@ -565,6 +565,31 @@ spark_ultrafast_upstream_commit: "0c391a3e74b6a775cfe248691ca7fd855b1876a5"   # 
 spark_ar_hybrid_revision: "8b82f0b7abe3d1150a7827d298c75e86267636ae"      # AutoRound W4A16 int4/int8/fp8-hybrid target
 spark_ple_fp8_revision: "50511b0a41aa1d34b8beb7e5d4bb06a0b650dc14"        # FP8 PLE n-gram table (the mmap path)
 
+# ---- The blazux v0.33 lineage (`bz-v33-bf16` / `bz-v33-fp8`, roles/spark-profile-blazux) ----
+# A THIRD upstream recipe, not a port: blazux/qwen3.8-Flash-DGX (Apache-2.0) builds its own patch set
+# on a stock vLLM release, and its PLE-mmap hook already targets the qwen4_exp class layout that the
+# day-0 overlay cannot (spark/reports/hd1206-v32-port-20261026/window-20261103.md). The recipe is
+# built AS PUBLISHED from the pinned commit; nothing in it is re-anchored here.
+#
+# The BUILD INPUT is the recipe's own FROM line, re-verified against the registry, and
+# roles/spark-profile-blazux refuses a checkout whose Dockerfile names any other base:
+#   curl -s https://hub.docker.com/v2/repositories/vllm/vllm-openai/tags/v0.33.0 \
+#     | jq -r '.digest, (.images[] | "\(.architecture)/\(.os) \(.digest)")'
+#   → sha256:d825baf9…a84c6e (manifest list) with arm64/linux sha256:e3481489…fc65c — the same arm64
+#     image the `v0.33.0-aarch64` tag resolves to. Plain release tag, CUDA 13; never `-cu129`.
+spark_vllm_v33_base_image: "vllm/vllm-openai:v0.33.0@sha256:d825baf9ce4b1b6bfc5ecc7b79880c7e6748c65a72d697ce3d47607aafa84c6e"
+spark_blazux_upstream_repo: "https://github.com/blazux/qwen3.8-Flash-DGX.git"
+spark_blazux_upstream_commit: "17b025f89788a614e8c1ed2a8976ce986ac614fd"   # its Dockerfile FROM = the base above (roles/spark-profile-blazux asserts they stay equal)
+# The built lineage — INTENTIONALLY EMPTY, and the empty value IS the gate (the
+# spark_vllm_ultrafast_v32_image precedent, CONVENTIONS §7): a lineage built on this box has no
+# registry digest, and the served reference is the image ID the build prints, never the tag below.
+spark_vllm_blazux_v33_image: ""
+spark_vllm_blazux_v33_tag: "spark-blazux:v33-17b025f"   # build output name only; its own repository, so it can never move a day-0 or v32 tag
+# The checkpoint that lineage serves: NVIDIA's own NVFP4 export, `quant_method: modelopt` in
+# config.json at this revision, 132.7 GB including its PLE table + MTP head in
+# `model-fp8-mtp-ple.safetensors` (53.7 GB) — the table the mmap hook reads in place.
+spark_nvfp4_nvidia_revision: "fc694b54fb0174e0913e6adf86691ef85a4ead47"
+
 # Two hashes this lane depends on beyond the revision pin:
 #  * the draft-vocabulary slice is a RUNTIME input on the serving path (bind-mounted into
 #    every v16b-class boot), so it is vendored in-tree and hashed rather than fetched;
