@@ -10,14 +10,18 @@
 # The engine's accepted-key list (templates/docker_services/spark-ai/docker-compose.yml.j2) and the edge
 # verifier's client allow-list (templates/docker_services/spark-llm-authz/authz-config.json.j2) are two
 # different sets, and the ORDER in which a credential moves from one to the other is the whole safety
-# argument. Both preconditions are decided from the registry entry plus the fetched `vault` dict, HERE,
-# before this service's compose render — so a half-done enablement stops the run instead of deploying a
-# stack whose verifier admits nobody while the engine ignores the client key.
+# argument. Both preconditions are decided from the registry entry, the fetched `vault` dict and the
+# operator's attach attestation, HERE, before this service's compose render — so a half-done enablement
+# stops the run instead of deploying a stack whose verifier admits nobody while the engine ignores the
+# client key.
 # One direction is deliberately NOT refused: a derive-map row WITHOUT `enabled: true` is legal, because
 # the pre-pass derives its item set from ENABLED services — the item is then simply absent from `vault`
 # and the engine renders exactly the argv it renders today. The flag without the row is the direction
 # this guard refuses, and the verifier's own extra-template render fails closed on the same missing item,
 # so neither ordering can leave a running stack trusting an empty allow-list.
+# A deployed-but-unattached verifier is legal too, and only while the key form is still argv: that is the
+# phase the verifier is proved without being trusted. The attestation therefore enters on the env-form leg
+# alone, so "deployed" can never be read as "attached" at the moment the difference stops being survivable.
 - name: "Assert the spark inference credential ladder is in order ({{ svc.name }})"
   when: svc.template_dir == 'spark-ai'
   vars:
@@ -53,9 +57,13 @@
       # engine for the clients that hold the missing value.
       - not (_ladder_authz_enabled | bool) or (_ladder_client_complete | bool)
       # The env form holds ONE token (the engine's own), so it is legal only once the verifier is the
-      # thing authenticating clients — and only on the engine whose pin reads that env.
+      # thing authenticating clients — and only on the engine whose pin reads that env. The attach leg is
+      # the operator's attestation (`spark_llm_edge_forwardauth_attached`, group_vars/spark.yml), because
+      # nothing here can observe the routers: DEPLOYING the verifier is not the same as routing through
+      # it, and a verifier that no edge dials leaves every client holding a value the engine ignores.
       - not (spark_engine_api_key_env | bool)
-        or (_ladder_authz_enabled | bool and (_ladder_client_complete | bool) and _ladder_engine == 'vllm')
+        or (_ladder_authz_enabled | bool and (_ladder_client_complete | bool)
+            and (spark_llm_edge_forwardauth_attached | bool) and _ladder_engine == 'vllm')
     fail_msg: >-
       The spark inference credential ladder is out of order, so spark-ai's compose render is refused.
       State: spark-llm-authz enabled={{ _ladder_authz_enabled | bool }}
@@ -88,6 +96,15 @@
       verifier forwards that key, every client holding any other value is locked out. Missing leg(s):
       {% if not (_ladder_authz_enabled | bool) %}spark-llm-authz is not enabled;{% endif %}
       {% if not (_ladder_client_complete | bool) %}{{ _ladder_client_missing }} is not in `vault`;{% endif %}
+      {% if not (spark_llm_edge_forwardauth_attached | bool) %}the `forwardAuth` middleware is not attached
+      to the inference edge yet (`spark_llm_edge_forwardauth_attached=false`, and that marker is only the
+      record of the act — setting it is not the act). THE ACT: attach the middleware and its
+      `authResponseHeaders` key rewrite to the `llm` router on BOTH edges — the tailnet edge's
+      `llm-tailnet` router (templates/docker_services/traefik-tailnet/dynamic/routes.yml.j2) and spark's
+      own home edge (templates/docker_services/spark-dashboard/dynamic/routes.yml.j2) — proved on the
+      shadow router first, then hot-reloaded onto the live one, whose rollback is that same one line; then
+      flip the marker in that commit. `spark-llm-authz` being `enabled: true` does not make it true — a
+      verifier no router dials authenticates nobody;{% endif %}
       {% if _ladder_engine != 'vllm' %}the active profile's engine is {{ _ladder_engine }}, and SGLang's
       `api_key` is `Optional[str]` and reads no env (see the SGLang branch of the same
       template);{% endif %}
