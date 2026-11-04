@@ -411,7 +411,10 @@ while the family's own hand-placed bytes are recognised and taken over, so "it p
 verdict and not a permanent accusation. It never restarts `systemd-resolved` — bouncing it takes every
 link's state with it, which is the state this arm exists to hold. Declared for the WSL seat only (the
 cockpit seat runs no `systemd-resolved`, so there is no resolver there to claim a link on) and converged by
-no installer; the plane set and the seat matrix are [harness-pi-seats.md](harness-pi-seats.md) §1.
+no installer; the plane set and the seat matrix are [harness-pi-seats.md](harness-pi-seats.md) §1. A
+non-`.conf` leftover in `/etc/systemd/resolved.conf.d` — the `*.bak-<timestamp>` a hand act leaves behind —
+is inert, because `systemd-resolved` reads only `*.conf`, so it changes no verdict and the plane names it
+as a `NOTE` instead of counting it as drift.
 
 ⚠ **The leaky arm stops being leaky on the Windows side, and that is the half that fixes both seats.** The
 uplink behind the gateway is the Windows resolver, so once the Tailscale adapter carries the MagicDNS loop
