@@ -2535,8 +2535,13 @@ Run everything as root on oldsrv (`sudo -n`); the cockpit itself always runs as 
    allowed: `curl -s -o /dev/null -w '%{http_code}\n' --resolve paseo-oldsrv.ts.kogler.si:443:$(tailscale ip -4) https://paseo-oldsrv.ts.kogler.si/api/daemon/socket`
    must answer **401** (the password gate), and the same call with any other name **404** (no router).
 
-   The laptop seats have no unit, so their own `config.json` arms — bind, relay off, the password hash —
-   converge through `scripts/harness/seat-paseo.sh` inside
-   `bash scripts/harness/pi-seat-sync.sh --check|--push`, and the phone path onto a laptop is the elevated
-   `scripts/harness/win/paseo-seat-door.ps1`: two inbound rules scoped to the tailnet range and one portproxy
-   whose target is **loopback**, because a tailnet-IP listener cannot bind while Tailscale is down.
+   The laptop seats have no unit, so their own `config.json` arms — the bind and the relay — converge
+   through `scripts/harness/seat-paseo.sh` inside
+   `bash scripts/harness/pi-seat-sync.sh --check|--push`. The password hash is NOT among the arms that
+   push can write: no `paseo` command writes a path under `daemon.auth` (`config set` refuses it and
+   `set-password` hashes a plaintext read from a terminal), so on a seat with no unit that arm is read
+   and compared only, and writing it is a named act, not a converge. The phone path onto a laptop is the
+   elevated `scripts/harness/win/paseo-seat-door.ps1`: two inbound rules scoped to the tailnet range and
+   one portproxy whose target is **loopback**, because a tailnet-IP listener cannot bind while Tailscale
+   is down. A headless seat answers nothing until something starts its daemon — nothing in the repo does,
+   so start it (`paseo daemon start`) or rule the carrier before reading a seat as unreachable.

@@ -729,8 +729,10 @@ HD-358 (Seerr → \*arr link — IaC-seeded by `roles/docker_services/tasks/arr-
       · [services-ai.md](docs/services-ai.md) §9b-1
 - [ ] **HD-411** — the second surface of this same account: the oldsrv daemon, its password item and its
       `.ts` door are landed and converged, so what is left is the owner's elevated Windows acts
-      (`scripts/harness/win/paseo-seat-door.ps1`), the pairing, and the verdict taken with a hand on the
-      phone on each seat. · [services-ai.md](docs/services-ai.md) §9b-1
+      (`scripts/harness/win/paseo-seat-door.ps1`), the carrier that writes a unit-less seat's daemon
+      password (no `paseo` command can), the boot carrier for the headless WSL seat — which nothing
+      currently provides, so its daemon is not running — the pairing, and the verdict taken with a hand
+      on the phone on each seat. · [services-ai.md](docs/services-ai.md) §9b-1
 - [ ] **HD-442** — the token's vault leg read back rather than inferred: `cockpit-pi-web_api` carries the
       value, and the catalog-completeness read plus the revoke-or-rotate decision on value identity are
       still owed. · [deployment-secrets.md](docs/deployment-secrets.md)
