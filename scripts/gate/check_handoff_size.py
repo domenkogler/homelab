@@ -53,6 +53,15 @@ parent re-seals in the cleanup commit (`docs/orchestration.md` §4, Merge + clea
 SIZE reminder at the merge station says only that the handoff GREW: read it against HISTORY and
 DERIVED, which are the rules, and re-seal to book whatever is left.
 
+THE SEAL'S OWN BYTES are LF, and both ends of it are byte-explicit. A text-mode write takes the
+seat's line ending, so a reseal on a Windows seat minted a CRLF seal whose every field still parsed
+(`str.strip()` eats the CR) — a claim about the handoff written in bytes no reader of it ever looks
+at, and a worktree that disagrees with its own index. `--reseal` therefore pins the write to LF (the
+`newline` argument, never the platform default) and `read_seal` inspects the BYTES before parsing: a
+CR anywhere in the seal is exit 2 naming the count, and `--self-test` arm (i) proves both halves on
+the host that runs it — the planted CRLF canary reddens, and the re-seal comes back LF in bytes
+(CONVENTIONS §6: prove the probe detects the canary on the host that will run it).
+
 WHAT IT CANNOT SEE, stated rather than left to be discovered:
   * It cannot tell a durable dispatch rule from a story. That is why HISTORY keys on markers, why a
     ⛔ in the entry excuses it, and why the frozen list exists: an ⏸ row holding a standing ruling
@@ -71,8 +80,8 @@ WHAT IT CANNOT SEE, stated rather than left to be discovered:
 Run:   python3 scripts/gate/check_handoff_size.py [--verbose] [--show-baseline] [--reseal] [--self-test]
 Exit:  0 = no finding (a SIZE reminder may still have printed) · 1 = finding(s): history that stayed,
          a typed count, or a sealed line whose site is gone · 2 = could not run (no handoff, no §2 to
-         walk, a missing or malformed seal) — a gate that cannot see the file cannot fail either, so
-         it refuses.
+         walk, a missing, malformed, or CRLF seal) — a gate that cannot see the file cannot fail
+         either, so it refuses.
 Stdlib + git only; git is asked for the seal revision and its age, and neither answer is typed.
 """
 from __future__ import annotations
@@ -408,13 +417,29 @@ def parse_seal(text: str) -> tuple[dict, list[Site], list[str]]:
     return fields, sites, bad
 
 
+def _read_seal_bytes(path: Path) -> str:
+    """The seal's TEXT, proved in BYTES first. A universal-newlines read cannot see a CR and every
+    field of a CRLF seal parses perfectly (`str.strip()` eats it), so reading this file through text
+    mode is a green that never opened the file: the numbers are the same and the worktree disagrees
+    with its own index. `.gitattributes` pins this repo to LF, so a CR here came from a tool writing
+    in the seat's line ending, which is the defect arm (i) plants and requires to redden."""
+    raw = path.read_bytes()
+    if b"\r" in raw:
+        raise ToolError("%s carries %d CR byte(s), so its lines are CRLF while .gitattributes pins "
+                        "this repo to LF. The numbers still parse — which is the defect: a seal "
+                        "written in the seat's own line ending is a claim nothing reads. Re-derive "
+                        "it at the merge station: python3 scripts/gate/check_handoff_size.py --reseal"
+                        % (BASELINE, raw.count(b"\r")))
+    return raw.decode("utf-8")
+
+
 def read_seal(path: Path) -> tuple[dict, list[Site]]:
     if not path.is_file():
         raise ToolError("%s is missing, so the size and the sites this gate is ratcheted to are "
                         "unknown and every pre-existing finding would read as growth. Re-derive it at "
                         "the merge station: python3 scripts/gate/check_handoff_size.py --reseal"
                         % BASELINE)
-    fields, sites, bad = parse_seal(path.read_text(encoding="utf-8"))
+    fields, sites, bad = parse_seal(_read_seal_bytes(path))
     if bad:
         raise ToolError("%s is malformed:\n  %s" % (BASELINE, "\n  ".join(bad)))
     return fields, sites
@@ -572,7 +597,9 @@ def reseal(handoff: Path, seal_path: Path, rev: str | None = None) -> int:
         else:
             old_fields, old_sites = f, s
 
-    seal_path.write_text(header + render_seal(fields, sites), encoding="utf-8")
+    # newline="\n": a text-mode write takes the seat's line ending, and on a Windows seat that minted
+    # a CRLF seal the reader of it could not see (self-test arm (i) proves both halves on this host).
+    seal_path.write_text(header + render_seal(fields, sites), encoding="utf-8", newline="\n")
 
     ob = int(old_fields.get("baseline_bytes", size["bytes"]))
     direction = ("UNCHANGED" if ob == size["bytes"]
@@ -657,11 +684,15 @@ def _pair(tmp: Path, sealed_text: str, handoff_text: str | None = None) -> tuple
     arguments split the seal from the file, which is how GROWTH and STALE are bred."""
     tmp.mkdir(parents=True, exist_ok=True)
     handoff, seal = tmp / HANDOFF, tmp / "handoff_baseline.txt"
-    handoff.write_text(handoff_text if handoff_text is not None else sealed_text, encoding="utf-8")
+    # newline="\n" on both fixture writes: a fixture whose bytes depend on which seat ran it makes
+    # the arms host-dependent, and a byte-truth reader of the seal (arm (i)) would then be grading
+    # the platform instead of the canary it planted.
+    handoff.write_text(handoff_text if handoff_text is not None else sealed_text, encoding="utf-8",
+                       newline="\n")
     size, sites = scan_text(sealed_text, HANDOFF)
     seal.write_text("# fixture seal — nothing here is the repo's seal\n" + render_seal(
         {"baseline_bytes": str(size["bytes"]), "baseline_lines": str(size["lines"]),
-         "sealed_at": FIXTURE_REV}, sites), encoding="utf-8")
+         "sealed_at": FIXTURE_REV}, sites), encoding="utf-8", newline="\n")
     return handoff, seal
 
 
@@ -842,13 +873,14 @@ def self_test() -> int:
         arm("(g) a missing handoff exits 2 and never a green", rc == 2, "rc %d" % rc)
         d = tmp / "nohead"
         d.mkdir()
-        (d / HANDOFF).write_text("# handoff\n\nno section headings at all\n", encoding="utf-8")
+        (d / HANDOFF).write_text("# handoff\n\nno section headings at all\n", encoding="utf-8",
+                                 newline="\n")
         _, good_seal = _pair(tmp / "nohead-seal", FIXTURE)
         rc, out = run(d / HANDOFF, good_seal)
         arm("(g) a handoff with no §2 exits 2 — the walk would have read nothing", rc == 2, out[-160:])
         h, s = _pair(tmp / "badseal", FIXTURE)
         s.write_text("# fixture\nbaseline_bytes not-a-number\nbaseline_lines 10\nsealed_at zzz\n",
-                     encoding="utf-8")
+                     encoding="utf-8", newline="\n")
         rc, out = run(h, s)
         arm("(g) a malformed seal exits 2", rc == 2, "rc %d: %s" % (rc, str(out)[:160]))
         _, got, bad = parse_seal("# f\nbaseline_bytes 1\nbaseline_lines 1\nsealed_at %s\n"
@@ -888,6 +920,24 @@ def self_test() -> int:
             "is the whole of what a size bound does now", rc == 0 and "SIZE bytes" in out,
             "rc %d: %s" % (rc, out[-200:]))
 
+        # (i) The seal's OWN bytes, proved on the host that runs the arm. A text-mode write takes the
+        # seat's line ending, so a reseal on a Windows seat minted a CRLF seal; every field of it
+        # still parses, so a check that reads the file through text mode reports OK over a file it has
+        # never actually looked at. The canary is therefore planted in BYTES, and the remedy is
+        # required to come back LF in BYTES (CONVENTIONS §6 — prove the probe detects the canary on
+        # the host that will run it).
+        h, s = _pair(tmp / "crlf", FIXTURE)
+        s.write_bytes(s.read_bytes().replace(b"\n", b"\r\n"))
+        rc, out = run(h, s)
+        arm("(i) a CRLF seal REDDENS as rc 2 — its fields still parse, so only a byte read sees it",
+            rc == 2 and "CR" in out, "rc %d: %s" % (rc, str(out)[:180]))
+        rc_seal, _ = cap(reseal, h, s, rev=FIXTURE_REV)
+        arm("(i) --reseal rewrites that seal LF in BYTES on this host, not in theory",
+            rc_seal == 0 and b"\r" not in s.read_bytes(),
+            "rc %d, CR bytes left: %d" % (rc_seal, s.read_bytes().count(b"\r")))
+        rc, out = run(h, s)
+        arm("(i) and the file it wrote reads GREEN", rc == 0, "rc %d: %s" % (rc, out[-200:]))
+
     if fails:
         print("FAIL: self-test — %d arm(s) did not behave" % fails)
         return 1
@@ -895,7 +945,7 @@ def self_test() -> int:
           "code and never reddens, HISTORY keys on markers, its ⏳/⛔ and one-clause-ruling exemptions "
           "and its §2 scope proved, DERIVED reddens "
           "on every listed count shape and ignores a fenced example, the seal is proved in both "
-          "directions, and --reseal prints what it froze")
+          "directions AND in its own bytes, and --reseal prints what it froze and writes LF")
     return 0
 
 

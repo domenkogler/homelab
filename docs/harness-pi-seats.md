@@ -272,9 +272,14 @@ MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' wsl.exe -d Debian --cd <mnt-of-this-c
 (`wsl.exe` from Git-Bash takes the converter pin as a command PREFIX and never as an export, or the seat's
 own legs stop converting the arguments they hand to native programs. The node path is spelled ABSOLUTELY
 because nothing inside `wsl.exe --` expands a tilde — a leading `~` arrives as the Windows HOME converted
-to `/c/…`, which is the interop PATH trap in argv form. And a `seat-python.sh` probe always carries a
-script or `--self-test`: with no argument the resolver EXECs an interactive interpreter, which reads stdin
-and produces a traceback flood rather than an answer.)
+to `/c/…`, which is the interop PATH trap in argv form. And a `seat-python.sh` call always carries a
+script or `--self-test`: a bare call is a refusal at rc 2 naming the USE line, never an interpreter — the
+wrapper EXECs, so an empty argv used to open a REPL on whatever stdin the caller held and never return.
+Both `exec` lines carry `< /dev/null` for the same reason with the arguments present: a child of this
+wrapper is handed no stdin at all. What a Windows seat holds of that shape is read with
+`Get-CimInstance Win32_Process -Filter "Name='bash.exe'"` — each blocked wrapper has a `py.exe` child —
+and reaped with `taskkill //PID <pid> //F`, one id at a time, because a process that inherited
+`HOMELAB_VAULT_TOKEN` and was never reaped is live residue on this box, not a stopped run.)
 
 ---
 ## 5. Reference `~/.pi/agent/settings.json` (harness tuning)
