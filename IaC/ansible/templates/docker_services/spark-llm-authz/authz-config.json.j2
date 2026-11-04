@@ -8,16 +8,26 @@
     SHAPE (the program's contract, and the reason a wrong shape is a refusal and not a crash):
       engine_token   the ONE internal key the engine accepts, which the verifier hands to Traefik
                      to put on the forwarded request. No client ever holds it.
-      client_tokens  the bearers the edge accepts from clients. A LIST: the verifier compares
-                     against every entry, so a second client is one more name below, not a code
-                     change. An absent or empty list admits nobody — that is a refusal by contract,
-                     never a configured state to ship. #}
+      client_tokens  the bearers the edge accepts from clients. A LIST holding BOTH of the
+                     credentials that are client-facing at this edge — a reader who knows only this
+                     file still knows the whole accepted set:
+                       · `spark-client_api` — the harness/direct seat's OWN bearer.
+                       · `litellm-engine_api` — the credential BOTH LiteLLM legs (`litellm` on the VPS,
+                         `lan-litellm` on oldsrv) present as their openai-provider key for the spark
+                         model at `https://llm.kogler.si/v1`, which is the exact router the
+                         forwardAuth attach lands on. Ruling D1 removes that value from the engine's
+                         argv and moves its verification here, so an entry-less list locks both
+                         gateways out at their own edge behind a healthy-looking engine.
+                     The verifier compares against every entry, so a third client is one more name
+                     below, not a code change, and the order carries no meaning. An absent or empty
+                     list admits nobody — that is a refusal by contract, never a configured state
+                     to ship. #}
 {#  FAIL LOUD, on purpose: every value here is a direct vault read with no `default()`, no
     `| default(...)` and no empty-string sentinel, so an unfetched item is an Ansible error that
-    names the item instead of a config that renders and serves nothing. `spark-client_api` is the
+    names the item instead of a config that renders and serves nobody. `spark-client_api` is the
     harness/direct client's own bearer and is not in the vault yet, which is exactly why the service
     is `enabled: false` in group_vars/spark.yml until it is — see the enable contract in
     docker-compose.yml.j2. #}
-{%- set client_tokens = [vault['spark-client_api'].credential] -%}
+{%- set client_tokens = [vault['spark-client_api'].credential, vault['litellm-engine_api'].credential] -%}
 {"engine_token": {{ vault['spark-llm_api'].credential | to_json }},
  "client_tokens": {{ client_tokens | to_json }}}

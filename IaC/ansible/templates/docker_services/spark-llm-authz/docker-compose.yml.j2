@@ -14,16 +14,21 @@
 #   for a different reason — the client credential item does not exist in the vault yet, and a
 #   verifier with no client tokens admits nobody, so deploying it now would only add a
 #   `restart: unless-stopped` around a service that can refuse every request. Enabling it is three
-#   acts and they are one change: `enabled: true` on that registry entry, the item's name added to
-#   `_template_vault_items.spark-llm-authz` (the derive set is where a missing item fails loudly),
-#   and the `docs/deployment-secrets.md` §Master Secret List row that `check_vault_docs.py` demands
-#   as soon as the item is named anywhere the IaC reads. Half-doing it is loud either way, by two
-#   different mechanisms: flag alone (no derive row) means the bulk pre-pass never fetches the item,
-#   so the "Template extra .j2 files" task fails this play with
-#   `'dict object' has no attribute 'spark-client_api'` long BEFORE the "Docker compose up -d" task
-#   and no container is ever created; derive row alone (item still absent from the vault) fails the
-#   pre-pass itself, which is fail-closed for every spark service and stops before any deploy task.
-#   Neither ordering can leave a running stack that trusts an empty allow-list.
+#   acts and they are one change:
+#     · `enabled: true` on that registry entry;
+#     · BOTH client-facing items named in `_template_vault_items.spark-llm-authz` — `spark-client_api`
+#       (the harness/direct seat's bearer) AND `litellm-engine_api` (what both LiteLLM legs present to
+#       the `llm` router this attach lands on). The derive set is where a missing item fails loudly,
+#       and half an allow-list is as much a lockout as an empty one;
+#     · the `docs/deployment-secrets.md` §Master Secret List row for the new item, which
+#       `check_vault_docs.py` demands as soon as it is named anywhere the IaC reads.
+#   Half-doing it is loud either way, by two different mechanisms: flag alone (no derive row) means
+#   the bulk pre-pass never fetches the item, so the "Template extra .j2 files" task fails this play
+#   with `'dict object' has no attribute 'spark-client_api'` long BEFORE the "Docker compose up -d"
+#   task and no container is ever created; derive row alone (item still absent from the vault) fails
+#   the pre-pass itself, which is fail-closed for every spark service and stops before any deploy
+#   task. Neither ordering can leave a running stack that trusts an empty allow-list, and the pair
+#   itself is stated in one place — `authz-config.json.j2` renders both into `client_tokens`.
 #
 #   FAIL CLOSED, in both directions: an unreadable, missing, unparsable or empty-token config is a
 #   refusal and never an allow, and "this service is down means inference is dark" is the accepted
@@ -35,15 +40,17 @@
 #   subrequest arrives over the host loopback. It is never a Traefik frontend of its own and carries
 #   no router labels.
 #
-#   SECRETS: TWO values, and both live in exactly one place — the rendered
+#   SECRETS: THREE values, and all three live in exactly one place — the rendered
 #   /opt/spark-llm-authz/authz-config.json, root:root 0600 (the same plaintext-in-a-rendered-config
 #   pattern spark-ai uses for its vault values, and the reason the verifier runs as root inside the
 #   container: the reader must be able to open that file). This compose file carries no value, only
-#   item names, so it stays world-readable like every other rendered compose here.
-#   `spark-llm_api` is the engine's own key — the one the engine will keep accepting; `spark-client_api`
-#   is the harness/direct client's bearer, the credential the edge verifies and never forwards.
-#   Rotating either one lands without a restart twice over: the render's guarded restart picks it
-#   up, and the program re-reads the file on every request.
+#   paths, so it stays world-readable like every other rendered compose here.
+#   `spark-llm_api` is the engine's own key — the ONE the engine keeps accepting, and the only value
+#   this service ever forwards. The other two are the CLIENT set the edge verifies and never
+#   forwards: `spark-client_api` (the harness/direct seat) and `litellm-engine_api` (the credential
+#   both LiteLLM legs present to `llm.kogler.si`, verified here once the attach lands rather than by
+#   the engine). Rotating any of the three lands without a restart twice over: the render's guarded
+#   restart picks it up, and the program re-reads the file on every request.
 #
 #   THE PROGRAM is `authz.py`, a static file in this directory bind-mounted read-only. That choice
 #   has one consequence worth stating: an EXTRA's rendered content change is what the post-up

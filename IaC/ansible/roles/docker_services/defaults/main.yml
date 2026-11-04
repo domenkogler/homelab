@@ -447,14 +447,17 @@ _template_vault_items:
   rustdesk-server: {'rustdesk_login'}   # the hbbs/hbbr keypair (username=public, password=secret); NOT catalog-generated (rustdesk-utils mints it, manual-value class) and NOT auto-rotatable (rotating orphans every enrolled client)
   signal-cli-rest-api: {'signal-internal_api', 'signal_api'}
   spark-ai: {'spark-llm_api', 'litellm-engine_api'}   # spark's only vault items: the engine accepts the harness key AND the gateway's own credential, which is what ends spark-llm_api's triple use
-  # The edge verifier's own read: the ONE internal key it hands Traefik to put on the forwarded
-  # request. It is listed here rather than inherited from spark-ai's row because derive mode fetches
-  # per enabled service IN SCOPE, so a `-e docker_services_scope=spark-llm-authz` run must resolve it
-  # on its own. `spark-client_api` — the client bearer this verifier would accept — is NOT in the
-  # vault, and naming it here would fail the pre-pass for EVERY spark service before a single deploy
-  # task runs; the registry entry sits at `enabled: false` while that is true, and a disabled
-  # service's items are never fetched.
-  spark-llm-authz: {'spark-llm_api'}
+  # The edge verifier's own reads: the ONE internal key it hands Traefik to put on the forwarded
+  # request, and BOTH credentials it must accept from a client. `litellm-engine_api` is named here as
+  # well as under spark-ai because that value stops being verified by the engine once the forwardAuth
+  # middleware is attached to the `llm` router — both LiteLLM legs present it there, so an unfetched
+  # one is a gateway lockout and not a missing nicety. Both are listed rather than inherited from
+  # spark-ai's row because derive mode fetches per enabled service IN SCOPE, so a
+  # `-e docker_services_scope=spark-llm-authz` run must resolve them on its own.
+  # `spark-client_api` — the harness/direct client's bearer — is NOT in the vault, and naming it here
+  # would fail the pre-pass for EVERY spark service before a single deploy task runs; the registry
+  # entry sits at `enabled: false` while that is true, and a disabled service's items are never fetched.
+  spark-llm-authz: {'spark-llm_api', 'litellm-engine_api'}
   technitium: {'technitium_login', 'technitium_api'}
   traefik: {'cloudflare_api', 'crowdsec-bouncer_api'}
   traefik-tailnet: {'crowdsec-bouncer_api', 'tailscale-sidecar_api'}   # middlewares LAPI key + sidecar auth key

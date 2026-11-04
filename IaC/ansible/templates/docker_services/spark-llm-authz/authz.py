@@ -40,7 +40,9 @@ RUN:
 
 CONFIG FILE (rendered from the vault by Ansible, 0600 root:root, bind-mounted read-only):
   {"engine_token": "<internal engine key>", "client_tokens": ["<client bearer>", ...]}
-A missing or empty `client_tokens` admits nobody. That is a refusal, not an open door.
+A missing or empty `client_tokens` admits nobody. That is a refusal, not an open door. Which bearers
+belong in the list is the render's decision, not this program's — see authz-config.json.j2, which
+names every client-facing credential the edge must accept.
 """
 from __future__ import annotations
 
@@ -320,6 +322,18 @@ def self_test() -> int:
         record("second-configured-client-allows",
                status == 200 and headers.get("authorization") == f"Bearer {ENGINE_KEY}",
                f"status={status}")
+
+        # 2b — the pair that makes arm 2 mean something about a CONFIG rather than about a loop: the
+        #      second credential is admitted only because the config carries it as its own entry. The
+        #      one-entry fixture is the shape a render produces when it lists a single client item, and
+        #      it must refuse the very token the two-entry config just allowed.
+        one_entry = _write(fixture / "one-client.json",
+                           {"engine_token": ENGINE_KEY, "client_tokens": [CLIENT_A]})
+        two = asked(good, bearer=CLIENT_B)
+        dropped = asked(one_entry, bearer=CLIENT_B)
+        record("second-client-token-requires-its-own-list-entry",
+               two[0] == 200 and dropped[0] == 401 and "authorization" not in dropped[1],
+               f"two-entry={two[0]} one-entry={dropped[0]}")
 
         # 3 — an unknown token denies AND leaks no engine key on the way out.
         status, headers, _ = asked(good, bearer=CLIENT_NO)

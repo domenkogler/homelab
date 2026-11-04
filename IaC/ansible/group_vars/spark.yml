@@ -28,8 +28,11 @@ docker_services:
   # verifier with no client tokens admits nobody by contract, and the extra-template render refuses
   # on the missing item BEFORE `up -d`, so enabling it early reddens the converge instead of
   # starting a stack that could only ever refuse. Enabling it is one change with three parts: this
-  # flag, the item's name in `_template_vault_items.spark-llm-authz`, and the
-  # docs/deployment-secrets.md row that naming it makes `check_vault_docs.py` demand.
+  # flag; BOTH client-facing items named in `_template_vault_items.spark-llm-authz` — `spark-client_api`
+  # (the harness/direct seat's bearer) AND `litellm-engine_api` (the credential both LiteLLM legs present
+  # to the `llm` router this attach lands on), since half an allow-list locks out the gateways exactly
+  # as surely as an empty one; and the docs/deployment-secrets.md row that naming the new item makes
+  # `check_vault_docs.py` demand.
   # Host-net, publishes nothing, listens on 127.0.0.1:9500 only; never a Traefik frontend itself.
   # Image digest-pinned in group_vars/all/versions.yml.
   - { name: spark-llm-authz, template_dir: spark-llm-authz, public: false, enabled: false,

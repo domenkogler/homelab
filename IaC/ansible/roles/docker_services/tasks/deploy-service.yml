@@ -27,29 +27,41 @@
     _ladder_authz_enabled: >-
       {{ (_ladder_rows | rejectattr('enabled', 'defined') | list
           + (_ladder_rows | selectattr('enabled', 'defined') | selectattr('enabled') | list)) | length > 0 }}
+    # EVERY credential the verifier must accept FROM a client, as a set. Both are client-facing at this
+    # edge: `spark-client_api` is the harness/direct seat's own bearer, and `litellm-engine_api` is what
+    # BOTH LiteLLM legs present to the `llm` router the forwardAuth attach lands on — ruling D1 moves
+    # that value's verification from the engine to this verifier. Half an allow-list locks those clients
+    # out exactly as an empty one does, so the guard tests the SET and not one name.
+    _ladder_client_items: ['spark-client_api', 'litellm-engine_api']
+    # A bool + a printable form, not a list: the `that:` test must not depend on whether this run
+    # templates to native types, and the fail_msg needs words.
+    _ladder_client_complete: "{{ (_ladder_client_items | reject('in', vault) | list) | length == 0 }}"
+    _ladder_client_missing: "{{ _ladder_client_items | reject('in', vault) | list | join(' and ') }}"
     # Lazy: only rendered when the env form is on, or when this task fails.
     _ladder_engine: "{{ spark_llm_profiles[spark_llm_profile].engine }}"
   ansible.builtin.assert:
     that:
-      # The verifier admits CLIENT tokens only; enabling it with no client token fetched is a dark engine.
-      - not (_ladder_authz_enabled | bool) or 'spark-client_api' in vault
+      # The verifier admits CLIENT tokens only; enabling it while any of them is unfetched is a dark
+      # engine for the clients that hold the missing value.
+      - not (_ladder_authz_enabled | bool) or (_ladder_client_complete | bool)
       # The env form holds ONE token (the engine's own), so it is legal only once the verifier is the
       # thing authenticating clients — and only on the engine whose pin reads that env.
       - not (spark_engine_api_key_env | bool)
-        or (_ladder_authz_enabled | bool and 'spark-client_api' in vault and _ladder_engine == 'vllm')
+        or (_ladder_authz_enabled | bool and (_ladder_client_complete | bool) and _ladder_engine == 'vllm')
     fail_msg: >-
       The spark inference credential ladder is out of order, so spark-ai's compose render is refused.
       State: spark-llm-authz enabled={{ _ladder_authz_enabled | bool }}
-      · spark-client_api in vault={{ 'spark-client_api' in vault }}
+      · client tokens in vault: spark-client_api={{ 'spark-client_api' in vault }}
+      · litellm-engine_api={{ 'litellm-engine_api' in vault }}
       · spark_engine_api_key_env={{ spark_engine_api_key_env | bool }}
       · active profile engine={{ _ladder_engine }}.
-      {% if _ladder_authz_enabled | bool and 'spark-client_api' not in vault %}
-      REFUSED: the verifier is enabled but `vault` holds no `spark-client_api`, so it would deploy with an
-      EMPTY client allow-list — it refuses every request by contract, which is inference dark behind a
-      healthy engine. Fix: name `spark-client_api` in the derive-map row
-      `_template_vault_items.spark-llm-authz` of roles/docker_services/defaults/main.yml (the bulk
+      {% if (_ladder_authz_enabled | bool) and not (_ladder_client_complete | bool) %}
+      REFUSED: the verifier is enabled but `vault` does not hold {{ _ladder_client_missing }}, so it would
+      deploy with an INCOMPLETE client allow-list — it refuses those clients by contract, which is a
+      lockout behind a healthy-looking engine. Fix: name {{ _ladder_client_missing }} in the derive-map
+      row `_template_vault_items.spark-llm-authz` of roles/docker_services/defaults/main.yml (the bulk
       pre-pass fetches the items that row NAMES, so an absent row is an unfetched item), plus the
-      docs/deployment-secrets.md §Master Secret List row that naming it makes
+      docs/deployment-secrets.md §Master Secret List row that naming them makes
       scripts/gate/check_vault_docs.py demand.
       {% endif %}
       {% if spark_engine_api_key_env | bool %}
@@ -57,7 +69,7 @@
       fills with exactly ONE token (the engine's own) and only while the flag is absent — so until the
       verifier forwards that key, every client holding any other value is locked out. Missing leg(s):
       {% if not (_ladder_authz_enabled | bool) %}spark-llm-authz is not enabled;{% endif %}
-      {% if 'spark-client_api' not in vault %}`spark-client_api` is not in `vault`;{% endif %}
+      {% if not (_ladder_client_complete | bool) %}{{ _ladder_client_missing }} is not in `vault`;{% endif %}
       {% if _ladder_engine != 'vllm' %}the active profile's engine is {{ _ladder_engine }}, and SGLang's
       `api_key` is `Optional[str]` and reads no env (see the SGLang branch of the same
       template);{% endif %}
