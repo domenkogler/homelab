@@ -473,10 +473,15 @@ ledger for both.
 * spark's LLM histograms are **live** in VictoriaMetrics. The strict `req_ok_delta == N` cold-scrape
   exclusivity cannot certify even a quiet leg exactly (10/12 seen) — treat it with its logged source.
 
-**Why the arms live on `/`**: XFS holds 505 GB of certified weights plus two candidates nobody wants to
-re-download (185 G free), so `spark_models_dir_os: /opt/homelab/models` takes the ~130 GB AR-hybrid
-checkpoint and the FP8 table; the root partition measures 345 G free. The gate asserts a 150 GB floor on
-that partition before an `os`-rooted arm boots.
+**Why the arms live on `/`**: `spark_models_dir_os: /opt/homelab/models` takes the ~130 GB AR-hybrid
+checkpoint and the FP8 table because XFS, when those arms landed, held the certified weights plus two
+candidates nobody wanted to re-download. XFS now reports **294 G free** — the rejected `nv-patch` lane's
+117 GB left the box for the nas archive ([hardware-spark.md](hardware-spark.md), "Artifact store") — and
+the placement stands unchanged: relocating a live arm's store is an engine re-cert, not a free win, and
+XFS has to keep its headroom for the 132.7 GB checkpoint + 13 GB conversion the `bz-v33-*` arms stage.
+The root partition measures **162 G free** and the gate asserts a 150 GB floor on it before an
+`os`-rooted arm boots, which is why a v33 base pull or lineage build (both land on `/`) is the act that
+has to free `/` first — and the build cache is not the lever.
 
 **The never-evict prompt pin is authored, gated and empty.** `spark_llm_never_evict_prompt` in
 `group_vars/spark.yml` is the ONE value (the operator's pi global-instructions text, inlined because the

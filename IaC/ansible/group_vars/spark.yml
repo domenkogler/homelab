@@ -92,12 +92,14 @@ spark_engine_api_key_env: false
 # the run that needs the leg instead of quietly dropping it.
 spark_llm_edge_forwardauth_attached: false   # committed OFF; the attach is what sets it
 # ---- Second artifact root ----
-# The upstream (v16b) stack wants ~130 GB of NEW checkpoint+table bytes and the XFS store
-# carries 184.7 G free (`df`: 504 G total / 319 G used). The alternative
-# was deleting the 135 GB RadixArk NVFP4 set that only the gate-blocked `fast-sglang` profile
-# uses — i.e. paying a permanent re-download for temporary headroom. Measured instead:
-# spark's root partition (`/`, ext4, nvme0n1p2) has 345 G free, so tier-2 artifacts land
-# there and NOTHING is deleted. The XFS-only note on `spark_models_dir` above is a CAPACITY
+# The upstream (v16b) stack needed ~130 GB of NEW checkpoint+table bytes and the XFS store had no
+# headroom for them without deleting the 135 GB RadixArk NVFP4 set that only the gate-blocked
+# `fast-sglang` profile uses — paying a permanent re-download for temporary headroom. So tier-2
+# artifacts land on the SECOND root: spark's root partition (`/`, ext4, nvme0n1p2), which measures
+# 162 G free, and NOTHING is deleted. XFS reads 294 G free now that the rejected `nv-patch` lane's
+# 117 GB sits in the nas archive (the "Artifact store" note in docs/hardware-spark.md), and the
+# placement still does not move: a live arm's store is not a spare byte, and XFS keeps its headroom
+# for what a lane stages next. The XFS-only note on `spark_models_dir` above is a CAPACITY
 # statement from the 1 TB carve, not a filesystem ruling — docs/hardware-spark.md
 # §Partition layout records p2 as the live root. A profile names which root it lives on via
 # `models_root`, and the gate free-space floor is checked on THAT root, not on XFS.
