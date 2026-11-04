@@ -108,6 +108,45 @@ http:
       tls: true
       priority: 1
 
+    # --- inference paths the engine cannot guard, denied at the edge (permanent) ---
+    # `/invocations` (and everything under it) is the vLLM endpoint that sits OUTSIDE the engine's
+    # bearer guard. The guard is prefix-scoped by upstream code this repo does not own: the pinned
+    # image guards `GUARDED_PREFIX = ("/v1", "/v2", "/inference", "/cohere")`
+    # (entrypoints/serve/utils/server_utils.py) and its cli_args.py states, in the pin's own words,
+    # that the paths which "expose the same inference capabilities as /v1" remain unauthenticated
+    # and that --api-key alone must not be relied on. So the spark-llm_api bearer gates /v1 and
+    # nothing else, while this name edge answers ANY host on both public names: an allowed
+    # /invocations is an unauthenticated inference door. Denying it here is defense-in-depth that
+    # stands on its own (it is not a placeholder for edge authz), because the guard's scope is
+    # upstream behaviour, not a setting. The same rule is published on the VPS `traefik-tailnet`
+    # edge, so neither edge can serve the path. Owning decision: docs/services-ai.md §9 #26
+    # (hardening the inference path belongs at the edge).
+    #   - Specificity: `llm-kogler` above is Host-only at priority 1 and Traefik resolves an
+    #     overlap by priority, never by longest match — a path rule at the same priority would
+    #     silently never match. So the rule repeats the SAME Host set AND adds the path, at an
+    #     EXPLICIT priority of 100 (the matrix-wellknown precedent: never rest a rule on the
+    #     rule-length tie-break).
+    #   - Answer nothing: `noop@internal` is this file's existing no-backend service (the :80
+    #     routers below use it the same way) — Traefik answers the request itself, 418 with an
+    #     empty body, and opens no connection to `llm-backend`, so the engine never parses the
+    #     body and its KV cache never holds it.
+    #   - :80 is unchanged: `llm-kogler-http` still answers this path with the redirect to :443,
+    #     where this router denies it.
+    llm-kogler-invocations-deny:
+      rule: "(Host(`llm.kogler.si`) || Host(`llm.ts.kogler.si`)) && PathPrefix(`/invocations`)"
+      entryPoints:
+        - lm
+{% if tailnet_spark_ip is defined and tailnet_spark_ip %}
+        # The node-direct tailnet leg, listed here for the reason `llm-kogler` lists it: one router
+        # owns both legs, so rule, deny and answer cannot drift apart.
+        - lm-ts
+{% endif %}
+      middlewares:
+        - hsts
+      service: noop@internal
+      tls: true
+      priority: 100
+
     # --- :80 → :443 redirect for the names (never serves content on :80) ---
     spark-dashboard-name-http:
       # Must carry the same name set as `spark-dashboard-name` — a missing entry here

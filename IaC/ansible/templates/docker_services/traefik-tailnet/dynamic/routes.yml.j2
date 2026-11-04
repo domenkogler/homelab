@@ -325,6 +325,37 @@ http:
         - websecure
       service: llm-backend
       tls: true
+    # `/invocations` (and everything under it) is DENIED here, before the WG hop — permanently, and
+    # independently of whatever edge authz later lands on these names. The engine's bearer guard is
+    # prefix-scoped by upstream code this repo does not own: the pinned image guards
+    # `GUARDED_PREFIX = ("/v1", "/v2", "/inference", "/cohere")`
+    # (entrypoints/serve/utils/server_utils.py) and its cli_args.py says that the paths which
+    # "expose the same inference capabilities as /v1" remain unauthenticated and that --api-key
+    # alone must not be relied on. So the spark-llm_api bearer gates /v1 and nothing else, while
+    # BOTH public names answer ANY host on this edge: an allowed /invocations is an
+    # unauthenticated inference door. The same rule sits on spark's own `spark-dashboard` name edge,
+    # so neither edge can serve it. Owning decision: docs/services-ai.md §9 #26 (harden the
+    # inference path at the edge).
+    #   - Specificity: `llm-tailnet` is Host-only, and Traefik resolves an overlap by priority and
+    #     never by longest match, so the rule repeats the SAME Host set AND adds the path. The
+    #     priority is DECLARED (100): this file otherwise declares none, and a rule that declares
+    #     none gets a value TRAEFIK DERIVES from its matchers and their string lengths (49 for
+    #     these two Host names) — a security rule must not rest on that derivation, and 100 also
+    #     outranks it for any future Host name added to the catch-all. Nothing else on `websecure`
+    #     can reach `/invocations` on these two hosts.
+    #   - Answer nothing: `noop@internal` is this file's existing no-backend service (every
+    #     *-http-redirect router here uses it) — Traefik answers the request itself, 418 with an
+    #     empty body, and the hop to spark:443 is never made, so no engine parse and no KV-cache
+    #     occupancy. No middleware here: HSTS is applied entrypoint-wide (compose CLI).
+    #   - :80 is unchanged: `llm-tailnet-redirect` still answers this path with the redirect to
+    #     :443, where this router denies it.
+    llm-tailnet-invocations-deny:
+      rule: "(Host(`llm.kogler.si`) || Host(`llm.ts.kogler.si`)) && PathPrefix(`/invocations`)"
+      entryPoints:
+        - websecure
+      service: noop@internal
+      tls: true
+      priority: 100
     db-spark-tailnet-redirect:
       # Same name set as `db-spark-tailnet` — never split the pair, or the short name
       # silently loses its :80 → :443 hop and a hand-typed http:// URL dead-ends.
