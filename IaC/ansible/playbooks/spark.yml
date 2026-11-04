@@ -44,6 +44,11 @@
     - role: spark-profile-fast8
       when: spark_profile_fast8_build | bool
       tags: [spark-ultrafast-build, spark-profile-fast8]
+    # The blazux v0.33 lineage (bz-v33-* arms): a third recipe built as published, with its own
+    # switch, pin, tag and checkout. Same ordering reason as the two above.
+    - role: spark-profile-blazux
+      when: spark_profile_blazux_build | bool
+      tags: [spark-profile-blazux]
     - monitoring      # Alloy node exporter → VPS Victoria backend (per-node model)
     # spark enrols as the THIRD permitted home tailnet node (docs/network-vpn.md
     # §Tailnet boundary) so its inference endpoint stays reachable node-direct with the VPS

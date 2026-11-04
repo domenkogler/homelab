@@ -113,6 +113,23 @@
       CPU-offload env.
   tags: [spark, spark-llm-profile, llm]
 
+# ---- A recipe's runtime knobs travel with that recipe's image, both ways ----
+# `lineage_env: blazux` renders the blazux env + its qwen4_exp splitting-op list. On any other image
+# those op names do not exist and its mmap hook is not installed, so VLLM_PLE_MMAP=1 arms nothing and
+# the 47.7 GiB table loads resident; and a blazux image WITHOUT them boots with the table resident
+# and the wrong graph split. Either half is a boot that "works" into an OOM, so both are refused.
+- name: Assert a lineage's runtime knobs and its image are declared together
+  when: spark_llm.engine == 'vllm'
+  ansible.builtin.assert:
+    that:
+      - (spark_llm.get('lineage_env', '') == 'blazux') == (spark_llm.image == 'blazux-v33')
+    fail_msg: >-
+      Profile '{{ spark_llm_profile }}' declares lineage_env='{{ spark_llm.get('lineage_env', '') }}'
+      on image '{{ spark_llm.image }}'. `lineage_env: blazux` and `image: blazux-v33` go together or not
+      at all: the env list (spark_llm_blazux_env) switches on the hook that only that build installs,
+      and without it that build loads the PLE table resident. Declare both or neither.
+  tags: [spark, spark-llm-profile, llm]
+
 # ---- The never-evict prompt pin: disabled; both asserts below stay armed ----
 # --never-evict-kv-cache-prompt-includes pins every KV block whose prompt contains the
 # substring, up to --never-evict-kv-cache-max-fraction of the POOL — pool the pin does not
