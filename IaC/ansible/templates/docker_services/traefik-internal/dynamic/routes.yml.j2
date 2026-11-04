@@ -244,7 +244,7 @@ http:
         - websecure-ts
       service: pi-oldsrv-backend
       tls: true
-    # The Paseo daemon under `domen` (HD-411) — the SAME posture as `pi-oldsrv-ts` above, and for
+    # The Paseo daemon under `domen` — the SAME posture as `pi-oldsrv-ts` above, and for
     # the same reasons: the daemon binds loopback, this listener exists only on oldsrv's own tailnet
     # address, and the peer set is whatever the ACL grants `tag:dev:443` (nothing else — a phone on a
     # non-443 port times out BY DESIGN, so the answer to a timeout is a router, never an ACL widening).

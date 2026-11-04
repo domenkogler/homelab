@@ -30,7 +30,7 @@ seat_path: "{{ seat_pi_bin }}:{{ seat_pi_node_bin }}:{{ seat_local_bin }}:/usr/l
 seat_unit_dir: "/home/{{ seat_user }}/.config/systemd/user"
 seat_pi_web_bin: ".pi/agent/bin/pi-web"   # written by `pi install npm:@ygncode/pi-web`
 seat_pi_web_vault_item: cockpit-pi-web_api  # token source; never a literal (§6)
-# --- the Paseo leg (HD-411): the seat's own daemon, replacing the cockpit above ---
+# --- the Paseo leg: the seat's own daemon, replacing the cockpit above ---
 seat_paseo_bin: "{{ seat_pi_node_bin }}/paseo"  # @getpaseo/cli's launcher sits in the PINNED Node
                                       # dir's bin, because the CLI is installed `npm -g` against that
                                       # Node. ⛔ The package is `@getpaseo/cli`; `npm i -g paseo` is a

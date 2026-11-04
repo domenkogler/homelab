@@ -236,7 +236,7 @@ zfs_exporter_port: 9198
 cockpit_pi_web_port: 31415           # upstream's own default (its README names it); keep the number so
                                      # `/web` links and the QR from `/remote` stay correct without config
 
-# ==== The Paseo coding seats — the daemon port, per seat (HD-411) ====
+# ==== The Paseo coding seats — the daemon port, per seat ====
 # ONE map, not one number: `daemon.listen` is a single string in the daemon's schema, so a seat
 # cannot hold two values, and the number that is correct on the laptop seats is a COLLISION on the
 # always-on one — loopback `:6767` on oldsrv belongs to Bazarr (`bazarr_host_port`). A single

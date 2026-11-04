@@ -1,4 +1,4 @@
-{# roles/seat — the Paseo daemon unit (HD-411).
+{# roles/seat — the Paseo daemon unit.
    A systemd USER unit under the seat account, the same carrier as the pi-web unit it replaces.
    `daemon run` is the FOREGROUND form; `daemon start` is the CLI's own supervisor and would fight
    this unit for the same home. ExecStart names the binary rather than trusting PATH — PATH is what
