@@ -297,15 +297,21 @@ not this list, holds the steps, the file ownership and the converge host. Waves,
    ([docs/deployment-secrets.md](docs/deployment-secrets.md) §Runtime plaintext that leaves the vault), and n8n audited
    shut with no AI node ([docs/services-utilities.md](docs/services-utilities.md)). OQ-14 stays open on the code axis and
    is called at the memory plane's build, which HD-1178 rides. → [prompt-litellm-consumers.md](prompt-litellm-consumers.md)
-10. ⏳ **The Win11 seat's serving legs** — **HD-474** FIM latency: the vision leg's declared 32k budget is exercised and
-    closed, and Continue's tab path sits against its own 150–400 ms budget, so the owner decides whether the shipped prompt
-    comes down or the leg stays out. The laptop's local **agent** leg is retired and the brief claims no converge host,
-    which is why it can run beside anything except a live pi-seat lane. → [prompt-win11.md](prompt-win11.md)
+10. ⏳ **The Win11 seat's serving legs** — **HD-474**: the render drift check is a **repo leg on that seat, not an owner hand**
+    — `py -3 scripts/harness/render-pi-config.py --vendor pi --host Domen_P14s --check`, credential route quoted beside the
+    verdict (`bash scripts/lib/vault-env.sh --check` → `route=door:Debian`, the seat installs no token and the read crosses
+    the WSL door to the Debian engine's `0600` install, [docs/1password.md](docs/1password.md)) — and `probe-client` is the
+    residency half of the same contract. What is left is the owner's call on Continue's tab path against its own 150–400 ms
+    budget: cap the shipped prompt, or the leg stays out. The laptop's local **agent** leg
+    is retired and the brief claims no converge host, which is why it can run beside anything except a live pi-seat lane.
+    → [prompt-win11.md](prompt-win11.md)
 11. ⏳ **The `scripts/` tree and the seat legs it still owes** — the tree is `lib/ gate/ ansible/ secrets/ git/ harness/
     bench/ hardware/ testdata/` with `validate-all.sh` + `render_all.py` at the root, root resolution is structural, and
-    `gate/check_script_layout.py` holds it from inside `validate-all.sh`. ⏳ The legs: `pi-seat-sync.sh --check` on each
-    seat once it has fast-forwarded, `install-tmux-conf.sh --push` on the win11 seat, and `install-pi-debian.sh --check`
-    on a clean Debian seat — **PARKED**, because no host in the fleet is a spare clean Debian box. **HD-1138** rides here:
+    `gate/check_script_layout.py` holds it from inside `validate-all.sh`. ⏳ The legs: one seat read, `pi-seat-sync.sh --check`
+    run **FROM the `wsl` seat** (`oldsrv` and `win11` are read at the tip, and what blocks `wsl` is that clone's reconciliation
+    with `main`, not a fast-forward); `install-pi-debian.sh --check` on a clean Debian seat — **PARKED**, no host in the fleet
+    is a spare one. The tmux plane owes nothing: `install-tmux-conf.sh --check --strict` reads
+    `SAME: byte-identical to the SSOT` and a tmux-less seat answers a named `SKIP`. **HD-1138** rides here:
     the away-case spelling in the scripts that shell out to bare `ssh <name>`, and the VS Code server-install leg it gates.
     **HD-1125** is the same file family: the bare-`ssh` token leg in `scripts/secrets/provision-vault.sh` and its two
     companions. ⚠ **The `check_mode: false` rule reads the line as this repo writes it** (`check_mode: false   # read-back`
