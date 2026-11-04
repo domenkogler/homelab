@@ -333,7 +333,7 @@ not this list, holds the steps, the file ownership and the converge host. Waves,
     writes neither a Windows image nor a profile, so that seat's installs stay owner legs, not lane legs.
 12. ⏳ **Owner-gated tails** (exact steps in the rows): **HD-377** the Grafana render re-do · **HD-1103 + HD-1167** one Pi
     visit — the boot that makes the fstab `mode=` true, and the one-time re-render of `pi-eth0.nmconnection` that notifies
-    `reload NetworkManager` · **HD-06** the UPS drill · **HD-411** the two elevated Windows acts, the pairing and the phone verdict, plus two rulings: the seat password's **carrier** (no `paseo` command can write a stored hash, so the WSL bind is held at loopback until one exists) and a **boot carrier** for the headless WSL seat · **HD-230 · HD-207** the
+    `reload NetworkManager` · **HD-06** the UPS drill · **HD-411** the **boot carrier** ruling for the headless WSL seat, the config re-read that installs that seat's password gate in the running daemon, and the cellular round-trip · **HD-230 · HD-207** the
     decisions taken at the drill · **HD-1173** the live tails (the parked `dsh` + `pi-dev` harness IaC comes out, and
     `pi-dev.ts.kogler.si` leaves with the cockpit backend it was a second name on (HD-1240 retires it)) · **HD-1140**: the ledger owns the laptop's Home reservation, a
     `network_static_hosts` row plus a find-guarded `rb4011_*_delta` in the Pi's shape, so the apply rides an existing router
