@@ -16,7 +16,16 @@
 # converge target, not the engine host, owner of no converge slot.
 # A reason under 40 characters is refused by the gate, not warned: the line's whole job is the argument,
 # so name the session that took the leg, why the station could not, and what the number may be quoted for.
-# HD-1154: no line yet, and that is the honest state — the pre-station legs the reports name (the HD-489
-# legs stamped `--client oldsrv`) are exactly the class this file exists for, but a line belongs here only
-# for a leg whose CSV row the gate can read, and those rows live on the hosts, not in the tree. Writing a
-# line for a row nobody can read would book the amnesty without the debt.
+# HD-1154: no line yet, and the case is decided rather than deferred. The gate reads ONE file —
+# $RESULTS_CSV, else `<repo>/scripts/bench/spark/results-v2.csv` — and a leg's identity in it is the `step`
+# + `ts` of one row, with the `client` column carrying the stamp the verdict is about; a file without that
+# column is refused as NOT JUDGED (exit 2) rather than judged, because a run that could not read a leg's
+# stamp does not get to call it clean. NO CSV ROW IS REACHABLE FROM THIS SEAT: the path above exists in no
+# checkout, $RESULTS_CSV is unset, the only results CSV the tree carries is
+# `scripts/bench/spark/raw/results.csv` and its header is the pre-v2 shape the gate refuses, and the
+# pre-station legs the reports name (HD-489's `--client oldsrv`) are rows that live on the hosts, not in the
+# tree. So the exception mechanism cannot pay HD-1154(a) as currently shaped. What would make a row
+# readable is the file the gate names: a `results-v2.csv` written by `run-scenario.sh` — the writer's
+# `client` stamp is the one column either rule can be judged from — sitting at
+# `<repo>/scripts/bench/spark/results-v2.csv` or named in $RESULTS_CSV. Not a line here: a line for a row
+# nobody can read books the amnesty without the debt.
