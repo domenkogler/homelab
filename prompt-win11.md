@@ -52,7 +52,6 @@ bash scripts/harness/pi-seat-sync.sh --seat win11 --check                       
 |---|---|
 | [HD-474](todo.md) | this brief's own row: the render `--check` above, which is a repo leg this seat answers unattended, and the residency half (`probe-client`), which sits behind the `lmstudio-llm.ps1 switch` owner hand |
 | [HD-1110](todo.md) | the seat's own `pi-seat-sync.sh --seat win11 --check` read, typed here; the row's `pi_auth`-drift half is repo work and is not this leg |
-| [HD-1123](todo.md) | this box's alias-plane push: `bash scripts/harness/seed-seat-ssh-config.sh --check` reads **STALE** here, so one `--push` in a Win11 session (it rewrites its own marker block and keeps a dated `.bak`), then `--check` rc 0 with the legs rc 0. The step-5 file retirement on this box is paid and step 6 (`~/.ssh/id_ed25519`) retires with HD-1125, so neither is a leg here ([docs/network-vpn.md](docs/network-vpn.md) §The Win11 `~/.ssh` retirement list) |
 | [HD-1135](todo.md) · [HD-1137](todo.md) | the fork-price numbers that exist nowhere else: the interleaved A/B, and `validate-all.sh --time` / `--profile quick` run here |
 
 ⛔ A leg that belongs to a **Debian** seat is not this box's work, and a green here says nothing about one: the seat
