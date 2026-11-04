@@ -32,6 +32,18 @@
 #   place a binary no pin in versions.yml names (CONVENTIONS §7), and the package is
 #   `@getpaseo/cli`: `npm i -g paseo` is a name-squat.
 #
+# THE CARRIER, AND WHICH HALF MAY ASK FOR IT
+#   The fan-out leg is `ssh -n host "cd dir && cmd"` (pi-seat-sync.sh `seat_ssh_exec`), which reads no
+#   startup file. On `oldsrv` the CLI lives in the dir the rendered `paseo.service` drop-in puts on
+#   PATH (`~/.local/share/pi-node/current/bin`), which only the seat's own shell carries — so a bare
+#   `command -v` on that leg answers "no CLI" about a seat whose every owed arm is already the render.
+#   That is the over-report lib/pi-seat.sh records for the login/interactive split, arriving through a
+#   different door: the verdict named the seat (`this seat has no @getpaseo/cli`) while what it had
+#   actually read was one transport's PATH. So the halves are gated apart. The READ half is gated by
+#   `config.json` alone — python parses the file and no arm needs the binary — and only the WRITE half,
+#   the half that execs the CLI to merge a value, refuses for its absence. Asking in both halves bought
+#   `MISSING` on a green seat; refusing only in the write half still refuses a seat that cannot write.
+#
 #   ONE ARM HAS NO CLI CARRIER, measured on the 0.15.0 CLI: `daemon config set` refuses any path
 #   under `daemon.auth` ("Use daemon set-password to change the daemon password"), and `daemon
 #   set-password` reads the PLAINTEXT from a terminal and bcrypts it itself — with a fresh salt, so
@@ -42,7 +54,9 @@
 #
 # VERDICTS
 #   OK                every arm this seat owes is what the seat owes
-#   MISSING           no CLI on PATH, or no config.json — no daemon has ever run on this seat
+#   MISSING           no config.json — no daemon has ever run on this seat; in the WRITE half only,
+#                     also no `paseo` CLI this shell can exec. The READ half never asks for the
+#                     binary: it parses config.json itself (see THE CARRIER, BELOW).
 #   DRIFT(<arm>)      that arm is not what the seat owes (the line quotes the value it found)
 #   DRIFT             more than one arm is off; each is named
 #   REFUSAL           config.json is not readable as JSON — the bytes are left exactly as found
@@ -242,21 +256,27 @@ scope_verdict() {
   return 2
 }
 
-# prelude — scope, CLI, render, and the one state that is not a verdict about the arms.
+# prelude — scope, render, and the states that are not verdicts about the arms: no config (no daemon has
+# ever run) for both halves, and no CLI for the WRITE half only (THE CARRIER above). Nothing here
+# asks a login or interactive shell: widening the probe would replace one over-report with another,
+# and the half that writes must know whether IT can exec the carrier it is standing on.
 # Sets VERDICT/REASON and returns 0 (assess) or 1 (already answered).
 prelude() {
   seat_scope
   [ "$SCOPE" = here ] || { scope_verdict; return $?; }
   seat_render || stop "seat $SEAT has no Paseo render — a seat this plane knows nothing about"
-  if ! command -v "$PASEO_BIN" >/dev/null 2>&1; then
-    printf 'MISSING: no `paseo` CLI on PATH — this seat has no @getpaseo/cli (⛔ never the squatted `paseo` package); nothing was written\n'
-    return 1
-  fi
   command -v python3 >/dev/null 2>&1 || stop "no python3 here — neither config.json nor the vault answer can be parsed"
   if [ ! -e "$CONFIG_JSON" ]; then
     printf 'MISSING: no %s — no daemon has ever run on this seat\n' "$CONFIG_JSON"
     return 1
   fi
+  # The CLI is the WRITE carrier and nothing else. The sentence claims only what this half can prove —
+  # that THIS shell cannot exec it — and never that the seat has no such package, which is the
+  # over-report the read half must not carry.
+  [ "$MODE" = push ] || return 0
+  command -v "$PASEO_BIN" >/dev/null 2>&1 || {
+    printf 'MISSING: no `paseo` CLI this shell can exec — the arms are READ from %s, but writing them needs @getpaseo/cli on this transport'"'"'s PATH (⛔ never the squatted `paseo` package); nothing was written\n' "$CONFIG_JSON"
+    return 1; }
   return 0
 }
 
@@ -312,12 +332,16 @@ do_push() {
 
 # --- self-test: stubs, so no daemon, no vault, no seat -----------------------------------
 self_test() {
-  local t fails=0 CFG want
+  local t fails=0 CFG want CLI
   t="$(mktemp -d)" || { err "mktemp failed"; return 1; }
   # shellcheck disable=SC2064
   trap "rm -rf '$t'" RETURN
   mkdir -p "$t/bin" "$t/home/.paseo"
   CFG="$t/home/.paseo/config.json"
+  # CLI — the $PASEO_BIN every arm gets by default: the stub below. Arm 12 points it at a path that
+  # does not exist, which is how a seat whose CLI sits in a dir this transport's PATH cannot see is
+  # bred without touching the host PATH (an absolute $PASEO_BIN is taken at its own word).
+  CLI="$t/bin/paseo"
 
   # The stub CLI stands in for `paseo daemon config set` only: it merges one dotted key into the
   # JSON at $ST_CFG and refuses a value that is neither JSON nor a bare string, which is what the
@@ -387,12 +411,13 @@ EOS
     # seat; the output lands in "$t/out" and the exit status is the return value. A copy of this file
     # lives in a marker-complete tree whose scripts/lib IS this one, so it reads the same registry.
     local script="$1"; shift
-    env -u REPO PI_SEAT="${PI_SEAT:-wsl}" PASEO_BIN="$t/bin/paseo" PASEO_HOME_DIR="$t/home/.paseo" \
+    env -u REPO PI_SEAT="${PI_SEAT:-wsl}" PASEO_BIN="$CLI" PASEO_HOME_DIR="$t/home/.paseo" \
         ST_CFG="$CFG" HL_VAULT_READ_FIXTURE="${FIXTURE:-$t/vault.json}" \
         bash "$script" "$@" > "$t/out" 2>&1
   }
 
-  run_at() { # run_at <expect-rc> <name> <args...> — every arm drives the REAL CLI path
+  run_at() { # run_at <expect-rc> <name> <args...> — every arm drives the REAL script; $CLI says which
+    # carrier that shell can resolve (arm 12 breeds the seat whose carrier it cannot)
     local want="$1" name="$2"; shift 2
     local rc=0 leak note=' (no secret-shaped output)'
     run_cli "${BASH_SOURCE[0]}" "$@" || rc=$?
@@ -538,6 +563,43 @@ PY
   bite '--check --strict' --check --strict
   bite '--check' --check
   bite '--push' --push
+
+  # 12. THE DEFECT THIS HUNK CLOSES, bred BOTH ways. The READ answers from config.json and the
+  #     fan-out's leg (`ssh host "cd dir && cmd"`) reads no startup file, so a seat whose CLI lives in
+  #     a dir only its own shell carries used to answer `MISSING: … this seat has no @getpaseo/cli`
+  #     while every arm it owed was already the render. A short PATH is a fact about ONE TRANSPORT, so
+  #     it must not reach the read half at all — and the refusal that stays must stay a refusal: a
+  #     config that is absent, or a write with no carrier, is still MISSING. Drop the gate and the
+  #     push arms here go green; drop the config gate and the last arm goes green.
+  local NO_CLI="$t/no-cli-on-this-path/paseo"   # an absolute path that is not there: no PATH search,
+  #                                              so the arm cannot pass or fail by accident of the host
+  wsl_converged
+  CLI="$NO_CLI" PI_SEAT=wsl run_at 0 "config complete, CLI invisible to this transport" --check --strict
+  grep -q '^MISSING:' "$t/out" && { printf 'NOT CAUGHT a short-PATH seat was still told it has no Paseo\n'; fails=$((fails + 1)); }
+  grep -q '^OK:' "$t/out" || { printf 'NOT CAUGHT the short-PATH read did not answer from config.json\n'; fails=$((fails + 1)); }
+  # The same seat with one arm off still reddens as a DRIFT that NAMES the arm: the CLI gate was not
+  # what was holding the line on the relay.
+  seat_cfg true "0.0.0.0:6768" "$STUB_HASH"
+  CLI="$NO_CLI" PI_SEAT=wsl run_at 1 "short-PATH seat with the relay on" --check --strict
+  grep -q '^DRIFT' "$t/out" || { printf 'NOT CAUGHT a short-PATH seat with a drifted arm stayed quiet\n'; fails=$((fails + 1)); }
+  grep -q 'daemon.relay.enabled' "$t/out" || { printf 'NOT CAUGHT the short-PATH drift line did not name the arm\n'; fails=$((fails + 1)); }
+  # oldsrv's own shape — the door arms, no bind, no password — under the same short PATH: the leg that
+  # reproduced the defect must read OK, because that is the verdict the transport was wrong about.
+  printf '%s\n' '{"version":1,"daemon":{"relay":{"enabled":false},"hostnames":["paseo-oldsrv.ts.kogler.si"],"trustedProxies":["127.0.0.1"]}}' > "$CFG"
+  CLI="$NO_CLI" PI_SEAT=oldsrv run_at 0 "oldsrv door arms, CLI invisible to this transport" --check --strict
+  grep -q '^MISSING:' "$t/out" && { printf 'NOT CAUGHT the oldsrv read still gated on the CLI\n'; fails=$((fails + 1)); }
+  # AND THE REFUSAL, both halves of it. A write with no carrier refuses and writes NOTHING.
+  wsl_converged
+  CLI="$NO_CLI" PI_SEAT=wsl run_at 1 "push refuses with no CLI carrier" --push
+  grep -q '^MISSING:' "$t/out" || { printf 'NOT CAUGHT a push with no CLI wrote anyway\n'; fails=$((fails + 1)); }
+  grep -q '^wrote ' "$t/out" && { printf 'NOT CAUGHT the push wrote without a carrier\n'; fails=$((fails + 1)); }
+  # Neither a CLI nor a config: no daemon has ever run, and that is MISSING in both halves.
+  rm -f "$CFG"
+  CLI="$NO_CLI" PI_SEAT=wsl run_at 1 "no CLI and no config, check" --check --strict
+  grep -q '^MISSING: no ' "$t/out" || { printf 'NOT CAUGHT a seat with neither CLI nor config was not MISSING\n'; fails=$((fails + 1)); }
+  CLI="$NO_CLI" PI_SEAT=wsl run_at 1 "no CLI and no config, push" --push
+  [ -e "$CFG" ] && { printf 'NOT CAUGHT --push created a config on a seat with no carrier\n'; fails=$((fails + 1)); }
+  CLI="$t/bin/paseo"   # restore the default carrier for anything that runs after this arm
 
   printf '\nself-test: %s\n' "$([ "$fails" -eq 0 ] && echo "OK — all canaries caught" || echo "$fails canary/canaries NOT caught")"
   return "$fails"
