@@ -43,7 +43,7 @@ token. The ladder is what makes that ordering safe.
 | **P0** | Deny `/invocations` at both edges — HD-1241 | no (file-provider reload) | no |
 | **P1** | Engine argv = `spark-llm_api` **+** `spark-client_api` **+** `litellm-engine_api` (3 slots); `spark-llm-authz` deployed, **not attached**; seats re-render to `spark-client_api` | **yes** | no — every old value still valid |
 | **P2** | Attach `forwardAuth` + the key rewrite to the shadow router, prove both directions, then flip it onto the live `llm` router | no | no; rollback = one line |
-| **P3** | Drop `--api-key`, set `VLLM_API_KEY` = the internal constant only; re-teach `roles/spark/files/spark-oom-watchdog.sh` | **yes** | one cold load |
+| **P3** | Drop `--api-key`, set `VLLM_API_KEY` = the internal constant only (`spark_engine_api_key_env: true`); re-teach `roles/spark/files/spark-oom-watchdog.sh` | **yes** | one cold load |
 
 **Two boots, and both ride boots the queue already owes** ([spark/reports/external-window-card.md](spark/reports/external-window-card.md))
 — that is what "D3 = A" buys. ⛔ The 3-slot argv is **temporary**: if it survives P3, D1 is only half true and the
