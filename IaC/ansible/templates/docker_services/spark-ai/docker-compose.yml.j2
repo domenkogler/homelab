@@ -22,9 +22,14 @@
 #     vllm   → --kv-cache-memory-bytes governor, --reasoning-parser, --speculative-config
 #     sglang → --mem-fraction-static / --max-total-tokens pool semantics, NEXTN spec
 #
-#   Secrets: ONE — `spark-llm_api` (bearer on the OpenAI endpoint). vLLM is not
-#   secret-free here: this
-#   template renders exactly one vault value (item+field name only, never a value in git).
+#   Secrets: the engine's ACCEPTED-KEY list. `spark-llm_api` is the engine's OWN key and always the
+#   FIRST value after `--api-key`; `litellm-engine_api` is the gateway leg's own credential; and
+#   `spark-client_api` — the harness/direct client's bearer, verified by the edge's forwardAuth verifier
+#   (`templates/docker_services/spark-llm-authz/`) rather than by the engine — is rendered ONLY while
+#   that item is in `vault`, i.e. while `_template_vault_items.spark-llm-authz` names it. An item the
+#   derive map does not name is not a key in `vault`, so derive-map presence is the switch and no value
+#   is ever invented for a missing one. vLLM is not secret-free here: this template renders item+field
+#   names only, never a value in git.
 #
 #   Storage: weights + PLE tables + KV + compile caches all on the XFS data partition
 #   (roles/spark mounts /mnt/spark_nvme; spark_models_dir points there — never EXT4).
@@ -147,6 +152,17 @@ services:
     entrypoint: {{ spark_llm_engine_entrypoints[profile.engine] | to_json }}
     environment:
       - CUDA_VISIBLE_DEVICES=0
+{% if spark_engine_api_key_env %}
+      # The accepted key as ENV instead of argv — the phase-P3 leg of the edge-authz ladder, gated by
+      # `spark_engine_api_key_env` (group_vars/spark.yml) and refused before this file renders unless the
+      # verifier is enabled and the client item is fetched
+      # (roles/docker_services/tasks/deploy-service.yml). The pin reads
+      # `args.api_key or [envs.VLLM_API_KEY]`: env is honoured ONLY when `--api-key` is ABSENT and takes
+      # exactly ONE token, so this line and the `--api-key` block below are the two halves of ONE switch
+      # and can never both render. It buys leak hygiene (argv is world-readable via `ps`/inspect), not a
+      # rotation win: env is fixed at container create too.
+      - "VLLM_API_KEY={{ vault['spark-llm_api'].credential | replace('$','$$') }}"
+{% endif %}
 {% if profile.engine == 'vllm' %}
       - VLLM_LOGGING_LEVEL={{ spark_vllm_log_level }}
 {% if profile.ple_container_dir | length > 0 %}
@@ -303,15 +319,25 @@ services:
       - {{ spark_vllm_served_name }}
       # Bearer auth on the OpenAI endpoint — vLLM --api-key, NOT a secret-free engine
       # anymore: llm.kogler.si is edge-exposed (TLS + a key both required).
-      # `spark-llm_api` must not be used for three things at once: the engine accepts
-      # BOTH the harness/direct key and the gateway's own `litellm-engine_api`, so rotating one no
-      # longer invalidates the other. Multiple keys are ONE flag with N values — vLLM's arg is
-      # nargs='+' (`--help` prints `[--api-key API_KEY [API_KEY ...]]`).
-      # ⚠ ORDER IS LOAD-BEARING: roles/spark/files/spark-oom-watchdog.sh reads the token FOLLOWING
-      # the first `--api-key` as its /metrics bearer, so the harness key (`spark-llm_api`) must stay FIRST.
+      # Every accepted value rides ONE flag: vLLM's arg is nargs='+' (`--help` prints
+      # `[--api-key API_KEY [API_KEY ...]]`), so the accepted set is a LIST and a value can enter or
+      # leave it with a render instead of a code change.
+      # ⚠ ORDER IS LOAD-BEARING for slot 1 only: roles/spark/files/spark-oom-watchdog.sh reads the token
+      # FOLLOWING the first `--api-key` as its /metrics bearer, so the engine's own key (`spark-llm_api`)
+      # must stay FIRST. The client slot below it is conditional, so slot 1 and the last slot are stable.
+{% if not spark_engine_api_key_env %}
       - --api-key
       - "{{ vault['spark-llm_api'].credential | replace('$','$$') }}"
+{% if 'spark-client_api' in vault %}
+      # The client credential, accepted so seats can be re-rendered onto it BEFORE the edge verifier is
+      # attached (ladder phase P1) — a third accepted value, never the engine's own identity. Attached,
+      # the verifier forwards `spark-llm_api` and this slot stops mattering; it is what makes that
+      # cutover cost no engine restart. Absent from the derive map ⇒ absent from `vault` ⇒ this whole
+      # line renders NOTHING, which is the switch: no empty-string sentinel on a secret path.
+      - "{{ vault['spark-client_api'].credential | replace('$','$$') }}"
+{% endif %}
       - "{{ vault['litellm-engine_api'].credential | replace('$','$$') }}"
+{% endif %}
       # compression: NEVER force --quantization. The staged checkpoints declare their
       # own packed format in config.json (AWQ build = compressed-tensors, primitive-ai
       # mixed NVFP4/FP8 = compressed-tensors too) — forcing a flag mismatches →

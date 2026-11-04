@@ -6,6 +6,64 @@
 # inherits, so `--tags docker_services,<svc>` selects the UNION of both tags and is NOT surgical. The
 # per-service tag narrows the task list; `docker_services_scope` (role defaults) restricts the run.
 
+# ---- Ordering guard: the spark inference credential ladder ----
+# The engine's accepted-key list (templates/docker_services/spark-ai/docker-compose.yml.j2) and the edge
+# verifier's client allow-list (templates/docker_services/spark-llm-authz/authz-config.json.j2) are two
+# different sets, and the ORDER in which a credential moves from one to the other is the whole safety
+# argument. Both preconditions are decided from the registry entry plus the fetched `vault` dict, HERE,
+# before this service's compose render — so a half-done enablement stops the run instead of deploying a
+# stack whose verifier admits nobody while the engine ignores the client key.
+# One direction is deliberately NOT refused: a derive-map row WITHOUT `enabled: true` is legal, because
+# the pre-pass derives its item set from ENABLED services — the item is then simply absent from `vault`
+# and the engine renders exactly the argv it renders today. The flag without the row is the direction
+# this guard refuses, and the verifier's own extra-template render fails closed on the same missing item,
+# so neither ordering can leave a running stack trusting an empty allow-list.
+- name: "Assert the spark inference credential ladder is in order ({{ svc.name }})"
+  when: svc.template_dir == 'spark-ai'
+  vars:
+    _ladder_rows: "{{ docker_services | selectattr('name', 'equalto', 'spark-llm-authz') | list }}"
+    # `enabled:` ABSENT means enabled — the registry default, matched to the derive set in tasks/main.yml
+    # (a bare selectattr('enabled') raises on the entries that omit the key).
+    _ladder_authz_enabled: >-
+      {{ (_ladder_rows | rejectattr('enabled', 'defined') | list
+          + (_ladder_rows | selectattr('enabled', 'defined') | selectattr('enabled') | list)) | length > 0 }}
+    # Lazy: only rendered when the env form is on, or when this task fails.
+    _ladder_engine: "{{ spark_llm_profiles[spark_llm_profile].engine }}"
+  ansible.builtin.assert:
+    that:
+      # The verifier admits CLIENT tokens only; enabling it with no client token fetched is a dark engine.
+      - not (_ladder_authz_enabled | bool) or 'spark-client_api' in vault
+      # The env form holds ONE token (the engine's own), so it is legal only once the verifier is the
+      # thing authenticating clients — and only on the engine whose pin reads that env.
+      - not (spark_engine_api_key_env | bool)
+        or (_ladder_authz_enabled | bool and 'spark-client_api' in vault and _ladder_engine == 'vllm')
+    fail_msg: >-
+      The spark inference credential ladder is out of order, so spark-ai's compose render is refused.
+      State: spark-llm-authz enabled={{ _ladder_authz_enabled | bool }}
+      · spark-client_api in vault={{ 'spark-client_api' in vault }}
+      · spark_engine_api_key_env={{ spark_engine_api_key_env | bool }}
+      · active profile engine={{ _ladder_engine }}.
+      {% if _ladder_authz_enabled | bool and 'spark-client_api' not in vault %}
+      REFUSED: the verifier is enabled but `vault` holds no `spark-client_api`, so it would deploy with an
+      EMPTY client allow-list — it refuses every request by contract, which is inference dark behind a
+      healthy engine. Fix: name `spark-client_api` in the derive-map row
+      `_template_vault_items.spark-llm-authz` of roles/docker_services/defaults/main.yml (the bulk
+      pre-pass fetches the items that row NAMES, so an absent row is an unfetched item), plus the
+      docs/deployment-secrets.md §Master Secret List row that naming it makes
+      scripts/gate/check_vault_docs.py demand.
+      {% endif %}
+      {% if spark_engine_api_key_env | bool %}
+      REFUSED: spark_engine_api_key_env=true drops `--api-key` in favour of VLLM_API_KEY, which the pin
+      fills with exactly ONE token (the engine's own) and only while the flag is absent — so until the
+      verifier forwards that key, every client holding any other value is locked out. Missing leg(s):
+      {% if not (_ladder_authz_enabled | bool) %}spark-llm-authz is not enabled;{% endif %}
+      {% if 'spark-client_api' not in vault %}`spark-client_api` is not in `vault`;{% endif %}
+      {% if _ladder_engine != 'vllm' %}the active profile's engine is {{ _ladder_engine }}, and SGLang's
+      `api_key` is `Optional[str]` and reads no env (see the SGLang branch of the same
+      template);{% endif %}
+      {% endif %}
+  tags: "{{ svc.name }}"
+
 - name: "Create directory {{ docker_compose_dir }}/{{ svc.name }}"
   # per-service tag: lets --tags select this service's tasks (tag semantics at the top of this file)
   tags: "{{ svc.name }}"

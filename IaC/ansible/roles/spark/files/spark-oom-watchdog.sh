@@ -72,7 +72,8 @@
 #   snapshot <tag> [reason]  take one bundle and exit (tag: KILL|CRIT|WARN|MANUAL)
 #   status                   print current readings + baseline state + last snapshot
 #   rebaseline               drop the committed baseline and re-acquire (operator action)
-#   self-test                offline 6-case test of the baseline/recycle logic (stubs docker)
+#   self-test                offline, stubbed docker: baseline / recycle / hysteresis / key-reader cases
+#   _key                     INTERNAL (self-test): echo the bearer engine_key resolves
 #   _margin                  INTERNAL (self-test): print the margin verdict only
 #   _drift                   INTERNAL (self-test): print the unit/script drift note only
 #   _tick                    INTERNAL (self-test): one governor tick, no sampling, no sleep
@@ -204,16 +205,28 @@ usable_gib() {
   awk '/^MemAvailable:/{a=$2} /^CmaFree:/{c=$2} END{printf "%.2f", (a-c)/1048576}' /proc/meminfo 2>/dev/null
 }
 
-# In-flight work. The engine runs with --api-key, so /metrics needs the bearer token;
-# read it from the container's OWN argv (never logged) — same trick as scripts/bench/spark.
+# The bearer /metrics wants, read off the container's OWN spec (never logged) — same trick as
+# scripts/bench/spark. Two shapes exist and BOTH must resolve, because the pin reads
+# `args.api_key or [envs.VLLM_API_KEY]`: while `--api-key` is passed, argv carries the accepted-key list
+# and the env var is ignored; without it, env holds the single accepted token. So env is tried first and
+# argv is the fallback — neither form can strand /metrics scraping.
+engine_key() {
+  local key
+  key=$(timeout 10 docker inspect "$CTR" --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null \
+        | sed -n 's/^VLLM_API_KEY=//p' | head -n 1)
+  [ -n "$key" ] || key=$(timeout 10 docker inspect "$CTR" --format '{{join .Args " "}}' 2>/dev/null \
+        | awk '{for(i=1;i<NF;i++) if($i=="--api-key") print $(i+1)}')
+  printf '%s' "$key"
+}
+
+# In-flight work. The keyed engine needs that bearer on /metrics (see engine_key).
 # CRITICAL: it must distinguish "0 requests" from "I could not read anything". This shape
 # bites: `vllm bench serve` 401s EVERY request against the keyed
 # engine and still exits 0 — an unreadable read that looks like "idle" would let the
 # governor restart a busy engine and hand its sessions a 502. Echoes ERR when unknown.
 in_flight() {
   local key out
-  key=$(timeout 10 docker inspect "$CTR" --format '{{join .Args " "}}' 2>/dev/null \
-        | awk '{for(i=1;i<NF;i++) if($i=="--api-key") print $(i+1)}')
+  key=$(engine_key)
   [ -n "$key" ] || { echo ERR; return 1; }
   out=$(timeout 10 curl -s --max-time 8 -H "Authorization: Bearer $key" \
         "http://localhost:$VLLM_PORT/metrics" 2>/dev/null \
@@ -647,9 +660,11 @@ config_drift_note() {
 # committed-baseline precondition is removed (silence must be earned, never assumed); C5 dies if
 # the `[ "$RECYCLE" = "1" ]` early-return in check_idle_recycle or the DISABLED branch of
 # margin_verdict is removed; C6 dies if the comparison in config_drift_note is dropped (it then
-# stays silent while the unit and the script disagree) or inverted (it then cries on agreement).
+# stays silent while the unit and the script disagree) or inverted (it then cries on agreement). C8
+# dies if either branch of engine_key is dropped — the env branch is the form the pin reads once
+# `--api-key` is gone, the argv branch is the form live now, and /metrics scraping must survive both.
 self_test() {
-  local SELF_SRC tmp bin st pass=0 fail=0
+  local SELF_SRC tmp bin st pass=0 fail=0 scenarios=0
   local T_SETTLE=0 T_SAMPLES=3 T_SPAN=600 T_MINMIB=40000 T_GROW=8 T_IDLE=1800
   SELF_SRC=$(readlink -f "$0")
   tmp=$(mktemp -d /tmp/spark-oom-selftest.XXXXXX) || { echo "self-test: mktemp failed"; return 1; }
@@ -662,7 +677,8 @@ D=$SPARK_OOM_STUB_DIR
 case " $* " in
   *'.State.Running'*)   cat "$D/running" 2>/dev/null; exit 0 ;;
   *'{{.RestartCount}}'*) printf '0 %s false\n' "$(cat "$D/started" 2>/dev/null)"; exit 0 ;;
-  *'join .Args'*)        printf 'vllm serve --api-key stub-not-a-secret\n'; exit 0 ;;
+  *'.Config.Env'*)       cat "$D/ctr_env" 2>/dev/null; exit 0 ;;
+  *'join .Args'*)        cat "$D/ctr_args" 2>/dev/null; exit 0 ;;
   *restart*)             printf 'restart\n' >> "$D/restarts"; exit 0 ;;
 esac
 case " $* " in
@@ -725,7 +741,10 @@ STUB
   }
   seed() { printf '%s' "$1" > "$st/health"; printf '%s' "$2" > "$st/running"
            printf '%s' "$3" > "$st/top_mib"; printf '%s' "$4" > "$st/inflight"; }
-  new_case() { rm -rf "$tmp/base"; mkdir -p "$tmp/base/state" "$tmp/base/snapshots"; : > "$st/restarts"; }
+  # One new_case = one fresh state dir, so `scenarios` >= the number of C-cases (C4 runs three).
+  new_case() { scenarios=$((scenarios + 1)); rm -rf "$tmp/base"; mkdir -p "$tmp/base/state" "$tmp/base/snapshots"; : > "$st/restarts"
+               # The container spec every case starts from: argv carries the key, env does not.
+               printf 'vllm serve --api-key stub-not-a-secret\n' > "$st/ctr_args"; : > "$st/ctr_env"; }
   restarts()   { wc -l < "$st/restarts" 2>/dev/null | tr -d ' '; }
   stv()        { head -1 "$tmp/base/state/$1" 2>/dev/null; }
   commit_by_hand() { # $1 = MiB — a state dir a real acquisition would have produced
@@ -893,8 +912,26 @@ STUB
   esac
   expect_eq "C6 agreement stays silent" "$(drift_line 0 0)" ""
 
+  # C8 — the bearer reader must resolve BOTH credential forms. The pin reads
+  #      `args.api_key or [envs.VLLM_API_KEY]`, so the two are mutually exclusive on a real container;
+  #      the reader tries env first and argv second, and /metrics must survive either side of that swap.
+  key_probe() { # the bearer engine_key resolves, through the stub PATH
+    env PATH="$bin:$PATH" SPARK_OOM_DIR="$tmp/base" SPARK_OOM_STUB_DIR="$st" \
+        bash "$SELF_SRC" _key 2>/dev/null
+  }
+  new_case
+  printf 'PATH=/usr/local/bin/bin\nVLLM_API_KEY=env-form-key\n' > "$st/ctr_env"
+  expect_eq "C8 env form resolves" "$(key_probe)" "env-form-key"
+  printf 'VLLM_API_KEY=env-form-key\n' > "$st/ctr_env"
+  printf 'vllm serve --api-key argv-form-key other-args\n' > "$st/ctr_args"
+  expect_eq "C8 env wins where both exist (env is the form the pin reads)" "$(key_probe)" "env-form-key"
+  : > "$st/ctr_env"
+  expect_eq "C8 argv form resolves with no env set" "$(key_probe)" "argv-form-key"
+  : > "$st/ctr_args"
+  expect_eq "C8 neither form ⇒ no bearer to offer" "$(key_probe)" ""
+
   printf 'self-test: %d assertions, %d failed ⇒ %s\n' "$((pass+fail))" "$fail" \
-    "$([ "$fail" -eq 0 ] && echo 'ALL PASS (8/8 cases)' || echo RED)"
+    "$([ "$fail" -eq 0 ] && echo "ALL PASS ($scenarios/$scenarios scenarios)" || echo RED)"
   rm -rf "$tmp"
   [ "$fail" -eq 0 ]
 }
@@ -968,6 +1005,7 @@ case "${1:-sample-loop}" in
   _hysteresis) if hysteresis_gate "probe"; then echo ARMED; else echo LATCHED; fi ;;   # self-test only (C7)
   _margin) margin_verdict ;;
   _drift) config_drift_note ;;
+  _key) engine_key ;;   # self-test only (C8): which credential form the bearer reader resolves
   rebaseline) # operator action: drop the committed baseline and re-acquire from scratch
     act_log "rebaseline requested (operator): previous baseline=$(st_read engine_baseline_mib) stage=$(bl_stage)"
     bl_reset_acquisition; st_write baseline_stage await-health

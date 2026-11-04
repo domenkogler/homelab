@@ -63,6 +63,17 @@ docker_services:
 spark_xfs_mount: /mnt/spark_nvme
 spark_models_dir: "{{ spark_xfs_mount }}/models"     # weights on XFS, never EXT4 (1 TB layout)
 spark_overlays_dir: "{{ spark_xfs_mount }}/overlays" # PLE overlay patches
+# ---- The FORM the engine's accepted key arrives in (ladder phase P3) ----
+# false = argv: `--api-key <engine key> [<client key>] [<gateway key>]`.
+# true  = no `--api-key` at all, and the engine's ONE internal key arrives as `VLLM_API_KEY` env — the
+# leg that closes the argv leak class. The pin reads `args.api_key or [envs.VLLM_API_KEY]`, so env is
+# honoured ONLY while the flag is absent and carries exactly ONE token: flipping this before the edge
+# verifier is attached strands every client that holds any other value. It stays false while
+# `spark-llm-authz` is `enabled: false`, and
+# roles/docker_services/tasks/deploy-service.yml refuses the render unless the verifier is enabled AND
+# `spark-client_api` is in `vault` AND the active profile's engine is vllm. Env is create-time too: this
+# form buys leak hygiene, never a rotation-free credential change.
+spark_engine_api_key_env: false
 # ---- Second artifact root ----
 # The upstream (v16b) stack wants ~130 GB of NEW checkpoint+table bytes and the XFS store
 # carries 184.7 G free (`df`: 504 G total / 319 G used). The alternative
