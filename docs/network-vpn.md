@@ -763,7 +763,7 @@ file names below, and §The Win11 `~/.ssh` retirement list for the order in whic
 build its PATH holds, and the builds disagree.
 On the win11 seat, over five legs, the Git-Bash build (`/usr/bin/ssh`, OpenSSH 10.5p1 / OpenSSL) authenticates
 everything — `vps` `nas` `pi`
-`spark` `oldsrv-domen` → **rc 0 with `SSH_AUTH_SOCK` empty**, alias digest `773069cc32fb` — while
+`spark` `oldsrv-domen` → **rc 0 with `SSH_AUTH_SOCK` empty** — while
 `C:/WINDOWS/System32/OpenSSH/ssh.exe` (9.5p2 / **LibreSSL**) fails on the key
 file itself: `Load key "C:\Users\domen/.ssh/ansible-admin_ssh": invalid format` → `Permission denied
 (publickey)`. The key is not broken and it is not a text-mode artifact: `openssl pkey` reads the file as a valid
@@ -909,7 +909,10 @@ a dated copy: `cp -p` to `<name>.retired-<YYYYMMDD>` for files, `config.bak-<UTC
 `seed-seat-ssh-config.sh` writes for you), and nothing is deleted until a later pass proves nothing read it.
 
 **Where the seats stand.** `domen_ssh` (+`.pub`, `SHA256:XTmK3tR…`) is placed from the vault on both laptop
-seats and the plane is pushed (`digest 773069cc32fb` on both, a shadow refusal cleared as step 3 describes);
+seats; what each one holds is a read, not a value to quote — `bash scripts/harness/seed-seat-ssh-config.sh --check`
+prints its verdict with the block's digest and the template's for its seat class, `IN SYNC` on the WSL seat and
+`STALE: the installed block … predates ssh/aliases.tmpl` on the win11 one (live-verified 2026-11-04), where the owed act
+is one `--push` on that seat and never a rename (a shadow refusal was cleared as step 3 describes);
 the operator-key duplicates are renamed away and the legs re-proved — five rc 0 from win11 Git-Bash with
 `SSH_AUTH_SOCK` empty, six rc 0 from WSL. ⚠ Those legs hold on the OpenSSL build only, which is step 2's build
 caveat, not a footnote.

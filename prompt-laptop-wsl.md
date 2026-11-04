@@ -29,6 +29,17 @@ for h in vps oldsrv spark pi nas; do printf '%-7s ' "$h"; timeout 15 ssh -o Batc
 Then the CONVENTIONS §0 ritual (the `CONVENTIONS.md` outline grep, `git status`, **your own worktree** — the guard refuses
 edits while the primary sits on `main`) and the prior-art sweep for whatever you are about to touch.
 
+**The gate has two faces, and this box is the engine that grades the other seat's tree half** (README §4 item 6, the `--face`
+block of [`scripts/validate-all.sh`](scripts/validate-all.sh)). Typing it with no `--face` flag **here** selects no face at all:
+on a Debian seat `auto` means the whole registry, tree legs and seat legs in one run — that is the form the pre-flight above
+uses. The split is the win11 seat's shape of the same registry: there `auto` is the **tree face**, run by
+[`scripts/harness/gate-snapshot.sh`](scripts/harness/gate-snapshot.sh) `--run` in the commit-stamped snapshot held in this
+engine's own ext4 — so a snapshot's green is a green about a tree, never about this seat — and the launcher then prints
+whether the change owes the **seat face** (`bash scripts/validate-all.sh --face seat`) from the `subject` globs the
+seat/joined registrations declare. `OWED NOW` means that run in this commit. `NOT OWED` still means the seat face is run at
+session close, because its subject is this host and no snapshot can prove it. `CANNOT ANSWER` is a boundary, never a pass —
+and a run taken INSIDE a snapshot prints `face: auto → tree`, grades no seat legs, and returns reds that are the engine's.
+
 **What this seat is (re-measure; do not trust this list):**
 
 | Fact | State (re-measure at your own `HEAD`) |
@@ -89,6 +100,12 @@ oldsrv seat and inside this box's reach. Row ownership does not move (O3 is abou
 | **HD-1128** | the Pi exit-node advertisement + the headscale route, converge Pi + VPS **in that order** (the Pi leg detached, the VPS leg only once the Pi leg is proven), then prove egress from a tailnet client — that one test is the verdict for BOTH legs. ⛔ a `--check` rehearsal of the Pi leg does not work: two read tasks carry no `check_mode: false`, so the leg aborts at the consuming assert; the read-only form here is `--list-hosts` / `--list-tasks` | `tailscale-node` is guard-listed on the Pi's own box |
 | HD-495 | this box's git identity/config leg (§0) | only this box can write its own seat config |
 | **HD-1110** · **HD-1227** | this box's own seat planes read `OK` on `--check` (not `--push` — there is nothing here to push). The tmux **effectiveness** leg this cell used to name is closed, so what the seat harness owes this box now is **HD-1227**'s seat half: the tmux mouse/OSC-52 legs come OFF this seat with the one SSOT, and the owner's select-and-paste test is run FROM here; the other rows' Win11 legs stay Win11-local per §1.4 | a seat plane converges from its own clone, and from inside WSL the driver cannot certify the Win11 seat |
+| **HD-1212** | the **seat half** of the `llm-path` plane: `sudo bash scripts/harness/seat-llm-path.sh --push` **on this box, at home**, and the read that reports it — `bash scripts/harness/pi-seat-sync.sh --plane llm-path --check` (`--check` needs no privilege); the acceptance is the row's own client test, at home with the tailnet client off, `curl https://llm.kogler.si/health` → 200. The fleet-wide shape ruling is the row's owner half and stays parked per §4 | `llm-path` is declared `seats: wsl` ([`scripts/lib/seat-planes.yml`](scripts/lib/seat-planes.yml)) — the pin it writes is this host's `/etc/hosts`, so no other box can take the leg or report it |
+| **HD-1176** | the `dns-route` plane's one root act, typed HERE: `sudo bash scripts/harness/seat-dns-route.sh --install`, run **from the primary clone** — it retires the `/usr/local/sbin` copy and re-points the unit's `ExecStart` at the repo | `dns-route` is declared `seats: wsl`, and `--install` is REFUSED from a linked worktree so the timer can never fire into a deleted lane directory — the same fact §0's `DRIFT` reading reports |
+| **HD-1216** | the masker's reads that only this seat can answer: `node --experimental-strip-types pi-agent/proposed/vault-mask.selftest.ts acceptance-pair` under **this seat's own `pi` node** (masked vs `HL_VAULT_MASK_BYPASS=1`, rc 0 = masking is live on the seat that ran it, at zero vault requests), then `bash scripts/harness/sync-extensions.sh --push` and `--check --strict` here | the pair certifies the seat that runs it — the Debian engine answering across the door certifies the engine, not its `wsl` seat — and `--check --strict` compares this `$HOME`'s deployed masker with the repo file |
+| **HD-1238** | the `mcp-server` plane's wsl half: `bash scripts/harness/seat-mcp-server.sh --check`, which renders the systemd **user** unit and proves it by reading `127.0.0.1:7777` back instead of trusting `active` | the plane is declared `seats: wsl oldsrv` and leaves win11 out — that distro does not exist until Windows asks for it, so the boot-time half is decided on a Linux seat, not from the Windows one |
+| **HD-1118** | leg (a)'s remaining half, which is the `wsl` one — `bash scripts/harness/pi-seat-sync.sh --seat wsl --check`. The blocker here is not a lag behind `origin/main`: this box's `main` carries commits that never reached it, so the pre-flight answers `STALE-CLONE` and runs no plane, and the act in front of the leg is that clone's reconciliation with `main` (the patch-absorbed case in [docs/orchestration.md](docs/orchestration.md) §4 step 5, where a `git rebase main <branch>` drops the already-applied commits) | leg (a) is a per-seat read and the `wsl` arm runs in this shell, so nothing off-box can answer for these planes; the `oldsrv` and `win11` halves are read at the tip in their own sessions, so re-running them from here proves nothing (§1.4) |
+| **HD-1137** | the gate-flag legs that can only be produced here: `bash scripts/validate-all.sh --time` and `bash scripts/validate-all.sh --profile quick`, run on this box, with the quick set compared against a full green gate **in the same tree** | both flags' subject is this host's `fork()+exec` price — a wall quoted from another seat measures that seat's forks, so the number is read off the run taken here and never typed (§2) |
 | **HD-1123** · **HD-1125** · **HD-1138** | the alias-plane **seat** legs: `scripts/harness/seed-seat-ssh-config.sh --check` / `--push` for this box's `~/.ssh/config`, and HD-1123's step-5 leftovers on THIS seat (`github_signing{,.pub}`, `known_hosts.old`, `config.bak-*` → `~/.ssh/retired-<date>/`, ONE file at a time, `--check` rc 0 and this seat's legs rc 0 after each). ⛔ NOT the four bare-FQDN callers — they sit in `scripts/**`, which a lane may not edit, so HD-1125's caller wiring is a scripts-lane act and its `id_ed25519` rename stays blocked behind it; and HD-1138's away case cannot be produced from inside the house, so no leg here turns it into a verdict | the seat's own `~/.ssh/config` and its own callers; the `scripts/**` half belongs to another lane (O3) |
 
 ⛔ **Never** a second session on one converge host at the same time (O3), and **never** a timed spark leg from this session
@@ -132,5 +149,9 @@ this box writes (its own `~/.ssh/config` is not in the tree, `ssh/aliases.tmpl` 
   by the row's own read-back — `PARKED` is a passing verdict here, a silent stall is not;
 - no timed number appears anywhere in the report if `$PI_PROVIDER=spark`;
 - `bash scripts/validate-all.sh` green **in this worktree** — name the item count you derived with `--list | wc -l`, name every
-  SKIP as a SKIP and the leg that would turn it into a verdict (a SKIP is not a pass, CONVENTIONS §6), then commit, push,
+  SKIP as a SKIP and the leg that would turn it into a verdict (a SKIP is not a pass, CONVENTIONS §6); here that run is the
+  whole registry, tree and seat legs together, so it already graded the seat half — but a run that printed a face split instead
+  (a snapshot run reading `face: auto → tree`, or a win11 session whose tree half this engine graded) has proved no seat leg,
+  and `bash scripts/validate-all.sh --face seat` on this box is the act that pays it. `NOT OWED by this diff` is an answer about
+  the diff, not a pass: the seat face is still the session-close act, and `CANNOT ANSWER` is a boundary (§0). Then commit, push,
   **stop** — merge, views and brief-death belong to the parent (O1/O7).
