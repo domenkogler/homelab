@@ -27,10 +27,10 @@ Re-derive a seat's `ok=`/`problems=` count **on that seat**, never copy it from 
 **The delegation-plane check — run it BEFORE routing any lane, on the seat you are on**: launch ONE `async: true` child
 and require it to **yield a child session file**; no `--check` substitutes for it, and a pass certifies only the seat it
 ran on. All three seats are licensed, so lanes run `async: true` everywhere. Where a seat has not passed, its lanes run
-**foreground-sequential, one at a time** — a stated DEVIATION from O11 that ends seat by seat as **HD-1180**'s fix lands,
-never a new rule, and never to be written into [docs/orchestration.md](docs/orchestration.md) or a brief as the contract.
-⛔ Never by npm-installing chord under a managed seat tree. Mechanism and the per-seat state: **HD-1180** in
-[todo.md](todo.md) and [prompt-seat-cockpit-grants.md](prompt-seat-cockpit-grants.md).
+**foreground-sequential, one at a time** — a stated DEVIATION from O11 that ends seat by seat as that seat's own launch
+passes, never a new rule, and never to be written into [docs/orchestration.md](docs/orchestration.md) or a brief as the
+contract. ⛔ Never by npm-installing chord under a managed seat tree. Mechanism and the per-seat state:
+[docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1.
 
 **Grade from a Debian clone, not the Win11 shell** — a Win11 `OK` is a *partial* result, never "the gate" (**HD-1202**;
 what that seat proves and what it names as unproven is [docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1). Three
@@ -156,7 +156,7 @@ never an agent's fallback:
 
 | # | step | from | why it sits there |
 |---|---|---|---|
-| 0 | the seat pre-flight + that seat's delegation plane (**HD-1180**) — [prompt-laptop-wsl.md](prompt-laptop-wsl.md) §0 | the runner station | every converge in the window is driven **off-box** from there; an unverified delegation plane makes the run foreground-sequential |
+| 0 | the seat pre-flight + that seat's delegation plane — [prompt-laptop-wsl.md](prompt-laptop-wsl.md) §0 | the runner station | every converge in the window is driven **off-box** from there; an unverified delegation plane makes the run foreground-sequential |
 | 1 | the in-repo leak tools (**HD-1219 → HD-1216 → HD-1218**, the order is a dependency) + the whole-corpus gates — [prompt-secrets.md](prompt-secrets.md) §3, [prompt-external.md](prompt-external.md) | any seat, no converge host | they stop the *next* run-capture debt before the next window creates one. What is left is **per-seat legs run FROM those seats** — a read here certifies nothing there — and **HD-1228**'s per-seat re-derive, whose list is the **union** of the seat reads |
 | 2 | the rotations a ledger re-derive cannot go past — the residue of [prompt-update.md](prompt-update.md) Phase 3, driven from the briefs that own each item | one converge per host | Phase 7 is ONE commit and it drops only the lines whose **far end** moved |
 | 3 | **[prompt-update.md](prompt-update.md) Phase 6 — spark, last and solo** (OTA → pin converge → the third tailnet node → the engine-key rotation → HD-1206's flips) | an externally-served session on the station, owner present | the only Rule-0-gated step in the fleet; its legs are the card's order + HD-1206's row order, and its boot windows are ~20 min each |
@@ -248,8 +248,8 @@ not this list, holds the steps, the file ownership and the converge host. Waves,
    assertion on the modal-free route (`scripts/git/` only), **HD-1227**'s one SSOT edit in
    [`pi-agent/tmux/tmux.conf`](pi-agent/tmux/tmux.conf) with the installer's load probe and canaries moved in the same
    change (⛔ parity is bought by taking, not adding — the Win11 host has no tmux setup and stays that way), **HD-1110**'s
-   `api_key`-is-the-fleet-spelling drift read in `scripts/harness/pi-seat-sync.sh --check`, **HD-1161**'s unpinned pi leg
-   in `install-pi-wsl.sh`, and **HD-1180** for its AI half only. Seat legs run **FROM their own seat**, oldsrv included
+   `api_key`-is-the-fleet-spelling drift read in `scripts/harness/pi-seat-sync.sh --check`, and **HD-1161**'s unpinned pi
+   leg in `install-pi-wsl.sh`. Seat legs run **FROM their own seat**, oldsrv included
    ([docs/harness-pi-seat-identity.md](docs/harness-pi-seat-identity.md) §5a), and a plane command executes in the SEAT's
    shell ([docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1) — so pull the driver clone before blaming a seat.
    → [prompt-seat-cockpit-grants.md](prompt-seat-cockpit-grants.md)

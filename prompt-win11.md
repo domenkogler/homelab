@@ -53,7 +53,6 @@ bash scripts/harness/pi-seat-sync.sh --seat win11 --check                       
 | [HD-474](todo.md) | this brief's own row: the render `--check` above, which is a repo leg this seat answers unattended, and the residency half (`probe-client`), which sits behind the `lmstudio-llm.ps1 switch` owner hand |
 | [HD-1110](todo.md) | the seat's own `pi-seat-sync.sh --seat win11 --check` read, typed here; the row's `pi_auth`-drift half is repo work and is not this leg |
 | [HD-1118](todo.md) | leg (c): `install-tmux-conf.sh --check --strict` on this seat, where the tmux-less answer is a named SKIP and never a pass |
-| [HD-1180](todo.md) | this seat's own `async: true` launch that yields a child session file — the only thing that certifies the delegation plane here, and an owner hand, not a repo act |
 | [HD-1238](todo.md) | the `lsp-binaries` read of this seat's own carriers (the Volta image its `node` resolves, the .NET tool store) and the Startup entry that carries the MCP server here |
 | [HD-1123](todo.md) · [HD-443](todo.md) | this box's `~/.ssh` retirement steps, typed in a Win11 session — [docs/network-vpn.md](docs/network-vpn.md) §The Win11 `~/.ssh` retirement list |
 | [HD-1135](todo.md) · [HD-1137](todo.md) | the fork-price numbers that exist nowhere else: the interleaved A/B, and `validate-all.sh --time` / `--profile quick` run here |
