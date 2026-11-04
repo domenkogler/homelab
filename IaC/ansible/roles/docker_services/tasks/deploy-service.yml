@@ -37,6 +37,14 @@
     # templates to native types, and the fail_msg needs words.
     _ladder_client_complete: "{{ (_ladder_client_items | reject('in', vault) | list) | length == 0 }}"
     _ladder_client_missing: "{{ _ladder_client_items | reject('in', vault) | list | join(' and ') }}"
+    # A missing client token has TWO different causes and the two need opposite fixes, so the fail_msg
+    # splits them by the one fact that tells them apart — whether the derive map already names the item.
+    # In the row: every run whose scope holds a service that names it fetches it, so an absent one is a
+    # SCOPED run (the bulk pre-pass derives from the services in scope, tasks/main.yml), not a gap in the
+    # map. Not in the row: no run of any scope fetches it, and the map is what must change.
+    _ladder_authz_row: "{{ _template_vault_items['spark-llm-authz'] }}"
+    _ladder_unfetched: "{{ _ladder_client_items | reject('in', vault) | select('in', _ladder_authz_row) | list | join(' and ') }}"
+    _ladder_unrowed: "{{ _ladder_client_items | reject('in', vault) | reject('in', _ladder_authz_row) | list | join(' and ') }}"
     # Lazy: only rendered when the env form is on, or when this task fails.
     _ladder_engine: "{{ spark_llm_profiles[spark_llm_profile].engine }}"
   ansible.builtin.assert:
@@ -58,11 +66,21 @@
       {% if (_ladder_authz_enabled | bool) and not (_ladder_client_complete | bool) %}
       REFUSED: the verifier is enabled but `vault` does not hold {{ _ladder_client_missing }}, so it would
       deploy with an INCOMPLETE client allow-list — it refuses those clients by contract, which is a
-      lockout behind a healthy-looking engine. Fix: name {{ _ladder_client_missing }} in the derive-map
-      row `_template_vault_items.spark-llm-authz` of roles/docker_services/defaults/main.yml (the bulk
-      pre-pass fetches the items that row NAMES, so an absent row is an unfetched item), plus the
-      docs/deployment-secrets.md §Master Secret List row that naming them makes
-      scripts/gate/check_vault_docs.py demand.
+      lockout behind a healthy-looking engine. Which cause, per name:
+      {% if _ladder_unfetched %}
+      · {{ _ladder_unfetched }} IS named in `_template_vault_items.spark-llm-authz`, so the derive map is
+      already correct and this run simply never fetched it: the bulk pre-pass derives the item set from the
+      services IN SCOPE, so a scoped run fetches the items of its own services only and no service in this
+      scope names it. Fix: run UNSCOPED (drop `docker_services_scope`), or put both owners in one scope —
+      `-e docker_services_scope=spark-ai,spark-llm-authz`.
+      {% endif %}
+      {% if _ladder_unrowed %}
+      · {{ _ladder_unrowed }} is NOT named in `_template_vault_items.spark-llm-authz`, so no run of any
+      scope fetches it and re-scoping changes nothing. Fix: name it in that row of
+      roles/docker_services/defaults/main.yml (the bulk pre-pass fetches the items that row NAMES, so an
+      absent row is an unfetched item), plus the docs/deployment-secrets.md §Master Secret List row that
+      naming it makes scripts/gate/check_vault_docs.py demand.
+      {% endif %}
       {% endif %}
       {% if spark_engine_api_key_env | bool %}
       REFUSED: spark_engine_api_key_env=true drops `--api-key` in favour of VLLM_API_KEY, which the pin
