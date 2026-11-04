@@ -292,3 +292,34 @@ check: --check --strict
 push: --push
 seats: win11 wsl oldsrv
 installer: debian cockpit wsl
+
+---
+# The seat's PASEO DAEMON CONFIG plane (HD-411): the three arms of `~/.paseo/config.json` that
+# decide whether a seat is reachable at all — which address the daemon binds, whether the vendor
+# relay is on, and whether the daemon has a password at all. Before this row those were seat
+# folklore written by the desktop app: measured first pass, both laptop seats were answering with
+# the relay ON while the house posture says off, and the WSL seat was loopback-only so the phone
+# had no way in. A reimage came back with whatever the app guessed.
+#
+# `oldsrv` is in scope for the READ only, and the owner says so in its own verdict: there the unit
+# carries the bind (`PASEO_LISTEN`) and the password (its 0600 env file), so this plane writes
+# neither and instead proves the two door arms `roles/seat` sets — a `.ts` router that the daemon
+# answers 403 is a door that reports deployed, and nothing else in the tree can see that pair.
+#
+# `win11` is deliberately NOT named, for the reason the `mcp-server` row gives: that seat's daemon
+# is desktop-managed, its CLI is a `.cmd` behind `cmd //c`, and changing its bind is the owner's
+# elevated leg. Naming the seat without a verified carrier would have the fan-out report a Windows
+# command nobody ran.
+#
+# `installer: none`, the same reasoning as `llm-path`/`dns-route`/`mcp-server`: a from-zero
+# bootstrap installs no `@getpaseo/cli` (nothing in versions.yml pins it), and converging a
+# config.json for a daemon the bootstrap never placed would fail it for a defect that is not the
+# bootstrap's. The owner REFUSES to install the CLI for the same reason (CONVENTIONS §7).
+plane: paseo
+harness: all
+owner: seat-paseo.sh
+runner: bash
+check: --check --strict
+push: --push
+seats: wsl oldsrv
+installer: none
