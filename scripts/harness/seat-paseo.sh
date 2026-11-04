@@ -506,10 +506,12 @@ EOS
   #     over. The scan must redden it in EVERY mode, the push's `wrote` line and every drift line
   #     included. If these arms go green, the canary is decoration.
   local mut="$t/mut" lib_dir
-  lib_dir="$(dirname "$(hl_seat_registry_path)")"   # the lib that owns this harness, found by the
-  mkdir -p "$mut/IaC/ansible" "$mut/docs" "$mut/scripts/harness"    # registry's own location, not by depth
+  # A marker-complete tree of its own, whose scripts/lib IS this one: the mutant resolves its repo
+  # root, its plane registry and its vault reader normally, so only the script under test is mutated.
+  lib_dir="$(dirname "$(hl_seat_registry_path)")"
+  mkdir -p "$mut/IaC/ansible" "$mut/docs" "$mut/scripts/harness"
   : > "$mut/docs/index.md"
-  ln -s "$lib_dir" "$mut/scripts/lib"   # the same registry, the same vault reader: only the script is mutated
+  ln -s "$lib_dir" "$mut/scripts/lib"   # a symlink, not a copy: nothing under $mut may shadow the real lib
   python3 - "${BASH_SOURCE[0]}" "$mut/scripts/harness/seat-paseo.sh" <<'PY' || { printf 'NOT CAUGHT the mutant could not be built — the bite is unproven\n'; fails=$((fails + 1)); }
 import sys
 src = open(sys.argv[1]).read()
