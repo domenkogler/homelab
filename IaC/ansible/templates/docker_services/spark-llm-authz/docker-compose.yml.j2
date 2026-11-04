@@ -17,9 +17,13 @@
 #   acts and they are one change: `enabled: true` on that registry entry, the item's name added to
 #   `_template_vault_items.spark-llm-authz` (the derive set is where a missing item fails loudly),
 #   and the `docs/deployment-secrets.md` §Master Secret List row that `check_vault_docs.py` demands
-#   as soon as the item is named anywhere the IaC reads. Order matters: the extra-template render
-#   in deploy-service.yml runs long before `up -d`, so an enabled-but-unseeded item stops the deploy
-#   with a red run instead of starting a stack that trusts an empty allow-list.
+#   as soon as the item is named anywhere the IaC reads. Half-doing it is loud either way, by two
+#   different mechanisms: flag alone (no derive row) means the bulk pre-pass never fetches the item,
+#   so the "Template extra .j2 files" task fails this play with
+#   `'dict object' has no attribute 'spark-client_api'` long BEFORE the "Docker compose up -d" task
+#   and no container is ever created; derive row alone (item still absent from the vault) fails the
+#   pre-pass itself, which is fail-closed for every spark service and stops before any deploy task.
+#   Neither ordering can leave a running stack that trusts an empty allow-list.
 #
 #   FAIL CLOSED, in both directions: an unreadable, missing, unparsable or empty-token config is a
 #   refusal and never an allow, and "this service is down means inference is dark" is the accepted
@@ -46,6 +50,14 @@
 #   restart guard watches, and a static file is invisible to BOTH it and `up -d` (which recreates on
 #   container-spec changes only). Editing authz.py therefore needs
 #   `docker compose restart spark-llm-authz` — or any config rotation, which does restart it.
+#
+#   READ BY THE GATE, DISABLED OR NOT: validate-docker-services.py collects every entry in the
+#   group_vars `docker_services` lists with no `enabled` filter (`load_all_services`, then renders each
+#   one), so this file is rendered by that gate while `enabled: false` too. The constraint that follows
+#   is a rule and not a preference: nothing in this file may reference a vault VALUE — a `vault[...]`
+#   reference here would redden the gate over a service that is not even deployed. Values belong in
+#   `authz-config.json.j2`, which that gate existence-checks but never renders, and that is where the
+#   fail-loud refusal on an unfetched item lives for the same reason.
 #
 #   HARDENING: cap_drop ALL with no cap_add (a high loopback port needs no capability), no-new-privileges,
 #   read-only rootfs, tmpfs /tmp, a hard memory cap so a leak in this sidecar cannot cost the pool
