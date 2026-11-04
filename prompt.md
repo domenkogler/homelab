@@ -135,6 +135,8 @@ row's `lsp-binaries` and win11-carrier legs are state in the row and in
 [docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1 — do not re-open them. ⛔ a `url` entry is connected, never
 launched, so the drift read is the port and not the file.
 
+**Wave brief:** [prompt-spark-edge-authz.md](prompt-spark-edge-authz.md) — inference auth at the spark edge, so a bearer rotation costs a file render instead of a cold boot. It carries **HD-1239** and **HD-1241**; the ruling itself is recorded in [docs/services-ai.md](docs/services-ai.md) §9 #30. Every engine leg here is an external-session act ([todo-table.md](todo-table.md) §C rule 2), and P0's read-back needs **both** edges converged — spark's playbook and the VPS edge — or `llm.ts.kogler.si` keeps proxying the path the engine cannot guard.
+
 **Window brief (not a wave):** [prompt-update.md](prompt-update.md) — the fleet pin bump + host-package window: phases
 0–8 driven from the runner station, the secret rotations scheduled into it, no rows carried, and it dies with the window.
 

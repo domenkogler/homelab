@@ -63,14 +63,15 @@ rotation coupling survives on paper.
 - **A rotation window forbids any other converge** (`secret_debt_register.txt` preflight), and a green *scoped* converge
   is not evidence a credential landed — only the argv/env hash is.
 
-## 5. Owed to the docs, blocked on another lane (transcribe verbatim, do not re-derive)
+## 5. What is recorded where
 
-`docs/services-ai*.md` is single-writer ([todo-table.md](todo-table.md) §C rule 4) and was held by another session while this wave was prepared. When it is
-free, in one commit: (a) a new [docs/services-ai.md](docs/services-ai.md) §9 decision row for D1/D2/D3/D4 citing #26 (whose sanctioned direction this is — "harden
-at the edge: router allow-list / a distinct client credential"); (b) rewrite [docs/deployment-ai-stack-secrets.md](docs/deployment-ai-stack-secrets.md) §4a's consumer map — the engine stops
-holding a client-held value and the "four independent bearers" list changes; (c) **retire the ruling at
-[deployment-rejected.md](docs/deployment-rejected.md) "edge 401 with the old bearer as containment test"** — its stated
-reason ("that host authenticates with the engine key") stops being true once the edge authenticates; (d) the
-`services-ai-rejected.md` rows for the declined shapes (blue/green engine pair, hash allow-list delivery, authentik
-outpost as a machine-token verifier); (e) the `spark-llm_api` / `litellm-engine_api` register lines and
-`NOT_AUTO_ROTATABLE` membership move with the P3 boot, not before it.
+The ruling is [docs/services-ai.md](docs/services-ai.md) **§9 #30**; the declined shapes are in
+[docs/services-ai-rejected.md](docs/services-ai-rejected.md) — the blue/green engine pair, a second `--api-key` kept as an
+escape hatch, hash-allow-list delivery, and the authentik outpost as a machine-token verifier.
+
+Still owed, and deliberately not written yet: (a) [docs/deployment-ai-stack-secrets.md](docs/deployment-ai-stack-secrets.md) §4a's
+consumer map, the `spark-llm_api` / `litellm-engine_api` register lines and the `NOT_AUTO_ROTATABLE` membership all move
+**with the P3 boot** — until then the engine still holds a value a client presents, and writing it early would describe a
+state the fleet is not in; (b) the ruling at [docs/deployment-rejected.md](docs/deployment-rejected.md) "edge 401 with the
+old bearer as containment test" retires **at P2**, because its reason — that host authenticates with the engine key — is
+still true while nothing is attached.

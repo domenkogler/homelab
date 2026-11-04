@@ -108,6 +108,10 @@ tags: [services, ai, rejected, decision-log, rag, memory]
 | Workload discipline on sessions served by spark | rejected | The memory budget is the lever, not session policing |
 | `wyoming-faster-whisper-rocm` (ROCm faster-whisper) | rejected | Host ROCm + `/dev/kfd`; private CT2 fork; new model channel |
 | ZeroClaw on the VPS | rejected | Fleet credentials on an internet-facing host |
+| Blue/green engine pair behind `spark_engine_port` | rejected | Two resident engines do not fit the unified-memory budget — the fixed cost plus a 20 GB pool on each side crosses the device-hold ceiling |
+| A second accepted `--api-key` kept as an escape hatch for a down edge | rejected | It leaves a client-rotatable value in engine argv, which is the coupling [services-ai.md](services-ai.md) §9 #30 removes |
+| sha256 allow-list instead of plaintext client tokens in the verifier's config | rejected | A second secret-delivery pattern for one file; the compose-env pattern already carries vault values 0600 |
+| Authentik's forward-auth outpost as the machine-token verifier | rejected | It authenticates browser sessions, and its own blueprint excludes machine clients by design |
 
 ## What would reopen OV
 
