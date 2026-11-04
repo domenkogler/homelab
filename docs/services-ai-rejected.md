@@ -76,9 +76,12 @@ tags: [services, ai, rejected, decision-log, rag, memory]
 | Open WebUI built-in RAG as the retrieval plane | rejected | The vector store stays independent of any UI shell |
 | `os.environ/` references in DB `litellm_params` | rejected | Not expanded; the literal string reaches the engine |
 | Paseo coding seat on oldsrv | dropped | Parked; acceptance needs a hand on the phone |
+| Paseo seat surface on all three dev seats | accepted | Ruled: tailnet per seat, `oldsrv` always-on, relay off |
 | PGVector as the vector store | superseded | Qdrant stands alone, hybrid dense + sparse |
 | Phase-2 Ryzen 9 9900X / R9700 build | superseded | spark (ThinkStation PGX / GB10) replaces it (#22) |
 | `pi-agent/extensions/host-status.ts` seat-identity footer | superseded | `pi-open-tui` footer `hostname` segment is the single source |
+| `pi-web` as the coding-seat surface | superseded | Paseo seats replace it; retire gated on the phone verdict |
+| `pi-web-ui` as a seat package | superseded | Retired with the cockpit; nothing installed it |
 | `pi.kogler.si` as the oldsrv seat URL | rejected | That FQDN is the RPi4 node; hence the `-oldsrv` suffix |
 | Pinned legs on the flat `services-internal` network | rejected | The network is the boundary; LiteLLM alone reaches them |
 | `pi` shim in `~/.local/bin` for the pi-web PATH | rejected | Node's bin dir must be on PATH, not a login-shell path |
