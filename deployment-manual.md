@@ -2566,3 +2566,22 @@ Run everything as root on oldsrv (`sudo -n`); the cockpit itself always runs as 
    one portproxy whose target is **loopback**, because a tailnet-IP listener cannot bind while Tailscale
    is down. A headless seat answers nothing until something starts its daemon — nothing in the repo does,
    so start it (`paseo daemon start`) or rule the carrier before reading a seat as unreachable.
+
+   **A laptop seat that was reset or reinstalled** can read configured and still carry nothing; the mechanism is
+   [docs/services-ai.md](docs/services-ai.md) §9b-1. Run the carrier with `-Push` from an elevated PowerShell at
+   the repo root — it deletes then re-adds, which is what binds the address — from a checkout that has been
+   `git pull`-ed, since an older copy of this script compares text and misreports a correct box:
+   ```powershell
+   cd D:\source\domenkogler\homelab
+   .\scripts\harness\win\paseo-seat-door.ps1 -SelfTest   # the readers, graded apart from the machine
+   .\scripts\harness\win\paseo-seat-door.ps1 -Check      # both rules, the proxy table, then the socket
+   netstat -an | findstr <tailnet-ip>:<paseo_ports.wsl>                     # LISTENING is the listener
+   curl.exe -m 6 -s -o NUL -w "%{http_code}" http://<tailnet-ip>:<paseo_ports.wsl>/api/agents   # 401
+   ```
+   Which daemon answers `paseo_ports.win11` is the desktop app's setting
+   `settings.daemon.manageBuiltInDaemon` in `%APPDATA%\Paseo\desktop-settings.json`. Read it back with
+   `paseo daemon status`: `desktopManaged: true` and `daemonNode` under `%LOCALAPPDATA%\Programs\Paseo\Paseo.exe`
+   is the built-in daemon, and a `…\Volta\…\@getpaseo\cli\…` path is the CLI one. Nothing on Windows starts the
+   CLI daemon at sign-in (no Run key, no Startup entry, no scheduled task, no service), so keeping the built-in
+   daemon first is that setting and not a removal — what this seat must avoid is `paseo daemon start` /
+   `paseo daemon run`.

@@ -41,14 +41,17 @@
 .PARAMETER Check
   Report only (default). Reads what it can without elevation and prints the exact elevated commands
   for whatever it cannot read. Unelevated, Get-NetFirewallRule and netsh portproxy show are both
-  blocked, and a check that cannot read is reported as such - never as "absent".
+  blocked, and a check that cannot read is reported as such - never as "absent". Where the table says the
+  proxy is present it then PROBES the socket, because the table is configuration and only a connect proves a
+  listener: an entry whose listen address was absent when IP Helper read the config stays unbound and reads
+  present forever.
 .PARAMETER Push
   Apply the three artifacts. Requires an elevated shell; without one it changes NOTHING and prints
   the commands it would have run.
 .PARAMETER Show
   Print the command list and nothing else - the artifact the owner needs to run the parked leg.
 .PARAMETER SelfTest
-  Grade the two READERS (scope comparison, portproxy table) against planted shapes, with no firewall,
+  Grade the readers (scope comparison, portproxy table, the door verdict that joins the table to the probe) against planted shapes, with no firewall,
   no netsh and no tailscale. What the -Push verdict is built from, so the verdict is proved apart from
   the machine it describes.
 #>
@@ -172,6 +175,34 @@ function Test-PortProxy {
   [pscustomobject]@{ state = 'present'; detail = "$Listen -> 127.0.0.1:$Port" }
 }
 
+function Test-DoorVerdict {
+  param([string]$Table, [bool]$Bound)
+  # "It is in the table" and "it answered a connect" are two facts and the verdict is their conjunction: a
+  # proxy entry is only a path while something is bound to the listen address, and an unbound one has no
+  # word of its own in the table. Only a present entry is worth probing; every other state stands alone.
+  if ($Table -ne 'present') { return $Table }
+  if ($Bound) { return 'listening' }
+  return 'configured but not listening'
+}
+
+function Test-TcpAnswer {
+  param([string]$Address, [int]$Port, [int]$TimeoutMs = 2000)
+  # Ask the listener, not the registry. From this box, to that address:port, with a bounded wait so a
+  # dropped SYN reports in two seconds instead of hanging the fan-out.
+  $c = New-Object Net.Sockets.TcpClient
+  try {
+    $r = $c.BeginConnect($Address, $Port, $null, $null)
+    if (-not $r.AsyncWaitHandle.WaitOne($TimeoutMs)) { return $false }
+    # EndConnect is where a refusal surfaces: WaitOne only says SOMETHING answered the handshake.
+    $c.EndConnect($r)
+    return $c.Connected
+  } catch {
+    return $false
+  } finally {
+    $c.Close()
+  }
+}
+
 function Get-State {
   # Everything readable without elevation. An unreadable read is reported as unreadable: a rule
   # this shell could not list is NOT a rule that is absent, and printing it as absent is how a
@@ -203,6 +234,7 @@ function Do-Check {
   Write-Host ("tailnet   : {0}" -f $(if ($st.tailnetIp) { $st.tailnetIp } else { 'tailscale did not answer - the portproxy cannot be targeted' }))
   if ($st.admin) {
     $bad = 0
+    $unreadable = $false
     foreach ($r in $st.rules) {
       if (-not $r.present) { Write-Host ("rule      : {0} - ABSENT" -f $r.name); $bad++; continue }
       $ok = Test-TailnetScope -Remote ([string]$r.remote)
@@ -212,17 +244,34 @@ function Do-Check {
     }
     if ($st.tailnetIp) {
       $v = Test-PortProxy -Rows (Get-PortProxyRows -Text $st.proxy) -Listen $st.tailnetIp -Port $WslPort
-      if ($v.state -eq 'present') { Write-Host ("portproxy : {0}" -f $v.detail) }
+      $bound = $false
+      if ($v.state -eq 'present') { $bound = Test-TcpAnswer -Address $st.tailnetIp -Port $WslPort }
+      $verdict = Test-DoorVerdict -Table $v.state -Bound $bound
+      if ($verdict -eq 'listening') {
+        Write-Host ("portproxy : {0} - a socket answers there (the seat behind it is the 401 read)" -f $v.detail)
+      } elseif ($verdict -eq 'configured but not listening') {
+        Write-Host ("portproxy : {0} - NEVER configured but NOT LISTENING: the entry is in the table" -f $v.detail)
+        Write-Host ("            and no socket is bound to {0}:{1}, so no peer gets through. Re-run -Push" -f $st.tailnetIp, $WslPort)
+        Write-Host ("            (delete then add re-binds it) and read netstat -an | findstr {0}:{1} as the verdict." -f $st.tailnetIp, $WslPort)
+        $bad++
+      }
       else { Write-Host ("portproxy : {0} - NEVER {1}" -f $v.state, $v.detail); $bad++ }
+    } else {
+      # No address to probe is not a pass. tailscale answering nothing is the unreadable case, and an
+      # unreadable leg owes the fan-out the same rc 2 as a rule this shell could not list.
+      Write-Host 'portproxy : UNVERIFIED - tailscale answered with no 100.64/10 address, so there is no listen'
+      Write-Host '            address to probe. That is an unreadable leg, never an absent one.'
+      $unreadable = $true
     }
   } else { foreach ($n in $st.notes) { Write-Host "note      : $n" } }
   # The command list is the artifact for a leg that is NOT yet done; reprinting it under a box that
   # just verified is how a correct state keeps looking unfinished.
   if (-not $st.admin -or $bad -gt 0) { Write-Host ''; Show-Commands }
-  # Exit codes the fan-out understands: 0 everything owed is true, 1 a rule is off-scope/absent or
-  # the proxy is not there, 2 this shell could not read the state it was asked about.
+  # Exit codes the fan-out understands: 0 everything owed is true, 1 a rule is off-scope/absent or the
+  # proxy is not there or not bound, 2 this shell could not read the state it was asked about.
   if (-not $st.admin) { return 2 }
   if ($bad -gt 0) { return 1 }
+  if ($unreadable) { return 2 }
   return 0
 }
 
@@ -262,8 +311,8 @@ function Do-Push {
 }
 
 function Do-SelfTest {
-  # The verdict is only worth what its readers are worth, and neither reader can be graded against a
-  # live firewall. Every shape below is one the tools really print.
+  # The verdict is only worth what its readers are worth, and no reader here can be graded against a live
+  # firewall. Every shape below is one the tools really print.
   $fail = 0
   $scope = @(
     @('100.64.0.0/10',            $true,  'netsh form'),
@@ -300,8 +349,29 @@ Address         Port        Address         Port
     $got = (Test-PortProxy -Rows $c[0] -Listen $c[1] -Port 6768).state
     if ($got -ne $c[2]) { Write-Host ("NOT CAUGHT portproxy {0}: got {1}" -f $c[3], $got); $fail++ }
   }
+  # The conjunction, graded on planted pairs: the shape that ships a silent dead leg is a table that says
+  # 'present' over a socket nobody bound, and a reader that only looks at the table cannot see it.
+  $door = @(
+    @('present',      $true,  'listening',                    'the entry AND a bound listener'),
+    @('present',      $false, 'configured but not listening', 'the silent dead leg: configured, bound by nobody'),
+    @('absent',       $false, 'absent',                       'nothing configured, so nothing to probe'),
+    @('wrong target', $true,  'wrong target',                 'a bound listener on the wrong target stays wrong'),
+    @('ambiguous',    $true,  'ambiguous',                    'two entries on one port, whatever the probe says')
+  )
+  foreach ($d in $door) {
+    $got = Test-DoorVerdict -Table $d[0] -Bound $d[1]
+    if ($got -ne $d[2]) { Write-Host ("NOT CAUGHT door verdict {0}: got {1}" -f $d[3], $got); $fail++ }
+  }
+  # Wiring, not only readers: a reader nobody calls can never fail, so ask this file's own Check body
+  # whether it actually reaches both halves. Deleting either call from Do-Check reddens this arm.
+  $src = Get-Content -Raw -LiteralPath $PSCommandPath
+  $body = ((($src -split 'function Do-Check')[1]) -split 'function Do-Push')[0]
+  foreach ($call in @('Test-DoorVerdict', 'Test-TcpAnswer')) {
+    if ($body -notmatch $call) { Write-Host ("NOT CAUGHT wiring: Do-Check never calls {0}" -f $call); $fail++ }
+  }
+  if ($body -notmatch 'UNVERIFIED') { Write-Host 'NOT CAUGHT wiring: Do-Check can pass a leg it could not read'; $fail++ }
   if ($fail -gt 0) { Write-Host ("self-test: {0} NOT caught" -f $fail); return 1 }
-  Write-Host 'self-test: OK -- the scope reader passes every rendering of 100.64.0.0/10 and fails every wider shape, and the portproxy reader parses the netsh table (present, absent, stale listen, wrong target, ambiguous) -- so the -Check verdict is the state, not the string form the cmdlet happened to use'
+  Write-Host 'self-test: OK -- the scope reader passes every rendering of 100.64.0.0/10 and fails every wider shape, the portproxy reader parses the netsh table (present, absent, stale listen, wrong target, ambiguous), and the door verdict needs BOTH halves (a present entry over an unbound socket reads configured but not listening) -- so the -Check verdict is the state, not the string form the cmdlet happened to use'
   return 0
 }
 

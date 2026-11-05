@@ -26,3 +26,8 @@ IaC/host/post_install_with_secrets.sh
 scripts/bench/spark/overnight/
 
 *-workspace
+
+# Claude Code run artifacts, incl. its own nested worktrees: tool state inside a checkout, never tree
+# content. Left untracked it makes the primary checkout permanently DIRTY, which is what stops the
+# clean-main merge-station exemption in scripts/gate/guard-session.sh from ever firing.
+.claude/

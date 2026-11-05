@@ -105,6 +105,7 @@ tags: [services, ai, rejected, decision-log, rag, memory]
 | Vision-LLM leg on the RX 7600 | rejected | Vision is a workstation text cascade (#28) |
 | Vision on spark | rejected | spark runs a text-only engine (#28) |
 | `whisper.cpp` HIP/ROCm image for STT | rejected | No published ROCm artifact; self-build, no digest trail |
+| win11 CLI daemon boot carrier | rejected | The app's own setting carries the daemon; one listener, one author |
 | Workload discipline on sessions served by spark | rejected | The memory budget is the lever, not session policing |
 | `wyoming-faster-whisper-rocm` (ROCm faster-whisper) | rejected | Host ROCm + `/dev/kfd`; private CT2 fork; new model channel |
 | ZeroClaw on the VPS | rejected | Fleet credentials on an internet-facing host |
