@@ -727,12 +727,12 @@ HD-358 (Seerr → \*arr link — IaC-seeded by `roles/docker_services/tasks/arr-
 - [x] **HD-444** — the phone→oldsrv cockpit crossing, live-verified 2026-10-26: token gate, session
       list and one chat round-trip, driven from the phone on mobile data over the tailnet name.
       · [services-ai.md](docs/services-ai.md) §9b-1
-- [ ] **HD-411** — the second surface of this same account: the oldsrv daemon, its password item and its
-      `.ts` door are landed and converged, so what is left is the owner's elevated Windows acts
-      (`scripts/harness/win/paseo-seat-door.ps1`), the carrier that writes a unit-less seat's daemon
-      password (no `paseo` command can), the boot carrier for the headless WSL seat — which nothing
-      currently provides, so its daemon is not running — the pairing, and the verdict taken with a hand
-      on the phone on each seat. · [services-ai.md](docs/services-ai.md) §9b-1
+- [x] **HD-411** — **CLOSED 2026-11-06**: Paseo is the coding-seat surface on all three seats — the oldsrv daemon
+      under the `roles/seat` user unit and its `paseo-oldsrv-ts` door, the two laptop seats' tailnet-scoped door
+      (`scripts/harness/win/paseo-seat-door.ps1`), the `paseo` seat plane that carries a unit-less seat's daemon
+      password, the `wsl` seat's sign-in carrier
+      (`scripts/harness/win/wsl-seat-autostart.vbs`), and the phone verdict on every seat — chat and a pi terminal
+      on oldsrv, from cellular, plus both laptop seats across the tailnet. · [services-ai.md](docs/services-ai.md) §9b-1
 - [ ] **HD-442** — the token's vault leg read back rather than inferred: `cockpit-pi-web_api` carries the
       value, and the catalog-completeness read plus the revoke-or-rotate decision on value identity are
       still owed. · [deployment-secrets.md](docs/deployment-secrets.md)

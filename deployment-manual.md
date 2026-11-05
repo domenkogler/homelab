@@ -2564,22 +2564,34 @@ Run everything as root on oldsrv (`sudo -n`); the cockpit itself always runs as 
    The phone path onto a laptop is the
    elevated `scripts/harness/win/paseo-seat-door.ps1`: two inbound rules scoped to the tailnet range and
    one portproxy whose target is **loopback**, because a tailnet-IP listener cannot bind while Tailscale
-   is down. A headless seat answers nothing until something starts its daemon — nothing in the repo does,
-   so start it (`paseo daemon start`) or read the seat's own boot ruling before calling it unreachable.
-   **`wsl` seat after the distro stopped — `[MANUAL — the act an agent inside the distro cannot take]`**:
+   is down. The headless seat's daemon is started by that seat's sign-in carrier (next step), whose source is
+   `scripts/harness/win/wsl-seat-autostart.vbs` — install that entry before calling the seat unreachable.
+   **Install the `wsl` seat's sign-in carrier — `[MANUAL — one copy at the laptop, unelevated]`**: the carrier is a
+   Windows act because the distro does not exist until Windows asks for it, and a reimage loses the copy, so re-run
+   this after one. From PowerShell at the repo root:
+   ```powershell
+   Copy-Item scripts\harness\win\wsl-seat-autostart.vbs "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup\" -Force
+   cscript.exe //nologo "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup\wsl-seat-autostart.vbs"
+   ```
+   Run it once with the seat live and prove it changed nothing — the pair must print the same two numbers before
+   and after: `wsl.exe -d Debian -u domen -- bash -lc 'systemctl --user show amazingmcp.service -p MainPID -p NRestarts'`.
+   The entry writes no registry key, no scheduled task and no unit file, and it sets no linger.
+   **`wsl` seat after a reboot or a distro stop — `[MANUAL — the act an agent inside the distro cannot take]`**:
    `wsl --shutdown` terminates every Linux process in the distro, including the agent that runs it, so the
-   boot leg of this seat is read from Windows and never from a shell in the distro. From PowerShell at the
-   laptop: `wsl --shutdown`, wait 10 s,
+   boot leg of this seat is read from Windows and never from a shell in the distro. Sign in first — the carrier
+   fires at a sign-in and at nothing else — then read what it asked for:
+   `wsl.exe -d Debian -u domen -- bash -lc 'systemctl --user is-active amazingmcp.service'` must say `active`, and
+   the port the phone reads must answer: `netstat -an | findstr <tailnet-ip>:<paseo_ports.wsl>` → `LISTENING` and
+   `curl.exe -m 6 -s -o NUL -w "%{http_code}" http://<tailnet-ip>:<paseo_ports.wsl>/api/agents` → `401`. To start the
+   seat by hand instead of waiting for a sign-in, run
    `wsl.exe -d Debian -u domen -- bash -lc 'paseo daemon start'` — the `bash -lc` is load-bearing, not style:
    a bare `-- paseo …` is a non-login exec whose PATH ends with the interop PATH, so it finds
    `…\Volta\bin\paseo`, the **Windows** CLI on another home, and starting that is the act the `win11` seat
-   forbids — then read the
-   port the phone reads: `netstat -an | findstr <tailnet-ip>:<paseo_ports.wsl>` must say `LISTENING` and
-   `curl.exe -m 6 -s -o NUL -w "%{http_code}" http://<tailnet-ip>:<paseo_ports.wsl>/api/agents` must say
-   `401`. A `LISTENING` row with no `401` is the arm unloaded (reload again); nothing at all is the
-   portproxy unbound (run the elevated `-Push` above), and a dark port after an act that resolved to a
-   `/mnt/c` binary proved nothing about the seat. The mechanism and what is still open on this seat
-   are the `Options (OQ-18)` section of [docs/services-ai.md](docs/services-ai.md).
+   forbids. A `LISTENING` row with no `401` is the arm unloaded (reload again); nothing at all is the
+   portproxy unbound (run the elevated `-Push` below), and a dark port after an act that resolved to a
+   `/mnt/c` binary proved nothing about the seat. If `amazingmcp.service` reads `inactive` on a distro nobody
+   opened a shell in, the user manager did not come up without a session: `sudo loginctl enable-linger domen`, and
+   the boot model in [docs/services-ai.md](docs/services-ai.md) §9b-1 changes to name what the carrier depends on.
 
    **A laptop seat that was reset or reinstalled** can read configured and still carry nothing; the mechanism is
    [docs/services-ai.md](docs/services-ai.md) §9b-1. Run the carrier with `-Push` from an elevated PowerShell at

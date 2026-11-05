@@ -278,7 +278,6 @@
 2	todo-table.md	todo-table.md	§4
 1	todo-table.md	todo-table.md	§5
 1	todo-table.md	todo-table.md	§7b
-1	todo-table.md	todo-table.md	§9b
 1	todo-table.md	todo-table.md	§Per-Subnet
 1	todo-table.md	todo-table.md	§refs
 1	todo-table.md	todo.md	§A
