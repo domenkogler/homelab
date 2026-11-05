@@ -228,8 +228,9 @@ Three exports (one per pool + the face-thumbs push target — mounts can't span 
 - Ownership uid/gid **`storage_uid`/`storage_gid` = 1005 (`media`)** — the neutral shared-data owner, NOT domen/1000; matches *arr `PUID/PGID`, Jellyfin/OpenCloud `user:` and the Samba force user/group; NFS `root_squash` on.
 - fstab mounts via Ansible (`storage` role). Hardlinks only ever cross paths **within** `bulk/media` — one dataset, one filesystem ✓.
 - **The `storage` role applies NFS exports on-change only** — the `Reload NFS exports` handler (`exportfs -ra`) is `notify`-driven by the `Render /etc/exports` template task, so an **idempotent converge (file unchanged) never re-asserts the live nfsd export table**. If a live export is dropped for any reason, subsequent converges won't restore it while `/etc/exports` is already correct — a client then errors `Stale file handle` on that automount. Recovery: `sudo /usr/sbin/exportfs -ra` on the NAS to re-apply (then clear the client's stale handle; runbook in [deployment-manual.md §Phase 2](../deployment-manual.md)). Robustness option: make exports ensure-present each run rather than notify-on-change.
-- **Every export names oldsrv's address as its only client** (`showmount -e` on the nas answers
-  `10.10.1.30/32` for all three), so no other host gets a mount-assisted archive hop: an offload to or
+- **Every export names oldsrv's address as its only client** — `showmount -e` on the nas answers one
+  `/32` per export, and that address is oldsrv's ([`network-addresses-generated.md`](network-addresses-generated.md)),
+  so no other host gets a mount-assisted archive hop: an offload to or
   from another machine is an **ssh pipe** — oldsrv's `rsync` where its leg works, otherwise a seat that
   can ssh both ends (`ssh src "dd if=f bs=4M" | ssh dst "dd of=…/f bs=4M"`, 109 MB/s = line rate on the
   1 G link; spark's weight archive records the route, the proof and the restore commands in
