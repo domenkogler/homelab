@@ -107,6 +107,8 @@ tags: [services, ai, rejected, decision-log, rag, memory]
 | `whisper.cpp` HIP/ROCm image for STT | rejected | No published ROCm artifact; self-build, no digest trail |
 | win11 CLI daemon boot carrier | rejected | The app's own setting carries the daemon; one listener, one author |
 | Workload discipline on sessions served by spark | rejected | The memory budget is the lever, not session policing |
+| `wsl` seat boot carrier as an elevated `ONSTART` task | rejected | Always-on WSL VM on a laptop, for a seat dark anyway |
+| `wsl` seat boot carrier as a systemd user unit | rejected | Distro never starts itself; a systemd child holds no instance |
 | `wyoming-faster-whisper-rocm` (ROCm faster-whisper) | rejected | Host ROCm + `/dev/kfd`; private CT2 fork; new model channel |
 | ZeroClaw on the VPS | rejected | Fleet credentials on an internet-facing host |
 | Blue/green engine pair behind `spark_engine_port` | rejected | Two resident engines do not fit the unified-memory budget — the fixed cost plus a 20 GB pool on each side crosses the device-hold ceiling |

@@ -2565,7 +2565,16 @@ Run everything as root on oldsrv (`sudo -n`); the cockpit itself always runs as 
    elevated `scripts/harness/win/paseo-seat-door.ps1`: two inbound rules scoped to the tailnet range and
    one portproxy whose target is **loopback**, because a tailnet-IP listener cannot bind while Tailscale
    is down. A headless seat answers nothing until something starts its daemon — nothing in the repo does,
-   so start it (`paseo daemon start`) or rule the carrier before reading a seat as unreachable.
+   so start it (`paseo daemon start`) or read the seat's own boot ruling before calling it unreachable.
+   **`wsl` seat after the distro stopped — `[MANUAL — the act an agent inside the distro cannot take]`**:
+   `wsl --shutdown` terminates every Linux process in the distro, including the agent that runs it, so the
+   boot leg of this seat is read from Windows and never from a shell in the distro. From PowerShell at the
+   laptop: `wsl --shutdown`, wait 10 s, `wsl.exe -d Debian -u domen -- paseo daemon start`, then read the
+   port the phone reads — `netstat -an | findstr <tailnet-ip>:<paseo_ports.wsl>` must say `LISTENING` and
+   `curl.exe -m 6 -s -o NUL -w "%{http_code}" http://<tailnet-ip>:<paseo_ports.wsl>/api/agents` must say
+   `401`. A `LISTENING` row with no `401` is the arm unloaded (reload again); nothing at all is the
+   portproxy unbound (run the elevated `-Push` above). The mechanism and what is still open on this seat
+   are [docs/services-ai.md](docs/services-ai.md) §9b-1.
 
    **A laptop seat that was reset or reinstalled** can read configured and still carry nothing; the mechanism is
    [docs/services-ai.md](docs/services-ai.md) §9b-1. Run the carrier with `-Push` from an elevated PowerShell at
