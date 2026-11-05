@@ -412,6 +412,41 @@ touches the engine and never edits the checkout; opt-in is `spark_profile_blazux
 but `blazux-v33` and that image without it: elsewhere the hook it switches on is not installed and the PLE table
 loads resident.
 
+**Running the `bz-v33-*` arms, in order.** Steps 1–3 touch no engine and boot nothing: `bz-v33-*` renders only
+through `roles/spark-llm-profile`, and the refusals that keep it unbootable are the empty
+`spark_vllm_blazux_v33_image` for both arms and `spark_llm_fp8_kv_capable_images` for the fp8 one.
+
+1. **Build and prepare, detached.** Read `df -P -B1 /` before the run and again after it: both the base pull and
+   the built image land there, and the run must leave `/` above the floor an `os`-rooted arm asserts
+   ("Why the arms live on `/`", below).
+   `nohup bash scripts/ansible/ansible-run.sh playbooks/spark.yml --limit spark
+   -e '{"spark_profile_blazux_build":true}' --tags spark-profile-blazux --no-pull
+   > /tmp/blazux-build-<YYYYMMDD>-<HHMM>.log 2>&1 &`, then poll the log — a foreground run behind an outer
+   timeout is killed mid-restart. Any list-valued extra goes in **JSON form** (`-e '{"k":["x"]}'`): the
+   `k='["x"]'` form arrives as a STRING, so a `selectattr('key','in',…)` filter matches substrings and an error
+   message prints one character at a time. `--tags spark-profile-blazux` keeps the run out of
+   `docker_services`, so no engine container is recreated. **The run ends RED on purpose** — the unpinned-ID
+   fail is this step's success, and it prints the immutable image ID.
+2. **Pin that ID** as `spark_vllm_blazux_v33_image` in `group_vars/all/versions.yml`, in its own commit. Never
+   `spark_vllm_blazux_v33_tag`: a tag is a mutable alias (CONVENTIONS §7) and the build is never re-run in place.
+3. **Prove fp8 on the built image:** `python3 scripts/bench/spark-fp8-image-probe.py --image <that ID>
+   --skip-registry`. Only a `REACHABLE-ON-THIS-PIN` verdict admits `blazux-v33` to
+   `spark_llm_fp8_kv_capable_images`, and in the same change that admits it. `UNDECIDED` is not a verdict, and the
+   Dockerfile's own fp8 grep at build time is source evidence, not this one — and when the only mark that fires is
+   `fp8_e4m3`, what fired is upstream's own patch, so name the mark beside the entry.
+4. **Then the flips, in an owner-present window, from a seat spark does not serve** (rule 0: a session whose own
+   model the engine serves takes no timed number). `bz-v33-bf16` first, then `bz-v33-fp8`, each converged detached
+   with a **per-run** `-e spark_llm_allow_uncertified=true` — never a committed one. A full `spark.yml` converge is
+   refused today by the missing `tailscale-spark_api` vault item, so the window carries
+   `--skip-tags tailscale-node`; that tag reaches no engine task. Read the boot log's `GPU KV cache size` line
+   **before any timer** — a pool under 262,144 makes every timed leg fail for the wrong reason — then gates 0–7 and
+   a **paired** gate-6 battery against `fast` (these arms change the weights as well as the engine, so that
+   comparison attributes nothing), then gates 8–9 of the fp8 arm against `bz-v33-bf16`. Two figures move inside
+   those gates: `fixed_cost_bytes: 90.0e9` is DERIVED and gate 7 replaces it, and `--mamba-ssm-cache-dtype
+   bfloat16` is kept as published, which is why gate 8's acceptance read is where a recurrent-state cost appears.
+   The ladder itself is [spark/llm-profiles/README.md](../spark/llm-profiles/README.md) §Gate order; the rollback
+   is `-e spark_llm_profile=fast` in the same detached form.
+
 **The arms** (each is `certified: false` until it wins a leg; every loser is a row in
 [services-ai-rejected.md](services-ai-rejected.md), and the reports under `spark/reports/hd489-*`
 keep the raw evidence under their own names):
@@ -480,9 +515,16 @@ candidates nobody wanted to re-download. XFS now reads **170 G free** — the re
 117 GB left the box for the nas archive ([hardware-spark.md](hardware-spark.md), "Artifact store") — and
 the placement stands unchanged: relocating a live arm's store is an engine re-cert, not a free win, and
 XFS has to keep its headroom for the 132.7 GB checkpoint + 13 GB conversion the `bz-v33-*` arms stage.
-The root partition measures **162 G free** and the gate asserts a 150 GB floor on it before an
-`os`-rooted arm boots, which is why a v33 base pull or lineage build (both land on `/`) is the act that
-has to free `/` first — and the build cache is not the lever.
+The root partition reads **173.9 GB free** (`df -P -B1 /` — 162 GiB, and the floor below is decimal bytes, so
+GiB and GB are not the same margin here) against the 150,000,000,000 B gate floor an `os`-rooted arm asserts
+before it boots: **23.9 GB of headroom**, which is why a v33 base pull or lineage build (both land on `/`) is the
+act that has to free `/` first. The pull is bounded rather than guessed — the v0.33 arm64 manifest is 10.90 GB
+over 38 layers and **32 of those layers share no digest with anything on this box** (the v0.32 base overlaps by
+0.13 GB), so nothing dedups the way the v32 build's base pull did, which moved `/` by 12.9 MB. And because the
+store keeps compressed blobs *and* unpacked snapshots, what lands is between ~11 GB and ~37 GB — a coin that only
+the pull itself flips, against 23.9 GB of headroom. Every lever is the owner's: the build cache is 44.97 GB
+reclaimable and ⛔, every inactive image on the box carries 736 MB between them, and relocating tier 2 to XFS is
+the re-cert named above.
 
 **The never-evict prompt pin is authored, gated and empty.** `spark_llm_never_evict_prompt` in
 `group_vars/spark.yml` is the ONE value (the operator's pi global-instructions text, inlined because the
