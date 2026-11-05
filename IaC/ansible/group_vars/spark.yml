@@ -106,7 +106,9 @@ spark_llm_edge_forwardauth_attached: false   # committed OFF; the attach is what
 spark_models_dir_os: /opt/homelab/models
 # Floor the profile gate asserts on that partition before an `os`-rooted arm boots: the
 # upstream checkpoint (~130 GB) plus its table plus room for the drafter conversion to
-# write. Free space on that partition: 345 GB. A breach means the store filled up — the
+# write. Free space on that partition reads 173.9 GB (`df -P -B1 /`), so the margin over this
+# floor is 23.9 GB — quote the bytes, not a GiB figure, because the floor is decimal and a GiB/GB
+# mix halves or doubles the apparent margin. A breach means the store filled up — the
 # remedy is to free space, never to lower the floor (roles/spark-llm-profile).
 spark_llm_os_min_free_bytes: 150000000000
 # The upstream build inputs/outputs (roles/spark-ultrafast-build). The drafter directory is
@@ -196,8 +198,10 @@ spark_llm_authz_memory_limit: "64M"   # compose `limits.memory` — MUST be a st
 # ==== Artifact SETS + the explicit download opt-in =================
 # The manifest stays generic (roles/spark-artifacts maps repo → XFS dir), but it
 # is now assembled from named SETS, and only what `spark_artifacts_fetch` lists
-# is downloaded. Default = the two sets already staged live on the box (B1 AWQ
-# weights + INT4 tables) — a profile flip NEVER starts an 84 GB download.
+# is downloaded. Default = the EMPTY list: every set the store can fetch is off the box, so a profile
+# flip NEVER starts a download and a routine converge never re-stages one either (the role has no
+# prune task — it only writes, so a set listed here is a promise to fill it, and one missing here is
+# simply absent until someone acts).
 # To stage the NVFP4 lane deliberately:
 #   ansible-playbook -i inventory.ini playbooks/spark.yml --limit spark \
 #     --tags spark-artifacts \
@@ -205,22 +209,30 @@ spark_llm_authz_memory_limit: "64M"   # compose `limits.memory` — MUST be a st
 # The JSON form is the one to write, not `-e spark_artifacts_fetch='["x"]'`: the key=value form arrives
 # as a STRING, so the `selectattr('key','in', …)` that builds spark_artifacts degrades to a substring
 # test and a failure message prints the set one character at a time. Proved on the nvfp4-nvidia staging.
-# Disk: the two NVFP4-lane sets measured 88.6 GB + 28.8 GB = 117 GB of XFS, and BOTH are offloaded
-# to the nas (/tank/data/gpu-weights/spark/, byte-verified there), because the only arm that names
-# them is the rejected `nv-patch`.
-# Restoring one is an oldsrv-side rsync, and XFS has to hold it — the "Artifact store" note in
-# docs/hardware-spark.md carries the path and the command. Every set NOT named by a live or scheduled
-# arm stays off the box on purpose — the store is sized by what an arm can actually boot, not by what
-# the manifest can fetch.
-spark_artifacts_fetch: [b1-awq, ple-int4]
+# Disk: no set is staged on the box unless an arm that can boot is scheduled. The two NVFP4-lane sets
+# (117 GB) and both AWQ-lane sets (212.8 GB) are offloaded to the nas
+# (/tank/data/gpu-weights/spark/, byte-verified there): `nv-patch` is rejected, and the `reasoning` /
+# `graded` / `u1`–`u4` arms that name the AWQ pair are not the fallback — `fast` is, and its store is
+# the `ar-hybrid` + `ple-fp8` pair under `spark_models_dir_os` on the root partition, which stays
+# staged. Restoring an offloaded set is an rsync back from the archive (NOT a re-fetch, and NOT this
+# list — the archive holds bytes, the manifest only describes how to fetch them), and XFS has to be
+# that big before it starts: the "Artifact store" note in docs/hardware-spark.md carries the path,
+# the command and the measured rate. Every set NOT named by a live or scheduled arm stays off the box
+# on purpose — the store is sized by what an arm can actually boot, not by what the manifest can fetch.
+spark_artifacts_fetch: []
 
 spark_artifact_sets:
   b1-awq:
+    # OFFLOADED to /tank/data/gpu-weights/spark/b1-awq/ on the nas — not staged on spark.
     - repo_id: "wtdcode/Qwen3.8-Flash-Next-AWQ-W4A16"
       kind: weights
       local_dir: "{{ spark_models_dir }}"
       subdir: "Qwen3.8-Flash-Next-AWQ"
   ple-int4:
+    # OFFLOADED to /tank/data/gpu-weights/spark/ple-int4/ on the nas — the 390 table shards are not
+    # staged on spark. The 3 overlay .py files ARE still staged (XFS overlays/, 270 KB), because an
+    # arm with ple_overlay binds them into the container; the archive carries them too, under
+    # ple-int4/overlays/.
     - repo_id: "primitive-ai/Qwen3.8-Flash-Next-PLE-quant"
       kind: files
       files: [worker_image_quant.py, ple_layer_quant.py, connector_mrv2.py]
@@ -351,9 +363,10 @@ spark_artifacts: "{{ spark_artifact_sets | dict2items | selectattr('key', 'in', 
 # spark-ai compose template binds these exact paths.
 # (The manifest itself moved ABOVE: spark_artifact_sets + spark_artifacts_fetch
 #  → spark_artifacts. Item keys and the role's `kind` values are unchanged.)
-# Kept here as the record of the live-staged default set: b1-awq + ple-int4,
-# i.e. weights 169 G + overlays 3×.py + INT4 tables 30 G/129 files STAGED LIVE —
-# the two dirs the `reasoning` profile mounts.
+# Kept here as the record of what the store holds when the list is empty: nothing staged. The AWQ pair
+# (weights 180.8 GB/60 files + overlays 3×.py + INT4 tables 32.0 GB/390 files — the dirs `reasoning`
+# and `graded` mount) sits in the nas archive instead, and `nvfp4-nvidia` (132.7 GB, staged by an
+# explicit fetch for the `bz-v33-*` arms) is the one set on XFS that no fetch list carries.
 
 # Spark headless mode — TRUE = enforce the headless operating contract:
 #   * mask sleep/suspend/hibernate/hybrid-sleep (DGX Spark idles into suspend, which

@@ -122,8 +122,11 @@ tags: [hardware, nas, zfs]
 > `MANIFEST.txt` (what / how / proof / restore) and a per-set path+size list. Being directories, neither
 > is snapshotted or syncoid-replicated: they are verified capacity offloads, not a backup layer, and the
 > knowledge for each stays with the host it came from (spark's: [`hardware-spark.md`](hardware-spark.md),
-> the "Artifact store" note). The copy path for both runs **through oldsrv**, the only host that can ssh
-> spark and mounts this export (`/mnt/nas/data`).
+> the "Artifact store" note). The copy path for both has historically run **through oldsrv**, the only
+> host that mounts this export (`/mnt/nas/data`) and can ssh spark — but that leg carries no credential
+> for the identities an agent holds today, so the last spark offload was carried by a seat that can ssh
+> both ends at 109 MB/s (line rate on the 1 G link); the pipe, the proof and the restore command are in
+> spark's note, which outranks this one.
 
 > **Topology locked: MIRROR, not raidz1 (owner decision).** Even though
 > OpenZFS 2.3+ adds single-disk RAIDZ expansion, mirror wins at this size: fast block-copy resilver,

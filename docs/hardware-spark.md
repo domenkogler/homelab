@@ -32,27 +32,49 @@ tags: [hardware, gpu, spark, gb10, grace-blackwell, ai]
 
 > **Artifact store:** the `spark-artifacts` role (`roles/spark-artifacts/`) downloads the
 > GPU-inference store onto XFS from a **config-agnostic manifest** (`spark_artifacts:` in
-> `group_vars/spark.yml`): B1 weights (`wtdcode/Qwen3.8-Flash-Next-AWQ-W4A16` → `models/`), PLE overlay
-> `.py` files, and INT4 tables (`primitive-ai/Qwen3.8-Flash-Next-PLE-quant` → `overlays/` +
-> `ples_int4/`) — **one download per quant-artifact, shared by every engine profile** (a future
-> NVFP4/SGLang repo = a separate download by design). Idempotent per repo; runnable standalone via
-> `--tags spark-artifacts`. Weights are ~169 G + ~30 G of tables — **regenerable, not backed up**
-> (same pattern as oldsrv `/srv/models/immich-ml`).
+> `group_vars/spark.yml`): one entry per quant-artifact (`wtdcode/…-AWQ-W4A16` → `models/`,
+> `primitive-ai/…-PLE-quant` → `overlays/` + `ples_int4/`, `nvidia/…-NVFP4` → `models/`) — **one
+> download per quant-artifact, shared by every engine profile** (another repo = a separate download by
+> design). Idempotent per repo; runnable standalone via `--tags spark-artifacts`; it has **no prune
+> task**, so it only ever writes — a set absent from `spark_artifacts_fetch` stays absent, and a
+> routine converge neither fetches nor deletes.
+> What the store physically holds is therefore not what the manifest can fetch: XFS reads **395.0 GB
+> free** and carries one staged set, `nvfp4-nvidia` (132.7 GB, staged by an explicit fetch), plus the
+> three PLE overlay `.py` files (270 KB) that an overlay-binding arm mounts — too small to be worth
+> offloading. Everything else is in the nas archive below: verified copies, so "regenerable" is the
+> last resort here, never the plan.
 
-> **What the box does NOT keep**, and how to get it back: the two sets the rejected `nv-patch` arm
-> names — `nvfp4-mixed` (archive dir `nvfp4-mixed/` = spark's `models/Qwen3.8-Flash-Next-mixed-NVFP4-FP8/`)
-> and `ple-nvfp4` (archive dir `ple-nvfp4/` = spark's `ples_nvfp4/`) — are offloaded to the nas at
-> **`/tank/data/gpu-weights/spark/`**, so `nv-patch` cannot boot until they are restored and no
-> `spark_artifacts_fetch` list needs to carry them. They sit beside the engine-image archive
+> **What the box does NOT keep**, and how to get it back: four sets are offloaded to the nas at
+> **`/tank/data/gpu-weights/spark/`**. Two are the ones the rejected `nv-patch` arm names —
+> `nvfp4-mixed` (archive dir `nvfp4-mixed/` = spark's `models/Qwen3.8-Flash-Next-mixed-NVFP4-FP8/`)
+> and `ple-nvfp4` (archive dir `ple-nvfp4/` = spark's `ples_nvfp4/`). Two are the AWQ pair: `b1-awq`
+> (archive dir `b1-awq/` = spark's `models/Qwen3.8-Flash-Next-AWQ/`, 180.8 GB / 60 files) and
+> `ple-int4` (archive dir `ple-int4/` = spark's `ples_int4/`, 32.0 GB / 390 files; its three overlay
+> `.py` files are archived under `ple-int4/overlays/` but STAY staged on spark's `overlays/`, 270 KB,
+> because an overlay-binding arm mounts them and they buy nothing). So `nv-patch` and the AWQ-mounting arms
+> (`reasoning`, `graded`, `u1`–`u4`, `awq-mmap`) cannot boot until their sets come back, and
+> `spark_artifacts_fetch` carries none of them — the role has no prune task, so an unlisted set is
+> simply absent, and a routine converge neither fetches nor deletes. What stays staged is what an arm
+> can actually boot: `ar-hybrid` + `ple-table-fp8` on the root partition (`fast`, the fallback) and
+> `nvfp4-nvidia` on XFS (the `bz-v33-*` pair). They sit beside the engine-image archive
 > `/tank/data/host-images/spark/` (`docker save` of the `fast` and `reasoning` images, sha256- and
 > zstd-verified by sidecars; the built lineage has no registry digest, so that archive plus spark's
-> image store are its only copies). Neither host can ssh the other, so **every copy runs through
-> oldsrv**, which can ssh spark and mounts the nas export at `/mnt/nas/data`:
+> image store are its only copies).
+>
+> **Copy path.** spark and nas cannot ssh each other, and the oldsrv relay the archive's own `how`
+> line describes has **no credential leg for the identities an agent holds** (`domen@oldsrv` and
+> `root@oldsrv` → spark, and spark → oldsrv: `Permission denied (publickey)`), so re-mint that leg
+> before assuming it. What works today is a seat that can ssh both ends streaming between them:
+> `ssh spark "dd if=<file> bs=4M" | ssh nas "dd of=<archive>/<rel> bs=4M"` — **109 MB/s measured,
+> which is line rate on the 1 G link**, so parallel streams buy nothing (the oldsrv route's 85 MB/s
+> figure is a per-stream floor, not a ceiling to beat). The pipe is not the proof: compare path+size
+> listings, then `sha256sum` every file on both sides (`find -type f -print0 | xargs -0 -P4 -n1`) and
+> diff the two hash lists, and only then delete on spark. Restore back onto the box is the same pipe
+> reversed — or, if the leg is re-minted, one hop on oldsrv:
 > `rsync -aH /mnt/nas/data/gpu-weights/spark/<set>/ ansible-admin@spark.kogler.si:<the set's local_dir>`
-> **run on oldsrv** (one hop, no relay disk, ~45 MB/s per stream and ~85 MB/s for the path — a single
-> stream is the floor, parallel streams are how a large set goes faster), and XFS must have the room.
-> The nas side of both archive dirs — directories, not datasets, so nothing snapshots or replicates them
-> — is recorded in [`hardware-nas.md`](hardware-nas.md).
+> **run on oldsrv** (no relay disk; XFS must have the room first). The nas side of both archive dirs —
+> directories, not datasets, so nothing snapshots or replicates them — is recorded in
+> [`hardware-nas.md`](hardware-nas.md).
 
 > **vLLM metrics → Grafana:** the spark-ai compose publishes `:8000` **loopback-only**
 > (`spark_metrics_publish: true`, `127.0.0.1`) so the spark Alloy can scrape vLLM's Prometheus

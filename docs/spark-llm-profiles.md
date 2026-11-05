@@ -418,7 +418,9 @@ through `roles/spark-llm-profile`, and the refusals that keep it unbootable are 
 
 1. **Build and prepare, detached.** Read `df -P -B1 /` before the run and again after it: both the base pull and
    the built image land there, and the run must leave `/` above the floor an `os`-rooted arm asserts
-   ("Why the arms live on `/`", below).
+   ("Why the arms live on `/`", below). Budget **~48 GB** for the pull — 10.77 GB of layers new by digest, and
+   the store keeps them both compressed and unpacked at ~3.4× — so the free-bytes figure, not the download
+   size, is what says whether the run may start.
    `nohup bash scripts/ansible/ansible-run.sh playbooks/spark.yml --limit spark
    -e '{"spark_profile_blazux_build":true}' --tags spark-profile-blazux --no-pull
    > /tmp/blazux-build-<YYYYMMDD>-<HHMM>.log 2>&1 &`, then poll the log — a foreground run behind an outer
@@ -511,11 +513,14 @@ ledger for both.
 
 **Why the arms live on `/`**: `spark_models_dir_os: /opt/homelab/models` takes the ~130 GB AR-hybrid
 checkpoint and the FP8 table because XFS, when those arms landed, held the certified weights plus two
-candidates nobody wanted to re-download. XFS now reads **170 G free** — the rejected `nv-patch` lane's
-117 GB left the box for the nas archive ([hardware-spark.md](hardware-spark.md), "Artifact store") — and
-the placement stands unchanged: relocating a live arm's store is an engine re-cert, not a free win, and
-XFS has to keep its headroom for the 132.7 GB checkpoint + 13 GB conversion the `bz-v33-*` arms stage.
-The root partition reads **173.9 GB free** (`df -P -B1 /` — 162 GiB, and the floor below is decimal bytes, so
+candidates nobody wanted to re-download. XFS now reads **395.0 GB free** — the rejected `nv-patch`
+lane's 117 GB left the box for the nas archive, and the AWQ pair's 212.8 GB followed it, since no live
+arm boots them ([hardware-spark.md](hardware-spark.md), "Artifact store") — and the placement stands
+unchanged: relocating a live arm's store is an engine re-cert, not a free win. What the offloads did
+not do is move `/`: XFS now has room for either the checkpoint pair the `bz-v33-*` arms stage
+(132.7 GB + 13 GB conversion) or the AR pair's 127.6 GB, and only that second move frees the root
+partition. The root partition reads **173.9 GB free** (`df -P -B1 /` — 162 GiB, and the floor below is
+decimal bytes, so GiB and GB are not the same margin here) against the 150,000,000,000 B gate floor an
 GiB and GB are not the same margin here) against the 150,000,000,000 B gate floor an `os`-rooted arm asserts
 before it boots: **23.9 GB of headroom**, which is why a v33 base pull or lineage build (both land on `/`) is the
 act that has to free `/` first. The pull is bounded rather than guessed — the v0.33 arm64 manifest is 10.90 GB
