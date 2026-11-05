@@ -2569,12 +2569,17 @@ Run everything as root on oldsrv (`sudo -n`); the cockpit itself always runs as 
    **`wsl` seat after the distro stopped — `[MANUAL — the act an agent inside the distro cannot take]`**:
    `wsl --shutdown` terminates every Linux process in the distro, including the agent that runs it, so the
    boot leg of this seat is read from Windows and never from a shell in the distro. From PowerShell at the
-   laptop: `wsl --shutdown`, wait 10 s, `wsl.exe -d Debian -u domen -- paseo daemon start`, then read the
-   port the phone reads — `netstat -an | findstr <tailnet-ip>:<paseo_ports.wsl>` must say `LISTENING` and
+   laptop: `wsl --shutdown`, wait 10 s,
+   `wsl.exe -d Debian -u domen -- bash -lc 'paseo daemon start'` — the `bash -lc` is load-bearing, not style:
+   a bare `-- paseo …` is a non-login exec whose PATH ends with the interop PATH, so it finds
+   `…\Volta\bin\paseo`, the **Windows** CLI on another home, and starting that is the act the `win11` seat
+   forbids — then read the
+   port the phone reads: `netstat -an | findstr <tailnet-ip>:<paseo_ports.wsl>` must say `LISTENING` and
    `curl.exe -m 6 -s -o NUL -w "%{http_code}" http://<tailnet-ip>:<paseo_ports.wsl>/api/agents` must say
    `401`. A `LISTENING` row with no `401` is the arm unloaded (reload again); nothing at all is the
-   portproxy unbound (run the elevated `-Push` above). The mechanism and what is still open on this seat
-   are [docs/services-ai.md](docs/services-ai.md) §9b-1.
+   portproxy unbound (run the elevated `-Push` above), and a dark port after an act that resolved to a
+   `/mnt/c` binary proved nothing about the seat. The mechanism and what is still open on this seat
+   are the `Options (OQ-18)` section of [docs/services-ai.md](docs/services-ai.md).
 
    **A laptop seat that was reset or reinstalled** can read configured and still carry nothing; the mechanism is
    [docs/services-ai.md](docs/services-ai.md) §9b-1. Run the carrier with `-Push` from an elevated PowerShell at

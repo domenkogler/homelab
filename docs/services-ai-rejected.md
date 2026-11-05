@@ -28,11 +28,14 @@ tags: [services, ai, rejected, decision-log, rag, memory]
 | `ar-blk-lean` (ar-blk minus the ple_dispatch env) | rejected | Crashes at first shard; knobs constitutive |
 | `ar-dv` (AR-hybrid + draft-vocab slice) | rejected | Slice lowers MTP acceptance 54.7 to 36.8 %, slows decode |
 | `ar-mmap` (AR-hybrid + FP8 PLE mmap) | rejected | Control arm, on par with tier-1, not a candidate |
+| A second accepted `--api-key` kept as an escape hatch for a down edge | rejected | It leaves a client-rotatable value in engine argv, which is the coupling [services-ai.md](services-ai.md) §9 #30 removes |
+| Authentik's forward-auth outpost as the machine-token verifier | rejected | It authenticates browser sessions, and its own blueprint excludes machine clients by design |
 | `awq-mmap` / B10 (AWQ on the winner's machinery) | dropped | Owner certified the AR-hybrid winner instead |
 | A wrapper service for OpenAI-shaped STT | rejected | `--inference-path` relocates the route; HA Assist needs no glue |
 | A wrapper service for OpenAI-shaped STT | superseded | HA speaks Wyoming only; the front serves Wyoming |
 | `bge-m3` vector leg for the `agentmemory` plane | dropped | Keyless BM25 clears every gate; recall shortfall re-opens |
 | Bigger window or smaller quant to reopen the agent leg | rejected | The wall is cold prefill, not the carve or context |
+| Blue/green engine pair behind `spark_engine_port` | rejected | Two resident engines do not fit the unified-memory budget — the fixed cost plus a 20 GB pool on each side crosses the device-hold ceiling |
 | Coding harnesses behind the LAN LiteLLM hop | rejected | Decision #26 puts harnesses direct on the spark name edge |
 | Coding-seat surfaces in a container | rejected | Would mount the whole watched home tree: theatre |
 | `context-mode` laptop seat entry | dropped | Per-machine install, not a fleet key |
@@ -50,11 +53,11 @@ tags: [services, ai, rejected, decision-log, rag, memory]
 | `dsh` / `pi-dev` as `docker_services` entries | superseded | Dedicated deployments now; their routes answer 502 by design |
 | EasyOCR as the Docling OCR engine | rejected | 3.2–3.4× slower, with its own diacritic and merge defects |
 | `EmbeddingGemma 2` as the `embed` leg | rejected | paper-only multilingual gain; loses sl/en slice; re-ingest |
+| `--enable-hierarchical-cache` (host-RAM KV tier) on GB10 | rejected | host RAM **is** the same 121.62 GiB pool — it spends host floor to move bytes sideways, unlike the NVMe sidecar table |
 | External APIs as a proxy fallback | rejected | A harness-side fallback, never a gateway fallback |
 | `fallback/login` as the LiteLLM login path | rejected | `/ui/login` resolves on the pinned build |
 | `fast` NVFP4 profile (mixed NVFP4/FP8 weights) | superseded | JIT-compiles QSA/GDN kernels; the name now marks the winner |
 | `fast-sglang` (SGLang + RadixArk NVFP4) | rejected | No arm64 digest, pool too small, PLE bind unwired |
-| `--enable-hierarchical-cache` (host-RAM KV tier) on GB10 | rejected | host RAM **is** the same 121.62 GiB pool — it spends host floor to move bytes sideways, unlike the NVMe sidecar table |
 | forward-auth on LiteLLM `/ui/*` route-wide | rejected | Breaks the same-host API bearer consumers |
 | GGUF AI legs capped at `1g` memory | superseded | CPU-fallback path peaks 1.59 GiB; the cap is 4g |
 | `graded` (fp8 main KV cache, same AWQ weights) | rejected | Pinned build has no fp8 KV; needs the engine-pin lane |
@@ -80,19 +83,20 @@ tags: [services, ai, rejected, decision-log, rag, memory]
 | PGVector as the vector store | superseded | Qdrant stands alone, hybrid dense + sparse |
 | Phase-2 Ryzen 9 9900X / R9700 build | superseded | spark (ThinkStation PGX / GB10) replaces it (#22) |
 | `pi-agent/extensions/host-status.ts` seat-identity footer | superseded | `pi-open-tui` footer `hostname` segment is the single source |
-| `pi-web` as the coding-seat surface | superseded | Paseo seats replace it; retire gated on the phone verdict |
-| `pi-web-ui` as a seat package | superseded | Retired with the cockpit; nothing installed it |
 | `pi.kogler.si` as the oldsrv seat URL | rejected | That FQDN is the RPi4 node; hence the `-oldsrv` suffix |
 | Pinned legs on the flat `services-internal` network | rejected | The network is the boundary; LiteLLM alone reaches them |
 | `pi` shim in `~/.local/bin` for the pi-web PATH | rejected | Node's bin dir must be on PATH, not a login-shell path |
+| `pi-web` as the coding-seat surface | superseded | Paseo seats replace it; retire gated on the phone verdict |
 | `pi-web` behind gateway-auth | rejected | Phone-driven cockpit: no browser for an Authentik flow |
 | `pi-web` on a `tailscale0` address bind | rejected | Plain HTTP, no cert, unreachable from every other node |
+| `pi-web-ui` as a seat package | superseded | Retired with the cockpit; nothing installed it |
 | Raising the LiteLLM proxy log level to see dropped params | rejected | It logs token-bearing request bodies |
 | Reflex key rotation after a partial-value leak | rejected | The documented rotation procedure carries it |
 | `remote-bash.ts` seat extension | dropped | Windows-only sshpass/drive paths, never in repo |
 | Rendering `settings.json` from a spec vendor | rejected | A vendor would delete a seat's packages |
 | Retiring the WSL Debian pi seat | superseded | Seat retained and rarely used |
 | Routing-domain split for `.ts.kogler.si` names | rejected | Ruled out; the generated alias artifact is the remedy |
+| sha256 allow-list instead of plaintext client tokens in the verifier's config | rejected | A second secret-delivery pattern for one file; the compose-env pattern already carries vault values 0600 |
 | `spark/*` wildcard in a scoped-key allow-list | rejected | The named row is granted; a wildcard over-grants the engine |
 | TEI (text-embeddings-inference) on the RX 7600 | rejected | No RDNA3 path; a 7-step self-build, flash-attn dropped |
 | `u1-patch` (patched lineage + AWQ, no spec decode) | rejected | Isolation control, beat by ar-blk |
@@ -111,10 +115,6 @@ tags: [services, ai, rejected, decision-log, rag, memory]
 | `wsl` seat boot carrier as a systemd user unit | rejected | Distro never starts itself; a systemd child holds no instance |
 | `wyoming-faster-whisper-rocm` (ROCm faster-whisper) | rejected | Host ROCm + `/dev/kfd`; private CT2 fork; new model channel |
 | ZeroClaw on the VPS | rejected | Fleet credentials on an internet-facing host |
-| Blue/green engine pair behind `spark_engine_port` | rejected | Two resident engines do not fit the unified-memory budget — the fixed cost plus a 20 GB pool on each side crosses the device-hold ceiling |
-| A second accepted `--api-key` kept as an escape hatch for a down edge | rejected | It leaves a client-rotatable value in engine argv, which is the coupling [services-ai.md](services-ai.md) §9 #30 removes |
-| sha256 allow-list instead of plaintext client tokens in the verifier's config | rejected | A second secret-delivery pattern for one file; the compose-env pattern already carries vault values 0600 |
-| Authentik's forward-auth outpost as the machine-token verifier | rejected | It authenticates browser sessions, and its own blueprint excludes machine clients by design |
 
 ## What would reopen OV
 
