@@ -602,7 +602,7 @@ spark_vllm_blazux_v33_tag: "spark-blazux:v33-17b025f"   # build output name only
 # Provenance: built by roles/spark-profile-fast-v33 from the plan in its own defaults (the port is
 # this repository's data, so `git log` on that file is the port's history), staging the two pinned
 # recipes below read-only as patch sources.
-spark_vllm_fast_v33_image: ""                    # INTENTIONALLY EMPTY — the empty value IS the gate (CONVENTIONS §7); the build prints the ID a human pins
+spark_vllm_fast_v33_image: "sha256:1df406bca87e6b9cf15d4de2b43ec949f1c0c950c19346b72b1bc0567f01eec1"   # built image ID (roles/spark-profile-fast-v33's deliberate fail prints it); built FROM spark_vllm_v33_base_image at its pin, from the plan in that role's defaults, at recipe commit 0c391a3e74b6…; its tag is never served (§7)
 spark_vllm_fast_v33_tag: "spark-fast:v33-0c391a3"   # build output name only; its own repository, so it can never move a day-0, v32 or blazux tag
 # The checkpoint that lineage serves: NVIDIA's own NVFP4 export, `quant_method: modelopt` in
 # config.json at this revision, 132.7 GB including its PLE table + MTP head in

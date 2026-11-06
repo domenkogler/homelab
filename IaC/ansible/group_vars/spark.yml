@@ -508,12 +508,20 @@ spark_llm_never_evict_capable_images: [ultrafast]
 # own qsa.py — an `UNDECIDED` probe is not a verdict (CONVENTIONS §7: the pin is the evidence), and a
 # name entered before that leg ran would make every offline gate green BY ASSERTION. With the name
 # absent the arm reads GATED ("no fp8 main-KV read path in that build"), which is the truth.
-# `ultrafast-v32` is the one name, and its evidence is that leg's REACHABLE verdict on the built
-# image: `vllm/models/qwen4_exp/nvidia/qsa.py` declares "fp8_e4m3" in supported_kv_cache_dtypes
-# (:154-158) and takes the fp8 branch at :236, with no BF16-only raise anywhere in the file
-# (spark/reports/hd1206-v32-port-20261026/build-20261027.md). A stock v0.32 release stays unlisted on
-# purpose: it cannot serve this checkpoint at all (the `VLLM_FP8_HYBRID` dispatch is patch-stack only).
-spark_llm_fp8_kv_capable_images: [ultrafast-v32]
+# Two names, each entered on its own REACHABLE verdict from that leg run against the BUILT image, never
+# against a base:
+#   * `ultrafast-v32` — its `vllm/models/qwen4_exp/nvidia/qsa.py` declares "fp8_e4m3" inside
+#     supported_kv_cache_dtypes (:154, :158) and takes the fp8 branch at :236, with no BF16-only raise
+#     anywhere in the file (spark/reports/hd1206-v32-port-20261026/build-20261027.md).
+#   * `ultrafast-v33` — the same file in the v0.33-lineage build declares "fp8_e4m3" inside
+#     supported_kv_cache_dtypes (:154, :158), takes the fp8 branch at :236, admits fp8 at its dtype
+#     check (:258) and answers zero hits for the "BF16 main KV" raise; read at vllm.__version__ 0.33.0
+#     on arm64/linux, at the ID pinned as spark_vllm_fast_v33_image. That is this arm's BUILD capability
+#     and nothing more — no boot of `fast-v33-fp8` has been measured, which is what its
+#     `certified: false` records.
+# A stock release stays unlisted on purpose: it cannot serve this checkpoint at all (the
+# `VLLM_FP8_HYBRID` dispatch is patch-stack only).
+spark_llm_fp8_kv_capable_images: [ultrafast-v32, ultrafast-v33]
 
 # The SGLang side of the same question, keyed by DIGEST rather than by name, because on this engine
 # fp8 KV is a SOURCE fact and not a dtype guard: QSA crashed on FP8 cached prefixes (#36545) until
@@ -1590,13 +1598,16 @@ spark_llm_profiles:
   # capacity arm whose engine line the projection gets to be wrong about (docs/spark-llm-profiles.md
   # §Nomenclature — the engine's line is the number of record, never the arithmetic beside it).
   #
-  # BOTH ARMS ARE REFUSED TODAY, by the pin: spark_vllm_fast_v33_image is empty, and an empty pin IS
-  # the refusal (CONVENTIONS §7). Nothing about a flip can open that gate; only a build can.
+  # BOTH ARMS ARE BOOTABLE-AND-UNCERTIFIED, which is a different state from refused: spark_vllm_fast_v33_image
+  # carries a built ID, so nothing in the catalogue refuses either arm offline (an empty pin would be
+  # that refusal — CONVENTIONS §7 — and only roles/spark-profile-fast-v33 can produce the ID). What
+  # neither arm has is a measured boot on this box, the same gap the v32 pair carries.
   fast-v33-bf16:
     <<: *u_x
     label: "UNCERTIFIED — `fast`'s coordinates on the v0.33 lineage at bf16 KV (the build-lineage control)"
     image: ultrafast-v33          # the patch stack re-anchored ON spark_vllm_v33_base_image; its built
-                                  # ID is spark_vllm_fast_v33_image, currently empty (the gate). Bumping
+                                  # ID is pinned as spark_vllm_fast_v33_image, which is what makes this
+                                  # arm bootable-and-UNCERTIFIED rather than gate-blocked. Bumping
                                   # `base`/`ultrafast`/`ultrafast-v32` instead would re-engine a certified
                                   # lane or the live rollback, which is the thing this lineage exists to
                                   # avoid (roles/spark-profile-fast-v33 reserves every one of those tags).
@@ -1649,10 +1660,9 @@ spark_llm_profiles:
       expected to falsify rather than confirm. Replaced by measurement, never by argument."
     certified: false
     uncertified_reason: >-
-      (a) THE LINEAGE, and it is empty: spark_vllm_fast_v33_image holds no ID until
-      roles/spark-profile-fast-v33 builds one, and the plan it builds from refuses to run before
-      someone censuses the v0.33 base and fills it in — so this arm is GATED, not bootable-and-
-      uncertified the way the v32 pair is. (b) WHAT IT HAS TO PROVE, and it is a short list because
+      (a) THE LINEAGE: spark_vllm_fast_v33_image carries the built ID of the re-anchored v0.33 patch
+      stack, so this arm is bootable-and-uncertified the way the v32 pair is — never booted on this box.
+      (b) WHAT IT HAS TO PROVE, and it is a short list because
       the weights carry: the same engine KV-cache line `fast` prints (a different number means the
       pool arithmetic moved under the port), RestartCount=0 on an eager boot, the boot time that is
       this lane's whole claim, and the quick tier. (c) WHAT IT IS NOT: not a capacity arm and not a
@@ -1704,9 +1714,11 @@ spark_llm_profiles:
       arm's own MemAvailable-jump reading (docs/spark-incidents.md §Incidents #4/#5/#6)."
     certified: false
     uncertified_reason: >-
-      (a) GATED twice: the empty spark_vllm_fast_v33_image pin, and `ultrafast-v33` is absent from
-      spark_llm_fp8_kv_capable_images until the fp8 probe's box leg answers on the built ID. Neither
-      refusal opens without the build and the probe. (b) WHAT IT HAS TO PROVE: the engine's own KV
+      (a) THE BUILD, and it is answered: spark_vllm_fast_v33_image carries the built ID, and the fp8
+      probe's box leg read the fp8 main-KV path in that image's own qsa.py, which is what admits
+      `ultrafast-v33` to spark_llm_fp8_kv_capable_images. Every runtime number below is still missing —
+      the dtype is a fact about the build, never a measurement of the arm.
+      (b) WHAT IT HAS TO PROVE: the engine's own KV
       cache line at fp8 (the projection beside it is a projection — the line wins), then the quick
       tier and the memory ladder down to 12 GB, each step read before any timed leg. (c) WHAT IT IS
       NOT: it is not the blazux capacity arm — different weights, different activations, and a
