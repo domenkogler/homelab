@@ -124,11 +124,15 @@
 
 - name: Assert the base matches the plan's counts
   # A count of 0 means the file moved; a count above the plan means the patcher would touch sites
-  # nobody counted. Both are read before building, because `sed -i` exits 0 either way.
+  # nobody counted. Both are read before building, because `sed -i` exits 0 either way. The grep
+  # prints the count on stdout and exits 1 only for a zero count, so stdout — not rc — is the
+  # reading; a missing file prints nothing and grades as 0. `port_v33.py count` re-grades the same
+  # claims inside the build (Dockerfile.v33); this leg refuses BEFORE the context is staged.
   ansible.builtin.assert:
     that:
-      - fv33_base_counts.results | zip(spark_profile_fast_v33_patch_plan
-          | map(attribute='expect') | map('int')) | rejectattr('0.rc', 'eq', 1) | list | length == 0
+      - >-
+        [ r.item.name for r in fv33_base_counts.results
+        if (r.stdout | default('0') | trim | int(-1)) != (r.item.expect | int) ] | length == 0
     fail_msg: >-
       The base image does not answer the counts the plan declares:
       {% for r in fv33_base_counts.results %}
@@ -138,7 +142,6 @@
       {% endfor %}
       Read each site and restate the plan, or set spark_profile_fast_v33_unplanned deliberately. Do
       NOT widen an upstream patcher's own assert to make it pass.
-  failed_when: false
   when: fv33_base_counts.results | default([]) | length > 0
   tags: [spark, spark-profile-fast-v33, llm]
 
@@ -165,8 +168,8 @@
     cmd: >-
       bash -c 'set -euo pipefail
       mkdir -p {{ spark_profile_fast_v33_build_dir }}/port;
-      cp -a {{ spark_ultrafast_src_dir }}/. {{ spark_profile_fast_v33_build_dir }}/port/day0/ 2>/dev/null || true;
-      mkdir -p {{ spark_profile_fast_v33_build_dir }}/port/blazux;
+      mkdir -p {{ spark_profile_fast_v33_build_dir }}/port/day0 {{ spark_profile_fast_v33_build_dir }}/port/blazux;
+      cp -a {{ spark_ultrafast_src_dir }}/. {{ spark_profile_fast_v33_build_dir }}/port/day0/;
       cp -a {{ spark_blazux_src_dir }}/. {{ spark_profile_fast_v33_build_dir }}/port/blazux/;
       rm -rf {{ spark_profile_fast_v33_build_dir }}/port/blazux/.git;
       rm -f {{ spark_profile_fast_v33_build_dir }}/port/day0/build.sh;
@@ -176,14 +179,30 @@
   become_user: "{{ ansible_user }}"
   tags: [spark, spark-profile-fast-v33, llm]
 
-- name: Place this lineage's own porter and build definition
+- name: Place this lineage's porter, guard porter, vendored recipe files, and build definition
+  # The Dockerfile consumes the context as `COPY port/ /port/`, so everything the plan's cmds reach
+  # for must land UNDER port/ — the earlier form that dropped port_v33.py at the build-dir root
+  # built a container whose first RUN could not find it. patch_mamba_guard_v32.py is taken from the
+  # fast8 role's own files (one source, per the entry's comment), and the two autoround files are
+  # vendored at spark_autoround_recipe_commit (R14: the checkout is taken for the .c alone; nothing
+  # here is parsed from a checkout).
   ansible.builtin.copy:
-    src: "{{ item }}"
-    dest: "{{ spark_profile_fast_v33_build_dir }}/{{ item }}"
+    src: "{{ item.src }}"
+    dest: "{{ spark_profile_fast_v33_build_dir }}/{{ item.dest }}"
     mode: "0644"
   loop:
-    - Dockerfile.v33
-    - port_v33.py
+    - src: Dockerfile.v33
+      dest: Dockerfile.v33
+    - src: port_v33.py
+      dest: port/port_v33.py
+    - src: "../spark-profile-fast8/files/patch_mamba_guard_v32.py"
+      dest: port/patch_mamba_guard_v32.py
+    - src: autoround/ple_mmap_graph.c
+      dest: port/autoround/ple_mmap_graph.c
+    - src: autoround/vllm_ple_mmap_v032.py
+      dest: port/autoround/vllm_ple_mmap_v032.py
+  loop_control:
+    label: "{{ item.dest }}"
   tags: [spark, spark-profile-fast-v33, llm]
 
 - name: Render the patch plan into the build context

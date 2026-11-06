@@ -1,3 +1,4 @@
+{#
 # patch-plan.json — the rendered form of spark_profile_fast_v33_patch_plan
 # (roles/spark-profile-fast-v33/defaults/main.yml). This file is the build context's only view of the
 # patch set, and it is RENDERED, never hand-edited: the plan is IaC data, so a count that lives only
@@ -6,6 +7,7 @@
 # Each entry: name / path / pattern / expect / marker / cmd. `expect` is an anchor count read from
 # the base image at its pin digest — see files/port_v33.py for what happens when it is wrong, and
 # ⛔ never widen an upstream patcher's own assert to make a count agree.
+#}
 {
   "lineage": "spark-profile-fast-v33",
   "base": "{{ spark_vllm_v33_base_image }}",
