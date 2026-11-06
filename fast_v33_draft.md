@@ -344,13 +344,15 @@ came along, because that is the §8.6 question answered rather than assumed.
 
 ## 6b. What the preparing session left done, and where each piece lives
 
-Everything below is committed on the branch this brief was merged from. The window starts at step 1, and
-the census verdict in §6b names the authoring still owed: **the v33 port itself**, for the 8 day-0 patchers
-whose anchors moved at this layout. Everything else below is done.
+Everything below is committed on the branch this brief was merged from. The census verdict below named
+one piece of authoring owed — **the v33 port itself**, for the 8 day-0 patchers whose anchors moved at
+this layout. That port was authored on 2026-11-07 and is in the plan now (23 entries, every `expect`
+a count read against the base at its pin digest, dry-run green end to end); everything else below is
+done.
 
 | piece | where it lives | what the window must still do to it |
 |---|---|---|
-| the lineage | `IaC/ansible/roles/spark-profile-fast-v33/` (defaults = the plan and the lineage data, tasks = the order, files = `port_v33.py` + `Dockerfile.v33`, templates = the rendered plan) | fill `spark_profile_fast_v33_patch_plan` from the census; the role refuses to build until it is filled |
+| the lineage | `IaC/ansible/roles/spark-profile-fast-v33/` (defaults = the plan and the lineage data, tasks = the order, files = `port_v33.py` + `Dockerfile.v33` + the two vendored AutoRound files, templates = the rendered plan) | plan filled 2026-11-07 by the port session; the role still refuses to build an empty one, and `port_v33.py count` re-grades every count inside the build |
 | the two arms | `IaC/ansible/group_vars/spark.yml` (`fast-v33-bf16` / `fast-v33-fp8`), pin name `spark_vllm_fast_v33_image` in `group_vars/all/versions.yml`, image name and base token in the two maps at the foot of the same file | pin the ID the build prints; nothing else changes them |
 | the pool knob (R8) | `spark_llm_kv_pool_bytes` in `group_vars/spark.yml` — empty means the arm's own value, and `roles/spark-llm-profile` grades the EFFECTIVE pool, so a ladder step cannot boot past the ceiling or below the window | pass it per run: `-e spark_llm_kv_pool_bytes=12000000000` |
 | the disk exemption (R3, R11) | `spark_llm_os_free_gate_exempt` (default `false`) and the assert that reads it, which prints the accepted number | pass it per run once `/` is under the floor; never commit it `true` |

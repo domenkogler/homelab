@@ -111,8 +111,12 @@ def table(plan: list, root: str, show_after: bool = False) -> int:
                 % (ent["name"], got, ent["expect"], mark, os.path.basename(ent["path"])))
         if show_after:
             line += "  sha %s" % fingerprint(text)
-        print(("OK     " if got == ent["expect"] and (not show_after or mark >= 1) else "BAD    ") + line)
-        if got != ent["expect"] or (show_after and mark < 1):
+        # show_after (the verify leg) grades the MARKER only: the anchor is the
+        # pre-state, and a sed that did its job legitimately deletes it (the fla
+        # lines). Re-asserting the anchor here would fail an edit that landed.
+        ok = (mark >= 1) if show_after else (got == ent["expect"])
+        print(("OK     " if ok else "BAD    ") + line)
+        if not ok:
             bad += 1
     return bad
 

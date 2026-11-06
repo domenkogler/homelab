@@ -44,23 +44,590 @@ spark_profile_fast_v33_lineage:
   build_drafter: false    # the drafter directory is the checkpoint's own artifact; converting it here
                           # would rewrite what the live `fast` boots, for no image-level gain
 
-# ---- The patch plan, and why it is EMPTY here ----
-# One entry per edit the build performs, in build order. `cmd` runs in the build context with the
-# v33 tree mounted at $VLLM_ROOT; `marker` is the string that edit must leave in the FINISHED image;
-# `expect` is how many times its anchor must occur in the BASE image at this digest.
+# ---- The patch plan — filled from the census against the base at its pin digest ----
+# Every `expect` is a read against spark_vllm_v33_base_image at its pin digest — the
+# anchor census (/tmp/fastv33-census-v33base.md, tool: spark/reports/hd1206-v32-port-20261026/
+# anchor_census.py) plus a throwaway-container dry-run of THIS plan (port_v33.py apply,
+# writable layer discarded): 23/23 anchors match the base, 23/23 edits leave their
+# marker, and every touched or installed module byte-compiles. Nobody widened a count.
 #
-# It ships EMPTY, and the role refuses an empty plan. Not for lack of a recipe — because the honest
-# value of `expect` is a fact about an image this file cannot read: the measured v32 case is the
-# warning, where upstream's patcher asserts exactly two `expert_data.copy_(loaded_weight)` sites and
-# our live image carries five (the v32 image four). Filling this table from the day-0 or v32 file
-# instead of from a census of the v33 base is how a patcher ends up quietly patching two of five
-# sites, which is a silent behaviour change wearing a green build.
+# The census's 12 countable day-0 patchers, by disposition:
+#   LAND verbatim (4)      patch_step_profile, patch_measure_draft_mass,
+#                          patch_in_proj_ba_gemv (+ patch_r7_logger, by order), and the
+#                          short-conv post-state — three apply, one is guard-only.
+#   RE-ANCHORED here (5)   patch_never_evict, patch_hit_debug, patch_mamba_align_split,
+#                          patch_verify_topk_pivot, patch_block_drop — each pair carries
+#                          the v32 re-anchoring (roles/spark-profile-fast8/files/port_v32.py,
+#                          the shape this plan copies) plus the v0.33 delta, site by site.
+#   PARKED (2), in the census's own words, NOT entries — no honest (pattern, expect) exists:
+#     patch_ple_rendezvous  its target is the day-0 hook's ids-D2H line; this lineage
+#                           carries the blazux hook instead, whose graph-aware custom-op
+#                           form has no counterpart to re-anchor (census: blind spot,
+#                           not a verdict). Re-anchoring it would PATCH a module this
+#                           build no longer installs.
+#     patch_moe_name_index  native upstream since v0.31; the blazux Dockerfile does not
+#                           run it at this pin either (census blazux row).
+#   Not a census patcher: the v32 mamba-guard porter runs verbatim (entry mamba_guard —
+#   dry-run: 13/13 anchors at the v33 base), and the two fla seds, the fp8-hybrid append,
+#   lm_head, draft-vocab and the hook rows mirror Dockerfile.v32's steps 1–6 and 11.
 #
-# The census is one command on the box, read-only, no engine touched:
-#   python3 spark/reports/hd1206-v32-port-20261026/anchor_census.py \
-#     --image {{ spark_vllm_v33_base_image }} --anchors <the patterns named below>
-# Each entry then reads: { name, cmd, marker, path, pattern, expect } with `expect` an integer.
-spark_profile_fast_v33_patch_plan: []
+# Carried per R14 (see ple_graph_hostfunc): the AutoRound host func, pinned as
+# spark_autoround_recipe_commit. Per §4 NO load_format flip is expressed anywhere in this
+# plan, and nothing here pins the 48.67 GiB table — the wiring's only pin_memory use is
+# the ~44 MB id/row staging, not the table.
+spark_profile_fast_v33_patch_plan:
+  # spark_fla_shmem — day-0 verbatim (census: sed source still present at this base).
+  - name: "spark_fla_shmem"
+    path: "/usr/local/lib/python3.12/dist-packages/vllm/third_party/flash_linear_attention/ops/utils.py"
+    pattern: "DEFAULT = 102400"
+    expect: 1
+    marker: "spark-fla-shmem"
+    evidence: |-
+      Dockerfile.v32 step 2; third_party/flash_linear_attention/ops/utils.py:183 at v0.33.0 (census: sed source still present)
+
+    cmd: |-
+      set -e
+      SP="$(dirname "$VLLM_ROOT")"
+      V="$VLLM_ROOT"
+      F="$V/third_party/flash_linear_attention/ops/utils.py"
+      test "$(grep -c '^    DEFAULT = 102400' "$F")" -eq 1
+      sed -i 's|^    DEFAULT = 102400.*$|    DEFAULT = 101376  # spark-fla-shmem: GB10 99KiB = ADA, big GDN tiles fit|' "$F"
+      grep -q spark-fla-shmem "$F"
+      ! grep -q 'DEFAULT = 102400' "$F"
+
+  # spark_fla_warps — day-0 verbatim (census: sed source still present at this base).
+  - name: "spark_fla_warps"
+    path: "/usr/local/lib/python3.12/dist-packages/vllm/third_party/flash_linear_attention/ops/chunk_delta_h.py"
+    pattern: "for num_warps in [2, 4]"
+    expect: 1
+    marker: "spark-fla-warps"
+    evidence: |-
+      Dockerfile.v32 step 3; chunk_delta_h.py:37 at v0.33.0 (census: sed source still present)
+
+    cmd: |-
+      set -e
+      SP="$(dirname "$VLLM_ROOT")"
+      V="$VLLM_ROOT"
+      F="$V/third_party/flash_linear_attention/ops/chunk_delta_h.py"
+      test "$(grep -cF 'for num_warps in [2, 4]' "$F")" -eq 1
+      sed -i 's|for num_warps in \[2, 4\]|for num_warps in [2]  # spark-fla-warps: fla#953 Blackwell tl.dot race|' "$F"
+      grep -q spark-fla-warps "$F"
+      ! grep -qF 'for num_warps in [2, 4]' "$F"
+
+  # fp8_hybrid_dispatch — day-0 verbatim; constitutive on the AR-hybrid checkpoint (Dockerfile.v32 step 4 shape).
+  - name: "fp8_hybrid_dispatch"
+    path: "/usr/local/lib/python3.12/dist-packages/vllm/model_executor/layers/quantization/auto_gptq.py"
+    pattern: "class AutoGPTQLinearMethod"
+    expect: 1
+    marker: "_fp8_hybrid_apply()"
+    evidence: |-
+      Dockerfile.v32 step 4; class AutoGPTQLinearMethod present at v0.33.0 (constitutive on the AR-hybrid checkpoint)
+
+    cmd: |-
+      set -e
+      SP="$(dirname "$VLLM_ROOT")"
+      V="$VLLM_ROOT"
+      G="$V/model_executor/layers/quantization/auto_gptq.py"
+      test -f "$G"
+      cp /port/day0/recipe/build/image/src/vllm_fp8_hybrid.py "$SP/vllm_fp8_hybrid.py"
+      printf '\n\n# --- qwen38-flash-dgx: int4+fp8 hybrid dispatch (VLLM_FP8_HYBRID=1) ---\nfrom vllm_fp8_hybrid import apply as _fp8_hybrid_apply\n_fp8_hybrid_apply()\n' >> "$G"
+      grep -qF '_fp8_hybrid_apply()' "$G"
+      python3 -c 'import ast,os; ast.parse(open(os.environ["VLLM_FILE"]).read())' </dev/null
+
+  # ple_hook_blazux — the §1 hook row: blazux's vllm_ple_mmap.py (graph-aware mmap + custom-op form), NOT the day-0 overlay (wrong class layout). The append names the class; Qwen4ExpPLEPinnedHostEmbedding stays untouched (fast_v33_draft.md §4).
+  - name: "ple_hook_blazux"
+    path: "/usr/local/lib/python3.12/dist-packages/vllm/models/qwen4_exp/nvidia/ngram_embedding.py"
+    pattern: "class Qwen4ExpNGramEmbedding"
+    expect: 1
+    marker: "_ple_mmap_apply(Qwen4ExpNGramEmbedding)"
+    evidence: |-
+      blazux vllm_ple_mmap.py::_install() at 17b025f8 (the graph-aware mmap + custom-op form); census: APPLIES, appended file parses. Qwen4ExpPLEPinnedHostEmbedding stays untouched (R14/§4).
+
+    cmd: |-
+      set -e
+      SP="$(dirname "$VLLM_ROOT")"
+      V="$VLLM_ROOT"
+      N="$V/models/qwen4_exp/nvidia/ngram_embedding.py"
+      test -f "$N"
+      grep -qF 'class Qwen4ExpNGramEmbedding' "$N"
+      cp /port/blazux/src/vllm_ple_mmap.py "$SP/vllm_ple_mmap.py"
+      printf '\n\n# --- qwen38-flash-dgx: serve the PLE n-gram table from disk (VLLM_PLE_MMAP=1) ---\nfrom vllm_ple_mmap import apply as _ple_mmap_apply\n_ple_mmap_apply(Qwen4ExpNGramEmbedding)\n' >> "$N"
+      grep -qF '_ple_mmap_apply(Qwen4ExpNGramEmbedding)' "$N"
+      python3 -c 'import ast,os; ast.parse(open(os.environ["VLLM_FILE"]).read())' </dev/null
+
+  # ple_graph_hostfunc — R14: the AutoRound pin's graph host func. Vendored ple_mmap_graph.c is compiled at build; the wiring is that commit's vllm_ple_mmap_v032.py with its ONE call-site anchor re-anchored here (blazux's _find_shards returns a 4-tuple at 17b025f8); the append is guarded on _ple_mmap_patched so the two PLE hooks can never co-activate. This is the step fast_v33_draft.md §9b #3 says only needs to prove the pin landed.
+  - name: "ple_graph_hostfunc"
+    path: "/usr/local/lib/python3.12/dist-packages/vllm/models/qwen4_exp/nvidia/ngram_embedding.py"
+    pattern: "Qwen4ExpPLEPinnedHostEmbedding"
+    expect: 3
+    marker: "_ple_mmap_graph_apply("
+    evidence: |-
+      R14: ple_mmap_graph.c vendored from spark_autoround_recipe_commit 338282cb0fb0…; wiring is that commit's vllm_ple_mmap_v032.py with the one _find_shards call re-anchored to the blazux hook's 4-tuple; the append guards on _ple_mmap_patched so the two hooks never co-activate; census §9b #3: marker checks the pin landed.
+
+    cmd: |-
+      set -e
+      SP="$(dirname "$VLLM_ROOT")"
+      V="$VLLM_ROOT"
+      N="$V/models/qwen4_exp/nvidia/ngram_embedding.py"
+      cc -O2 -Wall -shared -fPIC /port/autoround/ple_mmap_graph.c -o "$SP/libple_mmap_graph.so"
+      python3 - <<'PY'
+      import os
+      src = open("/port/autoround/vllm_ple_mmap_v032.py").read()
+      old = "        shards, dtype_str, scale_entry = _find_shards(table_dir, layer_idx)"
+      new = ("        # spark-v33 re-anchor: the hook installed here is blazux's, whose\n"
+             "        # _find_shards returns (shards, dtype_str, scale_entry, cols) at this pin.\n"
+             "        shards, dtype_str, scale_entry, _cols = _find_shards(table_dir, layer_idx)")
+      assert src.count(old) == 1, src.count(old)
+      src = src.replace(old, new)
+      old2 = "        cols = shards.pop(\"__cols__\")\n"
+      assert src.count(old2) == 1, src.count(old2)
+      src = src.replace(old2, "")
+      open(os.path.dirname(os.environ["VLLM_ROOT"]) + "/vllm_ple_mmap_v032.py", "w").write(src)
+      import ast; ast.parse(src)
+      PY
+      printf '\n\n# --- spark-v33 R14: graph-capturable PLE mmap host func (qwen3.8-Flash-DGX-AutoRound@338282c, Apache-2.0) ---\n# Dormant while the blazux hook above is active; binds the cuLaunchHostFunc row\n# source (libple_mmap_graph.so, compiled from the pinned commit) when only\n# VLLM_PLE_MMAP_DIR is set. Never a pinned host table (§4).\nimport sys as _ple_graph_sys\nif not getattr(Qwen4ExpNGramEmbedding, "_ple_mmap_patched", False):\n    from vllm_ple_mmap_v032 import apply as _ple_mmap_graph_apply\n    _ple_mmap_graph_apply(_ple_graph_sys.modules[__name__])\n' >> "$N"
+      grep -qF '_ple_mmap_graph_apply(' "$N"
+      python3 - <<'PY'
+      import ast, os
+      ast.parse(open(os.environ["VLLM_FILE"]).read())
+      ast.parse(open(os.environ["VLLM_ROOT"] + "/../vllm_ple_mmap_v032.py").read())
+      PY
+
+  # patch_never_evict — RE-ANCHORED. The scheduler half is the v32 re-anchor, still valid (scheduler.py:366-370). The block_pool touch site moved: v0.33 hoisted the is_null test to the loop head, so the day-0 `and not block.is_null` conjunct answers 0 (census REFUSES row). Plumbing applied; the flag stays REJECTED and every never_evict_prompt stays empty.
+  - name: "patch_never_evict"
+    path: "/usr/local/lib/python3.12/dist-packages/vllm/v1/core/block_pool.py"
+    pattern: "self.free_block_queue.remove(block)"
+    expect: 1
+    marker: "_pinned_ids"
+    evidence: |-
+      day-0 patcher re-anchored twice: the v32 scheduler call site (port_v32 ANCHORS, still valid at v33 — scheduler.py:366-370) and the v33 block_pool touch site: v0.33 hoisted the is_null guard to the loop head (v1/core/block_pool.py touch(), census: anchor `if block.ref_cnt == 0 and not block.is_null:` answers 0). Plumbing applied; the dial stays rejected (group_vars/spark.yml).
+
+    cmd: |-
+      set -e
+      SP="$(dirname "$VLLM_ROOT")"
+      V="$VLLM_ROOT"
+      mkdir -p /tmp/w
+      cp /port/day0/recipe/build/image/src/patch_never_evict.py /tmp/w/patch_never_evict.py
+      python3 - <<'PY'
+      P = "/tmp/w/patch_never_evict.py"
+      t = open(P).read()
+      def sub(old, new, n=1):
+          global t
+          c = t.count(old)
+          assert c == n, ("re-anchor: anchor found %d times (want %d): %r" % (c, n, old[:80]))
+          t = t.replace(old, new)
+      sub('    FILES["pool"],\n    """            if block.ref_cnt == 0 and not block.is_null:\n                self.free_block_queue.remove(block)\n', '    FILES["pool"],\n    """            if block.ref_cnt == 0:\n                self.free_block_queue.remove(block)\n', 1)
+      sub('    """            if block.ref_cnt == 0 and not block.is_null:\n', '    """            if block.ref_cnt == 0:\n                # spark-v33: is_null covered by the loop head.\n', 1)
+      sub('    FILES["sched"],\n    """            watermark=self.scheduler_config.watermark,\n        )\n""",\n', '    FILES["sched"],\n    """            watermark=self.scheduler_config.watermark,\n            enable_mamba_shared_prefix_checkpoint=(\n                self.cache_config.enable_mamba_shared_prefix_checkpoint\n            ),\n        )\n""",\n', 1)
+      sub('    """            watermark=self.scheduler_config.watermark,\n        )\n', '    """            watermark=self.scheduler_config.watermark,\n            enable_mamba_shared_prefix_checkpoint=(\n                self.cache_config.enable_mamba_shared_prefix_checkpoint\n            ),\n        )\n', 1)
+      open(P, "w").write(t)
+      import ast
+      ast.parse(t)
+      print("re-anchored", P)
+      PY
+      python3 /tmp/w/patch_never_evict.py
+      test "$(grep -c -F 'never_evict_kv_cache_prompt_includes' "$V/config/cache.py")" -eq 2
+      test "$(grep -c -F 'never-evict-kv-cache' "$V/engine/arg_utils.py")" -eq 2
+      test "$(grep -c -F '_pin_needle' "$V/v1/core/sched/scheduler.py")" -eq 5
+
+  # lm_head_quant_config_model — day-0 sed, counted per file (§5 rule), model.py:733.
+  - name: "lm_head_quant_config_model"
+    path: "/usr/local/lib/python3.12/dist-packages/vllm/models/qwen4_exp/nvidia/model.py"
+    pattern: "prefix=maybe_prefix(prefix, \"lm_head\"),"
+    expect: 1
+    marker: "quant_config=vllm_config.quant_config"
+    evidence: |-
+      models/qwen4_exp/nvidia/model.py: prefix anchor counts 1 at v0.33.0 (census row: day-0 step 6's lm_head anchor). model.py :733 (12-space), mtp.py :432 (20-space).
+
+    cmd: |-
+      set -e
+      SP="$(dirname "$VLLM_ROOT")"
+      V="$VLLM_ROOT"
+      F="$V/models/qwen4_exp/nvidia/model.py"
+      test "$(grep -cF 'prefix=maybe_prefix(prefix, "lm_head"),' "$F")" -eq 1
+      sed -i 's|prefix=maybe_prefix(prefix, "lm_head"),|quant_config=vllm_config.quant_config,\n            prefix=maybe_prefix(prefix, "lm_head"),|' "$F"
+      grep -qF 'quant_config=vllm_config.quant_config' "$F"
+      python3 -c 'import ast,os; ast.parse(open(os.environ["VLLM_FILE"]).read())' </dev/null
+
+  # lm_head_quant_config_mtp — day-0 sed, counted per file (§5 rule), mtp.py:432.
+  - name: "lm_head_quant_config_mtp"
+    path: "/usr/local/lib/python3.12/dist-packages/vllm/models/qwen4_exp/nvidia/mtp.py"
+    pattern: "prefix=maybe_prefix(prefix, \"lm_head\"),"
+    expect: 1
+    marker: "quant_config=vllm_config.quant_config"
+    evidence: |-
+      models/qwen4_exp/nvidia/mtp.py: prefix anchor counts 1 at v0.33.0 (census row: day-0 step 6's lm_head anchor). model.py :733 (12-space), mtp.py :432 (20-space).
+
+    cmd: |-
+      set -e
+      SP="$(dirname "$VLLM_ROOT")"
+      V="$VLLM_ROOT"
+      F="$V/models/qwen4_exp/nvidia/mtp.py"
+      test "$(grep -cF 'prefix=maybe_prefix(prefix, "lm_head"),' "$F")" -eq 1
+      sed -i 's|prefix=maybe_prefix(prefix, "lm_head"),|quant_config=vllm_config.quant_config,\n                    prefix=maybe_prefix(prefix, "lm_head"),|' "$F"
+      grep -qF 'quant_config=vllm_config.quant_config' "$F"
+      python3 -c 'import ast,os; ast.parse(open(os.environ["VLLM_FILE"]).read())' </dev/null
+
+  # mamba_guard — fast8's anchored porter (13 anchors), run from THIS role so it stays a single source. Dry-run at the v33 pin: applied, 19/12/4 guard counts byte-equal to the day-0 artifact, day-0 pair absent, v0.33 kernels intact. The whole-file `apply` hatch is NOT offered (v32 report §7).
+  - name: "mamba_guard"
+    path: "/usr/local/lib/python3.12/dist-packages/vllm/v1/worker/mamba_utils.py"
+    pattern: "def _copy_mamba_state_block"
+    expect: 1
+    marker: "guard_hits"
+    evidence: |-
+      spark-profile-fast8's porter, dry-run against the v33 base: 13 anchors applied, day-0 pair absent, v0.32/v0.33 kernels intact. The whole-file copy (apply) is NOT offered here: it would revert this base's own file (v32 report §7).
+
+    cmd: |-
+      set -e
+      SP="$(dirname "$VLLM_ROOT")"
+      V="$VLLM_ROOT"
+      M="$V/v1/worker/mamba_utils.py"
+      test -f "$M"
+      python3 /port/patch_mamba_guard_v32.py
+      test "$(grep -c -F 'guard_hits' "$M")" -eq 19
+      test "$(grep -c -F 'state_num_blocks' "$M")" -eq 12
+      test "$(grep -c -F 'tl.atomic_add(guard_hits_ptr, 1)' "$M")" -eq 4
+      test "$(grep -c -F 'postprocess_mamba_all' "$M")" -eq 0
+      test "$(grep -c -F 'preprocess_mamba_all_specdec' "$M")" -eq 0
+      test "$(grep -c -F 'GPUInputBatch' "$M")" -eq 0
+      test "$(grep -c -F 'get_aligned_state_indices_multi_group_kernel' "$M")" -eq 2
+      test "$(grep -c -F 'compute_aligned_state_indices' "$M")" -eq 2
+      python3 -c 'import ast,os; ast.parse(open(os.environ["VLLM_FILE"]).read())' </dev/null
+
+  # patch_hit_debug — RE-ANCHORED via the v32 coord-logger introduction, which still holds: kv_cache_coordinator.py imports no logger at v33 either (census: the anchor answers 0 for the same reason as at v32).
+  - name: "patch_hit_debug"
+    path: "/usr/local/lib/python3.12/dist-packages/vllm/v1/core/kv_cache_coordinator.py"
+    pattern: "from vllm.v1.request import Request"
+    expect: 1
+    marker: "VLLM_HIT_DEBUG"
+    evidence: |-
+      day-0 patcher + the v32 coord-logger re-anchor (port_v32 ANCHORS), which still holds: kv_cache_coordinator.py carries no module logger at v33 either (header imports Request once, `logger = init_logger(__name__)` answers 0 — census row patch_hit_debug).
+
+    cmd: |-
+      set -e
+      SP="$(dirname "$VLLM_ROOT")"
+      V="$VLLM_ROOT"
+      mkdir -p /tmp/w
+      cp /port/day0/recipe/build/image/src/patch_hit_debug.py /tmp/w/patch_hit_debug.py
+      python3 - <<'PY'
+      P = "/tmp/w/patch_hit_debug.py"
+      t = open(P).read()
+      def sub(old, new, n=1):
+          global t
+          c = t.count(old)
+          assert c == n, ("re-anchor: anchor found %d times (want %d): %r" % (c, n, old[:80]))
+          t = t.replace(old, new)
+      sub('for key in ("coord", "pool", "sched"):\n', 'for key in ("pool", "sched"):\n', 1)
+      sub('    add_gate(FILES[key])\n\n', '    add_gate(FILES[key])\n\n# spark-v32 re-anchor: kv_cache_coordinator.py carries no module logger at this\n# base -- no `logger = init_logger(__name__)` line and no vllm.logger import -- so\n# the gate is INTRODUCED here instead of searched for. The anchor is the file\'s own\n# import of Request (v1/core/kv_cache_coordinator.py:30, one occurrence).\nedit(\n    FILES["coord"],\n    """from vllm.v1.request import Request\n""",\n    """from vllm.v1.request import Request\n\nfrom vllm.logger import init_logger\n\nlogger = init_logger(__name__)\n"""\n    + GATE,\n)\n\n', 1)
+      open(P, "w").write(t)
+      import ast
+      ast.parse(t)
+      print("re-anchored", P)
+      PY
+      python3 /tmp/w/patch_hit_debug.py
+      for f in v1/core/block_pool.py v1/core/sched/scheduler.py v1/core/single_type_kv_cache_manager.py; do
+        test "$(grep -c -F 'VLLM_HIT_DEBUG' "$V/$f")" -eq 1
+      done
+
+  # patch_mamba_align_split — RE-ANCHORED (post-state): the worker half is upstream at mamba_hybrid.py:121-124 at v33 — the same local mamba_block_size the v32 census read — and the scheduler half's anchor still holds (:572).
+  - name: "patch_mamba_align_split"
+    path: "/usr/local/lib/python3.12/dist-packages/vllm/v1/worker/gpu/model_states/mamba_hybrid.py"
+    pattern: "// mamba_block_size"
+    expect: 1
+    marker: "spark-v33"
+    evidence: |-
+      worker half is upstream at mamba_hybrid.py:121-124 at v33 (the local mamba_block_size the v32 census read, unchanged — census: anchor `// self.cache_config.block_size` answers 0), so the pair is a post-state guard; scheduler half anchors hold (scheduler.py:572).
+
+    cmd: |-
+      set -e
+      SP="$(dirname "$VLLM_ROOT")"
+      V="$VLLM_ROOT"
+      mkdir -p /tmp/w
+      cp /port/day0/recipe/build/image/src/patch_mamba_align_split.py /tmp/w/patch_mamba_align_split.py
+      python3 - <<'PY'
+      P = "/tmp/w/patch_mamba_align_split.py"
+      t = open(P).read()
+      def sub(old, new, n=1):
+          global t
+          c = t.count(old)
+          assert c == n, ("re-anchor: anchor found %d times (want %d): %r" % (c, n, old[:80]))
+          t = t.replace(old, new)
+      sub('    """                (new_req_data.num_computed_tokens - 1) // self.cache_config.block_size\n', '    """                (new_req_data.num_computed_tokens - 1) // mamba_block_size\n', 1)
+      sub('    """                (new_req_data.num_computed_tokens - 1)\n                # block_size is the MIN across KV groups; the state slot is\n                # per MAMBA block (blazux/qwen3.8-Flash-DGX#2, 8347e7c).\n                // (\n                    self.cache_config.mamba_block_size\n                    or self.cache_config.block_size\n                )\n', '    """                # spark-v33: seeding the state column with the MAMBA block size is\n                # upstream at this base too (mamba_hybrid.py:121-124 keeps the\n                # local mamba_block_size the v32 census read), so this pair\n                # rewrites the line as it stands -- a post-state guard, not a fix.\n                (new_req_data.num_computed_tokens - 1) // mamba_block_size\n', 1)
+      open(P, "w").write(t)
+      import ast
+      ast.parse(t)
+      print("re-anchored", P)
+      PY
+      python3 /tmp/w/patch_mamba_align_split.py
+
+  # patch_step_profile — day-0 verbatim; census APPLIES (rc 0).
+  - name: "patch_step_profile"
+    path: "/usr/local/lib/python3.12/dist-packages/vllm/v1/worker/gpu/model_runner.py"
+    pattern: "class GPUModelRunner"
+    expect: 1
+    marker: "_step_profile"
+    evidence: |-
+      day-0 verbatim; census: APPLIES (rc 0), one absent anchor only (the sentinel itself, 0 in base as expected).
+
+    cmd: |-
+      set -e
+      SP="$(dirname "$VLLM_ROOT")"
+      V="$VLLM_ROOT"
+      python3 /port/day0/recipe/build/image/src/patch_step_profile.py
+      test "$(grep -c -F '_step_profile' "$V/v1/worker/gpu/model_runner.py")" -ge 1
+
+  # mtp_draft_vocab — day-0 verbatim; class Qwen4ExpMTP present (census probe: 1).
+  - name: "mtp_draft_vocab"
+    path: "/usr/local/lib/python3.12/dist-packages/vllm/models/qwen4_exp/nvidia/mtp.py"
+    pattern: "class Qwen4ExpMTP"
+    expect: 1
+    marker: "_mtp_draft_vocab_apply(Qwen4ExpMTP)"
+    evidence: |-
+      Dockerfile.v32 step 11; class Qwen4ExpMTP counts 1 at v0.33.0 (census: mtp.py probe answers 1).
+
+    cmd: |-
+      set -e
+      SP="$(dirname "$VLLM_ROOT")"
+      V="$VLLM_ROOT"
+      M="$V/models/qwen4_exp/nvidia/mtp.py"
+      test -f "$M"
+      grep -qF 'class Qwen4ExpMTP' "$M"
+      cp /port/day0/recipe/build/image/src/draft_vocab_common.py "$SP/draft_vocab_common.py"
+      cp /port/day0/recipe/build/image/src/vllm_mtp_draft_vocab.py "$SP/vllm_mtp_draft_vocab.py"
+      printf '\n\n# --- qwen38-flash-dgx: reduced MTP draft vocabulary (VLLM_MTP_DRAFT_VOCAB) ---\nfrom vllm_mtp_draft_vocab import apply as _mtp_draft_vocab_apply\n_mtp_draft_vocab_apply(Qwen4ExpMTP)\n' >> "$M"
+      grep -qF '_mtp_draft_vocab_apply(Qwen4ExpMTP)' "$M"
+      python3 -c 'import ast,os; ast.parse(open(os.environ["VLLM_FILE"]).read())' </dev/null
+
+  # short_conv_async_h2d_guard — POST-STATE guard, not a patch: the base holds the post-state (async_tensor_h2d counts 4, spec_req_idx 2). spark/reports/hd1206-v32-port-20261026/README.md §7b rule 1.
+  - name: "short_conv_async_h2d_guard"
+    path: "/usr/local/lib/python3.12/dist-packages/vllm/v1/attention/backends/short_conv_attn.py"
+    pattern: "async_tensor_h2d("
+    expect: 4
+    marker: "spark-v33: short-conv async H2D"
+    evidence: |-
+      census: base holds the POST-state (async_tensor_h2d counts 4); §7b rule 1 shape — a guard, not a patch.
+
+    cmd: |-
+      set -e
+      SP="$(dirname "$VLLM_ROOT")"
+      V="$VLLM_ROOT"
+      S="$V/v1/attention/backends/short_conv_attn.py"
+      test "$(grep -c -F 'async_tensor_h2d(' "$S")" -eq 4
+      test "$(grep -c -F 'spec_req_idx = async_tensor_h2d(' "$S")" -eq 2
+      printf '\n# spark-v33: short-conv async H2D is upstream at this base (the four async_tensor_h2d\n# calls above); day-0 patch_short_conv_async_h2d.py has no pre-state anchor here and is\n# not applied. If a future base loses the async transfer this line stays but the\n# counts above stop answering 4/2 and the build stops.\n' >> "$S"
+
+  # patch_measure_draft_mass — day-0 verbatim; census APPLIES (rc 0).
+  - name: "patch_measure_draft_mass"
+    path: "/usr/local/lib/python3.12/dist-packages/vllm/v1/worker/gpu/spec_decode/rejection_sampler.py"
+    pattern: "class RejectionSampler"
+    expect: 1
+    marker: "from vllm_measure_draft_mass import"
+    evidence: |-
+      day-0 verbatim; census: APPLIES (rc 0).
+
+    cmd: |-
+      set -e
+      SP="$(dirname "$VLLM_ROOT")"
+      V="$VLLM_ROOT"
+      python3 /port/day0/recipe/build/image/src/patch_measure_draft_mass.py
+
+  # low_latency_gemm_guard — A+ subsumed (spark/reports/hd1206-v32-port-20261026/README.md §7b), re-guarded at the moved path (module rename → qwen4_exp, gate :390, (12, 1) plan entry :308). The day-0 patcher stays staged and runs nowhere. Runtime dispatch remains step 5's read (fast_v33_draft.md §9 item 3).
+  - name: "low_latency_gemm_guard"
+    path: "/usr/local/lib/python3.12/dist-packages/vllm/models/qwen4_exp/nvidia/low_latency_gemm.py"
+    pattern: "if dtype != torch.bfloat16 or not plans:"
+    expect: 1
+    marker: "spark-v33: R3 subsumed"
+    evidence: |-
+      census: the gate is at qwen4_exp/nvidia/low_latency_gemm.py:390 (module rename qwen3_8_flash_next→qwen4_exp; all three v32 guards survive). The day-0 patcher is staged and run nowhere (§4 lead 3).
+
+    cmd: |-
+      set -e
+      SP="$(dirname "$VLLM_ROOT")"
+      V="$VLLM_ROOT"
+      L="$V/models/qwen4_exp/nvidia/low_latency_gemm.py"
+      test "$(grep -c -F 'if dtype != torch.bfloat16 or not plans:' "$L")" -eq 1
+      test "$(grep -c -F '(12, 1): QWEN4_EXP_SM121_GEMM_PLANS' "$L")" -eq 1
+      test "$(grep -c -F 'QWEN4_EXP_SM121_GEMM_PLANS: dict' "$L")" -eq 1
+      printf '\n# spark-v33: R3 subsumed -- the SM12x gate is the plan table of this base,\n# keyed by capability (the (12, 1) GB10 entry above). The day-0\n# patch_low_latency_gemm_sm12x.py widened a gate this layout does not have, so\n# the A+ ruling (v32 report 7b) applies here unchanged: nothing applied,\n# post-state guarded. Runtime dispatch is the boot-window read\n# (fast_v33_draft.md 9 item 3), not a build fact.\n' >> "$L"
+
+  # patch_in_proj_ba_gemv__with_r7_logger — day-0 verbatim pair. patch_r7_logger's census blind spot resolves by ORDER: both its targets are files this build installs, and its reference precondition (vllm_ple_mmap.py binds getLogger("vllm.ple_mmap")) holds against the blazux hook (blazux/src/vllm_ple_mmap.py:61).
+  - name: "patch_in_proj_ba_gemv__with_r7_logger"
+    path: "/usr/local/lib/python3.12/dist-packages/vllm/model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py"
+    pattern: "class QwenGatedDeltaNetAttention"
+    expect: 1
+    marker: "_in_proj_ba_gemv_apply(QwenGatedDeltaNetAttention)"
+    evidence: |-
+      day-0 verbatim pair. patch_r7_logger's blind spot resolves by ORDER: both its targets are files this build installs (census row patch_r7_logger), and its REFERENCE precondition — vllm_ple_mmap.py binds logging.getLogger("vllm.ple_mmap") — holds against the blazux hook installed at step 4 (blazux/src/vllm_ple_mmap.py:61).
+
+    cmd: |-
+      set -e
+      SP="$(dirname "$VLLM_ROOT")"
+      V="$VLLM_ROOT"
+      cp /port/day0/recipe/build/image/src/vllm_inproj_ba_gemv.py "$SP/vllm_inproj_ba_gemv.py"
+      python3 /port/day0/recipe/build/image/src/patch_in_proj_ba_gemv.py
+      python3 /port/day0/recipe/build/image/src/patch_r7_logger.py
+      test "$(grep -c -F 'logging.getLogger("vllm.inproj_ba_gemv")' "$SP/vllm_inproj_ba_gemv.py")" -eq 1
+      test "$(grep -c -F 'logger = init_logger(__name__)' "$SP/vllm_inproj_ba_gemv.py")" -eq 0
+
+  # patch_verify_topk_pivot — RE-ANCHORED on the v32 pairs plus the v33 moves: apply_top_k_top_p gained has_topp_only_rows (:501) and a docstring, the Triton call threads it, states.py unpacks the 3-tuple. Still plumbing on the already-Triton path (v32 finding unchanged at this base).
+  - name: "patch_verify_topk_pivot"
+    path: "/usr/local/lib/python3.12/dist-packages/vllm/v1/sample/ops/topk_topp_sampler.py"
+    pattern: "def apply_top_k_top_p("
+    expect: 1
+    marker: "_verify_topk_triton"
+    evidence: |-
+      day-0 patcher on the v32 re-anchors (port_v32 ANCHORS) plus the v33 diff: apply_top_k_top_p gained has_topp_only_rows (v1/sample/ops/topk_topp_sampler.py:501), the Triton call threads it, and states.py unpacks the 3-tuple get_top_k_top_p. The verify branch stays plumbing on the already-Triton path (§4/v32 finding unchanged).
+
+    cmd: |-
+      set -e
+      SP="$(dirname "$VLLM_ROOT")"
+      V="$VLLM_ROOT"
+      mkdir -p /tmp/w
+      cp /port/day0/recipe/build/image/src/patch_verify_topk_pivot.py /tmp/w/patch_verify_topk_pivot.py
+      python3 - <<'PY'
+      P = "/tmp/w/patch_verify_topk_pivot.py"
+      t = open(P).read()
+      def sub(old, new, n=1):
+          global t
+          c = t.count(old)
+          assert c == n, ("re-anchor: anchor found %d times (want %d): %r" % (c, n, old[:80]))
+          t = t.replace(old, new)
+      sub('    logits: torch.Tensor, k: torch.Tensor | None, p: torch.Tensor | None\n', '    logits: torch.Tensor,\n    k: torch.Tensor | None,\n    p: torch.Tensor | None,\n    has_topp_only_rows: bool = True,\n', 1)
+      sub('    has_topp_only_rows: bool = True,\n) -> torch.Tensor:\n    if p is None and k is None:\n        return logits\n', '    has_topp_only_rows: bool = True,\n) -> torch.Tensor:\n    \\"\\"\\"Apply top-k and/or top-p masking to logits.\n\n    has_topp_only_rows must be True if any row has p < 1 and\n    k >= logits.shape[-1] (no active top-k).\n    \\"\\"\\"\n    if p is None and k is None:\n        return logits\n', 1)
+      sub('    p: torch.Tensor | None,\n    prefer_triton: bool = False,\n', '    p: torch.Tensor | None,\n    has_topp_only_rows: bool = True,\n    prefer_triton: bool = False,\n', 1)
+      sub(') -> torch.Tensor:\n    if p is None and k is None:\n', ') -> torch.Tensor:\n    \\"\\"\\"Apply top-k and/or top-p masking to logits.\n\n    has_topp_only_rows must be True if any row has p < 1 and\n    k >= logits.shape[-1] (no active top-k).\n    \\"\\"\\"\n    if p is None and k is None:\n', 1)
+      sub('                """    if HAS_TRITON and logits.shape[0] >= 8:\n        return apply_top_k_top_p_triton(logits, k, p)\n', '                """    if HAS_TRITON:\n        return apply_top_k_top_p_triton(\n            logits, k, p, has_topp_only_rows=has_topp_only_rows\n        )\n', 1)
+      sub('\n    # Use pytorch sort implementation for small batch sizes.\n    return apply_top_k_top_p_pytorch(logits, k, p)""",\n                """    # The >= 8 gate is a batch-size heuristic for the ordinary decode path. The\n', '\n    is_cpu = current_platform.is_cpu()\n    return apply_top_k_top_p_pytorch(logits, k, p, allow_cpu_sync=is_cpu)""",\n                """    # The >= 8 gate is a batch-size heuristic for the ordinary decode path. The\n', 1)
+      sub('    if HAS_TRITON and logits.shape[0] >= 8:\n        return apply_top_k_top_p_triton(logits, k, p)\n', '    if HAS_TRITON:\n        return apply_top_k_top_p_triton(\n            logits, k, p, has_topp_only_rows=has_topp_only_rows\n        )\n', 1)
+      sub('        return apply_top_k_top_p_triton(logits, k, p)\n', '        return apply_top_k_top_p_triton(\n            logits, k, p, has_topp_only_rows=has_topp_only_rows\n        )\n', 1)
+      sub('    # Use pytorch sort implementation for small batch sizes.\n    return apply_top_k_top_p_pytorch(logits, k, p)""",\n', '    is_cpu = current_platform.is_cpu()\n    return apply_top_k_top_p_pytorch(logits, k, p, allow_cpu_sync=is_cpu)""",\n', 1)
+      sub('        idx_mapping_np: np.ndarray,\n    ) -> torch.Tensor:\n        top_k, top_p = self.get_top_k_top_p(expanded_idx_mapping, idx_mapping_np)\n        if top_k is None and top_p is None:\n            return logits\n', '        idx_mapping_np: np.ndarray,\n    ) -> torch.Tensor:\n        top_k, top_p, has_topp_only_rows = self.get_top_k_top_p(\n            expanded_idx_mapping, idx_mapping_np, logits.shape[-1]\n        )\n        if top_k is None and top_p is None:\n            return logits\n', 1)
+      sub('        return apply_top_k_top_p(logits, top_k, top_p)""",\n', '        return apply_top_k_top_p(\n            logits, top_k, top_p, has_topp_only_rows=has_topp_only_rows\n        )""",\n', 1)
+      sub('        top_k, top_p = self.get_top_k_top_p(expanded_idx_mapping, idx_mapping_np)\n', '        top_k, top_p, has_topp_only_rows = self.get_top_k_top_p(\n            expanded_idx_mapping, idx_mapping_np, logits.shape[-1]\n        )\n', 1)
+      sub('        return apply_top_k_top_p(logits, top_k, top_p, prefer_triton=prefer_triton)""",\n', '        return apply_top_k_top_p(\n            logits, top_k, top_p, prefer_triton=prefer_triton,\n            has_topp_only_rows=has_topp_only_rows,\n        )""",\n', 1)
+      sub('            (\n                """        expanded_local_pos: torch.Tensor,\n        skip_top_k_top_p: bool = False,\n    ) -> torch.Tensor:\n', '            (\n                """        expanded_local_pos: torch.Tensor,\n        seq_lens_upper_bound_np: np.ndarray,\n        skip_top_k_top_p: bool = False,\n    ) -> torch.Tensor:\n', 1)
+      sub('                """        expanded_local_pos: torch.Tensor,\n        skip_top_k_top_p: bool = False,\n', '                """        expanded_local_pos: torch.Tensor,\n        seq_lens_upper_bound_np: np.ndarray,\n        skip_top_k_top_p: bool = False,\n', 1)
+      sub('            expanded_local_pos,\n        )""",\n', '            expanded_local_pos,\n            seq_lens_upper_bound_np,\n        )""",\n', 1)
+      sub('            expanded_local_pos,\n            # L5a: ask for the sort-free pivot truncation. Honoured only when\n', '            expanded_local_pos,\n            seq_lens_upper_bound_np,\n            # L5a: ask for the sort-free pivot truncation. Honoured only when\n', 1)
+      sub('            prefer_triton=True,\n        )""",\n            ),\n', '            prefer_triton=True,\n        )\n""",\n            ),\n', 1)
+      open(P, "w").write(t)
+      import ast
+      ast.parse(t)
+      print("re-anchored", P)
+      PY
+      python3 /tmp/w/patch_verify_topk_pivot.py
+      test "$(grep -c -F 'prefer_triton' "$V/v1/worker/gpu/sample/states.py")" -ge 2
+      test "$(grep -c -F 'prefer_triton' "$V/v1/worker/gpu/sample/sampler.py")" -ge 2
+      test "$(grep -cF 'prefer_triton=True' "$V/v1/worker/gpu/spec_decode/rejection_sampler.py")" -eq 1
+
+  # patch_block_drop — RE-ANCHORED on the v32 pairs plus two v33 moves: the predicate rekeys through needs_eagle_block_drop() (speculative.py:2149; membership became properties at :2116-2160), and entry 3's kv_cache_utils consumer is DELETED here (eagle membership derives from draft layer names in kv_cache_planning.py), so that pair is an assert-only post-state guard. VLLM_KEEP_DRAFT_BLOCKS is NOT native (census: 0) — the knob is owed and this entry installs it.
+  - name: "patch_block_drop"
+    path: "/usr/local/lib/python3.12/dist-packages/vllm/config/speculative.py"
+    pattern: "def use_eagle_block_drop(self) -> bool:"
+    expect: 1
+    marker: "_KEEP_DRAFT_BLOCKS"
+    evidence: |-
+      day-0 patcher on the v32 re-anchors plus the v33 diff: the predicate rekeys through needs_eagle_block_drop() (config/speculative.py:2149 — census: membership moved into properties at :2116-2160), and entry 3's kv_cache_utils consumer is deleted at this base (grep use_eagle answers 0; membership derives from draft layer names in kv_cache_planning.py) so that pair became an assert-only post-state guard. scheduler/single_type/offload/mooncake entries skip on native sentinels (upstream merged vllm#53388); VLLM_KEEP_DRAFT_BLOCKS itself is NOT native (census: 0 in tree).
+
+    cmd: |-
+      set -e
+      SP="$(dirname "$VLLM_ROOT")"
+      V="$VLLM_ROOT"
+      mkdir -p /tmp/w
+      cp /port/day0/recipe/build/image/src/patch_block_drop.py /tmp/w/patch_block_drop.py
+      python3 - <<'PY'
+      P = "/tmp/w/patch_block_drop.py"
+      t = open(P).read()
+      def sub(old, new, n=1):
+          global t
+          c = t.count(old)
+          assert c == n, ("re-anchor: anchor found %d times (want %d): %r" % (c, n, old[:80]))
+          t = t.replace(old, new)
+      sub('                """    use_local_argmax_reduction: bool = False\n    \\"\\"\\"Use vocab-parallel local argmax instead of all-gathering full logits\n', '                """    disable_eagle_block_drop: bool = False\n', 1)
+      sub('                """    disable_eagle_block_drop: bool = False\n    \\"\\"\\"Disable dropping the trailing prefix-cache block for EAGLE-like\n    speculative methods. This is an experimental option for measuring the\n    acceptance-rate impact of reusing that block. It does not disable the\n    speculative drafter itself.\\"\\"\\"\n    use_local_argmax_reduction: bool = False\n    \\"\\"\\"Use vocab-parallel local argmax instead of all-gathering full logits\n', '                """    disable_eagle_block_drop: bool = False  # spark-v32: the field\n    # is upstream at this base (config/speculative.py:452); this patch owes only the\n    # env disjunct in use_eagle_block_drop() below, never the field.\n', 1)
+      sub('                """        return self.method in ("eagle", "eagle3", "mtp", "dflash", "dspark")\n\n    def use_dflash(self) -> bool:\n', '                """        return self.needs_eagle_block_drop() and not self.disable_eagle_block_drop\n', 1)
+      sub('                """        return self.method in ("eagle", "eagle3", "mtp", "dflash", "dspark")\n\n    def use_eagle_block_drop(self) -> bool:\n        \\"\\"\\"Whether volatile trailing cache blocks should be discarded.\\"\\"\\"\n        # Upstream vllm#53388 is exactly:\n        #     return self.use_eagle() and not self.disable_eagle_block_drop\n        # The `or _KEEP_DRAFT_BLOCKS` disjunct is ours: it lets the harness gate\n        # the arm on an env name instead of a sixth --speculative-config key.\n        # With VLLM_KEEP_DRAFT_BLOCKS unset it is False and this is upstream.\n        return self.use_eagle() and not (\n', '                """        # spark-v33 re-anchor: this base rekeys the predicate through\n        # needs_eagle_block_drop() (config/speculative.py:2149; dflash/dspark\n        # keep their trailing block upstream), so only the env disjunct is owed.\n        return self.needs_eagle_block_drop() and not (\n', 1)
+      sub('\n    def use_dflash(self) -> bool:\n', '', 1)
+      sub('        KVUTILS,\n        "use_eagle_block_drop",\n        [\n', '        KVUTILS,\n        "spark-v33",\n        [\n', 1)
+      sub('                """    spec_config = vllm_config.speculative_config\n    if spec_config is None or not spec_config.use_eagle():\n        return\n    # Detection uses the merged MLA spec\'s model_version.\n', '                """def eagle_proof_margin(\n', 1)
+      sub('                """    spec_config = vllm_config.speculative_config\n    # R8 (vllm#53388). Upstream\'s hunk is in the later, generalised\n    # `_annotate_eagle_groups`; ours is still the DeepseekV4-only predecessor,\n    # so this is inert on Qwen3.8-Flash-Next (the model_version test below\n    # returns first). Ported anyway so the two trees read the same.\n    if spec_config is None or not spec_config.use_eagle_block_drop():\n        return\n    # Detection uses the merged MLA spec\'s model_version.\n', '                """# spark-v33: the day-0 R8 consumer in this file (the DeepseekV4-only\n# annotation that read the speculative eagle predicate) is deleted at this\n# base, and group membership is now derived from draft layer names in\n# v1/core/kv_cache_planning.py (is_eagle_group). The block-drop consumers\n# that survive (scheduler, offloading scheduler) read the native accessor\n# on speculative_config directly. Asserted, not edited.\ndef eagle_proof_margin(\n', 1)
+      sub('                """        # Fine-grained partial hits are not supported for sliding window now\n        assert alignment_tokens % kv_cache_spec.block_size == 0, (\n            "SlidingWindowManager does not support fine-grained (partial) cache hits"\n        )\n', '                """        # Sliding-window cache hits must stay at the group\'s physical block\n        # granularity. resolve_block_hashes() converts finer-grained hashes to\n        # that view when the hybrid-cache alignment is smaller than block_size.\n', 1)
+      sub('                """        # R8 (vllm#53388). Upstream DELETES this precondition outright, with the\n        # comment "Sliding-window cache hits must stay at the group\'s physical\n        # block granularity. resolve_block_hashes() converts finer-grained\n        # hashes to that view when the hybrid-cache alignment is smaller than\n        # block_size." We keep it whenever the knob is off, so that with\n        # VLLM_KEEP_DRAFT_BLOCKS unset this file is behaviourally identical\n        # rather than merely identical in practice. Inert on this model: no\n        # SlidingWindowSpec group is built for Qwen3.8-Flash-Next.\n', '                """        # Sliding-window cache hits must stay at the group\'s physical block\n        # granularity. resolve_block_hashes() converts finer-grained hashes to\n        # that view when the hybrid-cache alignment is smaller than block_size.\n        # R8 (vllm#53388): upstream DELETES the fine-grained precondition\n        # outright; the recipe keeps it whenever VLLM_KEEP_DRAFT_BLOCKS is unset, so\n        # with the knob off this file is behaviourally the day-0 file rather than\n        # merely identical in practice. Inert on this model: no SlidingWindowSpec\n        # group is built for this checkpoint.\n', 1)
+      sub('                """        use_eagle = bool(\n            spec_cfg.use_eagle()\n            if spec_cfg is not None and callable(getattr(spec_cfg, "use_eagle", None))\n            else False\n', '                """        self.coord = MooncakeStoreCoordinator.from_kv_cache_config(\n            kv_cache_config, vllm_config, self.block_size, self.hash_block_size\n', 1)
+      sub('                """        # R8 (vllm#53388), verbatim. Inert here: no Mooncake connector.\n        use_eagle_block_drop = bool(\n            spec_cfg.use_eagle_block_drop()\n            if spec_cfg is not None\n            and callable(getattr(spec_cfg, "use_eagle_block_drop", None))\n            else False\n', '                """        # spark-v32: R8 has no use_eagle call site in this file at this\n        # base -- grep -F -c use_eagle over v1/mooncake/ answers 0, and the store\n        # coordinator takes no eagle argument (:1512). Nothing to port, so this pair\n        # asserts the construction line and writes it back unchanged.\n        self.coord = MooncakeStoreCoordinator.from_kv_cache_config(\n            kv_cache_config, vllm_config, self.block_size, self.hash_block_size\n', 1)
+      sub('                """            hash_block_size=self.hash_block_size,\n            use_eagle=use_eagle,\n            retention_interval=envs.VLLM_PREFIX_CACHE_RETENTION_INTERVAL,\n', '                """                    hash_block_size=hash_block_size,\n                    store_layout=store_layout,\n', 1)
+      sub('                """            hash_block_size=self.hash_block_size,\n            use_eagle=use_eagle_block_drop,\n            retention_interval=envs.VLLM_PREFIX_CACHE_RETENTION_INTERVAL,\n', '                """                    # spark-v32: the day-0 call that carried `use_eagle=use_eagle,`\n                    # beside hash_block_size is gone at this base; this argument list\n                    # is the nearest site and is asserted, not edited.\n                    hash_block_size=hash_block_size,\n                    store_layout=store_layout,\n', 1)
+      open(P, "w").write(t)
+      import ast
+      ast.parse(t)
+      print("re-anchored", P)
+      PY
+      python3 /tmp/w/patch_block_drop.py
+      test "$(grep -c -F 'spec_config.use_eagle' "$V/v1/core/kv_cache_utils.py")" -eq 0
+      test "$(grep -c -F 'use_eagle_block_drop' "$V/v1/core/sched/scheduler.py")" -ge 1
+
+  # blazux_moe_load_clone — fast_v33_draft.md §5's trap, read at this base: grep answers 4, the patcher's AST rule answers 2 (_load_w13 :578, _load_w2 :629). expect is the BASE'S answer, not the patcher's — and the patcher's assert is untouched.
+  - name: "blazux_moe_load_clone"
+    path: "/usr/local/lib/python3.12/dist-packages/vllm/model_executor/layers/fused_moe/routed_experts.py"
+    pattern: "expert_data.copy_(loaded_weight)"
+    expect: 4
+    marker: "_qwen38_h2d_src"
+    evidence: |-
+      §5's trap read AT this base: the grep answers 4, the patcher's AST-scoped rule answers exactly 2 (final statements of _load_w13 :578 and _load_w2 :629) — expect is the base's grep answer, the patcher's own assert is untouched and unwidened.
+
+    cmd: |-
+      set -e
+      SP="$(dirname "$VLLM_ROOT")"
+      V="$VLLM_ROOT"
+      python3 /port/blazux/src/patch_moe_load_clone.py "$SP"
+
+  # blazux_load_pread — blazux patch 15, ordered after patch 14 (its precondition, not a moved anchor). Post-state read: 4 -> 2; the two sites the census says are not expert-weight copies stay.
+  - name: "blazux_load_pread"
+    path: "/usr/local/lib/python3.12/dist-packages/vllm/model_executor/layers/fused_moe/routed_experts.py"
+    pattern: "expert_data.copy_(loaded_weight)"
+    expect: 4
+    marker: "skip patch 14's clone"
+    evidence: |-
+      blazux patch 15; its precondition (patch 14 applied first) is this entry's ORDER, not a moved anchor (census blazux row: REFUSES in isolation with exactly that AssertionError). expect is the BASE grep answer (4); which of the four the patches rewrite is patch 14's own AST-scoped assert, read at §5, not widened here.
+
+    cmd: |-
+      set -e
+      SP="$(dirname "$VLLM_ROOT")"
+      V="$VLLM_ROOT"
+      python3 /port/blazux/src/patch_load_pread.py "$SP"
+      echo "post: expert_data.copy_ now $(grep -c -F 'expert_data.copy_(loaded_weight)' "$V/model_executor/layers/fused_moe/routed_experts.py") (base answered 4; the AST-scoped 2 were wrapped by patch 14, the two the census left alone stay)"
+
+  # blazux_embed_chunked_copy — blazux patch 16; census APPLIES.
+  - name: "blazux_embed_chunked_copy"
+    path: "/usr/local/lib/python3.12/dist-packages/vllm/model_executor/layers/vocab_parallel_embedding.py"
+    pattern: "class VocabParallelEmbedding(PluggableLayer):"
+    expect: 1
+    marker: "qwen38-flash-dgx: copy large CPU weights"
+    evidence: |-
+      blazux patch 16; census: APPLIES.
+
+    cmd: |-
+      set -e
+      SP="$(dirname "$VLLM_ROOT")"
+      V="$VLLM_ROOT"
+      python3 /port/blazux/src/patch_embed_chunked_copy.py "$SP"
+
+  # blazux_mtp_name_prefilter — R10's fifth patcher (blazux patch 18): counted site + marker in weight_utils.py, second marker read in mtp.py.
+  - name: "blazux_mtp_name_prefilter"
+    path: "/usr/local/lib/python3.12/dist-packages/vllm/model_executor/model_loader/weight_utils.py"
+    pattern: "should_skip_weight(name, local_expert_ids)"
+    expect: 4
+    marker: "qwen38-flash-dgx: optional keep-filter"
+    evidence: |-
+      R10's fifth patcher, blazux patch 18; census: APPLIES (targets the v0.33 mtp.py path, class Qwen4ExpMTP probe answers 1).
+
+    cmd: |-
+      set -e
+      SP="$(dirname "$VLLM_ROOT")"
+      V="$VLLM_ROOT"
+      python3 /port/blazux/src/patch_mtp_name_prefilter.py "$SP"
+      test "$(grep -c -F 'qwen38-flash-dgx patch 18' "$V/models/qwen4_exp/nvidia/mtp.py")" -eq 1
 
 # Read in the BUILT image, after the build. A `sed -i` or `printf >>` that matches nothing exits 0,
 # so the marker is the only proof an edit ran; this is the same rule roles/spark-profile-blazux
