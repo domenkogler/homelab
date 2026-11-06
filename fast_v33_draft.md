@@ -21,7 +21,7 @@
 | R1 | The next speed arm keeps **`fast`'s weights unchanged** (the AR AutoRound W4A16 hybrid checkpoint + the FP8 PLE table) and moves the **engine build** to the v0.33 base. New checkpoint families are off this lane's critical path | `docs/spark-llm-profiles.md` — the six-arm grid gains `fast-v33-bf16` / `fast-v33-fp8` and the v32 arms retire to evidence rows |
 | R2 | **No GPU-clock change.** `spark_gpu_clock_cap_mhz` stays `300,2418`: the box already runs warm and the ceiling buys idle behaviour a 24/7 agent seat needs. The ~20 % clock headroom is spent on heat, not on speed | `docs/hardware-spark.md` §GPU clock cap — one sentence naming the thermal reason, so nobody re-derives it as an easy win |
 | R3 | The root-partition free-space assert is **bypassed by a named, per-run exemption — not by editing the floor**. `spark_llm_os_min_free_bytes` keeps its value and its meaning; the exemption is opt-in, per-run, echoed loudly with the measured number, and it is a ruling with a date, not a default | `IaC/ansible/group_vars/spark.yml` (the flag, default `false`) + the assert in `IaC/ansible/roles/spark-llm-profile/tasks/main.yml` + `docs/hardware-spark.md` (the reason it is allowed to be off) |
-| R4 | **One autonomous session runs the whole ladder — build, pin, fp8 admission, flip, measure** (re-ruled by the owner 2026-11-06; it supersedes this row's earlier split, which kept the build in the preparing session). The preparing session authors and commits and **touches nothing**. The executing session is launched **independent** of any parent — an agent launched the ordinary way is that parent's **child**, same workspace, injected context, and it dies when the converge restarts the engine that serves the parent — and it runs on the row the owner named: `entrim` / `deepseek-ai/DeepSeek-V4.1-Flash-1017`, with **both** `--env` pairs, because a row delivered only through `--model` leaves `PI_MODEL` telling the provenance gate the local engine. The prompt carries the worktree act ([`CONVENTIONS.md`](CONVENTIONS.md) §6) before any edit | [`paseo-readme.md`](paseo-readme.md) section 3 (the independent shape) · section 4 (the env pair is the ledger's truth) · section 5 (workspace binding) — the commands and the four verification reads live there, not here |
+| R4 | **One autonomous session runs the ladder it is allowed to run — pin, fp8 admission, flip, measure — with the build carved out into its own Paseo-bound session (R13)** (re-ruled by the owner 2026-11-06; it supersedes this row's earlier split, which kept the build in the preparing session). The preparing session authors and commits and **touches nothing**. The executing session is launched **independent** of any parent — an agent launched the ordinary way is that parent's **child**, same workspace, injected context, and it dies when the converge restarts the engine that serves the parent — and it runs on the row the owner named: `entrim` / `deepseek-ai/DeepSeek-V4.1-Flash-1017`, with **both** `--env` pairs, because a row delivered only through `--model` leaves `PI_MODEL` telling the provenance gate the local engine. The prompt carries the worktree act ([`CONVENTIONS.md`](CONVENTIONS.md) §6) before any edit | [`paseo-readme.md`](paseo-readme.md) section 3 (the independent shape) · section 4 (the env pair is the ledger's truth) · section 5 (workspace binding) — the commands and the four verification reads live there, not here |
 | R5 | The arm **boots eager first**, then is re-booted **with CUDA-graph capture** in the same window. If capture does not hold, the answer is **a smaller KV pool, never a bigger ceiling** (step 6a) | `docs/spark-llm-profiles.md` §7 (the flip order) + `docs/hardware-spark.md` §Unified-memory budget (the pool arithmetic that prices it) |
 | R6 | **The engine ladder, and the end state:** `fast-v33-bf16` + its quick tier, then `fast-v33-fp8` + its quick tier, and the window **ends with `fast-v33-fp8` serving**. The bf16 arm is a step on the way, not the destination | `docs/spark-llm-profiles.md` §7 (the flip order) |
 | R7 | **The fallback ladder is two steps, in one pass each:** if fp8 will not hold, step back to `fast-v33-bf16`; if that will not hold, step back to `fast`. Each step is one detached converge; a second attempt at any rung is not authorized and a restart loop is never left running | `docs/spark-llm-profiles.md` §7 |
@@ -30,6 +30,7 @@
 | R10 | **The MTP prefilter patch is carried in build #1** — a fifth patcher, same marker rule and same counted-site rule as the other four (this draft's open question, now ruled; the measurement is still taken, see section 9) | this file only (a build instruction for this window, per R12) |
 | R11 | **The `/` → XFS relocation is deferred** out of this window; the R3 per-run exemption is how every `os`-rooted converge in the window — the flips and any rollback included — carries the below-the-floor state, printing the number it accepted | the flag lands in `IaC/ansible/group_vars/spark.yml` and `docs/hardware-spark.md` states the reason it may be off; the deferred act itself stays in the disk section of this file |
 | R12 | **Survey output and this window's build decisions stay in this draft** — they are guidance for the next session, not permanent knowledge, so they are not written to `docs/` or to a `-rejected` log. R1–R5's own landing places are unchanged; this row governs everything else | this file |
+| R13 | **The build is its own session, and it runs on the spark-served row.** Rule 0 bars timed numbers, not builds; and this build converge is *provably* engine-safe, proved rather than argued: `--list-tasks` under `--tags spark-profile-fast-v33` answers with this role's tasks and the `always` guards and nothing else — no `spark-llm-profile` render, no compose, and the role has no `notify`, so no handler can restart anything. It therefore needs no external model, while every flip and every timed leg still does (the rest of R4). It is launched through Paseo bound to a **derived** workspace (`--workspace`, never a remembered id) so it shows in `paseo ls` and can be attached to | [`paseo-readme.md`](paseo-readme.md) §3 (the independent shape) and §5 (workspace binding) for the mechanics; the standing engine-safe-converge exception is `docs/orchestration.md` §4 |
 
 R4 is why the ladder below is one column and not two: the split existed to keep a dependent agent from being
 killed by its own converge, and an independent launch answers that directly. The cost of the new shape is
@@ -203,6 +204,15 @@ carries the worktree act before its first edit. Every live converge runs **detac
 file + poll; `--check` is the only safe foreground form. Every converge of an `os`-rooted profile carries
 `--skip-tags tailscale-node` (§2's tailscale row) and, once `/` sits under the floor, the R3 exemption flag.
 
+**Two sessions, one line of division (R13).** Steps 1–4 belong to the **build session**: the census, the patch
+plan, the base pull, the build, the pin commit, the fp8 probe verdict. It runs on the spark-served row,
+because that sequence provably cannot touch the engine (R13's `--list-tasks` proof), and it is bound to a
+derived Paseo workspace so it is visible and attachable. Steps 5–10 belong to the **converge session**: the
+flips, the memory ladder, every timed number — R4's remaining scope, on the external row, launched by the
+owner once a built ID is pinned. Nothing crosses the line in either direction: a build session that converges
+a profile has taken the one act that can kill the engine serving it, and a flip that happens off the external
+row produces numbers the provenance gate cannot stamp.
+
 **Delegation (R9).** Worker children take the build legs and any bounded read, under
 [`docs/orchestration.md`](docs/orchestration.md) §4 (O1–O11: ≤2 concurrent, `model:` never named, a
 per-child deadline, silence read as compaction not a hang). Two consequences
@@ -238,7 +248,30 @@ ceiling, never touch the clocks (R2), never prune the build cache — report the
 `/` free below ~80 GB at any pre-flight read: stop and report. No fp8 flip without `REACHABLE-ON-THIS-PIN`
 (step 4). And a run that cannot leave the box serving stops at the last rung it can hold.
 
-**The launch card.** The shape, the four verification reads and the traps are
+**The build session's launch line** (steps 1–4 only, on the spark-served row, bound to a derived workspace —
+`--workspace` replaces `--cwd` because a bound workspace's path wins, which is why the prompt carries the
+worktree act itself):
+
+```bash
+WKS=$(python3 -c "
+import json,os
+d=json.load(open(os.path.expanduser('~/.paseo/projects/workspaces.json')))
+c=[w for w in d if w['cwd']=='/home/domen/source/homelab' and not w.get('archivedAt')]
+print(sorted(c,key=lambda w:w['updatedAt'])[-1]['workspaceId'])")
+env -u PASEO_AGENT_ID -u PASEO_AGENT_CWD -u PI_SESSION_ID -u PI_SESSION_FILE -u PI_PROVIDER -u PI_MODEL \
+  paseo run --no-wait -q --provider pi \
+    --model spark/spark/qwen3.8-flash-next \
+    --env PI_PROVIDER=spark --env PI_MODEL=spark/qwen3.8-flash-next \
+    --workspace "$WKS" \
+    --title fast-v33-build --label lane=spark-llm --label phase=build \
+    "Read fast_v33_draft.md. Run steps 1-4 ONLY: census, fill the patch plan, pull the v33 base, build,\
+     pin the printed ID, run the fp8 probe. Then STOP and report - no profile converge, no flip, no boot,\
+     no timed number; that is the converge session's work (R13). First act, before any edit: git worktree\
+     add ../homelab-wt-\$(date +%Y%m%d-%H%M) (CONVENTIONS §6). Before and after every converge, read\
+     docker inspect of vllm-qwen-spark (Id, StartedAt, RestartCount) and show the engine never moved."
+```
+
+**The converge session's launch card** (steps 5–10). The shape, the four verification reads and the traps are
 [`paseo-readme.md`](paseo-readme.md) §3/§6 — this is only the data this window launches with, so the line
 is not re-derived at launch time (§2: a re-typed copy is a second source; a re-typed *command* is the same
 thing wearing a shell): the row the owner named, an independent launch (no `PASEO_AGENT_ID`, no
