@@ -1,0 +1,285 @@
+---
+# roles/spark-profile-fast-v33 — build `fast`'s checkpoint onto a v0.33 engine build, and prove the
+# patch set landed. Opt-in twice: playbooks/spark.yml runs this role only when
+# `spark_profile_fast_v33_build` is true (group_vars/spark.yml, default false), and the build itself
+# runs only while the lineage's OWN pin (spark_vllm_fast_v33_image) does not already resolve. It never
+# touches the engine: the arms `fast-v33-bf16` / `fast-v33-fp8` boot only through
+# roles/spark-llm-profile, after the ID this role prints is pinned in group_vars/all/versions.yml.
+#
+# Order, each step a refusal rather than a hope:
+#   1. the patch plan is filled in (no plan, no build — see defaults)
+#   2. both pinned recipes are checked out clean (the day-0 stack supplies the patch sources, the
+#      blazux recipe the hook and loader patchers that already target this base's class layout)
+#   3. the v33 base is ON this box (its bytes are the build's whole cost, and the free-space state is
+#      reported rather than discovered)
+#   4. the plan's anchor counts are re-read in the BASE image — the trap this lineage exists to avoid
+#   5. the staged build dir is assembled and upstream's build.sh is removed from it
+#   6. the build + ID re-read (shared build_lineage.yml), its unpinned fail deferred
+#   7. every plan marker read in the BUILT image
+#   8. no other lineage's tag moved
+#   9. the deliberate red while the ID is unpinned
+
+- name: Assert the v33 patch plan is filled in
+  # The refusal IS the point: an empty plan would build an image that carries the base and nothing
+  # else, tag it as this lineage, and read green. See defaults/main.yml for why the counts cannot be
+  # written from this file.
+  ansible.builtin.assert:
+    that:
+      - spark_profile_fast_v33_patch_plan | length > 0
+      - spark_profile_fast_v33_patch_plan | rejectattr('expect', 'defined') | list | length == 0
+      - spark_profile_fast_v33_patch_plan | rejectattr('marker', 'defined') | list | length == 0
+      - spark_profile_fast_v33_patch_plan | selectattr('expect', 'eq', none) | list | length == 0
+    fail_msg: >-
+      spark_profile_fast_v33_patch_plan is empty or carries entries without an `expect` count or a
+      `marker`. Take the census against the base at its pin and fill the plan in THIS repository, in
+      the commit that first builds — never in a checkout:
+        python3 spark/reports/hd1206-v32-port-20261026/anchor_census.py --image {{ spark_vllm_v33_base_image }}
+      An anchor whose count differs from what the patcher asserts is READ site by site, and the ones
+      that are not host-to-device copies of expert weights are left alone with the reason written in
+      the plan. Widening a count to make a patcher pass is the failure this guard exists for: the v32
+      census found five such sites where upstream's patcher asserts two.
+  tags: [spark, spark-profile-fast-v33, llm]
+
+- name: Check out the pinned day-0 recipe (the patch sources)
+  ansible.builtin.include_role:
+    name: spark-ultrafast-build
+    tasks_from: checkout_pinned
+    apply:
+      tags: [spark, spark-profile-fast-v33, llm]
+  vars:
+    bc_repo: "{{ spark_ultrafast_upstream_repo }}"
+    bc_commit: "{{ spark_ultrafast_upstream_commit }}"
+    bc_src_dir: "{{ spark_ultrafast_src_dir }}"
+  tags: [spark, spark-profile-fast-v33, llm]
+
+- name: Check out the pinned blazux recipe (the hook and the loader patchers)
+  # Read-only here: this lineage takes that recipe's patcher FILES, not its build. The same clean-tree
+  # proof runs on it as on the day-0 checkout, because a hook copied out of a dirtied checkout is an
+  # unbuildable image wearing someone else's provenance.
+  ansible.builtin.include_role:
+    name: spark-ultrafast-build
+    tasks_from: checkout_pinned
+    apply:
+      tags: [spark, spark-profile-fast-v33, llm]
+  vars:
+    bc_repo: "{{ spark_blazux_upstream_repo }}"
+    bc_commit: "{{ spark_blazux_upstream_commit }}"
+    bc_src_dir: "{{ spark_blazux_src_dir }}"
+  tags: [spark, spark-profile-fast-v33, llm]
+
+- name: Ask whether the v0.33 base is already on this box
+  # check_mode: false so --check answers the disk/build question instead of sailing past it.
+  ansible.builtin.command:
+    cmd: "docker image inspect --format '{{ '{{' }}.Id{{ '}}' }}' {{ spark_vllm_v33_base_image }}"
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  register: fv33_base
+  tags: [spark, spark-profile-fast-v33, llm]
+
+- name: Read the free space on the root the image store lives on
+  # The same read roles/spark-llm-profile makes, made here BEFORE a ~48 GB pull, because on this box
+  # the store is on `/` and the pull is the act that moves `/` under the profile gate's floor
+  # (docs/hardware-spark.md §Partition layout). Reporting the number is the point.
+  ansible.builtin.command:
+    argv: ["df", "-P", "-B1", "/"]
+  changed_when: false
+  check_mode: false
+  register: fv33_df
+  tags: [spark, spark-profile-fast-v33, llm]
+
+- name: Assert the base can be built on and report the bytes
+  ansible.builtin.assert:
+    that:
+      - fv33_base.rc == 0
+    fail_msg: >-
+      {{ spark_vllm_v33_base_image }} does not resolve on this box, so the build would pull it: that
+      is the cost this run must state before paying it, not after. `/` currently reads
+      {{ ((fv33_df.stdout_lines | last).split()[3] | int / 1e9) | round(1) }} GB free against the
+      profile gate's floor of {{ (spark_llm_os_min_free_bytes | int / 1e9) | round(0) }} GB
+      (spark_llm_os_min_free_bytes). Pull it deliberately
+      (`docker pull {{ spark_vllm_v33_base_image }}`), read the number again, and if the pull lands
+      `/` below that floor say so in the build record: every later `os`-rooted converge in this
+      window — the flips and any rollback included — then runs with
+      `-e spark_llm_os_free_gate_exempt=true`, which prints the number it accepted. ⛔ never prune
+      the build cache to make room, and never lower the floor.
+  tags: [spark, spark-profile-fast-v33, llm]
+
+- name: Read each planned anchor in the BASE image
+  # The counts are the plan's own claims, so they are graded before a layer is written and again —
+  # through the markers — in the finished image. `docker run --rm` with no GPU and no network.
+  ansible.builtin.command:
+    cmd: >-
+      docker run --rm --network none --memory 2g --entrypoint grep
+      {{ spark_vllm_v33_base_image }} -c -F {{ item.pattern | quote }} {{ item.path }}
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  register: fv33_base_counts
+  loop: "{{ spark_profile_fast_v33_patch_plan }}"
+  loop_control:
+    label: "{{ item.name }}"
+  tags: [spark, spark-profile-fast-v33, llm]
+
+- name: Assert the base matches the plan's counts
+  # A count of 0 means the file moved; a count above the plan means the patcher would touch sites
+  # nobody counted. Both are read before building, because `sed -i` exits 0 either way.
+  ansible.builtin.assert:
+    that:
+      - fv33_base_counts.results | zip(spark_profile_fast_v33_patch_plan
+          | map(attribute='expect') | map('int')) | rejectattr('0.rc', 'eq', 1) | list | length == 0
+    fail_msg: >-
+      The base image does not answer the counts the plan declares:
+      {% for r in fv33_base_counts.results %}
+      {{ r.item.name }} = rc {{ r.rc }} ({{ r.stdout | default('') | trim }} occurrence(s) of
+      {{ r.item.pattern | truncate(60, true) }} in {{ r.item.path | basename }}), plan expects
+      {{ r.item.expect }};
+      {% endfor %}
+      Read each site and restate the plan, or set spark_profile_fast_v33_unplanned deliberately. Do
+      NOT widen an upstream patcher's own assert to make it pass.
+  failed_when: false
+  when: fv33_base_counts.results | default([]) | length > 0
+  tags: [spark, spark-profile-fast-v33, llm]
+
+- name: Ask whether the v33 lineage still needs building
+  # The lineage's OWN pin decides. A build that inspected another lineage's pin would skip and report
+  # success (roles/spark-ultrafast-build/tasks/build_lineage.yml, and the reason the pin is a var).
+  ansible.builtin.command:
+    cmd: "docker image inspect --format '{{ '{{' }}.Id{{ '}}' }}' {{ spark_vllm_fast_v33_image if spark_vllm_fast_v33_image | length > 0 else spark_vllm_fast_v33_tag }}"
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  register: fv33_pre
+  tags: [spark, spark-profile-fast-v33, llm]
+
+- name: Decide whether this run builds
+  ansible.builtin.set_fact:
+    spark_profile_fast_v33_will_build: "{{ not (fv33_pre.rc == 0 and spark_vllm_fast_v33_image | length > 0) }}"
+  tags: [spark, spark-profile-fast-v33, llm]
+
+- name: Stage the build directory
+  # A copy, never the checkout: the checkout has to stay byte-for-byte the pinned commits for the
+  # provenance asserts above to mean anything, and the build writes its definition into this tree.
+  ansible.builtin.command:
+    cmd: >-
+      bash -c 'set -euo pipefail
+      mkdir -p {{ spark_profile_fast_v33_build_dir }}/port;
+      cp -a {{ spark_ultrafast_src_dir }}/. {{ spark_profile_fast_v33_build_dir }}/port/day0/ 2>/dev/null || true;
+      mkdir -p {{ spark_profile_fast_v33_build_dir }}/port/blazux;
+      cp -a {{ spark_blazux_src_dir }}/. {{ spark_profile_fast_v33_build_dir }}/port/blazux/;
+      rm -rf {{ spark_profile_fast_v33_build_dir }}/port/blazux/.git;
+      rm -f {{ spark_profile_fast_v33_build_dir }}/port/day0/build.sh;
+      echo staged'
+  changed_when: true
+  become: true
+  become_user: "{{ ansible_user }}"
+  tags: [spark, spark-profile-fast-v33, llm]
+
+- name: Place this lineage's own porter and build definition
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ spark_profile_fast_v33_build_dir }}/{{ item }}"
+    mode: "0644"
+  loop:
+    - Dockerfile.v33
+    - port_v33.py
+  tags: [spark, spark-profile-fast-v33, llm]
+
+- name: Render the patch plan into the build context
+  # The plan is IaC data; this is the only place it becomes a file, and the file is never hand-edited
+  # (CONVENTIONS §2: a second copy of a value is a second source).
+  ansible.builtin.template:
+    src: patch-plan.json.j2
+    dest: "{{ spark_profile_fast_v33_build_dir }}/port/patch-plan.json"
+    mode: "0644"
+  when: spark_profile_fast_v33_will_build | bool
+  tags: [spark, spark-profile-fast-v33, llm]
+
+- name: Build the v33 lineage and re-read its ID
+  ansible.builtin.include_role:
+    name: spark-ultrafast-build
+    tasks_from: build_lineage
+    apply:
+      tags: [spark, spark-profile-fast-v33, llm]
+  vars:
+    bl_key: "{{ spark_profile_fast_v33_lineage.key }}"
+    bl_pin: "{{ spark_profile_fast_v33_lineage.pin }}"
+    bl_pin_var: "{{ spark_profile_fast_v33_lineage.pin_var }}"
+    bl_tag: "{{ spark_profile_fast_v33_lineage.tag }}"
+    bl_reserved_tags: "{{ spark_profile_fast_v33_lineage.reserved_tags }}"
+    bl_commit: "{{ spark_profile_fast_v33_lineage.commit }}"
+    bl_src_dir: "{{ spark_profile_fast_v33_lineage.src_dir }}"
+    bl_chdir: "{{ spark_profile_fast_v33_lineage.chdir }}"
+    bl_plan_cmd: "{{ spark_profile_fast_v33_lineage.plan_cmd }}"
+    bl_build_cmd: "{{ spark_profile_fast_v33_lineage.build_cmd }}"
+    bl_build_drafter: "{{ spark_profile_fast_v33_lineage.build_drafter }}"
+    # The marker probes below need the built image, so the shared body's unpinned-ID fail is deferred
+    # to the end of this file, where it can name the fp8 probe as the next act.
+    bl_fail_unpinned: false
+  tags: [spark, spark-profile-fast-v33, llm]
+
+- name: Read each planned marker in the built image
+  # rc 0 is the only pass. `docker build` exits 0 when a printf or sed matched nothing, so this read
+  # — in the FINISHED image, not mid-build — is the only proof the edit ran.
+  ansible.builtin.command:
+    cmd: >-
+      docker run --rm --network none --memory 2g --entrypoint grep
+      {{ spark_vllm_fast_v33_tag }} -c -F {{ item.marker | quote }} {{ item.path }}
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  register: fv33_markers
+  loop: "{{ spark_profile_fast_v33_patch_plan }}"
+  loop_control:
+    label: "{{ item.name }}"
+  tags: [spark, spark-profile-fast-v33, llm]
+
+- name: Assert every planned edit landed in the built image
+  ansible.builtin.assert:
+    that:
+      - fv33_markers.results | rejectattr('rc', 'equalto', 0) | list | length == 0
+    fail_msg: >-
+      The built {{ spark_vllm_fast_v33_tag }} is missing the marker of
+      {{ fv33_markers.results | rejectattr('rc', 'equalto', 0) | map(attribute='item.name') | list | join(' · ') }}.
+      A plan entry that left no marker is an edit that did not run, and the boot will look normal
+      while the behaviour it was meant to change is unchanged. Do not pin this ID.
+  tags: [spark, spark-profile-fast-v33, llm]
+
+- name: Read every other lineage's tags after this build
+  when: spark_profile_fast_v33_will_build | bool
+  ansible.builtin.command:
+    cmd: "docker image inspect --format '{{ '{{' }}.Id{{ '}}' }}' {{ item }}"
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  register: fv33_reserved
+  loop: "{{ spark_profile_fast_v33_lineage.reserved_tags }}"
+  tags: [spark, spark-profile-fast-v33, llm]
+
+- name: Assert this build moved no other lineage's tag
+  # `fast` is the rollback for every arm on this box; its tags are the only names its image has.
+  when: spark_profile_fast_v33_will_build | bool
+  ansible.builtin.assert:
+    that:
+      - fv33_reserved.results | rejectattr('rc', 'equalto', 0) | list | length == 0
+    fail_msg: >-
+      After this build {{ fv33_reserved.results | rejectattr('rc', 'equalto', 0) | map(attribute='item') | list | join(', ') }}
+      no longer resolves. Re-tag the live image from its pinned ID BEFORE anything prunes; this
+      lineage writes exactly one name, {{ spark_vllm_fast_v33_tag }}.
+  tags: [spark, spark-profile-fast-v33, llm]
+
+# ---- The deliberate red, placed after the legs that need the built image ----
+- name: Refuse to continue while the v33 image ID is unpinned
+  when: spark_vllm_fast_v33_image | length == 0
+  ansible.builtin.fail:
+    msg: >-
+      Lineage 'spark-profile-fast-v33' built and passed its marker reads. Its immutable ID is
+      {{ bl_built.stdout | default('(re-read it: docker image inspect -f "{{.Id}}" ' ~ spark_vllm_fast_v33_tag ~ ')') | trim }}.
+      Record it as spark_vllm_fast_v33_image in IaC/ansible/group_vars/all/versions.yml (one commit),
+      then run the box leg of scripts/bench/spark-fp8-image-probe.py --image <that ID>
+      --skip-registry: only a REACHABLE-ON-THIS-PIN answer lets `ultrafast-v33` enter
+      spark_llm_fp8_kv_capable_images, and without that entry the fp8 arm is refused by design. The
+      tag {{ spark_vllm_fast_v33_tag }} is never served (CONVENTIONS §7). Re-read the base token with
+      the one-line `import vllm; print(vllm.__version__)` form before either arm is flipped
+      (spark_llm_base_tokens).
+  tags: [spark, spark-profile-fast-v33, llm]

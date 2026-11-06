@@ -1,0 +1,74 @@
+---
+# role: spark-profile-fast-v33 — `fast`'s checkpoint on the v0.33 engine build.
+#
+# WHY A ROLE AND NOT A FLAG ON ANOTHER LINEAGE (the spark-profile-fast8 argument, and it applies
+# verbatim): this is a THIRD artifact with its own (pin, tag, commit) triple. A lineage that shares
+# another lineage's pin is inspected against, skipped by, and asserted against the wrong image — all
+# three of which report success. The shared machinery lives in
+# roles/spark-ultrafast-build/tasks/{checkout_pinned,build_lineage}.yml; this role supplies the data
+# and the patch plan that are specific to the v0.33 layout.
+#
+# WHAT IT BUILDS: the AR AutoRound W4A16 hybrid checkpoint + FP8 PLE mmap table that the CERTIFIED
+# `fast` serves, on a vLLM built FROM spark_vllm_v33_base_image, carrying (a) the day-0 UltraFast
+# patch stack re-anchored, (b) the blazux recipe's PLE-mmap install hook, which already targets the
+# qwen4_exp class layout the day-0 overlay cannot hook, and (c) blazux's loader patchers, the MTP
+# prefilter among them. It changes no weights and no client contract
+# (fast_v33_draft.md R1), so the two arms that name it are a control and a capacity arm, not a new
+# model.
+#
+# WHAT IS OPT-IN HERE: everything that touches the box. playbooks/spark.yml pulls this role only when
+# `spark_profile_fast_v33_build` is true (group_vars/spark.yml, default false).
+
+# The lineage as data. Every field is this lineage's own — deliberately not a copy of another
+# lineage's dict.
+spark_profile_fast_v33_lineage:
+  key: spark-profile-fast-v33
+  pin: "{{ spark_vllm_fast_v33_image }}"          # "" is legal and IS the gate (CONVENTIONS §7)
+  pin_var: spark_vllm_fast_v33_image
+  tag: "{{ spark_vllm_fast_v33_tag }}"            # its own repository; never one of the reserved names below
+  # Every other lineage's names. Writing one would untag an image another arm — or the `fast`
+  # rollback — still needs, and an untagged image is a pruneable image.
+  reserved_tags: "{{ spark_vllm_ultrafast_live_tags + [spark_vllm_ultrafast_v32_tag, spark_vllm_blazux_v33_tag] }}"
+  # The day-0 recipe supplies the patch SOURCES (its patchers, its md5 gates); the PORT onto the v33
+  # base is this repository's own patch plan, which is why the checkout stays byte-for-byte upstream.
+  commit: "{{ spark_ultrafast_upstream_commit }}"
+  src_dir: "{{ spark_ultrafast_src_dir }}"
+  chdir: "{{ spark_profile_fast_v33_build_dir }}"
+  plan_cmd: ""
+  # `--pull=false` and `--network none`: the base is already on the box (the role asserts that fact
+  # before building) and nothing in a re-anchor of pinned sources may reach the network mid-build.
+  build_cmd: >-
+    docker build --network none --pull=false -f Dockerfile.v33
+    --build-arg BASE={{ spark_vllm_v33_base_image }}
+    -t {{ spark_vllm_fast_v33_tag }} .
+  build_drafter: false    # the drafter directory is the checkpoint's own artifact; converting it here
+                          # would rewrite what the live `fast` boots, for no image-level gain
+
+# ---- The patch plan, and why it is EMPTY here ----
+# One entry per edit the build performs, in build order. `cmd` runs in the build context with the
+# v33 tree mounted at $VLLM_ROOT; `marker` is the string that edit must leave in the FINISHED image;
+# `expect` is how many times its anchor must occur in the BASE image at this digest.
+#
+# It ships EMPTY, and the role refuses an empty plan. Not for lack of a recipe — because the honest
+# value of `expect` is a fact about an image this file cannot read: the measured v32 case is the
+# warning, where upstream's patcher asserts exactly two `expert_data.copy_(loaded_weight)` sites and
+# our live image carries five (the v32 image four). Filling this table from the day-0 or v32 file
+# instead of from a census of the v33 base is how a patcher ends up quietly patching two of five
+# sites, which is a silent behaviour change wearing a green build.
+#
+# The census is one command on the box, read-only, no engine touched:
+#   python3 spark/reports/hd1206-v32-port-20261026/anchor_census.py \
+#     --image {{ spark_vllm_v33_base_image }} --anchors <the patterns named below>
+# Each entry then reads: { name, cmd, marker, path, pattern, expect } with `expect` an integer.
+spark_profile_fast_v33_patch_plan: []
+
+# Read in the BUILT image, after the build. A `sed -i` or `printf >>` that matches nothing exits 0,
+# so the marker is the only proof an edit ran; this is the same rule roles/spark-profile-blazux
+# enforces with its six probes, applied to this lineage's own edits. The list is DERIVED from the
+# plan above (the role builds it from the entries), so a plan entry cannot be shipped without a
+# probe that would catch it not landing.
+
+# Optional escape hatch, mirroring spark_profile_fast8_mamba_guard's tri-state reasoning. `refuse`
+# is the shipped value: it stops the build rather than applying an edit whose anchor nobody counted.
+# Any other value also refuses, so a typo cannot pick a side by accident.
+spark_profile_fast_v33_unplanned: refuse

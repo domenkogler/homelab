@@ -66,6 +66,14 @@
     EMPTY until a build prints an ID, the gate refuses the arm first, and it must never fall through to
     the `else`, which would boot the day-0 base under a blazux argv (unknown env, wrong op names). #}
 {%   set engine_image = spark_vllm_blazux_v33_image %}
+{% elif profile.image == 'ultrafast-v33' %}
+{#  The fast-v33 lineage: `fast`'s checkpoint on a v0.33 engine build (the day-0 stack re-anchored,
+    plus the blazux hook and loader patchers). Same rule as the two branches above, and it matters MORE
+    here than anywhere else in this file: this lineage's argv is `fast`'s, so a fall-through to the
+    `else` would render a digest that BOOTS AND SERVES — the certified numbers from an engine that is
+    not the one under test, which no later gate would ever notice. Its pin is EMPTY until
+    roles/spark-profile-fast-v33 prints an ID, so this line renders nothing the gate has not refused. #}
+{%   set engine_image = spark_vllm_fast_v33_image %}
 {% elif profile.image == 'sglang' %}
 {%   set engine_image = spark_sglang_image %}
 {% else %}

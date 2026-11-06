@@ -1,0 +1,43 @@
+# syntax=docker/dockerfile:1
+# Dockerfile.v33 — the fast-v33 lineage: `fast`'s checkpoint's serving stack, re-anchored onto a
+# v0.33 vLLM build. Built by roles/spark-profile-fast-v33 through the shared lineage machinery;
+# `--build-arg BASE=` is always spark_vllm_v33_base_image, and the role asserts the digest before it
+# ever reaches this file (a Dockerfile that re-declares its own base is a second source, and a build
+# cache will happily honour the wrong one).
+#
+# WHAT LIVES WHERE
+#   /port/day0/      the pinned day-0 UltraFast recipe (spark_ultrafast_upstream_commit) — the patch
+#                    SOURCES of the stack the certified `fast` runs. Apache-2.0; provenance is the
+#                    commit, which the role proved clean before staging.
+#   /port/blazux/    the pinned blazux recipe (spark_blazux_upstream_commit) — the PLE-mmap install
+#                    hook for the qwen4_exp class layout and the loader patchers. Apache-2.0; same
+#                    kind of proof. This lineage takes their FILES, not their build.
+#   /port/port_v33.py, /port/patch-plan.json
+#                    this repository's own porter and its plan. The plan is IaC data
+#                    (spark_profile_fast_v33_patch_plan), rendered — so the edit list is reviewable
+#                    in git rather than scattered through a RUN line.
+#
+# WHY THE SHAPE IS count → apply → verify
+#   `sed -i` and `printf >>` both exit 0 when they match nothing, so a Dockerfile of such steps can
+#   build an unpatched image that boots and reads green. count refuses a tree whose anchors are not
+#   the numbers the plan declares (that is the census, re-taken here rather than trusted from a
+#   report); apply refuses an entry that changed no bytes or left no marker; verify re-reads every
+#   marker in the finished tree, which the role then re-reads again in the IMAGE — the one place a
+#   mid-build check cannot reach.
+#
+# ⛔ never edit a checkout to make an anchor match. A port belongs in the plan, where it is
+#    reviewable and re-runnable; an edit in /opt/homelab/*-src is an image nobody can rebuild.
+
+ARG BASE
+FROM ${BASE}
+
+COPY port/ /port/
+
+# Belt and braces with the role's own refusal: an empty plan here would build a bare base and tag it
+# as this lineage, which is worse than no build at all.
+RUN python3 -c 'import json,sys; e=json.load(open("/port/patch-plan.json"))["edits"]; sys.exit(0 if len(e) else 1)' \
+ && python3 /port/port_v33.py count
+
+RUN python3 /port/port_v33.py apply
+
+RUN python3 /port/port_v33.py verify

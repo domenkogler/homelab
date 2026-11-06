@@ -49,6 +49,14 @@
     - role: spark-profile-blazux
       when: spark_profile_blazux_build | bool
       tags: [spark-profile-blazux]
+    # The fast-v33 lineage (fast-v33-* arms): `fast`'s checkpoint on a v0.33 engine build — the day-0
+    # stack re-anchored, plus the blazux hook and loader patchers taken from their pinned checkouts.
+    # Its own switch/pin/tag/checkout for the same three reasons, and it refuses to build at all until
+    # its patch plan carries anchor counts read from the base at its digest
+    # (roles/spark-profile-fast-v33/defaults/main.yml).
+    - role: spark-profile-fast-v33
+      when: spark_profile_fast_v33_build | bool
+      tags: [spark-ultrafast-build, spark-profile-fast-v33]
     - monitoring      # Alloy node exporter → VPS Victoria backend (per-node model)
     # spark enrols as the THIRD permitted home tailnet node (docs/network-vpn.md
     # §Tailnet boundary) so its inference endpoint stays reachable node-direct with the VPS

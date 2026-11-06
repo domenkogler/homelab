@@ -221,6 +221,24 @@
     - spark_llm.models_root == 'os'
   tags: [spark, spark-llm-profile, llm]
 
+- name: Print the accepted free-space state when the floor gate is exempted
+  # The exemption is only an audit trail if it is loud. One line, the measured bytes, the floor, and
+  # the flag that let it through — so the log says what was accepted instead of the run being quiet.
+  when:
+    - spark_llm.engine == 'vllm'
+    - spark_llm.models_root == 'os'
+    - (spark_llm_df_os.stdout_lines | last).split()[3] | int < (spark_llm_os_min_free_bytes | int)
+    - spark_llm_os_free_gate_exempt | bool
+  ansible.builtin.debug:
+    msg: >-
+      DISK GATE EXEMPTED (spark_llm_os_free_gate_exempt=true, passed for THIS run only): `/` holds
+      {{ ((spark_llm_df_os.stdout_lines | last).split()[3] | int / 1e9) | round(1) }} GB free against a
+      floor of {{ (spark_llm_os_min_free_bytes | int / 1e9) | round(0) }} GB for profile
+      '{{ spark_llm_profile }}'. The floor was NOT lowered and the value still means what it means —
+      this run accepts the measured state. Free bytes are still the remedy (fast_v33_draft.md §3);
+      the relocation to XFS is the act that arms the floor again. Never prune the build cache.
+  tags: [spark, spark-llm-profile, llm]
+
 - name: Assert the root partition still has room for this profile's artifacts
   when:
     - spark_llm.engine == 'vllm'
@@ -228,34 +246,48 @@
   ansible.builtin.assert:
     that:
       - (spark_llm_df_os.stdout_lines | last).split()[3] | int >= (spark_llm_os_min_free_bytes | int)
+        or (spark_llm_os_free_gate_exempt | bool)
     fail_msg: >-
       The root partition has {{ ((spark_llm_df_os.stdout_lines | last).split()[3] | int / 1e9) | round(1) }} GB
       free; profile '{{ spark_llm_profile }}' needs {{ (spark_llm_os_min_free_bytes | int / 1e9) | round(0) }} GB
       (spark_llm_os_min_free_bytes, group_vars/spark.yml). Free space is not a knob to turn
       until a gate passes: stage less, or free a store — but never delete a staged set
       another profile still names (spark_artifact_sets says who uses what), and never lower
-      the floor to make this line green.
+      the floor to make this line green. There is exactly one sanctioned way through this assert
+      and it is not silence: `-e spark_llm_os_free_gate_exempt=true` accepts the MEASURED state for
+      one run and prints the number it accepted (group_vars/spark.yml, and the reason in
+      fast_v33_draft.md §3). Use it for a build that left `/` below the floor with space to spare —
+      never for a store that is genuinely full.
   tags: [spark, spark-llm-profile, llm]
 
 # ---- KV-pool arithmetic (docs/hardware-spark.md §Unified-memory budget) ----
 # max_model_len is a BOOT-GATE, not an allocation: vLLM refuses to boot when the
 # pool cannot hold one full sequence, and the pool is a slice of the SAME
 # 121.62 GiB unified pool the host lives in. Catch it at render time.
+- name: Resolve the KV pool this run actually boots
+  # The arm's own value, unless a memory-ladder run named one (`-e spark_llm_kv_pool_bytes=…`,
+  # fast_v33_draft.md R8). Resolved HERE rather than at the template so the two asserts below grade the
+  # bytes that will boot — a knob the gate cannot see is a knob that boots an ungated pool.
+  when: spark_llm.engine == 'vllm'
+  ansible.builtin.set_fact:
+    spark_llm_kv_pool_effective: "{{ spark_llm_kv_pool_bytes if spark_llm_kv_pool_bytes | length > 0 else spark_llm.kv_cache_memory }}"
+  tags: [spark, spark-llm-profile, llm]
+
 - name: Assert the KV pool holds max_model_len and stays under the certified ceiling
   when: spark_llm.engine == 'vllm'
   ansible.builtin.assert:
     that:
       - spark_llm.kv_cache_dtype in spark_llm_kv_bytes_per_token
-      - (spark_llm.kv_cache_memory | int) // (spark_llm_kv_bytes_per_token[spark_llm.kv_cache_dtype] | int) >= (spark_llm.max_model_len | int)
+      - (spark_llm_kv_pool_effective | int) // (spark_llm_kv_bytes_per_token[spark_llm.kv_cache_dtype] | int) >= (spark_llm.max_model_len | int)
       # Per-profile ceiling: a profile may declare its OWN pool_ceiling_bytes
       # to test a larger pool (e.g. fast's 20e9) WITHOUT moving the certified global 16 GiB
       # that still gates every other profile. The global remains the default + the cert.
-      - (spark_llm.kv_cache_memory | int) <= (spark_llm.pool_ceiling_bytes | default(spark_llm_pool_ceiling_bytes) | int)
+      - (spark_llm_kv_pool_effective | int) <= (spark_llm.pool_ceiling_bytes | default(spark_llm_pool_ceiling_bytes) | int)
     fail_msg: >-
       Profile '{{ spark_llm_profile }}' KV math does not close:
-      pool={{ spark_llm.kv_cache_memory }} B at dtype={{ spark_llm.kv_cache_dtype }}
+      pool={{ spark_llm_kv_pool_effective }} B{{ ' (spark_llm_kv_pool_bytes override)' if spark_llm_kv_pool_bytes | length > 0 else '' }} at dtype={{ spark_llm.kv_cache_dtype }}
       ({{ spark_llm_kv_bytes_per_token[spark_llm.kv_cache_dtype] | default(0) }} B/token)
-      = {{ (spark_llm.kv_cache_memory | int) // (spark_llm_kv_bytes_per_token[spark_llm.kv_cache_dtype] | default(1) | int) }}
+      = {{ (spark_llm_kv_pool_effective | int) // (spark_llm_kv_bytes_per_token[spark_llm.kv_cache_dtype] | default(1) | int) }}
       token slots, needs >= max_model_len={{ spark_llm.max_model_len }}
       and <= the certified ceiling {{ spark_llm_pool_ceiling_bytes }} B.
       Ceiling rationale + the incident it came from: docs/hardware-spark.md
@@ -281,12 +313,12 @@
       - (spark_llm.fixed_cost_bytes | int) > 0
       # Per-profile host floor: a profile may declare its OWN device_hold_ceiling_bytes;
       # the certified global is the default; each profile is independent.
-      - (spark_llm.fixed_cost_bytes | int) + (spark_llm.kv_cache_memory | int) <= (spark_llm.device_hold_ceiling_bytes | default(spark_llm_device_hold_ceiling_bytes) | int)
+      - (spark_llm.fixed_cost_bytes | int) + (spark_llm_kv_pool_effective | int) <= (spark_llm.device_hold_ceiling_bytes | default(spark_llm_device_hold_ceiling_bytes) | int)
     fail_msg: >-
       Profile '{{ spark_llm_profile }}' does not leave the certified host floor:
       fixed_cost={{ spark_llm.fixed_cost_bytes | default('<unset>') }} B +
-      KV pool={{ spark_llm.kv_cache_memory }} B =
-      {{ (spark_llm.fixed_cost_bytes | default(0) | int) + (spark_llm.kv_cache_memory | int) }} B,
+      KV pool={{ spark_llm_kv_pool_effective }} B =
+      {{ (spark_llm.fixed_cost_bytes | default(0) | int) + (spark_llm_kv_pool_effective | int) }} B,
       ceiling is {{ spark_llm_device_hold_ceiling_bytes }} B (= MemTotal 130,593,136,640 −
       6.9 GiB held by OS/driver at engine start − 17.78 GiB the CERTIFIED worst usable
       reading; docs/hardware-spark.md §Unified-memory budget, spark/stability-test.md §2).
@@ -301,7 +333,7 @@
     success_msg: >-
       Host floor OK for '{{ spark_llm_profile }}': fixed
       {{ (spark_llm.fixed_cost_bytes | int / 1e9) | round(1) }} GB + pool
-      {{ (spark_llm.kv_cache_memory | int / 1e9) | round(1) }} GB =
+      {{ (spark_llm_kv_pool_effective | int / 1e9) | round(1) }} GB = 
       {{ ((spark_llm.fixed_cost_bytes | int + spark_llm.kv_cache_memory | int) / 1e9) | round(1) }} GB
       of {{ (spark_llm_device_hold_ceiling_bytes | int / 1e9) | round(1) }} GB ceiling
       (basis: {{ spark_llm.fixed_cost_basis | default('undeclared — declare it') }}).

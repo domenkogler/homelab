@@ -76,6 +76,28 @@ tags: [hardware, gpu, spark, gb10, grace-blackwell, ai]
 > directories, not datasets, so nothing snapshots or replicates them — is recorded in
 > [`hardware-nas.md`](hardware-nas.md).
 
+> **The root partition's free-space floor.** The disk half of the profile gate is one assert —
+> `IaC/ansible/roles/spark-llm-profile/tasks/main.yml` reading `df -P -B1 /` against
+> `spark_llm_os_min_free_bytes` (`IaC/ansible/group_vars/spark.yml`) — and it evaluates only for a profile
+> whose `models_root` is `os`; an XFS-rooted arm and the image-build roles never read `df`. The floor
+> value is a safety property, not a knob, and the ⛔ rule that the build cache is not pruned for room
+> ([spark-llm-profiles.md](spark-llm-profiles.md) §7) stands as written. What may move, per run, is the
+> answer to a breach: `spark_llm_os_free_gate_exempt` (`IaC/ansible/group_vars/spark.yml`, default
+> `false`) lets a human accept a MEASURED below-the-floor state for ONE converge — passed with
+> `-e spark_llm_os_free_gate_exempt=true`, never committed `true` — and an exempt converge prints the
+> measured free bytes together with the floor it accepted. The print is the point: a bypass that goes
+> quiet is the failure mode, a bypass that prints is the audit trail.
+>
+> **The move that buys the armed floor back.** The os-rooted store — the AR checkpoint
+> (`spark_ultrafast_base_subdir`), the FP8 PLE table and the derived drafter directory
+> (`spark_ultrafast_drafter_subdir`) — sits on `p2` (§As-measured), and moving that whole tree to XFS is
+> what frees the root again. It must be ONE **link-preserving** move: the drafter directory hard-links the
+> checkpoint's shards, so a partial move — the table alone, or the table plus the checkpoint — frees
+> nothing, and the link counts on the target are the check before any source byte is unlinked. One engine
+> boot pays for it, because the bytes release when the container recreates, so the evidence it leaves is
+> that boot's own `GPU KV cache size` line and its `RestartCount` — a re-cert read, not a re-decide.
+> Until the move is done, an `os`-rooted converge below the floor runs on the exemption above.
+
 > **vLLM metrics → Grafana:** the spark-ai compose publishes `:8000` **loopback-only**
 > (`spark_metrics_publish: true`, `127.0.0.1`) so the spark Alloy can scrape vLLM's Prometheus
 > `/metrics` (`prometheus.scrape "vllm"` — the same pattern as Traefik's `127.0.0.1:8082` metrics
@@ -617,6 +639,12 @@ What the cap buys at 2418 is therefore **a known measurement regime at ~3 % cost
 draw — *not* the crash mitigation those reports measured. If a hard-off ever does happen here, this var is
 the first thing to lower, and the ceiling is derived from the range so the role's assert follows it with
 no other edit.
+
+**The clock headroom is spent on heat, not on speed.** `spark_gpu_clock_cap_mhz` sits where it does
+because this box already runs warm: the `300` half of the range keeps the driver free to idle its clocks
+between requests — the behaviour a 24/7 agent seat needs — while the ceiling bounds what it draws under
+load. The gap up to `clocks.max.sm` is deliberately unclaimed for that reason: heat, not clock, is the
+constraint this box runs against, and this ceiling is the only software lever it has (next paragraph).
 
 **No thermal policy is available on this SoC — probed, not assumed** (`nvidia-smi -q -d TEMPERATURE /
 - PERFORMANCE`): `GPU Target Temperature` **N/A**, `GPU Slowdown T.Limit Temp` **N/A**,

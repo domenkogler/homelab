@@ -1,0 +1,28 @@
+# patch-plan.json — the rendered form of spark_profile_fast_v33_patch_plan
+# (roles/spark-profile-fast-v33/defaults/main.yml). This file is the build context's only view of the
+# patch set, and it is RENDERED, never hand-edited: the plan is IaC data, so a count that lives only
+# in a build directory is a count nobody reviewed and no git history explains.
+#
+# Each entry: name / path / pattern / expect / marker / cmd. `expect` is an anchor count read from
+# the base image at its pin digest — see files/port_v33.py for what happens when it is wrong, and
+# ⛔ never widen an upstream patcher's own assert to make a count agree.
+{
+  "lineage": "spark-profile-fast-v33",
+  "base": "{{ spark_vllm_v33_base_image }}",
+  "day0_commit": "{{ spark_ultrafast_upstream_commit }}",
+  "blazux_commit": "{{ spark_blazux_upstream_commit }}",
+  "edits": [
+{% for e in spark_profile_fast_v33_patch_plan %}
+    {
+      "name": {{ e.name | to_json }},
+      "path": {{ e.path | to_json }},
+      "pattern": {{ e.pattern | to_json }},
+      "expect": {{ e.expect | to_json }},
+      "marker": {{ e.marker | to_json }},
+      "cmd": {{ e.cmd | to_json }}{% if e.evidence is defined %},
+      "evidence": {{ e.evidence | to_json }}{% endif %}
+
+    }{{ "," if not loop.last else "" }}
+{% endfor %}
+  ]
+}

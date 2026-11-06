@@ -111,6 +111,15 @@ spark_models_dir_os: /opt/homelab/models
 # mix halves or doubles the apparent margin. A breach means the store filled up — the
 # remedy is to free space, never to lower the floor (roles/spark-llm-profile).
 spark_llm_os_min_free_bytes: 150000000000
+# The per-run, opt-in exemption to the assert that reads the floor above. It exists for ONE state: a
+# build that landed legitimately has taken `/` below the floor while leaving plenty of space, and every
+# `os`-rooted converge in that window — the flips, and the rollback to `fast` — would otherwise be
+# refused for a number that is not a shortage.
+# It is NOT a knob and it is never committed true: it is passed per run
+# (`-e spark_llm_os_free_gate_exempt=true`), and an exempt run prints the free bytes it accepted
+# alongside the floor, which is the difference between an audit trail and a bypass that goes quiet.
+# The floor value above keeps its meaning; the remedy for a real breach is still bytes, never this flag.
+spark_llm_os_free_gate_exempt: false
 # The upstream build inputs/outputs (roles/spark-ultrafast-build). The drafter directory is
 # CONVERTED out of the base checkpoint (nine dense MTP modules at group size 32), never
 # downloaded — which is why the profile names it as a `built` artifact set and the gate
@@ -134,6 +143,12 @@ spark_profile_fast8_build: false
 # (+13 GB on XFS). It decides only whether a converge may build a CANDIDATE for
 # spark_vllm_blazux_v33_image; nothing here flips a profile.
 spark_profile_blazux_build: false
+# The fast-v33 lineage's own switch (roles/spark-profile-fast-v33) — same reasoning as the two above:
+# it may pull a ~48 GB base onto `/` and build a patch stack on this box, so it is an act, never a side
+# effect of a converge. It decides only whether a converge may build a CANDIDATE for
+# spark_vllm_fast_v33_image; nothing here flips a profile, and the lineage refuses to build at all
+# while its patch plan is unfilled (defaults/main.yml).
+spark_profile_fast_v33_build: false
 spark_models_roots:
   xfs: "{{ spark_models_dir }}"
   os: "{{ spark_models_dir_os }}"
@@ -148,6 +163,11 @@ spark_blazux_src_dir: /opt/homelab/blazux-src
 # byte-for-byte the pinned commit for the provenance assert to mean anything, and a build definition
 # that edits it would also leave upstream's build.sh in place, writing the live lineage's tags.
 spark_profile_fast8_build_dir: /opt/homelab/ultrafast-v32-build
+# The fast-v33 lineage's BUILD directory: the two pinned recipes staged as patch sources plus this
+# lineage's own plan and porter. Never either checkout — those stay byte-for-byte upstream so the
+# provenance assert can mean anything, and upstream's own build.sh is deleted from this copy so it can
+# never write the live lineage's tags (roles/spark-profile-fast8 learned that one on a box).
+spark_profile_fast_v33_build_dir: /opt/homelab/fast-v33-build
 spark_draft_vocab_dir: "{{ spark_xfs_mount }}/draft_vocab"
 spark_draft_vocab_host_file: "{{ spark_draft_vocab_dir }}/draft-vocab-ids-K65536.txt"
 spark_draft_vocab_container: /draft-vocab/ids.txt
@@ -1560,6 +1580,140 @@ spark_llm_profiles:
       as an improvement — only as the control that makes the fp8 flip attributable.
     certified_evidence: ""
 
+  # ── fast-v33: `fast`'s weights on the v0.33 engine build (the lane fast_v33_draft.md exists for) ──
+  # WHY THESE TWO ARMS EXIST: the checkpoint is not the variable and neither is the pool. What moves is
+  # the ENGINE BUILD — the day-0 patch stack re-anchored onto spark_vllm_v33_base_image, carrying the
+  # blazux recipe's PLE-mmap install hook (the hook that already speaks the qwen4_exp class layout the
+  # day-0 overlay cannot hook) and its loader patchers, the MTP prefilter among them. `fast-v33-bf16`
+  # is therefore a CONTROL: same weights, same dtype, same pool, so its `GPU KV cache size` line must
+  # match `fast`'s and any fp8 regression later has exactly one candidate cause. `fast-v33-fp8` is the
+  # capacity arm whose engine line the projection gets to be wrong about (docs/spark-llm-profiles.md
+  # §Nomenclature — the engine's line is the number of record, never the arithmetic beside it).
+  #
+  # BOTH ARMS ARE REFUSED TODAY, by the pin: spark_vllm_fast_v33_image is empty, and an empty pin IS
+  # the refusal (CONVENTIONS §7). Nothing about a flip can open that gate; only a build can.
+  fast-v33-bf16:
+    <<: *u_x
+    label: "UNCERTIFIED — `fast`'s coordinates on the v0.33 lineage at bf16 KV (the build-lineage control)"
+    image: ultrafast-v33          # the patch stack re-anchored ON spark_vllm_v33_base_image; its built
+                                  # ID is spark_vllm_fast_v33_image, currently empty (the gate). Bumping
+                                  # `base`/`ultrafast`/`ultrafast-v32` instead would re-engine a certified
+                                  # lane or the live rollback, which is the thing this lineage exists to
+                                  # avoid (roles/spark-profile-fast-v33 reserves every one of those tags).
+    models_root: os               # the checkpoint pair is where `fast` reads it: the relocation to XFS
+    model_subdir: Qwen3.8-Flash-Next-W4A16-AutoRound-hybrid   # is a separate, owner-present act
+    ple_offload: false
+    ple_overlay: false
+    ple_host_base: models
+    ple_host_root: os
+    ple_host_subdir: ple-table-fp8
+    ple_container_dir: /ple-table
+    ple_staged_marker: ".hf-staged"
+    ple_mmap: true
+    ple_dispatch: true            # constitutive on this checkpoint, exactly as in `fast`/`fast8`/`fast-v32-bf16`
+    kv_cache_dtype: auto          # `auto` IS the certified spelling of bf16 here — `fast` renders
+                                  # `--kv-cache-dtype auto` and the byte constant charges `auto` and
+                                  # `bf16` alike. Writing the word `bf16` would put a second variable in
+                                  # an arm whose whole job is to carry one; the `bf16` in the NAME labels
+                                  # the resolved dtype, not the spelling.
+    kv_cache_memory: "20000000000"  # the same pool `fast` takes, on purpose: a control that moved the
+    pool_ceiling_bytes: 20000000000 # pool could no longer print `fast`'s boot line. The memory ladder
+                                    # (fast_v33_draft.md R8) turns spark_llm_kv_pool_bytes per run rather
+                                    # than minting an arm per pool size — the name axis is base lineage +
+                                    # dtype only, and a pool in the identity would be a third copy.
+    max_num_seqs: 8               # max_cudagraph_capture_size deliberately NOT restated: it inherits
+                                  # `_x`'s 4, which keeps the ≤ max_num_seqs capture-cap assert honest
+                                  # (docs/hardware-spark.md §Unified-memory budget)
+    enforce_eager: true           # eager FIRST is the ruling (fast_v33_draft.md R5), not a verdict
+                                  # about this build: the mmap hook × graph capture is the exact pair
+                                  # that made `fast` eager, so RestartCount is read on an eager boot
+                                  # before any capture is attempted.
+    spec_config:
+      method: mtp
+      num_speculative_tokens: 3
+      rejection_sample_method: block
+      draft_sample_method: probabilistic
+    health_start_period: 2400s    # PREWARM reads the whole FP8 table at boot, as in `fast`
+    reasoning_surface: binary     # certified against THIS engine surface (docs/harness-pi-engines.md §2)
+    artifact_sets: [ar-hybrid, ple-fp8]   # both already staged for `fast` — this arm downloads nothing
+    # The SAME named host-floor exception `fast`/`fast8`/`fast-v32-bf16` carry: the global 113.000e9 is
+    # priced from terms that do not hold for this checkpoint, and this arm changes neither weights nor
+    # dtype, so the AR-hybrid checkpoint's measured non-engine reserve is what binds.
+    # → docs/hardware-spark.md §The GLOBAL ceiling: spark_llm_device_hold_ceiling_bytes
+    device_hold_ceiling_bytes: 112700000000
+    fixed_cost_bytes: 92130000000
+    fixed_cost_basis: "DERIVED — inherited from `fast`, NOT re-measured on this arm. Weights and dtype are
+      unchanged, so `fast`'s MemAvailable-jump figure (docs/spark-incidents.md §Incidents #4/#5/#6, the
+      only method that reports what the engine HOLDS) is the right starting number — but a re-anchored
+      patch stack is exactly the thing that can move the NON-KV hold, so this is the term gate 2/7 is
+      expected to falsify rather than confirm. Replaced by measurement, never by argument."
+    certified: false
+    uncertified_reason: >-
+      (a) THE LINEAGE, and it is empty: spark_vllm_fast_v33_image holds no ID until
+      roles/spark-profile-fast-v33 builds one, and the plan it builds from refuses to run before
+      someone censuses the v0.33 base and fills it in — so this arm is GATED, not bootable-and-
+      uncertified the way the v32 pair is. (b) WHAT IT HAS TO PROVE, and it is a short list because
+      the weights carry: the same engine KV-cache line `fast` prints (a different number means the
+      pool arithmetic moved under the port), RestartCount=0 on an eager boot, the boot time that is
+      this lane's whole claim, and the quick tier. (c) WHAT IT IS NOT: not a capacity arm and not a
+      quality arm — it claims no fp8 dtype and no slots, so gates 8-9 do not apply and it must never
+      be flipped as an improvement, only as the control that makes the fp8 flip attributable.
+    certified_evidence: ""
+
+  fast-v33-fp8:
+    <<: *u_x
+    label: "UNCERTIFIED — `fast`'s coordinates on the v0.33 lineage at fp8 KV (the capacity arm)"
+    image: ultrafast-v33          # the same built ID `fast-v33-bf16` boots — the dtype is the ONLY
+                                  # difference between the two arms, which is what makes the pair the
+                                  # cleanest fp8 read this box can make
+    models_root: os
+    model_subdir: Qwen3.8-Flash-Next-W4A16-AutoRound-hybrid
+    ple_offload: false
+    ple_overlay: false
+    ple_host_base: models
+    ple_host_root: os
+    ple_host_subdir: ple-table-fp8
+    ple_container_dir: /ple-table
+    ple_staged_marker: ".hf-staged"
+    ple_mmap: true
+    ple_dispatch: true
+    kv_cache_dtype: fp8           # a BUILD property, not a flag: refused unless `ultrafast-v33` is in
+                                  # spark_llm_fp8_kv_capable_images, which happens only on the box leg
+                                  # of scripts/bench/spark-fp8-image-probe.py printing
+                                  # REACHABLE-ON-THIS-PIN on the built ID, in the same change that
+                                  # pins it. On a lineage without the read path this value boots into
+                                  # the BF16-only QSA guard and restart-loops with every other gate
+                                  # green (docs/spark-llm-profiles.md §What the gate refuses).
+    kv_cache_memory: "20000000000"  # the SAME pool the bf16 sibling takes: fp8 buys slots inside the
+    pool_ceiling_bytes: 20000000000 # pool, not a bigger one — the checkpoint's non-KV hold already
+                                    # caps it (docs/hardware-spark.md §The fixed cost, MEASURED)
+    max_num_seqs: 8
+    enforce_eager: true           # eager first, same ruling and the same reason as the sibling arm
+    spec_config:
+      method: mtp
+      num_speculative_tokens: 3
+      rejection_sample_method: block
+      draft_sample_method: probabilistic
+    health_start_period: 2400s
+    reasoning_surface: binary
+    artifact_sets: [ar-hybrid, ple-fp8]
+    device_hold_ceiling_bytes: 112700000000
+    fixed_cost_bytes: 92130000000
+    fixed_cost_basis: "DERIVED — inherited from `fast` and from its own bf16 sibling; the dtype changes
+      bytes per token, not what the engine holds outside the pool. Gate 2/7 replaces it with the
+      arm's own MemAvailable-jump reading (docs/spark-incidents.md §Incidents #4/#5/#6)."
+    certified: false
+    uncertified_reason: >-
+      (a) GATED twice: the empty spark_vllm_fast_v33_image pin, and `ultrafast-v33` is absent from
+      spark_llm_fp8_kv_capable_images until the fp8 probe's box leg answers on the built ID. Neither
+      refusal opens without the build and the probe. (b) WHAT IT HAS TO PROVE: the engine's own KV
+      cache line at fp8 (the projection beside it is a projection — the line wins), then the quick
+      tier and the memory ladder down to 12 GB, each step read before any timed leg. (c) WHAT IT IS
+      NOT: it is not the blazux capacity arm — different weights, different activations, and a
+      comparison with `bz-v33-fp8` attributes nothing (docs/spark-llm-profiles.md). Quality vs the
+      noise floor (gate 9) is the fp8 arm's own question, asked against `fast-v33-bf16`.
+    certified_evidence: ""
+
   # ── B9: ar-blk WITHOUT the kernel-dispatch env ──────────────
   # Same checkpoint + FP8 mmap table + spec as ar-blk, but ple_dispatch: false ⇒ the
   # QWEN38NEXT_*/VLLM_*_GEMM/VLLM_FP8_HYBRID knobs are NOT rendered, so this varies exactly one
@@ -1972,6 +2126,10 @@ spark_llm_profile_images:
   # spark_vllm_v33_base_image. EMPTY until a build prints its ID — that empty pin is what refuses
   # `bz-v33-bf16` and `bz-v33-fp8` today.
   blazux-v33: "{{ spark_vllm_blazux_v33_image }}"
+  # The fast-v33 lineage (roles/spark-profile-fast-v33): `fast`'s weights on a v0.33 engine build —
+  # the day-0 stack re-anchored plus the blazux hook and loader patchers. EMPTY until its build prints
+  # an ID, so both arms it names are refused by the pin gate before anything else is graded.
+  ultrafast-v33: "{{ spark_vllm_fast_v33_image }}"
   sglang: "{{ spark_sglang_image }}"
 
 # The `<base>` axis of a profile's canonical identity `<arm>-<base>-<kv>`
@@ -1991,6 +2149,11 @@ spark_llm_base_tokens:
   ultrafast-v32: v32              # 0.32.0, from spark_vllm_v32_base_image
   blazux-v33: v33                 # 0.33.0 is the TAG spark_vllm_v33_base_image names, not yet a read: no
                                   # build exists on the box. The first build re-reads it with the form above
+  ultrafast-v33: v33              # the SAME base digest as the row above, reached by a different route: this
+                                  # lineage re-anchors the day-0 stack onto it instead of building a recipe
+                                  # as published. The token is inherited from the base, not measured here —
+                                  # the first build re-reads it inside the built image, and if the patch set
+                                  # moves the version string this row is the line that must change
   sglang: sglang                  # no vLLM inside to read, so the engine name is the honest token
 
 # Resolve the active profile for roles (roles/spark-llm-profile reads this as a real
@@ -2055,7 +2218,14 @@ spark_vllm_kv_cache_dtype: "{{ spark_llm_profiles[spark_llm_profile].kv_cache_dt
 # DO NOT raise the KV pool further in bf16 — BOOT-side headroom is the binding side, and the next
 # KV byte is --kv-cache-dtype fp8's job. Bench-guard floors are on `usable` (MemAvailable −
 # CmaFree), not raw MemAvailable: do not move them without re-measuring (spark/stability-test.md §2).
-spark_vllm_kv_cache_memory: "{{ spark_llm_profiles[spark_llm_profile].kv_cache_memory }}"
+# The one knob the v33 memory ladder turns (fast_v33_draft.md R8): an EMPTY value means "use the
+# arm's own kv_cache_memory", so every existing profile renders exactly as before. Non-empty must be a
+# byte count, passed per run (`-e spark_llm_kv_pool_bytes=12000000000`), and it feeds the SAME three
+# asserts an authored pool is graded by — roles/spark-llm-profile reads this value, not the arm's, so a
+# ladder step can never boot a pool the gate would refuse. Pool up, ceiling unchanged: the ceiling is
+# the certified part (docs/hardware-spark.md §Chosen governor).
+spark_llm_kv_pool_bytes: ""
+spark_vllm_kv_cache_memory: "{{ spark_llm_kv_pool_bytes if spark_llm_kv_pool_bytes | length > 0 else spark_llm.kv_cache_memory }}"
 # Do not reintroduce a gpu_memory_utilization key: with kv_cache_memory_bytes set this build's
 # determine_available_memory() skips memory profiling and ignores the parameter entirely, so it
 # would be dead config and a false ceiling. The explicit KV pool IS the budget decision on GB10;

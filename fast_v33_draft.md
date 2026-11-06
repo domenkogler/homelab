@@ -196,7 +196,7 @@ provider**, so the lane's read list is what [`CONVENTIONS.md`](CONVENTIONS.md) �
 | # | act | form | acceptance, one line |
 |---|---|---|---|
 | 0 | open the session's own worktree, then **re-read** §2 read-only | `git worktree add ../homelab-wt-<date>-<HHMM>`, then the §2 reads again | the tree is clean and the free-bytes / serving-profile / clock lines are today's, not this file's date |
-| 1 | prerequisite B — the survey (§4) | two read-only children, verdicts written into §4's last column | every lead carries a verdict with its citation, and the graphs answer is one word |
+| 1 | prerequisite B — the survey (§4), **unanswered**: both lanes were stopped before either reported, so the window runs them itself as two read-only children before it authors nothing | two read-only children, verdicts written into §4's last column | every lead carries a verdict with its citation, and the graphs answer is one word |
 | 2 | **the lineage is already authored** by the preparing session (census, five patchers incl. the R10 prefilter, role data, tag, empty pin, the R3 flag) | verify offline, do not re-author | `python3 scripts/gate/check_spark_llm_gate.py` green and the new arms render `GATED` (empty pin) in `python3 scripts/bench/spark-llm-render-matrix.py`, not broken |
 | 3 | the build, by a worker child (R9: **≤3 attempts**) | `nohup bash scripts/ansible/ansible-run.sh IaC/ansible/playbooks/spark.yml --limit spark -e '{"spark_profile_fast_v33_build":true}' --tags spark-profile-fast-v33 --no-pull > /tmp/fastv33-build-$(date +%Y%m%d-%H%M).log 2>&1 &` | the run ends RED on the unpinned-ID fail **by design** and prints the immutable ID; every marker probe returned 0. A failed attempt is read and its reading written before any rebuild |
 | 4 | pin + fp8 admission | commit the printed ID in `IaC/ansible/group_vars/all/versions.yml` alone; then `python3 scripts/bench/spark-fp8-image-probe.py --image <ID> --skip-registry` | the probe prints `REACHABLE-ON-THIS-PIN`; the capable-list entry lands in that same change (an `UNDECIDED` run is not a verdict, and without it the fp8 flip is not authorized) |
@@ -220,6 +220,48 @@ rung of the fallback ladder, ending at `fast` (R7). The memory ladder stops at 1
 ceiling, never touch the clocks (R2), never prune the build cache — report the free-bytes number instead.
 `/` free below ~80 GB at any pre-flight read: stop and report. No fp8 flip without `REACHABLE-ON-THIS-PIN`
 (step 4). And a run that cannot leave the box serving stops at the last rung it can hold.
+
+**The launch card.** The shape, the four verification reads and the traps are
+[`paseo-readme.md`](paseo-readme.md) §3/§6 — this is only the data this window launches with, so the line
+is not re-derived at launch time (§2: a re-typed copy is a second source; a re-typed *command* is the same
+thing wearing a shell): the row the owner named, an independent launch (no `PASEO_AGENT_ID`, no
+`PASEO_*SESSION*`), both env pairs, and a cwd that is **this repository with a worktree act in the
+prompt** — the daemon-owned workspace would otherwise land in the merge station.
+
+```bash
+env -u PASEO_AGENT_ID -u PASEO_AGENT_CWD -u PI_SESSION_ID -u PI_SESSION_FILE -u PI_PROVIDER -u PI_MODEL \
+  paseo run --no-wait -q --provider pi \
+    --model entrim/deepseek-ai/DeepSeek-V4.1-Flash-1017 \
+    --env PI_PROVIDER=entrim --env PI_MODEL=deepseek-ai/DeepSeek-V4.1-Flash-1017 \
+    --cwd <absolute path of the homelab checkout> \
+    --title fast-v33-window --label lane=spark-llm \
+    "Read fast_v33_draft.md and run its ladder. First act, before any edit: \
+     git worktree add ../homelab-wt-$(date +%Y%m%d-%H%M) (CONVENTIONS §6). \
+     You are autonomous: §0's rulings and §6's stop conditions are your whole authority, and anything \
+     they do not cover is a stop, not an improvisation."
+```
+
+Then prove the launch before believing it: `paseo inspect` for `ParentAgentId = null`, the `Model` /
+`Provider` pair, and the `Cwd` — and read `LastUsage.CachedTokens` to see whether the checkout's context
+came along, because that is the §8.6 question answered rather than assumed.
+
+---
+
+## 6b. What the preparing session left done, and where each piece lives
+
+Everything below is committed on the branch this brief was merged from; the window starts at step 1 and
+finds no authoring left to do.
+
+| piece | where it lives | what the window must still do to it |
+|---|---|---|
+| the lineage | `IaC/ansible/roles/spark-profile-fast-v33/` (defaults = the plan and the lineage data, tasks = the order, files = `port_v33.py` + `Dockerfile.v33`, templates = the rendered plan) | fill `spark_profile_fast_v33_patch_plan` from the census; the role refuses to build until it is filled |
+| the two arms | `IaC/ansible/group_vars/spark.yml` (`fast-v33-bf16` / `fast-v33-fp8`), pin name `spark_vllm_fast_v33_image` in `group_vars/all/versions.yml`, image name and base token in the two maps at the foot of the same file | pin the ID the build prints; nothing else changes them |
+| the pool knob (R8) | `spark_llm_kv_pool_bytes` in `group_vars/spark.yml` — empty means the arm's own value, and `roles/spark-llm-profile` grades the EFFECTIVE pool, so a ladder step cannot boot past the ceiling or below the window | pass it per run: `-e spark_llm_kv_pool_bytes=12000000000` |
+| the disk exemption (R3, R11) | `spark_llm_os_free_gate_exempt` (default `false`) and the assert that reads it, which prints the accepted number | pass it per run once `/` is under the floor; never commit it `true` |
+| the render branch that makes an empty pin a refusal | `IaC/ansible/templates/docker_services/spark-ai/docker-compose.yml.j2`, the `ultrafast-v33` arm of `engine_image` | nothing — but read the render matrix before the first flip: an arm that renders an image instead of `IMAGE-PIN-EMPTY` is a fall-through, and this lineage's argv would boot and serve the wrong engine |
+| the catalogue | `docs/spark-llm-profiles.md` — both arms, the retired v32 rows, the flip order and the fallback ladder | update the rows with what the boots actually printed |
+| the queue | `todo.md` HD-1206 (this lane), HD-1242 (the blazux lane, un-parked and sharing the base pull) | trim HD-1206 as each ⏳ item lands; delete nothing else |
+| the survey (§4) | this file's §4 verdict column | take it: the lanes launched for it were stopped before either answered |
 
 ---
 
@@ -291,9 +333,11 @@ made it lie.
 
 ## 10. What this draft deliberately does not do
 
-It does not restate the Paseo launch contract: the commands, the dependent/independent distinction, the
-model-proof reads and the workspace-binding rules are [`paseo-readme.md`](paseo-readme.md)'s, and this file
-points at them rather than copying them (CONVENTIONS §2: a re-typed copy is a second source).
+It restates no part of the Paseo launch contract: the dependent/independent distinction, the workspace
+binding, the model-proof reads and the traps are [`paseo-readme.md`](paseo-readme.md)'s, and the kick line
+in section 6 carries only this window's data on top of that shape — the row, the title, and the worktree
+act the prompt must carry because the daemon owns the cwd (`CONVENTIONS.md` §2: a re-typed copy is a
+second source, which is why the shape is pointed at and only the arguments are written here).
 
 It does not build, converge, flip, boot or touch spark; it does not edit the floor value; it does not open
 an `Options` section (section 9 says why none is owed); and it does not schedule the blazux arm — that lane
