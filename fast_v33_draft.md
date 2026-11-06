@@ -200,7 +200,7 @@ provider**, so the lane's read list is what [`CONVENTIONS.md`](CONVENTIONS.md) �
 | 2 | **the lineage is already authored** by the preparing session (census, five patchers incl. the R10 prefilter, role data, tag, empty pin, the R3 flag) | verify offline, do not re-author | `python3 scripts/gate/check_spark_llm_gate.py` green and the new arms render `GATED` (empty pin) in `python3 scripts/bench/spark-llm-render-matrix.py`, not broken |
 | 3 | the build, by a worker child (R9: **≤3 attempts**) | `nohup bash scripts/ansible/ansible-run.sh IaC/ansible/playbooks/spark.yml --limit spark -e '{"spark_profile_fast_v33_build":true}' --tags spark-profile-fast-v33 --no-pull > /tmp/fastv33-build-$(date +%Y%m%d-%H%M).log 2>&1 &` | the run ends RED on the unpinned-ID fail **by design** and prints the immutable ID; every marker probe returned 0. A failed attempt is read and its reading written before any rebuild |
 | 4 | pin + fp8 admission | commit the printed ID in `IaC/ansible/group_vars/all/versions.yml` alone; then `python3 scripts/bench/spark-fp8-image-probe.py --image <ID> --skip-registry` | the probe prints `REACHABLE-ON-THIS-PIN`; the capable-list entry lands in that same change (an `UNDECIDED` run is not a verdict, and without it the fp8 flip is not authorized) |
-| 5 | flip the control arm | detached, `-e spark_llm_profile=fast-v33-bf16 -e spark_llm_allow_uncertified=true --skip-tags tailscale-node` (+ the exemption flag if `/` is under the floor) | `RestartCount=0` after 30 min **and** the boot prints the same token count `fast` prints; read the timestamps — boot time is this arm's headline measurement |
+| 5 | flip the control arm | detached, `-e spark_llm_profile=fast-v33-bf16 -e spark_llm_allow_uncertified=true --skip-tags tailscale-node` (+ the exemption flag if `/` is under the floor) | `RestartCount=0` after 30 min **and** the boot prints the same token count `fast` prints; read the timestamps — boot time is this arm's headline measurement; **and read the dispatch** with `python3 spark/reports/hd1206-v32-port-20261026/runtime_dispatch.py` against the running container, the first engine ever to construct the MoE class (item 3 of section 9) |
 | 6 | quick tier on the control | `python3 scripts/bench/spark-llm-probe.py all --profile fast-v33-bf16` + one determinism leg (identical prompt twice, first-token logprobs compared) | health/reasoning/ctx/concurrent pass; logprobs byte-equal across the two runs |
 | 6a | the capture attempt, and its price (R5) | once eager reads `RestartCount=0`: `enforce_eager: false`, the piecewise capture form, re-converged detached, `RestartCount` and the capture lines read **before** any timed leg | graphs hold and the leg stands — or they do not, which is a result to write down, not a bug to chase. The knob is the pool (6b); `spark_llm_device_hold_ceiling_bytes`, the pool ceiling and the clocks are **not** knobs (§4's governor, and R2) |
 | 6b | the memory ladder (R8) | one boot + quick tier per step, `kv_cache_memory` down in 2 GB steps **to 12 GB**, each run as its own detached converge with the pool named on the command line | at every step the engine's own `GPU KV cache size` line and `RestartCount` are read before any timed leg; the ladder stops at 12 GB — never below, and never by raising a ceiling |
@@ -318,7 +318,14 @@ made it lie.
    counted site. The measurement the open question asked for is still taken — what the drafter actually
    reads on a boot — and if it contradicts upstream's price, the finding goes **here**, not into the docs
    (R12).
-3. **The relocation question, answered with the box's own bytes, so nobody re-derives it.** The build does
+3. **Carried over, not dropped: the runtime dispatch read.** Capability `(12, 1)`, the 16-shape SM121 plan
+   table and `is_available() = True` are measured in the artifact, but no engine ever booted that constructed the
+   model class, so `_runtime_ok` stays **inferred rather than observed** — UNRESOLVED, not failed. The reader is
+   [`spark/reports/hd1206-v32-port-20261026/runtime_dispatch.py`](spark/reports/hd1206-v32-port-20261026/runtime_dispatch.py)
+   and step 5 is the first boot that can run it. It survives the v32 row's retirement because the question was
+   never about the base: it is about whether `fast`'s loader dispatches the experts or falls back to `F.linear`.
+
+4. **The relocation question, answered with the box's own bytes, so nobody re-derives it.** The build does
    **not** need it: `/` reads 174,712,012,800 B, the v33 base pull plus the built image costs ≤ ~48 GB, and
    the build path never evaluates `df` at all. What the build does is leave `/` at **~127–137 GB — under the
    150,000,000,000 B floor yet not short of space**, which is exactly the state R3's named per-run exemption

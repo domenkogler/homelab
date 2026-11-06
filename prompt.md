@@ -180,12 +180,16 @@ not this list, holds the steps, the file ownership and the converge host. Waves,
    codes and rollback: [spark/reports/external-window-card.md](spark/reports/external-window-card.md). **HD-473** waits on
    the ref choice and the re-cert it costs, not on upstream; **HD-380** needs no external model — it is a `/metrics` read
    plus a standing watch on the growth curve. ⛔ Gates 7, B10's 6/8/9 and B9 · B5 · B8 are closed — do not re-run.
-   **HD-1206**: the v32 lineage is built, pinned and fp8-capable but `certified: false`, so what remains is the owner
-   window in the row's order (the runtime dispatch check → `fast-v32-bf16` as the base-lineage control → `fast8` fp8 KV),
-   each leg detached and from a seat spark does not serve; rollback is one `-e spark_llm_profile=fast` plus a detached
+   **HD-1206** now reads the **fast-v33 lineage**: `fast`'s weights on a v0.33 engine build, authored in IaC
+   (`roles/spark-profile-fast-v33`, arms `fast-v33-bf16` / `fast-v33-fp8`) and unbuilt, so the empty
+   `spark_vllm_fast_v33_image` pin is what refuses both arms. The v32 window it used to point at is gone — the pair
+   retired to evidence rows in [docs/spark-llm-profiles.md](docs/spark-llm-profiles.md), their reports holding what was
+   read off them — while the runtime dispatch read **carried over** rather than dropped: `runtime_dispatch.py` against the running container on the first boot is the only thing that turns `_runtime_ok` from inferred into observed, and no engine has ever constructed that class. What is owed is census → fill the patch plan → build → pin + the fp8 box-leg probe → the flip ladder,
+   run by the one autonomous window [`fast_v33_draft.md`](fast_v33_draft.md) describes, from a seat spark does not
+   serve, detached, ending with the fp8 arm serving; rollback is one `-e spark_llm_profile=fast` plus a detached
    converge with `spark-rollback:fast` held locally and archived on the NAS. ⛔ Never retag `qwen38-flash-dgx:iter6c|iter6d`;
-   never prune the build cache; read the artifact markers rather than the CPU self-test gates, whose verdict is not about
-   the patch set.
+   never prune the build cache; never widen a patch plan's anchor count to make a step pass — read the site;
+   read the artifact markers rather than the CPU self-test gates, whose verdict is not about the patch set.
    → [prompt-spark-llm.md](prompt-spark-llm.md) (one spark slot; HD-473 + the capacity-axis and radix rows ride it)
 2. ⏳ **The transport / answer plane** — **HD-435**: the `ha` `tailnet: dual` publish is live and inert; the answer half is
    settled by the client's code, which answers ONE A record, so what is owed is a decision — close on the per-node-names

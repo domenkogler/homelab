@@ -80,7 +80,8 @@
 - name: Read the free space on the root the image store lives on
   # The same read roles/spark-llm-profile makes, made here BEFORE a ~48 GB pull, because on this box
   # the store is on `/` and the pull is the act that moves `/` under the profile gate's floor
-  # (docs/hardware-spark.md §Partition layout). Reporting the number is the point.
+  # (docs/hardware-spark.md, the `/`-vs-p2 storage block in its opening matter). Reporting the number is
+  # the point; roles/spark owns the mount itself.
   ansible.builtin.command:
     argv: ["df", "-P", "-B1", "/"]
   changed_when: false
