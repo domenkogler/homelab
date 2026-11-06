@@ -332,6 +332,10 @@ env -u PASEO_AGENT_ID -u PASEO_AGENT_CWD -u PI_SESSION_ID -u PI_SESSION_FILE -u 
      they do not cover is a stop, not an improvisation."
 ```
 
+This one names `--cwd` where the build and port sessions bind a workspace: workspace records are per-daemon,
+so the seat Rule 0 requires (one spark does not serve) may hold none for this checkout. Binding there is a
+seat-local choice — derive the id if the daemon has one, otherwise `--cwd` is correct and says the same thing.
+
 Then prove the launch before believing it: `paseo inspect` for `ParentAgentId = null`, the `Model` /
 `Provider` pair, and the `Cwd` — and read `LastUsage.CachedTokens` to see whether the checkout's context
 came along, because that is the §8.6 question answered rather than assumed.

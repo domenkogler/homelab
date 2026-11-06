@@ -67,7 +67,9 @@ env -u PASEO_AGENT_ID -u PASEO_AGENT_CWD \
 
 Measured result: `ParentAgentId` = `null`, `--cwd` honoured, and the only project context present is the
 one `--cwd` resolves to. Both strips have a reason: `PASEO_*` make it a child, `PI_SESSION_*` make it
-*this* conversation's identity.
+*this* conversation's identity. Substituting `--workspace <id>` for `--cwd` keeps the independence —
+`ParentAgentId` still answers `null` — and changes only which checkout the session lands in and whose
+`AGENTS.md` rides along.
 
 ## 4. Models and providers
 
@@ -93,6 +95,11 @@ running an external row reports the local engine to anything that reads the env 
 is computed from `PI_MODEL`. So `--env PI_PROVIDER=… --env PI_MODEL=…` is not cosmetic: it is the ledger's
 truth. Format: `PI_PROVIDER=<provider>`, `PI_MODEL=<model-id>` (**no** provider prefix in `PI_MODEL`).
 
+**Only the first slash separates.** A model id may itself contain one, and the local engine row does: its
+`--model` is `spark/spark/qwen3.8-flash-next`, its `PI_MODEL` is `spark/qwen3.8-flash-next`, and `paseo ls`
+prints the pair as `pi/spark/spark/qwen3.8-flash-next`. Splitting on the wrong slash yields a provider that
+exists and a model that does not, which the daemon reports as a model error rather than a parsing mistake.
+
 Provider rows and their ids come from
 [`scripts/harness/pi/models-spec.yml`](scripts/harness/pi/models-spec.yml) rendered into
 `~/.pi/agent/models.json`; a hosted row (`providers.entrim`) is run **only when the owner states it in the
@@ -115,12 +122,25 @@ print(c[-1]['workspaceId'])
 PY
 ```
 
-- **The id is derived, never remembered** (§2 discipline): this daemon has held four live records whose
-  `cwd` is the homelab checkout, so a hard-coded id eventually binds a stale or archived workspace — and an
-  id built by concatenating every match is refused outright (`Workspace not found: wks_…wks_…`).
+- **The id is derived, never remembered** (§2 discipline): several live records can carry the *same* `cwd` —
+  this daemon has held a handful whose `cwd` is the homelab checkout — so a hard-coded id eventually binds a
+  stale or archived workspace, and an id built by concatenating every match is refused outright
+  (`Workspace not found: wks_…wks_…`). That is exactly why the snippet sorts by `updatedAt` instead of
+  guessing.
+- **Binding happens at launch, and only at launch.** `paseo workspace` offers `setup`, `create`, `ls`,
+  `rename`, `archive` — **no bind or rebind verb**, so a running agent cannot be moved to a different
+  workspace afterwards. Nor is `paseo attach` such a verb: it attaches to an agent's **output stream**
+  (section 6), which is a different thing wearing the same word.
+- **Two agents may share one workspace,** and that is useful (same project context, separate rows in
+  `paseo ls`) — but it makes the workspace a *context*, not an isolation boundary. The worktree is the
+  boundary, so bind and then open a worktree.
 - **`--workspace` beats `--cwd`.** Passed together, the workspace's `cwd` wins: the agent answered `pwd` =
-  the workspace path while `--cwd` named another directory. Bind a workspace **or** name a cwd, and verify
-  which one won.
+  the workspace path while `--cwd` named another directory. Bind a workspace **or** name a cwd.
+- **What proves the binding won.** `paseo inspect` carries **no workspace field** — its keys are `Id`, `Name`,
+  `Provider`, `Model`, `Thinking`, `Status`, `Archived`, `Mode`, `Cwd`, `CreatedAt`, `UpdatedAt`, `LastUsage`,
+  `Capabilities`, `PendingPermissions`, `Worktree`, `ParentAgentId` — so `inspect` alone cannot tell a bind
+  from a cwd. The proof is the launcher's own `Using workspace <id>` line on stdout **and** `Cwd` equal to the
+  record's path; that is also why the prompt must carry the worktree act, since `Cwd` names the merge station.
 - **A workspace binding loads that project's context** (its `AGENTS.md` and quick-refs land in the prompt
   prefix, mostly as cache reads), which is what lets the kick line stay short — and what makes the
   checkout it points at part of the run. For the primary checkout that is the **merge station**, so the
@@ -136,14 +156,24 @@ PY
 ```bash
 paseo wait <id> --json            # status: idle | permission | error | timeout, plus the last activity items
 paseo inspect <id>                # Model, Provider, Status, Cwd, Worktree, ParentAgentId, PendingPermissions, LastUsage
-paseo send  <id> --no-wait --prompt-file <f>      # next turn to the same session
+paseo send  <id> [prompt] [--prompt-file <f>]    # the next turn of the same session
+paseo attach <id>                 # follow its output stream live; no options, and it never binds anything
 paseo logs  <id> [-f]  ·  paseo stop <id>  ·  paseo archive <id>  ·  paseo delete <id>
 ```
 
+**`attach` and `send` are the two verbs people mistake.** `attach` is a *reader*: it prints the agent's
+reasoning and tool lines as they happen, takes no flags at all, and leaves the agent untouched — detaching
+(or losing the terminal) does not stop the run. It is how you watch a session decide something, and from a
+script it wants a bound: `timeout 60 paseo attach <id>`. `send` is a *writer*: it appends a turn to a session,
+and an agent that is mid-run takes the message on its next step — which is how a launch that is about to do
+something unplanned gets redirected instead of cancelled. The call returns a table naming that turn's status,
+not the agent's answer; the answer is in `paseo logs`.
+
 Four checks, in order, before believing a launched session is the session you asked for: `ParentAgentId`
 (`null` = independent), `Model`/`Provider`, `Cwd`, and — when the run's numbers depend on it — the
-in-agent `env | grep '^PI_'`. `LastUsage`'s `CachedTokens` ≈ the project prefix, so it also tells you
-whether the checkout's context came along.
+in-agent `env | grep '^PI_'`. `LastUsage` reports what the session consumed, and on a **self-hosted** row
+its `CachedTokens` can read `0` while the project prefix is being served, so treat it as a cost line and not
+as proof that context came along: for that, read the launcher's `Using workspace <id>` line and `Cwd` (§5).
 
 An agent waiting in `permission` is not hung: `paseo permit ls` / `paseo permit allow <id>`, or start it in
 a mode that does not ask (`--mode`, per `paseo provider ls`).
@@ -157,6 +187,10 @@ a mode that does not ask (`--mode`, per `paseo provider ls`).
 | `PI_MODEL` from the seat default | the session says the local engine while `paseo inspect` says a hosted row | pass both `--env` pairs; treat `paseo inspect` + the `model_change` record as the truth |
 | `--cwd` with a workspace bound | `pwd` answers the workspace, not the flag | one or the other; verify with `paseo inspect`'s `Cwd` |
 | a remembered `workspaceId` | `Workspace not found`, or a silent bind to an archived duplicate | re-derive from `workspaces.json` by `cwd` + `not archivedAt` + max `updatedAt` |
+| `attach` read as the workspace verb | attaching to an agent seems like putting it in a workspace, and nothing changes | binding is launch-time only (§5); `attach` only streams output |
+| steering a daemon agent with the harness's own child-control verb | `No async run found for <id>` | it is not a subagent child of this session: `paseo send <id> "<instruction>"` |
+| a `send` expected to answer inside the call | the call returns a status line with no prose | that status means the turn was accepted; the work shows up in `paseo logs` / `attach` |
+| `CachedTokens: 0` read as "no context" | a self-hosted row reports no cached tokens even while serving the project prefix | prove context with the `Using workspace <id>` line and `Cwd`, not with the usage counters |
 | a non-login shell | `paseo: command not found`, read as "not installed here" | `bash -lc`, then ask the unit/daemon |
 | `paseo wait` as a babysitter | the waiter dies with the launcher and the run looks abandoned | `--no-wait` at launch; `wait`/`inspect` from a survivor, or poll `paseo ls` |
 
