@@ -136,19 +136,33 @@ Two public leads may already contain the work this draft would otherwise hand-po
 the last column of this table — not in `docs/` and not in a `-rejected` log** (R12): they are decision input
 for this window, and the durable rulings already have their owning docs.
 
-**Status: not answered yet.** The two lanes the preparing session launched were stopped before either
-returned anything, so the survey is **step 1 of the autonomous run**, before the first build, not after it.
-The one that matters carries a concrete hypothesis worth testing rather than a general look: `fast` is
-eager because the day-0 hook copies an **unpinned** CPU tensor during capture
-(`spark/reports/hd489-ar-mmap/README.md`), and the v0.32+ class layout the hook is being ported onto builds
-its table through a **pinned-host** embedding — so the question is whether the hook you carry pins its host
-table, because if it does, graphs are legal on their own merits and the survey is a formality.
+**Status: the graphs lead is ANSWERED, `GRAPHS-LEGAL` with its citations in the table below; the
+bulk-loader lead is UNANSWERED and owed by whoever takes this lane next** (no verdict reached, so treat it
+as a survey not yet run rather than a lead ruled out). Read the graphs verdict before touching
+`enforce_eager`, because it replaces the question this section was asking.
+
+The hypothesis that was posed: `fast` is eager because the day-0 hook copies an **unpinned** CPU tensor
+during capture (`spark/reports/hd489-ar-mmap/README.md`), and the v0.32+ class layout the hook is being
+ported onto builds its table through a **pinned-host** embedding — so legality would follow from the hook
+pinning its table. **The answer came back different in a way that matters more than the verdict word:**
+legality is real, but reaching it through a pinned host table is the wrong door on this box, and the door
+that is actually open is the recipe's mmap host function. The arithmetic is in the verdict row and in the
+risk register; the short of it is that our table is 48.67 GiB, `pin_memory=True` rounds a pinned allocation
+up to the next power of two, and the fix for that upstream is still an open pull request.
 
 | lead | what to read | the verdict to write down | verdict (write here, with its citation) |
 |---|---|---|---|
-| the AutoRound recipe's active branch (`magi-v5-public`) — its main branch says development moved there and names a vLLM 0.32 stack with a **graph-capturable host function for local-SSD PLE**, an fp8-KV/drafter investigation and a 1M-context recipe | the hook implementation, the graph-capture claim, its licence, its pin | does the hook work **with CUDA graphs on**? that single answer decides `enforce_eager` in the new profile | _pending_ |
+| the AutoRound recipe's active branch (`magi-v5-public`) — its main branch says development moved there and names a vLLM 0.32 stack with a **graph-capturable host function for local-SSD PLE**, an fp8-KV/drafter investigation and a 1M-context recipe | the hook implementation, the graph-capture claim, its licence, its pin | does the hook work **with CUDA graphs on**? that single answer decides `enforce_eager` in the new profile | **GRAPHS-LEGAL — and get there through the mmap host function, not a pinned host table.** The branch lives on `Saren-Arterius/qwen3.8-Flash-DGX-AutoRound` (`magi-v3-public`, renamed `magi-v5-public`); [`338282c`](https://github.com/Saren-Arterius/qwen3.8-Flash-DGX-AutoRound/commit/338282cb0fb09abe3f98c47529ad03418c5ab638) ships `ple_mmap_graph.c`: the FP8 n-gram rows are copied from **mmap'd** safetensors shards inside a `cuLaunchHostFunc`, described in the commit as FULL_AND_PIECEWISE-safe with **no CPU copy in capture**, fanned across `VLLM_PLE_MMAP_WORKERS` at `VLLM_PLE_MMAP_CHUNK` rows, wired by `vllm_ple_mmap_v032.py` behind the RDMA backend (`VLLM_PLE_RDMA` — irrelevant here, no RDMA on this box). That is exactly the day-0 failure's shape reversed: the copy leaves the capture region and becomes a host function the graph launches, so the graph needs no pageable CPU read. The same branch family records full-graph == piecewise within noise ([`e21ced2`](https://github.com/Saren-Arterius/qwen3.8-Flash-DGX-AutoRound/commit/e21ced26f04b360a99f42eafeac9dd48f156cc4d)), an upstream measurement of "no cost" where this box's own measurement was a cost, which is a disagreement the capture attempt on the new build settles rather than this table. **The trap: do not buy legality with `pin_memory=True`.** vLLM's `Qwen4ExpPinnedHostEmbedding.materialize_tables` routes through torch's `CachingHostAllocator`, which rounds a pinned allocation up to the next power of two, and vllm-project/vllm#59848 — pin it at its exact size — is OPEN, not merged. Our table is **52,259,886,995 B = 48.67 GiB** (`du -sb /opt/homelab/models/ple-table-fp8`), so pinning it whole page-locks **64 GiB** on a 121 GiB box that reads ~17 GB available with `fast` serving. Port the mmap host func; leave the pinned embedding alone. |
 | `fastsafetensors` / InstantTensor-style bulk loading | what it patches and at which layer | is it an **alternative** to the four loader patchers (one dependency) or **additive** to them (both)? price the boot either way | _pending_ |
-| the day-0 UltraFast base | confirm again at run time that our pin is still the tip | if upstream moved, re-anchor against the new tip and say which commit in the build record | _pending_ |
+| the day-0 UltraFast base | confirm again at run time that our pin is still the tip | if upstream moved, re-anchor against the new tip and say which commit in the build record | tip confirmed twice: `git ls-remote https://github.com/dime-online/qwen3.8-Flash-DGX-UltraFast.git HEAD main` answers `0c391a3e74b6a775cfe248691ca7fd855b1876a5` for both, which is the pin in `group_vars/all/versions.yml`. No re-anchor owed; re-read at run time anyway, since the answer has a shelf life. |
+
+**Two things the table cannot hold.** First, that branch's speculative drafter is **DFlash2 ×3**
+(`spec=dflash/3`, its own capture hook and allow-list), not MTP — so the graph-capturable PLE lookup is
+**separable from its drafter**, which is what makes it portable into a lineage whose arm is certified on
+MTP-3. Port the host func and its wiring; leave their launcher's defaults (a 18 GB KV pool, their
+capture mode, their drafter) behind, because `fast`'s client contract and pool come from `group_vars`, not
+from a third party's script. Second, the pinned-host arithmetic above: legality and the pinned route are
+different decisions, and only one of them fits in 121 GiB.
 
 ---
 
@@ -294,9 +308,10 @@ why the arms end the window UNCERTIFIED and serving, on purpose.
 | risk | how it shows | the move |
 |---|---|---|
 | a patcher silently matched nothing | the built image lacks the marker; boot looks normal | the marker read is mandatory, per patcher (section 5) |
-| the hook is not graph-capturable | graph capture fails or the arm boots eager | the survey answers this before authoring; `enforce_eager: true` remains a legal first build |
-| graphs × the mmap hook (the reason `fast` is eager) | restart loop with `RestartCount` climbing, `OOMKilled: false` | boot the **bf16 control** first, read `RestartCount` before any timer |
+| the hook is not graph-capturable | graph capture fails or the arm boots eager | ANSWERED: carry the recipe's `cuLaunchHostFunc` mmap form (§4 lead 1) and the answer is yes; `enforce_eager` is the dial, not a build property, so try `false` and fall back to `true` without rebuilding |
+| graphs × the mmap hook (the reason `fast` is eager) | restart loop with `RestartCount` climbing, `OOMKilled: false` | boot the **bf16 control** first, read `RestartCount` before any timer — with one change: the host func is what makes the first capture legal, so the capture attempt is no longer a coin flip (§4 lead 1). Boot eager, then try capture. |
 | `/` ends below the floor and a rollback is needed | the rollback converge dies at the disk assert | the named exemption exists (R3); the nas archive is the deeper rollback |
+| a **pinned host table** smuggled in by the qwen4_exp embedding | boot dies on allocation, or `MemAvailable` collapses to single-digit GB and the watchdog arms: 48.67 GiB pinned becomes 64 GiB page-locked, because torch rounds a pinned allocation to the next power of two and the upstream fix (vllm-project/vllm#59848) is an open pull request | grep the built image for `pin_memory=True` in the PLE path before the first boot, and read `MemAvailable`/`CmaFree` during it — `usable-sampler.sh` catches the collapse, the question is only how expensive the lesson is |
 | fp8 admitted on an `UNDECIDED` probe | the arm boots into the BF16-only QSA guard | the capable-list entry requires `REACHABLE-ON-THIS-PIN`, same change |
 | the tailscale leg aborts a whole-playbook run | the run dies at the tailscale role's vault lookup | carry `--skip-tags tailscale-node`; mint `tailscale-spark_api` as its own owner act |
 | build cache pruned to make room | the rollback image's layers are gone | ⛔ never prune; report the free-bytes number instead |
