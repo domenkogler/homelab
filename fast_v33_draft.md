@@ -79,14 +79,14 @@ change (R2); the `magi`/DFlash drafter axis (survey output decides whether it be
 | serving profile | `fast` (`IaC/ansible/host_vars/spark.kogler.si.yml`), engine healthy, `restarts=0`, up since 2026-11-03 | `docker inspect` on spark |
 | kernel / KHO | `7.0.0-1024-nvidia`, `kho=off` on the cmdline | `uname -r` + `/proc/cmdline` |
 | clocks | `clocks.current.sm` 2405 MHz, `clocks.max.sm` 3003 MHz, `power.limit` N/A — the cap `300,2418` from `IaC/ansible/roles/spark/defaults/main.yml` | `nvidia-smi --query-gpu=…` |
-| `/` free | **174,708,527,104 B**; the floor is 150,000,000,000 B ⇒ **24.7 GB of headroom** | `df -P -B1 /` |
+| `/` free | **137,579,212,800 B** — **below** the 150,000,000,000 B floor, because the pinned v33 base is now on the box ⇒ every `os`-rooted converge in this window carries R3's exemption | `df -P -B1 /` |
 | XFS free | **394,993,770,496 B** | `df -P -B1 /mnt/spark_nvme` |
 | `/` consumers | `models` 124 GiB (on `/`), containerd 88 GiB, docker 20 GiB; everything else is MB-scale (`/var/log` 922 MB, apt cache 591 MB, journal 312 MB) | `du` reads |
 | the hard-link finding | under the os-rooted models dir: **132,710,444,790 B unique**, of which **70.1 GB is shared** between the AR checkpoint and the derived dense-drafter dir (77 of its 81 files are hard links into the checkpoint, all 67 shards). Exclusive bytes: PLE table 52.3 GB, AR checkpoint 5.2 GB, drafter 5.1 GB | inode-level walk |
 | `nvfp4-nvidia` (the other lane's weights) | staged, 25 files / **132,734,506,847 B**; its hybrid twin absent | `find` + a byte sum |
 | AR checkpoint shape | 68 shards, **224,454 tensors** (223,060 expert tensors) | the staged `model.safetensors.index.json` |
 | v33 base pin | `vllm/vllm-openai:v0.33.0@sha256:d825baf9…` — registry answers the same manifest-list digest, with an **arm64/linux** child `sha256:e3481489…`, updated 2026-11-02 | `docker manifest inspect` on the pinned digest, run on spark |
-| v33 base **on the box** | **NOT pulled.** The pinned digest answers `No such image`, and the two `vllm/vllm-openai` images present are the day-0 base (`fc120ece…`, which is also what `spark-rollback` holds) and the **v32** base (`6ff5ff0d…`). So the ~48 GB pull is owed by this window rather than inherited from the blazux lane — and it is the act that takes `/` from ~174.7 GB to roughly 127 GB, which is the state R3's exemption exists to carry | `docker image inspect` on the pinned digest + `docker images --digests` |
+| v33 base **on the box** | **Pulled** — the pinned digest resolves locally now, sitting alongside the day-0 base (`fc120ece…`, also what `spark-rollback` holds) and the **v32** base (`6ff5ff0d…`); the earlier `No such image` is what the role's own gate reads, so it now passes | `docker inspect` on the pinned digest, run on spark |
 | what serves now | the certified `fast` shape, confirmed from the container's own argv: `--max-model-len 262144`, `--kv-cache-dtype auto`, `--kv-cache-memory-bytes 20000000000`; `restarts=0`, up since 2026-11-03; `spark-rollback:fast` and `:reasoning` both tagged; the AR checkpoint, its drafter dir and `ple-table-fp8` all present under `/opt/homelab/models` | `docker inspect` on `vllm-qwen-spark` + `ls` |
 | blazux recipe at the pin | the commit resolves; **exactly one `FROM`, byte-equal to the base pin**; `tools/fp8_convert.py` and the patcher files present | raw fetch at the pinned sha |
 | the loader patchers' first assert, against our images | our live image carries **5** `expert_data.copy_(loaded_weight)` sites, the v32 image **4**; upstream's patcher asserts **exactly 2** | read-only `docker run --rm … grep -c` |
@@ -150,7 +150,15 @@ pinning its table. **The answer came back different in a way that matters more t
 legality is real, but reaching it through a pinned host table is the wrong door on this box, and the door
 that is actually open is the recipe's mmap host function. The arithmetic is in the verdict row and in the
 risk register; the short of it is that our table is 48.67 GiB, `pin_memory=True` rounds a pinned allocation
-up to the next power of two, and the fix for that upstream is still an open pull request.
+up to the next power of two, and the fix for that upstream is still an open pull request. **Two reads the
+census added turn this from guidance into a dependency:** the C form of that host func is **not in either
+pinned checkout** (`find` over the day-0 checkout at `0c391a3` answers no `.c` file, and the blazux tree at
+`17b025f8` ships `vllm_ple_mmap.py` without `ple_mmap_graph.c`) — it exists only at
+`Saren-Arterius/qwen3.8-Flash-DGX-AutoRound@338282c`, which carries **no pin in `versions.yml`** — and the v33
+base constructs `Qwen4ExpPLEPinnedHostEmbedding` (`models/qwen4_exp/nvidia/ngram_embedding.py:218`), not the
+mmap class our patch replaces. So the graphs question has a predecessor: **porting `patch_ple_rendezvous` is
+what keeps the 48.67 GiB table off the page-lock path in the first place**, and capturing graphs later needs
+either a pin on that AutoRound commit or a host func we author ourselves.
 
 | lead | what to read | the verdict to write down | verdict (write here, with its citation) |
 |---|---|---|---|
@@ -174,8 +182,12 @@ Order: **census → patchers → build definition → build → read the markers
 is the census tool and `IaC/ansible/roles/spark-profile-fast8/files/port_v32.py` is the pattern to copy
 (counted before/after against the base's text, never a snapshot of the day-0 file dropped on the new one).
 
-**The trap, measured:** the upstream MoE clone patcher asserts **exactly two** `expert_data.copy_(loaded_weight)`
-sites; our live image has **5** and the v32 image **4**. Do not widen the count to make it pass — read each
+**The trap, measured — and now answered at this base:** the upstream MoE clone patcher asserts **exactly two** `expert_data.copy_(loaded_weight)`
+sites; our live image has **5** and the v32 image **4**. At the v0.33 base the census read **4** occurrences in
+`model_executor/layers/fused_moe/routed_experts.py`, of which exactly **2** are the final statement of
+`_load_w13` (`:578`) and `_load_w2` (`:629`) — the AST-scoped sites the patcher's own rule matches — so this
+base answers 4 to a grep and 2 to the assert, and **nothing had to be widened**. Do not widen the count to
+make it pass — read each
 site, keep the ones that are host-to-device copies of expert weights, and record in the port file why the
 others are left alone. Related standing rule: a `sed -i` exits 0 when it matches nothing, so **every**
 patcher must leave a marker string that the build re-reads inside the built image, exactly as
@@ -224,8 +236,8 @@ provider**, so the lane's read list is what [`CONVENTIONS.md`](CONVENTIONS.md) �
 |---|---|---|---|
 | 0 | open the session's own worktree, then **re-read** §2 read-only | `git worktree add ../homelab-wt-<date>-<HHMM>`, then the §2 reads again | the tree is clean and the free-bytes / serving-profile / clock lines are today's, not this file's date |
 | 1 | **prerequisite B is DONE** — both survey verdicts are in §4 (`GRAPHS-LEGAL` via the mmap host func; bulk loading `ADDITIVE`) | read them, then carry their consequences into the patch plan: the graph-capturable host func and its wiring join the census, no `--load-format` flip, no pinned host table | the plan names the host func's anchors, and nothing in it pins the 48.67 GiB table |
-| 2 | **the lineage is already authored** by the preparing session (census, five patchers incl. the R10 prefilter, role data, tag, empty pin, the R3 flag) | verify offline, do not re-author | `python3 scripts/gate/check_spark_llm_gate.py` green and the new arms render `GATED` (empty pin) in `python3 scripts/bench/spark-llm-render-matrix.py`, not broken |
-| 3 | the build, by a worker child (R9: **≤3 attempts**) — **and the base pull comes first**: the pinned v33 digest is NOT on this box (§2's on-the-box row), and the role only inspects it, so run `docker pull <spark_vllm_v33_base_image>`, re-read `df -P -B1 /`, and write the new number down before the role is called | `nohup bash scripts/ansible/ansible-run.sh IaC/ansible/playbooks/spark.yml --limit spark -e '{"spark_profile_fast_v33_build":true}' --tags spark-profile-fast-v33 --no-pull > /tmp/fastv33-build-$(date +%Y%m%d-%H%M).log 2>&1 &` | the run ends RED on the unpinned-ID fail **by design** and prints the immutable ID; every marker probe returned 0. A failed attempt is read and its reading written before any rebuild. The pull is expected to leave `/` under the 150 GB floor — from then on every `os`-rooted converge carries the R3 exemption flag, and ⛔ nothing is pruned to make the number look better |
+| 2 | **the machinery is authored** — role, lineage data, tag, empty pin, the R3 flag, the porter — **but the plan's content is not**: the census verdict below names 8 day-0 patchers whose anchors moved at this layout | **author the v33 port** for those 8 (offline, site by site, the shape `port_v32.py` carries) and then fill the plan; verify the 4 that land verbatim rather than re-authoring them | `python3 scripts/gate/check_spark_llm_gate.py` green and the new arms render `GATED` (empty pin) in `python3 scripts/bench/spark-llm-render-matrix.py`, not broken |
+| 3 | the build, by a worker child (R9: **≤3 attempts**) — **and check the base is still on the box** (§2's on-the-box row: it is, the census pulled it), since the role only inspects it and never pulls, so run `docker pull <spark_vllm_v33_base_image>`, re-read `df -P -B1 /`, and write the new number down before the role is called | `nohup bash scripts/ansible/ansible-run.sh IaC/ansible/playbooks/spark.yml --limit spark -e '{"spark_profile_fast_v33_build":true}' --tags spark-profile-fast-v33 --no-pull > /tmp/fastv33-build-$(date +%Y%m%d-%H%M).log 2>&1 &` | the run ends RED on the unpinned-ID fail **by design** and prints the immutable ID; every marker probe returned 0. A failed attempt is read and its reading written before any rebuild. The pull is expected to leave `/` under the 150 GB floor — from then on every `os`-rooted converge carries the R3 exemption flag, and ⛔ nothing is pruned to make the number look better |
 | 4 | pin + fp8 admission | commit the printed ID in `IaC/ansible/group_vars/all/versions.yml` alone; then `python3 scripts/bench/spark-fp8-image-probe.py --image <ID> --skip-registry` | the probe prints `REACHABLE-ON-THIS-PIN`; the capable-list entry lands in that same change (an `UNDECIDED` run is not a verdict, and without it the fp8 flip is not authorized) |
 | 5 | flip the control arm | detached, `-e spark_llm_profile=fast-v33-bf16 -e spark_llm_allow_uncertified=true --skip-tags tailscale-node` (+ the exemption flag if `/` is under the floor) | `RestartCount=0` after 30 min **and** the boot prints the same token count `fast` prints; read the timestamps — boot time is this arm's headline measurement; **and read the dispatch** with `python3 spark/reports/hd1206-v32-port-20261026/runtime_dispatch.py` against the running container, the first engine ever to construct the MoE class (item 3 of section 9); **and copy the boot log's `Model loading took …s` line** — the first weight-load-only number this repo will own, which is what makes §4's loader comparison ours instead of a third party's |
 | 6 | quick tier on the control | `python3 scripts/bench/spark-llm-probe.py all --profile fast-v33-bf16` + one determinism leg (identical prompt twice, first-token logprobs compared) | health/reasoning/ctx/concurrent pass; logprobs byte-equal across the two runs |
@@ -299,8 +311,9 @@ came along, because that is the §8.6 question answered rather than assumed.
 
 ## 6b. What the preparing session left done, and where each piece lives
 
-Everything below is committed on the branch this brief was merged from; the window starts at step 1 and
-finds no authoring left to do.
+Everything below is committed on the branch this brief was merged from. The window starts at step 1, and
+the census verdict in §6b names the authoring still owed: **the v33 port itself**, for the 8 day-0 patchers
+whose anchors moved at this layout. Everything else below is done.
 
 | piece | where it lives | what the window must still do to it |
 |---|---|---|
@@ -426,14 +439,17 @@ Three reads the survey could not do from a checkout, each with the act that sett
 1. **Our own weight-load duration.** Every number in §4 is someone else's; `Model loading took` has never
    been recorded here as a duration, only as a byte count in a boot-log quote. Step 5 copies it, and the
    whole loader/boot comparison stops being inherited at that moment.
-2. **Whether the base image carries the two loader libraries.** Both are core requirements of vLLM v0.33.0
-   upstream, but "the base is not pulled" was the state when that was read, so the claim is about the
-   release, not about this box. The first `docker run … python -c "import fastsafetensors, instanttensor"`
-   on the built image settles it — and it matters only for knowing what a `--load-format` flip would do,
-   since the verdict is not to flip one.
-3. **Whether our patched hook is the graph-legal form, not upstream's.** §4 read upstream code at pinned
-   commits; it cannot read the artifact until the artifact exists. The marker probe on `ple_mmap_graph.c`
-   (or the Python form, wherever the census lands it) is the read that says so, and it is already in step 3.
+2. **Whether the base carries the two loader libraries — answered: yes, on this box.** Both import in the
+   pinned v33 base (`docker run --rm --network none --entrypoint python3 <base> -c "import importlib.util
+   …"` ⇒ `fastsafetensors: True`, `instanttensor: True`), which confirms §4's core-requirement reading rather
+   than qualifying it. No verdict changes — still no `--load-format` flip — but the loader is now known to be
+   reachable by accident, so an argv edit that names a `load_format` deserves a stop rather than a shrug.
+3. **Whether our patched hook is the graph-legal form, not upstream's — answered ahead of the artifact, and
+   it answers "no, not yet".** §4 read upstream code at pinned commits; the census then read both pinned
+   checkouts on the box and found **no C host func in either** — it lives only at
+   `Saren-Arterius/qwen3.8-Flash-DGX-AutoRound@338282c`, unpinned here. So carrying graphs means deciding,
+   in the port: pin that commit and vendor its `ple_mmap_graph.c`, or author the host func into our own
+   patcher. The marker probe in step 3 is still the read that closes it, but it can no longer be a surprise.
 
 One ref correction worth keeping: vLLM tag `v0.33.0` is commit
 `4ba787ec9959e566d3b587a796dff07673324da5` (`git ls-remote --tags … 'refs/tags/v0.33.0^{}'`), not the sha a
