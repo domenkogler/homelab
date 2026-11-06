@@ -1,10 +1,12 @@
 # `fast_v33_draft.md` — draft brief: `fast-v33-*`, the live `fast` weights on a v0.33 build
 
-> **Role:** the draft a lane session picks up to build ONE arm that keeps `fast`'s weights and takes the
-> speed work that exists elsewhere: the AR-hybrid checkpoint on `spark_vllm_v33_base_image`, carrying the
-> loader patches, the v0.33+-layout PLE hook, fp8 KV and CUDA graphs. It is a **draft plan, not a decision
-> log**: the rulings it executes are recorded with their date and their landing place, and the durable
-> facts belong in the owning docs named in the last section, not here.
+> **Role:** the brief the **autonomous** build-and-measure session picks up to build ONE arm that keeps
+> `fast`'s weights and takes the speed work that exists elsewhere: the AR-hybrid checkpoint on
+> `spark_vllm_v33_base_image`, carrying the loader patches, the v0.33+-layout PLE hook, fp8 KV and CUDA
+> graphs. It is a **draft plan, not a decision log**: the rulings it executes are recorded with their date
+> and their landing place, and the durable facts belong in the owning docs named there, not here. The one
+> exception is deliberate: the **survey verdicts stay in this file** (R12), because they are decision input
+> for this window and not knowledge the docs should carry.
 > **Linked from:** `todo.md` rows HD-1206 and HD-1242, `prompt-spark-llm.md`
 > **Authority: none.** `docs/spark-llm-profiles.md` owns the catalogue and the arithmetic;
 > `spark/llm-profiles/README.md` owns the gate ladder; `docs/hardware-spark.md` owns the memory budget.
@@ -19,8 +21,19 @@
 | R1 | The next speed arm keeps **`fast`'s weights unchanged** (the AR AutoRound W4A16 hybrid checkpoint + the FP8 PLE table) and moves the **engine build** to the v0.33 base. New checkpoint families are off this lane's critical path | `docs/spark-llm-profiles.md` — the six-arm grid gains `fast-v33-bf16` / `fast-v33-fp8` and the v32 arms retire to evidence rows |
 | R2 | **No GPU-clock change.** `spark_gpu_clock_cap_mhz` stays `300,2418`: the box already runs warm and the ceiling buys idle behaviour a 24/7 agent seat needs. The ~20 % clock headroom is spent on heat, not on speed | `docs/hardware-spark.md` §GPU clock cap — one sentence naming the thermal reason, so nobody re-derives it as an easy win |
 | R3 | The root-partition free-space assert is **bypassed by a named, per-run exemption — not by editing the floor**. `spark_llm_os_min_free_bytes` keeps its value and its meaning; the exemption is opt-in, per-run, echoed loudly with the measured number, and it is a ruling with a date, not a default | `IaC/ansible/group_vars/spark.yml` (the flag, default `false`) + the assert in `IaC/ansible/roles/spark-llm-profile/tasks/main.yml` + `docs/hardware-spark.md` (the reason it is allowed to be off) |
-| R4 | The **build** legs and the **converge/test** legs run in **different sessions**, and the second one is launched **independently** of the first: the build stays with the local lane session (reads and a build, no external tokens, nothing timed), the flip and its quick tier run in an external session on the hosted row the owner named. An agent launched the ordinary way from a lane session is that session's **child** — same workspace, injected context, and it dies when the parent's engine restarts, which is the thing a converge does to the parent | [`paseo-readme.md`](paseo-readme.md) sections 2–3 (the two launch shapes) · its section 5 (workspace binding) — the commands and the four verification reads live there, not here |
+| R4 | **One autonomous session runs the whole ladder — build, pin, fp8 admission, flip, measure** (re-ruled by the owner 2026-11-06; it supersedes this row's earlier split, which kept the build in the preparing session). The preparing session authors and commits and **touches nothing**. The executing session is launched **independent** of any parent — an agent launched the ordinary way is that parent's **child**, same workspace, injected context, and it dies when the converge restarts the engine that serves the parent — and it runs on the row the owner named: `entrim` / `deepseek-ai/DeepSeek-V4.1-Flash-1017`, with **both** `--env` pairs, because a row delivered only through `--model` leaves `PI_MODEL` telling the provenance gate the local engine. The prompt carries the worktree act ([`CONVENTIONS.md`](CONVENTIONS.md) §6) before any edit | [`paseo-readme.md`](paseo-readme.md) section 3 (the independent shape) · section 4 (the env pair is the ledger's truth) · section 5 (workspace binding) — the commands and the four verification reads live there, not here |
 | R5 | The arm **boots eager first**, then is re-booted **with CUDA-graph capture** in the same window. If capture does not hold, the answer is **a smaller KV pool, never a bigger ceiling** (step 6a) | `docs/spark-llm-profiles.md` §7 (the flip order) + `docs/hardware-spark.md` §Unified-memory budget (the pool arithmetic that prices it) |
+| R6 | **The engine ladder, and the end state:** `fast-v33-bf16` + its quick tier, then `fast-v33-fp8` + its quick tier, and the window **ends with `fast-v33-fp8` serving**. The bf16 arm is a step on the way, not the destination | `docs/spark-llm-profiles.md` §7 (the flip order) |
+| R7 | **The fallback ladder is two steps, in one pass each:** if fp8 will not hold, step back to `fast-v33-bf16`; if that will not hold, step back to `fast`. Each step is one detached converge; a second attempt at any rung is not authorized and a restart loop is never left running | `docs/spark-llm-profiles.md` §7 |
+| R8 | **Small pools are a test axis, not only a failure plan:** step the KV pool down in 2 GB steps **as far as 12 GB**, reading the engine's own `GPU KV cache size` line and `RestartCount` at every step. Long boots are accepted — this window measures the arm, it does not yet serve from it | `docs/hardware-spark.md` §Unified-memory budget (the arithmetic and the governor: the pool is the knob, the ceilings are not) |
+| R9 | **Up to three build attempts, run by worker children**, then stop and report. A failed attempt is *read* before it is rebuilt — the trap in section 5 is answered by reading the sites, never by widening an assert — and the reading lands in the port file with the rebuild | [`docs/orchestration.md`](docs/orchestration.md) §4 (O10, the child-lane contract this exercises) |
+| R10 | **The MTP prefilter patch is carried in build #1** — a fifth patcher, same marker rule and same counted-site rule as the other four (this draft's open question, now ruled; the measurement is still taken, see section 9) | this file only (a build instruction for this window, per R12) |
+| R11 | **The `/` → XFS relocation is deferred** out of this window; the R3 per-run exemption is how every `os`-rooted converge in the window — the flips and any rollback included — carries the below-the-floor state, printing the number it accepted | the flag lands in `IaC/ansible/group_vars/spark.yml` and `docs/hardware-spark.md` states the reason it may be off; the deferred act itself stays in the disk section of this file |
+| R12 | **Survey output and this window's build decisions stay in this draft** — they are guidance for the next session, not permanent knowledge, so they are not written to `docs/` or to a `-rejected` log. R1–R5's own landing places are unchanged; this row governs everything else | this file |
+
+R4 is why the ladder below is one column and not two: the split existed to keep a dependent agent from being
+killed by its own converge, and an independent launch answers that directly. The cost of the new shape is
+named so nobody rediscovers it: the build legs now run on a paid external row.
 
 R3 is the one that cuts against a standing instruction in the assert's own `fail_msg` ("never lower the
 floor to make this line green"). It is honoured: **the floor is not lowered.** What changes is that a human
@@ -38,12 +51,19 @@ line `fast` prints, which is what makes any later fp8 regression attributable to
 
 | part | comes from | licence | where it lands | proof it landed |
 |---|---|---|---|---|
-| the day-0 UltraFast patch stack, re-anchored | `spark_ultrafast_upstream_commit` (`0c391a3`, which **is** the tip — upstream has not moved since 2026-09-29) | Apache-2.0 | `roles/spark-profile-<v33-lineage>/files/` (new dir, created in the same commit as this plan's first build act) | a marker per patched step, read in the built image |
+| the day-0 UltraFast patch stack, re-anchored | `spark_ultrafast_upstream_commit` (`0c391a3`, which **is** the tip — upstream has not moved since 2026-09-29) | Apache-2.0 | `roles/spark-profile-fast-v33/files/` (new dir — it does not exist yet; the authoring act creates it) | a marker per patched step, read in the built image |
 | the PLE mmap install hook for the `qwen4_exp` class layout | blazux `vllm_ple_mmap.py::_install()` at `spark_blazux_upstream_commit` | Apache-2.0 (attribute the file) | the same `files/` dir | `_install()` present + the hook's own anchor names grepped out of the built image |
 | loader patches: MoE clone-before-copy, `pread` for small tensors, expert names by index, chunked embed/lm_head copies | blazux patchers `patch_moe_load_clone.py`, `patch_load_pread.py`, `patch_moe_name_index.py`, `patch_embed_chunked_copy.py` (their MTP prefilter also targets the v0.33 MTP module path — smallest prize, last) | Apache-2.0 | same dir, re-anchored (see the trap in section 5) | each patcher asserts its own site count, and the build re-reads the marker |
 | CUDA graphs (PIECEWISE) instead of `enforce_eager` | the graph-capturable hook from the survey in section 4 | depends on survey | the profile key `enforce_eager` | `nvidia-smi`-free: the boot log's capture lines + a timed leg |
 | fp8 KV | already in the base (the upstream read path ships since vLLM v0.31) | n/a | `spark_llm_fp8_kv_capable_images` in `IaC/ansible/group_vars/spark.yml` | **only** on the box leg of `scripts/bench/spark-fp8-image-probe.py` printing `REACHABLE-ON-THIS-PIN` on the built ID, in the same change |
 | the client contract | unchanged | n/a | unchanged | `python3 scripts/bench/spark-llm-render-matrix.py` shows the four anchors unmoved |
+
+**The names this lineage carries** (decided with the owner, and they are what the preparing session
+authors): role `IaC/ansible/roles/spark-profile-fast-v33`, its build flag `spark_profile_fast_v33_build`,
+tag `spark-fast:v33-<sha>` in its own repository, image name `ultrafast-v33` pinning
+`spark_vllm_fast_v33_image` (empty until the build prints an ID) with `ultrafast-v33: v33` added to
+`spark_llm_base_tokens`, and arms `fast-v33-bf16` / `fast-v33-fp8` whose pool is one knob
+(`kv_cache_memory`, overridable per run) so R8's ladder never mints an arm name per pool size.
 
 **What this lane is NOT:** the blazux arm (`bz-v33-*` in `todo.md` HD-1242, `docs/spark-llm-profiles.md`)
 is a different checkpoint family with W4A4 activations and is not this lane's dependency; a hardware clock
@@ -79,6 +99,9 @@ change (R2); the `magi`/DFlash drafter axis (survey output decides whether it be
 
 ## 3. Prerequisite A — the disk act, and R3's bypass, exactly
 
+**Ruled (R11, owner 2026-11-06): the relocation is deferred out of this window.** What follows is why that
+is safe and where the exemption ends, kept because the next session re-reads it before it re-derives it.
+
 **What the floor actually gates.** The only consumer is one assert in
 `IaC/ansible/roles/spark-llm-profile/tasks/main.yml`, and it runs **only when the profile being converged
 is an `os`-rooted vLLM profile**. The build path (`IaC/ansible/roles/spark-ultrafast-build/tasks/build_lineage.yml`
@@ -107,14 +130,23 @@ grading the floor as if it were armed. `--check` must still answer the disk ques
 
 ## 4. Prerequisite B — survey before authoring (a lane, ≤2 children, reads only)
 
-Two public leads may already contain the work this draft would otherwise hand-port. Record what is found in
-`docs/services-ai-rejected.md` / the owning doc — an answered question leaves no options behind.
+Two public leads may already contain the work this draft would otherwise hand-port. **Write the verdicts in
+the last column of this table — not in `docs/` and not in a `-rejected` log** (R12): they are decision input
+for this window, and the durable rulings already have their owning docs.
 
-| lead | what to read | the verdict to write down |
-|---|---|---|
-| the AutoRound recipe's active branch (`magi-v5-public`) — its main branch says development moved there and names a vLLM 0.32 stack with a **graph-capturable host function for local-SSD PLE**, an fp8-KV/drafter investigation and a 1M-context recipe | the hook implementation, the graph-capture claim, its licence, its pin | does the hook work **with CUDA graphs on**? that single answer decides `enforce_eager` in the new profile |
-| `fastsafetensors` / InstantTensor-style bulk loading | what it patches and at which layer | is it an **alternative** to the four loader patchers (one dependency) or **additive** to them (both)? price the boot either way |
-| the day-0 UltraFast base | confirm again at run time that our pin is still the tip | if upstream moved, re-anchor against the new tip and say which commit in the build record |
+**Status: not answered yet.** The two lanes the preparing session launched were stopped before either
+returned anything, so the survey is **step 1 of the autonomous run**, before the first build, not after it.
+The one that matters carries a concrete hypothesis worth testing rather than a general look: `fast` is
+eager because the day-0 hook copies an **unpinned** CPU tensor during capture
+(`spark/reports/hd489-ar-mmap/README.md`), and the v0.32+ class layout the hook is being ported onto builds
+its table through a **pinned-host** embedding — so the question is whether the hook you carry pins its host
+table, because if it does, graphs are legal on their own merits and the survey is a formality.
+
+| lead | what to read | the verdict to write down | verdict (write here, with its citation) |
+|---|---|---|---|
+| the AutoRound recipe's active branch (`magi-v5-public`) — its main branch says development moved there and names a vLLM 0.32 stack with a **graph-capturable host function for local-SSD PLE**, an fp8-KV/drafter investigation and a 1M-context recipe | the hook implementation, the graph-capture claim, its licence, its pin | does the hook work **with CUDA graphs on**? that single answer decides `enforce_eager` in the new profile | _pending_ |
+| `fastsafetensors` / InstantTensor-style bulk loading | what it patches and at which layer | is it an **alternative** to the four loader patchers (one dependency) or **additive** to them (both)? price the boot either way | _pending_ |
+| the day-0 UltraFast base | confirm again at run time that our pin is still the tip | if upstream moved, re-anchor against the new tip and say which commit in the build record | _pending_ |
 
 ---
 
@@ -131,6 +163,9 @@ others are left alone. Related standing rule: a `sed -i` exits 0 when it matches
 patcher must leave a marker string that the build re-reads inside the built image, exactly as
 `IaC/ansible/roles/spark-profile-blazux/tasks/main.yml` does for its six probes.
 
+**R10 makes the MTP prefilter a fifth patcher in build #1**, so census its site the same way: it targets
+the v0.33 MTP module path, which is exactly the kind of moved file a `sed` survives by matching nothing.
+
 Carried forward from the v32 window, unchanged: the checkout must be clean (`git status --porcelain -uno`),
 the build writes exactly **one** new tag in its own repository, every other lineage's tags are re-read after
 it and must still resolve, the lineage's own pin is what the built artifact is asserted against (never
@@ -141,33 +176,50 @@ rollback and `spark-rollback:fast` is archived on the nas.
 
 ## 6. The runbook (ordered; who may run what)
 
-Rule 0 binds the whole run wherever it sits: **no timed leg from a seat that spark serves**, children
-included (`docs/orchestration.md`). Steps 1–4 are reads/builds and run in the **local lane session**; step 5
-onward runs in the **external session** (R4), launched per section 3 of
-[`paseo-readme.md`](paseo-readme.md) — independent of the parent, because this step restarts the engine
-that serves the parent and a dependent agent would be killed by the work it was launched to do. Every live
-converge runs **detached** — `nohup … &` + a log file + poll; `--check` is the only safe foreground form.
+Rule 0 binds the whole run: **no timed leg from a seat that spark serves**, children included
+(`docs/orchestration.md`). **One session runs all of it (R4)** and it is **autonomous — the owner is not
+present**, so section 0 and the stop conditions below are the whole authority it needs; anything they do not
+cover is a stop, not an improvisation. It is launched **independent** of any parent per
+[`paseo-readme.md`](paseo-readme.md) section 3 (the flip restarts the engine that serves the box, and a
+dependent agent dies doing it), on the `entrim` row named in R4, with both `--env` pairs, and its prompt
+carries the worktree act before its first edit. Every live converge runs **detached** — `nohup … &` + a log
+file + poll; `--check` is the only safe foreground form. Every converge of an `os`-rooted profile carries
+`--skip-tags tailscale-node` (§2's tailscale row) and, once `/` sits under the floor, the R3 exemption flag.
 
-Either session may **delegate** while it works — bounded subagent lanes under
+**Delegation (R9).** Worker children take the build legs and any bounded read, under
 [`docs/orchestration.md`](docs/orchestration.md) §4 (O1–O11: ≤2 concurrent, `model:` never named, a
-per-child deadline, silence read as compaction not a hang) — with the two consequences
-[`paseo-readme.md`](paseo-readme.md) section 8 states: a child of an external-lane session runs on that external
-provider, so the lane's read list is what §8.6 grades, and children of an engine-served session load that
-engine, so timed legs run after the lanes close and never beside them.
+per-child deadline, silence read as compaction not a hang). Two consequences
+[`paseo-readme.md`](paseo-readme.md) section 8 states: a child of this session runs on the **same external
+provider**, so the lane's read list is what [`CONVENTIONS.md`](CONVENTIONS.md) §8.6 grades — keep it off the
+`secret-bearing` and `personal` docs — and timed legs run **after** the lanes close, never beside them.
 
 | # | act | form | acceptance, one line |
 |---|---|---|---|
-| 1 | the disk act (section 3) | owner-present, one converge of the affected profile, detached | `df -P -B1 /` reads above the floor **after** the container recreates, and the boot's `GPU KV cache size` line matches `fast`'s |
-| 2 | author the lineage (census + patchers + role data + tag + pin placeholder) | a lane, offline | `python3 scripts/gate/check_spark_llm_gate.py` green; the new arm renders `GATED` (empty pin) in the render matrix, not broken |
-| 3 | the build | `nohup bash scripts/ansible/ansible-run.sh IaC/ansible/playbooks/spark.yml --limit spark -e '{"spark_profile_fast_v33_build":true}' --tags spark-profile-<v33-lineage> --no-pull > /tmp/fastv33-build-$(date +%Y%m%d-%H%M).log 2>&1 &` | the run ends RED on the unpinned-ID fail **by design** and prints the immutable ID; every marker probe returned 0 |
-| 4 | pin + fp8 admission | commit the printed ID in `IaC/ansible/group_vars/all/versions.yml` alone; then `python3 scripts/bench/spark-fp8-image-probe.py --image <ID> --skip-registry` | the probe prints `REACHABLE-ON-THIS-PIN`; the capable-list entry lands in that same change (an `UNDECIDED` run is not a verdict) |
-| 5 | flip the control arm | detached, `-e spark_llm_profile=fast-v33-bf16 -e spark_llm_allow_uncertified=true --skip-tags tailscale-node` | `RestartCount=0` after 30 min **and** the boot prints the same token count `fast` prints; read the timestamps — boot time is this arm's headline measurement |
-| 6 | quick tier | `python3 scripts/bench/spark-llm-probe.py all --profile fast-v33-bf16` + one determinism leg (identical prompt twice, first-token logprobs compared) | health/reasoning/ctx/concurrent pass; logprobs byte-equal across the two runs |
-| 6a | the capture attempt, and its price (R5) | once eager reads `RestartCount=0`: `enforce_eager: false` (+ `cudagraph_piecewise` as the capture form), re-converged detached, `RestartCount` and the capture lines read **before** any timed leg | graphs hold and the timed leg stands. If it restart-loops or the hold grows, **shrink the pool**: `kv_cache_memory` down in 2 GB steps — ≈ 32,230 slots per GB at 31,027 B/token, so 18 GB ≈ 580,141 slots = 2.21 × the window. `spark_llm_device_hold_ceiling_bytes` and the 16 GiB pool ceiling stay put (docs/hardware-spark.md §Chosen governor: the pool is the knob, the ceilings are not) |
-| 7 | official gates 0–2 | `scripts/bench/spark/hd469-baseline.sh`, `scripts/bench/spark/usable-sampler.sh` | host floor curve prices the arm's real `fixed_cost_bytes` (the declared one is derived until this leg replaces it) |
-| 8 | the fp8 arm | same flip with `fast-v33-fp8`, then gates 0–2 + the dtype gates against the bf16 control | `GPU KV cache size` ≈ 1.09 M slots (the fp8 projection — the engine's line wins); MTP acceptance within noise |
-| 9 | gate 7 | one working day of watchdog samples while the arm serves | no growth above 2 GiB/h under traffic that fails to return at idle |
-| — | rollback | `-e spark_llm_profile=fast`, detached | the box serves `fast` again; never a restart loop left running |
+| 0 | open the session's own worktree, then **re-read** §2 read-only | `git worktree add ../homelab-wt-<date>-<HHMM>`, then the §2 reads again | the tree is clean and the free-bytes / serving-profile / clock lines are today's, not this file's date |
+| 1 | prerequisite B — the survey (§4) | two read-only children, verdicts written into §4's last column | every lead carries a verdict with its citation, and the graphs answer is one word |
+| 2 | **the lineage is already authored** by the preparing session (census, five patchers incl. the R10 prefilter, role data, tag, empty pin, the R3 flag) | verify offline, do not re-author | `python3 scripts/gate/check_spark_llm_gate.py` green and the new arms render `GATED` (empty pin) in `python3 scripts/bench/spark-llm-render-matrix.py`, not broken |
+| 3 | the build, by a worker child (R9: **≤3 attempts**) | `nohup bash scripts/ansible/ansible-run.sh IaC/ansible/playbooks/spark.yml --limit spark -e '{"spark_profile_fast_v33_build":true}' --tags spark-profile-fast-v33 --no-pull > /tmp/fastv33-build-$(date +%Y%m%d-%H%M).log 2>&1 &` | the run ends RED on the unpinned-ID fail **by design** and prints the immutable ID; every marker probe returned 0. A failed attempt is read and its reading written before any rebuild |
+| 4 | pin + fp8 admission | commit the printed ID in `IaC/ansible/group_vars/all/versions.yml` alone; then `python3 scripts/bench/spark-fp8-image-probe.py --image <ID> --skip-registry` | the probe prints `REACHABLE-ON-THIS-PIN`; the capable-list entry lands in that same change (an `UNDECIDED` run is not a verdict, and without it the fp8 flip is not authorized) |
+| 5 | flip the control arm | detached, `-e spark_llm_profile=fast-v33-bf16 -e spark_llm_allow_uncertified=true --skip-tags tailscale-node` (+ the exemption flag if `/` is under the floor) | `RestartCount=0` after 30 min **and** the boot prints the same token count `fast` prints; read the timestamps — boot time is this arm's headline measurement |
+| 6 | quick tier on the control | `python3 scripts/bench/spark-llm-probe.py all --profile fast-v33-bf16` + one determinism leg (identical prompt twice, first-token logprobs compared) | health/reasoning/ctx/concurrent pass; logprobs byte-equal across the two runs |
+| 6a | the capture attempt, and its price (R5) | once eager reads `RestartCount=0`: `enforce_eager: false`, the piecewise capture form, re-converged detached, `RestartCount` and the capture lines read **before** any timed leg | graphs hold and the leg stands — or they do not, which is a result to write down, not a bug to chase. The knob is the pool (6b); `spark_llm_device_hold_ceiling_bytes`, the pool ceiling and the clocks are **not** knobs (§4's governor, and R2) |
+| 6b | the memory ladder (R8) | one boot + quick tier per step, `kv_cache_memory` down in 2 GB steps **to 12 GB**, each run as its own detached converge with the pool named on the command line | at every step the engine's own `GPU KV cache size` line and `RestartCount` are read before any timed leg; the ladder stops at 12 GB — never below, and never by raising a ceiling |
+| 7 | flip the fp8 arm (R6) | as step 5 with `fast-v33-fp8`, only after step 4 returned `REACHABLE-ON-THIS-PIN` | the boot prints its fp8 line (the engine's number is the number of record, not the projection) and `RestartCount=0` after 30 min |
+| 8 | quick tier on fp8, then the memory ladder on it | as steps 6 and 6b against the arm that will serve | health/reasoning/ctx/concurrent pass; each pool step read the same way |
+| 9 | **end state: leave `fast-v33-fp8` serving** (R6) | no further converge | the arm is live and `RestartCount=0`; if the ladder took a step back, the ladder's own end state applies (R7) |
+| 10 | write the window down | a report dir under `spark/reports/`, the boot-time and pool-step reads in it, the row and §4 updated, the draft retired with its row | every claim points at a log line or an engine line; the docs gain only what outlives the window |
+| — | the fallback ladder (R7) | `-e spark_llm_profile=fast-v33-bf16`, then `-e spark_llm_profile=fast`, each detached | one pass per rung, in order; the window ends with the box serving and never in a restart loop |
+
+**This window is not a certification window.** Official gates 0–2, gate 7 and the dtype gates 8–9 are out
+of scope (they need the owner's scheduling, and gate 7 needs a working day of samples); `certified: false`
+stands on both arms, `fixed_cost_bytes` stays DERIVED until gate 2 replaces it, and §7 is what a later
+certification window owes.
+
+**Stop conditions — where the autonomy ends.** Three build attempts, then stop and report (R9). One pass per
+rung of the fallback ladder, ending at `fast` (R7). The memory ladder stops at 12 GB (R8). Never raise a
+ceiling, never touch the clocks (R2), never prune the build cache — report the free-bytes number instead.
+`/` free below ~80 GB at any pre-flight read: stop and report. No fp8 flip without `REACHABLE-ON-THIS-PIN`
+(step 4). And a run that cannot leave the box serving stops at the last rung it can hold.
 
 ---
 
@@ -175,7 +227,9 @@ engine, so timed legs run after the lanes close and never beside them.
 
 Because R1 keeps the **weights** identical, the accuracy evidence carries; everything about the **build**
 must be re-read. The split below is the honest minimum — and `certified: true` stays binary and
-gate-enforced, so a quick pass is recorded as evidence text, never as a certification.
+gate-enforced, so a quick pass is recorded as evidence text, never as a certification. **The R6 window runs
+steps 0–6 of this table and nothing above it**: gates 2, 7, 8 and 9 wait for a scheduled window, which is
+why the arms end the window UNCERTIFIED and serving, on purpose.
 
 | gate | verdict | why |
 |---|---|---|
@@ -208,18 +262,20 @@ gate-enforced, so a quick pass is recorded as evidence text, never as a certific
 
 ## 9. Answered, and what is still open
 
-One of the two questions this draft opened is now ruled, and the other still owes a row. Where a row is
-owed it is minted in `docs/spark-llm-profiles.md` with the shape `CONVENTIONS.md` §8.3 requires, and its id
-is **derived, never typed** — `git grep -hoE 'OQ-[0-9]+' -- '*.md' | sed 's/OQ-//' | sort -n | tail -1`
-answers **18**, so the next is **OQ-19** (this draft first stated OQ-18, which is what re-typing a derived
-id does).
+**Both questions this draft opened are ruled, so it owes no `Options` row anywhere** — a ruled question
+leaves no `Options` section behind (`CONVENTIONS.md` §8.3). Note about the id arithmetic an earlier revision
+of this file carried: do not re-derive it from a `git grep` of `OQ-…` while this file still mentions an id
+in prose, because a draft that names an id invents one; the rule is the derivation, and the mention is what
+made it lie.
 
-1. **Ruled (owner) — eager first, then capture, and a smaller pool is the failure plan.** Recorded as R5;
-   it needs the two boots at steps 5 and 6a, not an `Options` row. The survey's answer about the hook's
-   graph-capturability is still read and written to its owning doc, but it no longer gates the order.
-2. **Open — whether the MTP prefilter patch is worth its re-anchor cost** (it targets the v0.33 MTP module
-   path and upstream's own table prices it at 32 s → 1.2 s of a 46 s drafter load).
-   Cheap test: count the tensors the drafter reads on a boot without it.
+1. **Ruled (owner) — eager first, then capture, and a smaller pool is the failure plan.** Recorded as R5,
+   and widened by R8: the small pools are a measurement axis in their own right, not only the capture
+   failure plan. The survey's answer about the hook's graph-capturability is still read and written to §4,
+   but it no longer gates the order.
+2. **Ruled (owner) — the MTP prefilter patch is carried in build #1** (R10), with its own marker and its own
+   counted site. The measurement the open question asked for is still taken — what the drafter actually
+   reads on a boot — and if it contradicts upstream's price, the finding goes **here**, not into the docs
+   (R12).
 3. **The relocation question, answered with the box's own bytes, so nobody re-derives it.** The build does
    **not** need it: `/` reads 174,712,012,800 B, the v33 base pull plus the built image costs ≤ ~48 GB, and
    the build path never evaluates `df` at all. What the build does is leave `/` at **~127–137 GB — under the
@@ -239,6 +295,7 @@ It does not restate the Paseo launch contract: the commands, the dependent/indep
 model-proof reads and the workspace-binding rules are [`paseo-readme.md`](paseo-readme.md)'s, and this file
 points at them rather than copying them (CONVENTIONS §2: a re-typed copy is a second source).
 
-It does not build, converge, flip, boot or touch spark; it does not edit `todo.md` rows, the catalogue or
-the floor value; it does not open an `Options` section (section 9 names where those rows belong); and it
-does not schedule the blazux arm — that lane keeps its own row and its own dependencies.
+It does not build, converge, flip, boot or touch spark; it does not edit the floor value; it does not open
+an `Options` section (section 9 says why none is owed); and it does not schedule the blazux arm — that lane
+keeps its own row and its own dependencies. What it does carry is this window's own guidance: rulings R6–R12
+and the survey verdicts in §4 live here and nowhere else, by R12's choice and for R4's reason.
