@@ -227,6 +227,23 @@
   when: spark_profile_fast_v33_will_build | bool
   tags: [spark, spark-profile-fast-v33, llm]
 
+- name: Read every other lineage's tags before this build
+  # The guard at the end of this file proves that this build changed nothing about the names it does not
+  # own, and a change is only visible against a previous reading. An after-only read confuses a name that
+  # never existed with a name that was overwritten: `spark_vllm_blazux_v33_tag` is reserved here, and the
+  # blazux-v33 lineage has never been built on this box (its pin is empty, and an empty pin IS the refusal
+  # — CONVENTIONS §7), so that name answers "no such image" on a healthy box. `failed_when: false` keeps a
+  # non-zero rc as data rather than as the run's verdict, which is what makes both readings comparable.
+  when: spark_profile_fast_v33_will_build | bool
+  ansible.builtin.command:
+    cmd: "docker image inspect --format '{{ '{{' }}.Id{{ '}}' }}' {{ item }}"
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  register: fv33_reserved_before
+  loop: "{{ spark_profile_fast_v33_lineage.reserved_tags }}"
+  tags: [spark, spark-profile-fast-v33, llm]
+
 - name: Build the v33 lineage and re-read its ID
   ansible.builtin.include_role:
     name: spark-ultrafast-build
@@ -289,15 +306,34 @@
   tags: [spark, spark-profile-fast-v33, llm]
 
 - name: Assert this build moved no other lineage's tag
-  # `fast` is the rollback for every arm on this box; its tags are the only names its image has.
+  # `fast` is the rollback for every arm on this box; its tags are the only names its image has, and a
+  # name this build untagged is a live image `docker image prune -a` is then free to delete. What is
+  # proved is UNCHANGED-NESS, read twice: the same rc and the same image ID per reserved name, before and
+  # after. A name absent in both readings is untouched — the never-built blazux-v33 lineage's name is
+  # reserved so this lineage cannot write it, not because anything here needs it to resolve. A name whose
+  # ID moved is the same refusal, and the after-only form this replaced could not see it at all.
   when: spark_profile_fast_v33_will_build | bool
   ansible.builtin.assert:
     that:
-      - fv33_reserved.results | rejectattr('rc', 'equalto', 0) | list | length == 0
+      # Two loop-ordered readings of the same reserved_tags list, so index i of one is index i of the
+      # other; a name missing on one side cannot be excused by a shorter list on the other.
+      - fv33_reserved_before.results | list | length == fv33_reserved.results | list | length
+      - >-
+        (fv33_reserved_before.results | map(attribute='rc') | list)
+        == (fv33_reserved.results | map(attribute='rc') | list)
+      - >-
+        (fv33_reserved_before.results | map(attribute='stdout', default='') | map('trim') | list)
+        == (fv33_reserved.results | map(attribute='stdout', default='') | map('trim') | list)
     fail_msg: >-
-      After this build {{ fv33_reserved.results | rejectattr('rc', 'equalto', 0) | map(attribute='item') | list | join(', ') }}
-      no longer resolves. Re-tag the live image from its pinned ID BEFORE anything prunes; this
-      lineage writes exactly one name, {{ spark_vllm_fast_v33_tag }}.
+      This build changed what the box answers for a name it does not own:
+      {% for r in fv33_reserved.results %}
+      {{ r.item }}: before {{ fv33_reserved_before.results[loop.index0].stdout | default('', true) | trim
+      | default('(no image)', true) }} (rc {{ fv33_reserved_before.results[loop.index0].rc }}), after
+      {{ r.stdout | default('', true) | trim | default('(no image)', true) }} (rc {{ r.rc }});
+      {% endfor %}
+      Where a name went from an ID to no image, re-tag the live image from its pinned ID
+      ({{ spark_vllm_ultrafast_image }} is the served lineage's) BEFORE anything prunes; this lineage
+      writes exactly one name, {{ spark_vllm_fast_v33_tag }}.
   tags: [spark, spark-profile-fast-v33, llm]
 
 # ---- The deliberate red, placed after the legs that need the built image ----
