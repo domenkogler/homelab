@@ -580,6 +580,13 @@ spark_ple_fp8_revision: "50511b0a41aa1d34b8beb7e5d4bb06a0b650dc14"        # FP8 
 spark_vllm_v33_base_image: "vllm/vllm-openai:v0.33.0@sha256:d825baf9ce4b1b6bfc5ecc7b79880c7e6748c65a72d697ce3d47607aafa84c6e"
 spark_blazux_upstream_repo: "https://github.com/blazux/qwen3.8-Flash-DGX.git"
 spark_blazux_upstream_commit: "17b025f89788a614e8c1ed2a8976ce986ac614fd"   # its Dockerfile FROM = the base above (roles/spark-profile-blazux asserts they stay equal)
+# The AutoRound recipe, pinned for ONE thing on this lineage: the graph-capturable PLE host func
+# (recipe/build/image/src/ple_mmap_graph.c), which neither the day-0 UltraFast checkout nor the blazux
+# tree carries. Verified reachable: `git branch -r --contains <sha>` answers origin/magi-v5-public, the
+# branch its main says development moved to. Not a source for anything else — the day-0 stack stays
+# UltraFast's 0c391a3.
+spark_autoround_recipe_repo: "https://github.com/Saren-Arterius/qwen3.8-Flash-DGX-AutoRound.git"
+spark_autoround_recipe_commit: "338282cb0fb09abe3f98c47529ad03418c5ab638"
 # The built lineage — INTENTIONALLY EMPTY, and the empty value IS the gate (the
 # spark_vllm_ultrafast_v32_image precedent, CONVENTIONS §7): a lineage built on this box has no
 # registry digest, and the served reference is the image ID the build prints, never the tag below.

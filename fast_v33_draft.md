@@ -31,6 +31,8 @@
 | R11 | **The `/` → XFS relocation is deferred** out of this window; the R3 per-run exemption is how every `os`-rooted converge in the window — the flips and any rollback included — carries the below-the-floor state, printing the number it accepted | the flag lands in `IaC/ansible/group_vars/spark.yml` and `docs/hardware-spark.md` states the reason it may be off; the deferred act itself stays in the disk section of this file |
 | R12 | **Survey output and this window's build decisions stay in this draft** — they are guidance for the next session, not permanent knowledge, so they are not written to `docs/` or to a `-rejected` log. R1–R5's own landing places are unchanged; this row governs everything else | this file |
 | R13 | **The build is its own session, and it runs on the spark-served row.** Rule 0 bars timed numbers, not builds; and this build converge is *provably* engine-safe, proved rather than argued: `--list-tasks` under `--tags spark-profile-fast-v33` answers with this role's tasks and the `always` guards and nothing else — no `spark-llm-profile` render, no compose, and the role has no `notify`, so no handler can restart anything. It therefore needs no external model, while every flip and every timed leg still does (the rest of R4). It is launched through Paseo bound to a **derived** workspace (`--workspace`, never a remembered id) so it shows in `paseo ls` and can be attached to | [`paseo-readme.md`](paseo-readme.md) §3 (the independent shape) and §5 (workspace binding) for the mechanics; the standing engine-safe-converge exception is `docs/orchestration.md` §4 |
+| R14 | **The graph host func comes from the AutoRound recipe, pinned for that one file.** The owner chose the pin over authoring our own: `338282cb0fb0…` on `Saren-Arterius/qwen3.8-Flash-DGX-AutoRound`, verified reachable (`git branch -r --contains` answers `origin/magi-v5-public`, the branch its `main` says development moved to), vendored for `recipe/build/image/src/ple_mmap_graph.c` and nothing else — the rest of the stack stays UltraFast's `0c391a3`. §9b's read #3 stops being a fork once the artifact exists and becomes a check that the pin landed | `versions.yml` `spark_autoround_recipe_repo` / `spark_autoround_recipe_commit` |
+| R15 | **The v33 port is its own session, launched the way the build one is** — Paseo-bound to a derived workspace, on the spark-served row, because re-anchoring patchers is authoring plus read-only container reads and takes no timed number. It ends by filling `spark_profile_fast_v33_patch_plan`; the build session follows it rather than being replaced by it | R13's shape, applied one rung earlier in the ladder |
 
 R4 is why the ladder below is one column and not two: the split existed to keep a dependent agent from being
 killed by its own converge, and an independent launch answers that directly. The cost of the new shape is
@@ -154,11 +156,12 @@ up to the next power of two, and the fix for that upstream is still an open pull
 census added turn this from guidance into a dependency:** the C form of that host func is **not in either
 pinned checkout** (`find` over the day-0 checkout at `0c391a3` answers no `.c` file, and the blazux tree at
 `17b025f8` ships `vllm_ple_mmap.py` without `ple_mmap_graph.c`) — it exists only at
-`Saren-Arterius/qwen3.8-Flash-DGX-AutoRound@338282c`, which carries **no pin in `versions.yml`** — and the v33
+`Saren-Arterius/qwen3.8-Flash-DGX-AutoRound@338282c`, which `versions.yml` now **pins** as
+`spark_autoround_recipe_commit` (R14) — and the v33
 base constructs `Qwen4ExpPLEPinnedHostEmbedding` (`models/qwen4_exp/nvidia/ngram_embedding.py:218`), not the
 mmap class our patch replaces. So the graphs question has a predecessor: **porting `patch_ple_rendezvous` is
-what keeps the 48.67 GiB table off the page-lock path in the first place**, and capturing graphs later needs
-either a pin on that AutoRound commit or a host func we author ourselves.
+what keeps the 48.67 GiB table off the page-lock path in the first place**; capturing graphs on top of that
+needed either a pin on that AutoRound commit or a host func of our own, and **R14 took the pin branch.**
 
 | lead | what to read | the verdict to write down | verdict (write here, with its citation) |
 |---|---|---|---|
@@ -259,6 +262,32 @@ rung of the fallback ladder, ending at `fast` (R7). The memory ladder stops at 1
 ceiling, never touch the clocks (R2), never prune the build cache — report the free-bytes number instead.
 `/` free below ~80 GB at any pre-flight read: stop and report. No fp8 flip without `REACHABLE-ON-THIS-PIN`
 (step 4). And a run that cannot leave the box serving stops at the last rung it can hold.
+
+**The port session's launch line** (R15 — runs before the build session, because there is nothing to build
+until the plan can be filled honestly):
+
+```bash
+WKS=$(python3 -c "
+import json,os
+d=json.load(open(os.path.expanduser('~/.paseo/projects/workspaces.json')))
+c=[w for w in d if w['cwd']=='/home/domen/source/homelab' and not w.get('archivedAt')]
+print(sorted(c,key=lambda w:w['updatedAt'])[-1]['workspaceId'])")
+env -u PASEO_AGENT_ID -u PASEO_AGENT_CWD -u PI_SESSION_ID -u PI_SESSION_FILE -u PI_PROVIDER -u PI_MODEL \
+  paseo run --no-wait -q --provider pi \
+    --model spark/spark/qwen3.8-flash-next \
+    --env PI_PROVIDER=spark --env PI_MODEL=spark/qwen3.8-flash-next \
+    --workspace "$WKS" \
+    --title fast-v33-port --label lane=spark-llm --label phase=port \
+    "Read fast_v33_draft.md, its §0 rulings and the census verdict in §6b, and /tmp/fastv33-census-v33base.md.\
+     Author the v33 port: re-anchor the 8 day-0 patchers the census names into\
+     spark_profile_fast_v33_patch_plan in IaC/ansible/roles/spark-profile-fast-v33/defaults/main.yml, site by\
+     site, the shape roles/spark-profile-fast8/files/port_v32.py carries. Every step needs expect and marker;\
+     dry-run each one in a throwaway container against the pinned base before you write it. Carry\
+     spark_autoround_recipe_commit's ple_mmap_graph.c and its wiring (R14); leave Qwen4ExpPLEPinnedHostEmbedding\
+     off the table path; no load_format flip. Do NOT build, do NOT pin an image ID, do NOT converge anything,\
+     take no timed number. First act before any edit: git worktree add ../homelab-wt-\$(date +%Y%m%d-%H%M).\
+     Stop conditions bind: never widen an expect to make a patcher pass - park it in the plan with the reason."
+```
 
 **The build session's launch line** (steps 1–4 only, on the spark-served row, bound to a derived workspace —
 `--workspace` replaces `--cwd` because a bound workspace's path wins, which is why the prompt carries the
@@ -447,9 +476,9 @@ Three reads the survey could not do from a checkout, each with the act that sett
 3. **Whether our patched hook is the graph-legal form, not upstream's — answered ahead of the artifact, and
    it answers "no, not yet".** §4 read upstream code at pinned commits; the census then read both pinned
    checkouts on the box and found **no C host func in either** — it lives only at
-   `Saren-Arterius/qwen3.8-Flash-DGX-AutoRound@338282c`, unpinned here. So carrying graphs means deciding,
-   in the port: pin that commit and vendor its `ple_mmap_graph.c`, or author the host func into our own
-   patcher. The marker probe in step 3 is still the read that closes it, but it can no longer be a surprise.
+   `Saren-Arterius/qwen3.8-Flash-DGX-AutoRound@338282c`. **R14 settled the route:** that commit is now pinned
+   and the port vendors its `ple_mmap_graph.c`, so what is left is step 3's marker probe, which checks that the
+   pin landed instead of choosing between two roads.
 
 One ref correction worth keeping: vLLM tag `v0.33.0` is commit
 `4ba787ec9959e566d3b587a796dff07673324da5` (`git ls-remote --tags … 'refs/tags/v0.33.0^{}'`), not the sha a
