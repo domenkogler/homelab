@@ -278,7 +278,7 @@ finds no authoring left to do.
 | the render branch that makes an empty pin a refusal | `IaC/ansible/templates/docker_services/spark-ai/docker-compose.yml.j2`, the `ultrafast-v33` arm of `engine_image` | nothing — but read the render matrix before the first flip: an arm that renders an image instead of `IMAGE-PIN-EMPTY` is a fall-through, and this lineage's argv would boot and serve the wrong engine |
 | the catalogue | `docs/spark-llm-profiles.md` — both arms, the retired v32 rows, the flip order and the fallback ladder | update the rows with what the boots actually printed |
 | the queue | `todo.md` HD-1206 (this lane), HD-1242 (the blazux lane, un-parked and sharing the base pull) | trim HD-1206 as each ⏳ item lands; delete nothing else |
-| the survey (§4) | this file's §4 verdict column | take it: the lanes launched for it were stopped before either answered |
+| the survey (§4) | this file's §4 verdict column and §9b | carry it into the patch plan: the graph-capturable mmap host func gets anchored and marker-probed, the pinned host table stays out, no `--load-format` flip |
 
 ---
 
@@ -330,8 +330,10 @@ made it lie.
 
 1. **Ruled (owner) — eager first, then capture, and a smaller pool is the failure plan.** Recorded as R5,
    and widened by R8: the small pools are a measurement axis in their own right, not only the capture
-   failure plan. The survey's answer about the hook's graph-capturability is still read and written to §4,
-   but it no longer gates the order.
+   failure plan. The survey's answer is now in §4 and it does not change that order — eager boots first,
+   capture is tried after — but it does change what the capture attempt is expected to do: the verdict is
+   GRAPHS-LEGAL provided the hook reaches for the mmap host function rather than a pinned host table, so a
+   failed capture on the new build is a porting bug to read, not a property of the model to accept.
 2. **Ruled (owner) — the MTP prefilter patch is carried in build #1** (R10), with its own marker and its own
    counted site. The measurement the open question asked for is still taken — what the drafter actually
    reads on a boot — and if it contradicts upstream's price, the finding goes **here**, not into the docs
@@ -355,6 +357,26 @@ made it lie.
    (section 3). The levers that free nothing, re-stated so they are not re-tried: build-cache prune (⛔, and
    its reclaimable figure is layer storage shared with live images), inactive images (736 MB between all of
    them), and staging on XFS (the engine boots images from the container store, and the store is on `/`).
+
+## 9b. What the survey leaves open, in its own words
+
+Three reads the survey could not do from a checkout, each with the act that settles it:
+
+1. **Our own weight-load duration.** Every number in §4 is someone else's; `Model loading took` has never
+   been recorded here as a duration, only as a byte count in a boot-log quote. Step 5 copies it, and the
+   whole loader/boot comparison stops being inherited at that moment.
+2. **Whether the base image carries the two loader libraries.** Both are core requirements of vLLM v0.33.0
+   upstream, but "the base is not pulled" was the state when that was read, so the claim is about the
+   release, not about this box. The first `docker run … python -c "import fastsafetensors, instanttensor"`
+   on the built image settles it — and it matters only for knowing what a `--load-format` flip would do,
+   since the verdict is not to flip one.
+3. **Whether our patched hook is the graph-legal form, not upstream's.** §4 read upstream code at pinned
+   commits; it cannot read the artifact until the artifact exists. The marker probe on `ple_mmap_graph.c`
+   (or the Python form, wherever the census lands it) is the read that says so, and it is already in step 3.
+
+One ref correction worth keeping: vLLM tag `v0.33.0` is commit
+`4ba787ec9959e566d3b587a796dff07673324da5` (`git ls-remote --tags … 'refs/tags/v0.33.0^{}'`), not the sha a
+survey lane first reported — the tag-to-commit mapping in the build record should come from that command.
 
 ## 10. What this draft deliberately does not do
 
