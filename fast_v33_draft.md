@@ -19,6 +19,8 @@
 | R1 | The next speed arm keeps **`fast`'s weights unchanged** (the AR AutoRound W4A16 hybrid checkpoint + the FP8 PLE table) and moves the **engine build** to the v0.33 base. New checkpoint families are off this lane's critical path | `docs/spark-llm-profiles.md` — the six-arm grid gains `fast-v33-bf16` / `fast-v33-fp8` and the v32 arms retire to evidence rows |
 | R2 | **No GPU-clock change.** `spark_gpu_clock_cap_mhz` stays `300,2418`: the box already runs warm and the ceiling buys idle behaviour a 24/7 agent seat needs. The ~20 % clock headroom is spent on heat, not on speed | `docs/hardware-spark.md` §GPU clock cap — one sentence naming the thermal reason, so nobody re-derives it as an easy win |
 | R3 | The root-partition free-space assert is **bypassed by a named, per-run exemption — not by editing the floor**. `spark_llm_os_min_free_bytes` keeps its value and its meaning; the exemption is opt-in, per-run, echoed loudly with the measured number, and it is a ruling with a date, not a default | `IaC/ansible/group_vars/spark.yml` (the flag, default `false`) + the assert in `IaC/ansible/roles/spark-llm-profile/tasks/main.yml` + `docs/hardware-spark.md` (the reason it is allowed to be off) |
+| R4 | The **build** legs and the **converge/test** legs run in **different sessions**, and the second one is launched **independently** of the first: the build stays with the local lane session (reads and a build, no external tokens, nothing timed), the flip and its quick tier run in an external session on the hosted row the owner named. An agent launched the ordinary way from a lane session is that session's **child** — same workspace, injected context, and it dies when the parent's engine restarts, which is the thing a converge does to the parent | [`paseo-readme.md`](paseo-readme.md) sections 2–3 (the two launch shapes) · its section 5 (workspace binding) — the commands and the four verification reads live there, not here |
+| R5 | The arm **boots eager first**, then is re-booted **with CUDA-graph capture** in the same window. If capture does not hold, the answer is **a smaller KV pool, never a bigger ceiling** (step 6a) | `docs/spark-llm-profiles.md` §7 (the flip order) + `docs/hardware-spark.md` §Unified-memory budget (the pool arithmetic that prices it) |
 
 R3 is the one that cuts against a standing instruction in the assert's own `fail_msg` ("never lower the
 floor to make this line green"). It is honoured: **the floor is not lowered.** What changes is that a human
@@ -140,9 +142,18 @@ rollback and `spark-rollback:fast` is archived on the nas.
 ## 6. The runbook (ordered; who may run what)
 
 Rule 0 binds the whole run wherever it sits: **no timed leg from a seat that spark serves**, children
-included (`docs/orchestration.md`). Steps 1–4 are reads/builds and need no external seat; step 5 onward
-does (`spark/reports/external-window-card.md`). Every live converge runs **detached** — `nohup … &` + a log
-file + poll; `--check` is the only safe foreground form.
+included (`docs/orchestration.md`). Steps 1–4 are reads/builds and run in the **local lane session**; step 5
+onward runs in the **external session** (R4), launched per section 3 of
+[`paseo-readme.md`](paseo-readme.md) — independent of the parent, because this step restarts the engine
+that serves the parent and a dependent agent would be killed by the work it was launched to do. Every live
+converge runs **detached** — `nohup … &` + a log file + poll; `--check` is the only safe foreground form.
+
+Either session may **delegate** while it works — bounded subagent lanes under
+[`docs/orchestration.md`](docs/orchestration.md) §4 (O1–O11: ≤2 concurrent, `model:` never named, a
+per-child deadline, silence read as compaction not a hang) — with the two consequences
+[`paseo-readme.md`](paseo-readme.md) section 8 states: a child of an external-lane session runs on that external
+provider, so the lane's read list is what §8.6 grades, and children of an engine-served session load that
+engine, so timed legs run after the lanes close and never beside them.
 
 | # | act | form | acceptance, one line |
 |---|---|---|---|
@@ -152,6 +163,7 @@ file + poll; `--check` is the only safe foreground form.
 | 4 | pin + fp8 admission | commit the printed ID in `IaC/ansible/group_vars/all/versions.yml` alone; then `python3 scripts/bench/spark-fp8-image-probe.py --image <ID> --skip-registry` | the probe prints `REACHABLE-ON-THIS-PIN`; the capable-list entry lands in that same change (an `UNDECIDED` run is not a verdict) |
 | 5 | flip the control arm | detached, `-e spark_llm_profile=fast-v33-bf16 -e spark_llm_allow_uncertified=true --skip-tags tailscale-node` | `RestartCount=0` after 30 min **and** the boot prints the same token count `fast` prints; read the timestamps — boot time is this arm's headline measurement |
 | 6 | quick tier | `python3 scripts/bench/spark-llm-probe.py all --profile fast-v33-bf16` + one determinism leg (identical prompt twice, first-token logprobs compared) | health/reasoning/ctx/concurrent pass; logprobs byte-equal across the two runs |
+| 6a | the capture attempt, and its price (R5) | once eager reads `RestartCount=0`: `enforce_eager: false` (+ `cudagraph_piecewise` as the capture form), re-converged detached, `RestartCount` and the capture lines read **before** any timed leg | graphs hold and the timed leg stands. If it restart-loops or the hold grows, **shrink the pool**: `kv_cache_memory` down in 2 GB steps — ≈ 32,230 slots per GB at 31,027 B/token, so 18 GB ≈ 580,141 slots = 2.21 × the window. `spark_llm_device_hold_ceiling_bytes` and the 16 GiB pool ceiling stay put (docs/hardware-spark.md §Chosen governor: the pool is the knob, the ceilings are not) |
 | 7 | official gates 0–2 | `scripts/bench/spark/hd469-baseline.sh`, `scripts/bench/spark/usable-sampler.sh` | host floor curve prices the arm's real `fixed_cost_bytes` (the declared one is derived until this leg replaces it) |
 | 8 | the fp8 arm | same flip with `fast-v33-fp8`, then gates 0–2 + the dtype gates against the bf16 control | `GPU KV cache size` ≈ 1.09 M slots (the fp8 projection — the engine's line wins); MTP acceptance within noise |
 | 9 | gate 7 | one working day of watchdog samples while the arm serves | no growth above 2 GiB/h under traffic that fails to return at idle |
@@ -194,19 +206,38 @@ gate-enforced, so a quick pass is recorded as evidence text, never as a certific
 
 ---
 
-## 9. Unresolved — for the owner, before step 5
+## 9. Answered, and what is still open
 
-Two questions are genuinely open and this draft does not decide them. Each belongs in
-`docs/spark-llm-profiles.md` as an `Options` row with the shape the conventions require (the derived id
-space currently tops at OQ-17, so the next is **OQ-18**) — mint them there, not here:
+One of the two questions this draft opened is now ruled, and the other still owes a row. Where a row is
+owed it is minted in `docs/spark-llm-profiles.md` with the shape `CONVENTIONS.md` §8.3 requires, and its id
+is **derived, never typed** — `git grep -hoE 'OQ-[0-9]+' -- '*.md' | sed 's/OQ-//' | sort -n | tail -1`
+answers **18**, so the next is **OQ-19** (this draft first stated OQ-18, which is what re-typing a derived
+id does).
 
-1. **Graphs or eager** on the v33 AR arm, if the survey shows the hook is not graph-capturable.
-   Cheap test: boot the control arm eager, then once with capture, comparing `RestartCount` and one timed leg.
-2. **Whether the MTP prefilter patch is worth its re-anchor cost** (it targets the v0.33 MTP module path and
-   upstream's own table prices it at 32 s → 1.2 s of a 46 s drafter load).
+1. **Ruled (owner) — eager first, then capture, and a smaller pool is the failure plan.** Recorded as R5;
+   it needs the two boots at steps 5 and 6a, not an `Options` row. The survey's answer about the hook's
+   graph-capturability is still read and written to its owning doc, but it no longer gates the order.
+2. **Open — whether the MTP prefilter patch is worth its re-anchor cost** (it targets the v0.33 MTP module
+   path and upstream's own table prices it at 32 s → 1.2 s of a 46 s drafter load).
    Cheap test: count the tensors the drafter reads on a boot without it.
+3. **The relocation question, answered with the box's own bytes, so nobody re-derives it.** The build does
+   **not** need it: `/` reads 174,712,012,800 B, the v33 base pull plus the built image costs ≤ ~48 GB, and
+   the build path never evaluates `df` at all. What the build does is leave `/` at **~127–137 GB — under the
+   150,000,000,000 B floor yet not short of space**, which is exactly the state R3's named per-run exemption
+   is for, and the state every later `os`-rooted converge (the flip included, and the rollback to `fast`)
+   carries until bytes are freed. So the relocation is not a prerequisite of this window — it is what buys
+   the armed floor back. Do it when a second ~48 GB pull has to land (that is `/` at ~80–90 GB free, where
+   the margin stops being arithmetic and starts being luck), and then as one **link-preserving** tree move of
+   the checkpoint pair to XFS: the drafter directory hard-links every shard, so a partial move frees nothing
+   (section 3). The levers that free nothing, re-stated so they are not re-tried: build-cache prune (⛔, and
+   its reclaimable figure is layer storage shared with live images), inactive images (736 MB between all of
+   them), and staging on XFS (the engine boots images from the container store, and the store is on `/`).
 
 ## 10. What this draft deliberately does not do
+
+It does not restate the Paseo launch contract: the commands, the dependent/independent distinction, the
+model-proof reads and the workspace-binding rules are [`paseo-readme.md`](paseo-readme.md)'s, and this file
+points at them rather than copying them (CONVENTIONS §2: a re-typed copy is a second source).
 
 It does not build, converge, flip, boot or touch spark; it does not edit `todo.md` rows, the catalogue or
 the floor value; it does not open an `Options` section (section 9 names where those rows belong); and it
