@@ -290,7 +290,7 @@ function Do-Push {
     $existing = Get-NetFirewallRule -DisplayName $spec.name -ErrorAction SilentlyContinue
     $args = @{ DisplayName = $spec.name; Direction = 'Inbound'; Action = 'Allow'; Protocol = 'TCP'
               LocalPort = $spec.port; RemoteAddress = $TailnetRange; Profile = 'Any'
-              Description = 'Homelab HD-411: Paseo coding seat, tailnet-only (100.64.0.0/10).' }
+              Description = 'Homelab: Paseo coding seat, tailnet-only (100.64.0.0/10).' }
     if ($spec.program) {
       if (-not (Test-Path $spec.program)) {
         Write-Host ("FAIL: {0} is not on disk - a firewall rule naming a missing image allows nothing. Install the Paseo desktop app first." -f $spec.program)

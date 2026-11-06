@@ -971,7 +971,8 @@ number, not a re-ask.
 > (`pi-web`). The management console at `cockpit-<host>.kogler.si` is [cockpit-project.org](https://cockpit-project.org/),
 > a different thing with its own owning role (`roles/cockpit`, routes in `services-traefik.md` §Cockpit Routes,
 > break-glass identity in [deployment-secrets.md](deployment-secrets.md)). The two are not the same "cockpit":
-> `pi-web` is the surface with **no owning role** (open work, §10).
+> `pi-web` has its **own** owning role, `roles/seat` — never `roles/cockpit` tasks; what that role renders,
+> and why the split is deliberate, is the "How the seat is built" half below.
 
 The owner chose **native host processes under the unprivileged `domen` account**, not containers, and
 **not** behind gateway auth. Recorded here because it is a deliberate exception to the shape every other
@@ -1276,3 +1277,4 @@ is **not** tested through the gateway and stays unsupported there.
 | **Open WebUI instance split** | One instance today; the public/internal capability split is undecided work. |
 | **Docling prose-page recall** | On light prose the live RapidOCR engine drops whole sentences — a recall gap (§Docling OCR engine selection). One measured cheap candidate: raster scale, the 288 dpi render cut scan2's fragment-soup lines **5 → 2** at the same 2.9 s. |
 | **Mem0 / OpenHands** | Planned spark services; neither onboarded. |
+| **Workstation `.ts` alias artifact** | Not built — no instrument in this tree renders it. The sanctioned workstation-side remedy for a resolver stack that cannot read the client's own netmap (the WSL seat's — which is why a `.ts` name answers on Windows and not in WSL) is the **generated alias artifact derived from `zone_kogler_si`**: [network-dns.md](network-dns.md) §The answer-plane model states that remedy and the declined routing-domain split, and §Host-side resolver states the narrower seat mechanism that DOES exist — the `llm-path` plane's pin of ONE name on one box. ⛔ A hand-typed `hosts` entry or a per-box resolver drop-in is the forbidden form. |
