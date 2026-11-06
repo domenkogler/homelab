@@ -89,7 +89,7 @@ python3 -c "import json,sys;print([json.loads(l) for l in open(sys.argv[1]) if j
 **The env row lies unless it is passed.** A model delivered only through `--model` can leave `PI_MODEL`
 showing the seat's **default** model (the seat's `agentProfiles`/settings value), so a session actually
 running an external row reports the local engine to anything that reads the env — including
-[`scripts/bench/check_bench_provenance.py`](scripts/bench/check_bench_provenance.py), whose Rule 0 verdict
+[`scripts/gate/check_bench_provenance.py`](scripts/gate/check_bench_provenance.py), whose Rule 0 verdict
 is computed from `PI_MODEL`. So `--env PI_PROVIDER=… --env PI_MODEL=…` is not cosmetic: it is the ledger's
 truth. Format: `PI_PROVIDER=<provider>`, `PI_MODEL=<model-id>` (**no** provider prefix in `PI_MODEL`).
 
