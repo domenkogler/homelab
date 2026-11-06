@@ -130,9 +130,15 @@
   # claims inside the build (Dockerfile.v33); this leg refuses BEFORE the context is staged.
   ansible.builtin.assert:
     that:
+      # The claim, in Jinja syntax: a PYTHON list comprehension inside `that:` is something jinja2
+      # cannot parse, so the comparison is written as two parallel lists in loop order — the count the
+      # base answered for each entry, and the `expect` that entry declares. A short results list can
+      # never compare equal to a long plan, and a missing file prints nothing, trims to '' and grades 0
+      # — the reading the comment above documents.
+      - fv33_base_counts.results | list | length == spark_profile_fast_v33_patch_plan | length
       - >-
-        [ r.item.name for r in fv33_base_counts.results
-        if (r.stdout | default('0') | trim | int(-1)) != (r.item.expect | int) ] | length == 0
+        (fv33_base_counts.results | map(attribute='stdout') | map('trim') | map('int') | list)
+        == (spark_profile_fast_v33_patch_plan | map(attribute='expect') | map('int') | list)
     fail_msg: >-
       The base image does not answer the counts the plan declares:
       {% for r in fv33_base_counts.results %}
