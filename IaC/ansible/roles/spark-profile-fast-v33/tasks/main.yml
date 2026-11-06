@@ -174,7 +174,7 @@
     cmd: >-
       bash -c 'set -euo pipefail
       mkdir -p {{ spark_profile_fast_v33_build_dir }}/port;
-      mkdir -p {{ spark_profile_fast_v33_build_dir }}/port/day0 {{ spark_profile_fast_v33_build_dir }}/port/blazux;
+      mkdir -p {{ spark_profile_fast_v33_build_dir }}/port/day0 {{ spark_profile_fast_v33_build_dir }}/port/blazux {{ spark_profile_fast_v33_build_dir }}/port/autoround;
       cp -a {{ spark_ultrafast_src_dir }}/. {{ spark_profile_fast_v33_build_dir }}/port/day0/;
       cp -a {{ spark_blazux_src_dir }}/. {{ spark_profile_fast_v33_build_dir }}/port/blazux/;
       rm -rf {{ spark_profile_fast_v33_build_dir }}/port/blazux/.git;
