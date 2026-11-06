@@ -313,6 +313,34 @@ finds no authoring left to do.
 | the queue | `todo.md` HD-1206 (this lane), HD-1242 (the blazux lane, un-parked and sharing the base pull) | trim HD-1206 as each ⏳ item lands; delete nothing else |
 | the survey (§4) | this file's §4 verdict column and §9b | carry it into the patch plan: the graph-capturable mmap host func gets anchored and marker-probed, the pinned host table stays out, no `--load-format` flip |
 
+**The census ran against the v0.33 base on 2026-11-06, and its verdict is that this table's opening premise
+is wrong about the first row: filling `spark_profile_fast_v33_patch_plan` is not the only authoring the
+window finds undone.** The base (`vllm/vllm-openai:v0.33.0@sha256:d825baf9…`, = commit
+`4ba787ec9959e566d3b587a796dff07673324da5`) was pulled for the census — `/` went 174,708,813,824 B →
+137,579,212,800 B, under the floor, so R3's exemption rides every later `os`-rooted converge — and read
+with `anchor_census.py` (100 anchors: **33 hold, 1 already present, 57 absent, 9 not unique**) plus a
+throwaway-container dry-run of each patcher: of the 12 countable day-0 patchers **4 land and 8 do not** —
+`patch_never_evict` (`block_pool.py`'s touch path, and two new `ref_cnt += 1` sites above it),
+`patch_hit_debug` (`kv_cache_coordinator.py` imports no logger at all here), `patch_mamba_align_split`
+(`mamba_hybrid.py:121-124`, divisor now a local `mamba_block_size`), `patch_low_latency_gemm_sm12x` (the
+`qwen3_8_flash_next` → `qwen4_exp` module rename), `patch_ple_rendezvous` and `patch_r7_logger` (both target
+files the build installs — blind spots, as in the v32 window), `patch_verify_topk_pivot` (the sampler moved
+to `vllm/v1/sample/ops/`), and `patch_block_drop` (`speculative.py` rewrote the method membership into
+properties at `:2116-2160`; its `VLLM_KEEP_DRAFT_BLOCKS` is not native). Those are code moves, so the plan
+cannot be filled from counts alone: it needs the port `port_v32.py` is to v32, authored and read site by
+site — which is authoring, not step 2, and the reason the build session stopped with no plan filled, no
+image built, no pin set and no probe run rather than shipping the 4-patcher subset (§1 defines the artifact;
+a green marker run over a reduced one is exactly the silent behaviour change the empty plan guards against).
+On the blazux side the news is good and the §4 verdicts hold: the hook applies against
+`models/qwen4_exp/nvidia/ngram_embedding.py` in its graph-aware mmap + custom-op form (the pinned host class
+`Qwen4ExpPLEPinnedHostEmbedding` is live at `:28/:41/:218` and stays untouched), and 4 of the 5 loader
+patchers apply — `patch_moe_name_index` is native since v0.31 and blazux does not run it at this pin — with
+§5's trap answered clean: the base carries **4** `expert_data.copy_(loaded_weight)` occurrences but exactly
+**2** are the final statement of `_load_w13`/`_load_w2`, so the patcher passes without anything widened.
+The C form of the graph host func (`ple_mmap_graph.c`) is in neither pinned checkout, only in
+`Saren-Arterius/…@338282c`, which carries no pin here. Full rows, both instruments and their commands:
+`/tmp/fastv33-census-v33base.md`.
+
 ---
 
 ## 7. Certification: what carries over from `fast`, and what must be re-taken
