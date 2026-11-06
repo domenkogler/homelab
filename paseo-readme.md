@@ -162,10 +162,14 @@ a mode that does not ask (`--mode`, per `paseo provider ls`).
 
 ## 8. Delegation from a launched session
 
-A Paseo agent is an ordinary pi session once it starts, so it may delegate — but **which lanes it may open,
-how many, on what model and under what deadline is the run's own contract, carried by the brief that
-launched it**, not by this page. What this page owns is the launch-side difference between the two ways a
-session gets help:
+A Paseo agent is an ordinary pi session once it starts, so it may **delegate**: bounded subagent children
+under [`docs/orchestration.md`](docs/orchestration.md) section 4 — its overrides O1–O11 and the child-lane
+contract O10–O11: at most two children concurrently, `model:` never named on a launch (a child inherits the
+session's model), a deadline per child rather than a clock-based abort, and silence read as a compaction and
+not a hang. The parent launches, reads the evidence and merges; the children read, analyse and write
+([`README.md`](README.md) §4 item 7, [`CONVENTIONS.md`](CONVENTIONS.md) §6 — delegation is the default here,
+not an escalation). What that contract decides is the lane policy; what this page owns is the launch-side
+difference between the two ways a session gets help:
 
 Two mechanisms, and the difference is not cosmetic:
 
@@ -184,7 +188,8 @@ Both carry the same two consequences, checked before launching rather than after
   doc is not an external-lane lane, whatever the parent runs on.
 - **Children of a session served by an engine add load to that engine**
   ([`docs/harness-pi-engines.md`](docs/harness-pi-engines.md) §6's concurrent-sequence budget), which is why
-  a window takes its timed legs after the lanes close, never beside them.
+  a window takes its timed legs after the lanes close, never beside them (Rule 0,
+  [`docs/orchestration.md`](docs/orchestration.md) section 4).
 
 ## 9. What this page does not cover
 
