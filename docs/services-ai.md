@@ -1162,7 +1162,8 @@ listener — so a boot act written without `bash -lc` can darken the seat it was
 
 **What starts the `wsl` seat's daemons: a per-user Windows Startup entry.** The carrier is
 [`scripts/harness/win/wsl-seat-autostart.vbs`](../scripts/harness/win/wsl-seat-autostart.vbs), installed by copy
-to `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\` and run by `cscript.exe //nologo` at every sign-in —
+to `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\`, where the Windows Script Host runs it at every
+sign-in (`cscript.exe //nologo <path>` is how it is verified by hand) —
 unelevated, because `schtasks /Create /SC ONLOGON` answers `Access is denied` without elevation and a Startup entry
 needs no rights. The trigger is a **sign-in**, so the seat answers whenever the owner is at the laptop and stays
 dark after a reboot nobody logged into — the same posture as the `win11` seat's desktop app, and the accepted cost

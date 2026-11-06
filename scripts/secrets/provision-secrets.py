@@ -281,7 +281,7 @@ CATALOG = [
     # LiteLLM containers consume it as `OPENAI_API_KEY` once the spark half has converged (the
     # engine only starts accepting it at its next boot) — ordering is in services-ai.md §4.
     ("API Credential", "litellm-engine_api", lambda: [f"credential={gen_token(32)}"]),
-    # HD-411: the Paseo coding-seat daemon's password. TWO fields, because the daemon takes the
+    # The Paseo coding-seat daemon's password. TWO fields, because the daemon takes the
     # credential through two carriers: `PASEO_PASSWORD` in the unit's env file (hashed at start by
     # resolveAuthConfig) is the IaC-managed one on oldsrv, while a seat with no systemd unit —
     # win11's desktop-managed daemon — carries `daemon.auth.password` in ~/.paseo/config.json,
@@ -554,7 +554,7 @@ def bcrypt_hash(password: str) -> str:
 
 
 def paseo_password_item() -> list[str]:
-    """Paseo daemon password (HD-411): plaintext + the bcrypt hash of THAT same value.
+    """Paseo daemon password: plaintext + the bcrypt hash of THAT same value.
 
     One value, two carriers: the env file's plaintext is hashed at daemon start, the persisted
     config wants the hash. Deriving the hash inside the seat plane instead would let a rotated

@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
   The Windows half of the Paseo coding seats: the two firewall rules and the one portproxy that
-  let a phone reach the laptop seats across the tailnet, and nothing else (HD-411).
+  let a phone reach the laptop seats across the tailnet, and nothing else.
 .DESCRIPTION
   WHAT THIS IS FOR. Each laptop seat runs its own Paseo daemon and binds 0.0.0.0 (the desktop app
   arrives at localhost, the phone at the laptop's tailnet address). NEVER The tailnet IP itself is
@@ -35,8 +35,8 @@
   `ip route` and would go blind. And it never opens a port to the LAN: every rule here is scoped
   to 100.64.0.0/10.
 
-  ORDER THAT MATTERS: the WSL daemon must already answer on 0.0.0.0:6768 (todo HD-411, the step
-  this carrier exists to unblock) BEFORE the portproxy is useful - a proxy to a closed loopback
+  ORDER THAT MATTERS: the WSL daemon must already answer on 0.0.0.0:6768 (its own sign-in carrier is
+  scripts/harness/win/wsl-seat-autostart.vbs) BEFORE the portproxy is useful - a proxy to a closed loopback
   forwards nothing and reads as a broken phone leg.
 .PARAMETER Check
   Report only (default). Reads what it can without elevation and prints the exact elevated commands

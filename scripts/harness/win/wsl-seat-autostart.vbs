@@ -20,9 +20,10 @@
 '
 ' THE PROBE RUNS FIRST on the one act that is not a no-op. Any HTTP answer means the port is served: 401 is
 ' the Paseo auth gate doing its job. A reply either way IS "already running"; silence is the only trigger.
-' Both loopbacks are probed because WSL's localhostForwarding is seen on the IPv4 leg on this box and naming
-' one address is how a live daemon reads as down - see the mcp-server plane's same rule in
-' scripts/harness/seat-mcp-server.sh.
+' BOTH loopbacks are asked, because from this Windows vantage WSL's localhostForwarding answers on the IPv4
+' leg and naming one address alone is how a live daemon reads as down. scripts/harness/seat-mcp-server.sh
+' documents the same failure mode from the other side ("WHY 127.0.0.1 AND NOT localhost"): INSIDE the distro
+' a `localhost` name takes the dead ::1 leg, so that plane names IPv4 only. The vantage decides, not style.
 '
 ' Do not add a variable named err to the Dim line: it shadows the built-in Err object, the probe's
 ' Err.Number test stops answering, and the start line is never reached.

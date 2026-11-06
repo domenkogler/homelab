@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =====================================================================
 # seat-paseo.sh — the `paseo` seat plane: the Paseo daemon's own config, converged on the seats
-# where the seat (not a systemd unit) is what configures the daemon (HD-411).
+# where the seat (not a systemd unit) is what configures the daemon.
 #
 # WHY THIS EXISTS
 # ---------------
@@ -28,7 +28,7 @@
 #   the two door arms roles/seat sets — daemon.hostnames and daemon.trustedProxies: a router that
 #   the daemon answers 403 is a door that reports deployed, and nothing else in the tree can see it.
 #   Not win11: that seat's daemon is desktop-managed, its CLI is a `.cmd` behind `cmd //c`, and its
-#   bind is the owner's elevated leg (todo HD-411), so the row does not name win11 and this script
+#   bind is the owner's elevated leg, so the row does not name win11 and this script
 #   answers SKIP there instead of running a carrier nobody verified. Not the pairing, not the phone
 #   verdict, not ~/.paseo beyond config.json. Not the @getpaseo/cli install — the plane refuses to
 #   place a binary no pin in versions.yml names (CONVENTIONS §7), and the package is
@@ -100,7 +100,7 @@
 #   vault_read.py's own HL_VAULT_READ_FIXTURE.
 #
 # Owning rule: docs/services-ai.md §9b-1 (the seat surface) · scripts/lib/seat-planes.yml
-# (`plane: paseo`) · docs/deployment-secrets.md (the paseo_password row) · todo.md HD-411.
+# (`plane: paseo`) · docs/deployment-secrets.md (the paseo_password row).
 set -uo pipefail
 
 _hl_self="${BASH_SOURCE[0]}"

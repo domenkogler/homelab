@@ -294,7 +294,7 @@ seats: win11 wsl oldsrv
 installer: debian cockpit wsl
 
 ---
-# The seat's PASEO DAEMON CONFIG plane (HD-411): the three arms of `~/.paseo/config.json` that
+# The seat's PASEO DAEMON CONFIG plane: the three arms of `~/.paseo/config.json` that
 # decide whether a seat is reachable at all — which address the daemon binds, whether the vendor
 # relay is on, and whether the daemon has a password at all. Before this row those were seat
 # folklore written by the desktop app: measured first pass, both laptop seats were answering with

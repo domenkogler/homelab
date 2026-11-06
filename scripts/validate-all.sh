@@ -1933,7 +1933,7 @@ face tree; item_x "~25 CLI launches against a fixture settings.json: HD-1135 mea
 # in quick and touches no seat state, which is why only the self-test half is registered: the
 # `--check --strict` half answers DRIFT on a seat whose push has not run, and that is deploy state
 # (HD-1137's rule), not a tree fact.
-face joined; subject scripts/harness/seat-paseo.sh; item_q "seat-paseo.sh --self-test (HD-411: every arm's verdict, the merge carrier that writes the vault's stored hash where no CLI can, the seat whose CLI its transport cannot resolve, and the never-print canary that must stay caught in --check, --check --strict and --push alike)" bash scripts/harness/seat-paseo.sh --self-test
+face joined; subject scripts/harness/seat-paseo.sh; item_q "seat-paseo.sh --self-test (the paseo seat plane: every arm's verdict, the merge carrier that writes the vault's stored hash where no CLI can, the seat whose CLI its transport cannot resolve, and the never-print canary that must stay caught in --check, --check --strict and --push alike)" bash scripts/harness/seat-paseo.sh --self-test
 # The clone's own pre-push gate. The SELF-TEST is gated; the `--check --strict` half is NOT, on
 # the HD-1137 rule: a clone's hooks are deploy state, and an item that reddens every session
 # worktree that has not yet run `install-hooks.sh --push` would make one lane's unset-up seat
