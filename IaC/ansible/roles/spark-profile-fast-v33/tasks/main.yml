@@ -170,11 +170,17 @@
 - name: Stage the build directory
   # A copy, never the checkout: the checkout has to stay byte-for-byte the pinned commits for the
   # provenance asserts above to mean anything, and the build writes its definition into this tree.
+  # The copy destinations are cleared before they are filled. A recipe checkout carries a packed
+  # `.git/objects/pack/*.pack` at mode 0444, and `cp -a` opens an existing file for writing instead
+  # of replacing it, so staging INTO a previous stage dies `Permission denied` on a file the copying
+  # user owns — and a stage that kept yesterday's tree would not be the tree the asserts above proved.
+  # Removing the copy is safe precisely because it is a copy: the clean proof belongs to the checkout.
   ansible.builtin.command:
     cmd: >-
       bash -c 'set -euo pipefail
-      mkdir -p {{ spark_profile_fast_v33_build_dir }}/port;
-      mkdir -p {{ spark_profile_fast_v33_build_dir }}/port/day0 {{ spark_profile_fast_v33_build_dir }}/port/blazux {{ spark_profile_fast_v33_build_dir }}/port/autoround;
+      mkdir -p {{ spark_profile_fast_v33_build_dir }}/port {{ spark_profile_fast_v33_build_dir }}/port/autoround;
+      rm -rf {{ spark_profile_fast_v33_build_dir }}/port/day0 {{ spark_profile_fast_v33_build_dir }}/port/blazux;
+      mkdir -p {{ spark_profile_fast_v33_build_dir }}/port/day0 {{ spark_profile_fast_v33_build_dir }}/port/blazux;
       cp -a {{ spark_ultrafast_src_dir }}/. {{ spark_profile_fast_v33_build_dir }}/port/day0/;
       cp -a {{ spark_blazux_src_dir }}/. {{ spark_profile_fast_v33_build_dir }}/port/blazux/;
       rm -rf {{ spark_profile_fast_v33_build_dir }}/port/blazux/.git;
