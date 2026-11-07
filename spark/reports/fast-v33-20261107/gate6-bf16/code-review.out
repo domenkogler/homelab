@@ -1,0 +1,33 @@
+
+
+Bugs:
+
+- `len(xs)` fails if `xs` is empty.
+- `len(xs)` fails if `xs` is an iterator/generator.
+- In Python 2, integer division may truncate the result.
+
+Safer Python 3 fix:
+
+```python
+def avg(xs):
+    if not xs:
+        raise ValueError("avg() requires a non-empty sequence")
+    return sum(xs) / len(xs)
+```
+
+If you want it to work with any iterable, including generators:
+
+```python
+def avg(xs):
+    total = 0
+    count = 0
+
+    for x in xs:
+        total += x
+        count += 1
+
+    if count == 0:
+        raise ValueError("avg() requires a non-empty iterable")
+
+    return total / count
+```

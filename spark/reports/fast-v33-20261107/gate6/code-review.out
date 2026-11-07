@@ -1,0 +1,43 @@
+
+
+Bugs / issues:
+
+1. **Empty input causes `ZeroDivisionError`**  
+   `len(xs)` can be `0`.
+
+2. **`len(xs)` fails for generators/iterators**  
+   e.g. `avg(x for x in range(3))` will raise `TypeError`.
+
+3. **In Python 2, integer division may truncate**  
+   e.g. `sum([1, 2]) / len([1, 2])` gives `1` instead of `1.5`.
+
+Fixed version:
+
+```python
+def avg(xs):
+    total = 0
+    count = 0
+
+    for x in xs:
+        total += x
+        count += 1
+
+    if count == 0:
+        raise ValueError("avg() arg is an empty sequence")
+
+    return total / count
+```
+
+If you want to return `0` for empty input instead of raising an error:
+
+```python
+def avg(xs):
+    total = 0
+    count = 0
+
+    for x in xs:
+        total += x
+        count += 1
+
+    if count == 0:
+        return 0

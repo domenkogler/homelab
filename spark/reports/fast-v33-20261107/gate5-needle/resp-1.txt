@@ -1,0 +1,3 @@
+
+
+The pi global instruction for this seat says: platform-env is loaded once at session start and a red converge log is never re-run before its cause is read. Verify run id 41.

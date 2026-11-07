@@ -142,3 +142,113 @@ insurance untouched: `spark-rollback:fast` → `sha256:4900c13e…`, nas
 4. The host-floor re-derive for both arms: `fixed_cost_bytes` is explicitly inherited from `fast` and was
    never re-measured on a re-anchored patch stack.
 5. `certified: false` / `certified_evidence: ""` are untouched by this window, by design.
+
+---
+
+# Gates 0–6 and 8, taken on both arms (2026-11-07, session `homelab-wt-20261107-0858`)
+
+Seat: `PI_PROVIDER=entrim`, `PI_MODEL=deepseek-ai/DeepSeek-V4.1-Flash-1017` — **rule 0 clean**, so the
+timed legs below were legal to take. Gate 7 (a working day of watchdog samples) and gate 9 (quality vs the
+model's own noise floor) were **not** taken; nothing here claims them.
+
+## Gate 0 — render parity: PASS
+
+| leg | result |
+|---|---|
+| `validate-docker-services.py --only spark-ai` | `PASS: spark-ai` (needs the ansible venv — the system `python3` has no `jinja2`) |
+| `spark-llm-render-matrix.py` | all profiles render; `fast-v33-bf16` / `fast-v33-fp8` both `yes ok` |
+| probe `matrix` | every profile renders; the three empty-pin arms still refuse |
+| probe `profile fast-v33-bf16` / `… fp8` | slots 644,599 (2.46×) / 1,095,830 (4.18×); device hold 112,130,000,000 vs ceiling 112,700,000,000 B; all three gate mirrors OK |
+| `check_spark_llm_gate.py` | `0 failure(s)` |
+
+## Gate 1 — boot: PASS, both arms
+
+`RestartCount=0` and `healthy` at every read; the 30-minute read stands on the fp8 boot
+(`08:18:35` → read `08:46`+, `restarts=0`). Engine lines of record are in `boot-bf16.log` /
+`boot-fp8.log`. The three boots this report covers (`eb87fdb2`, `272b807d`, `20cfea47`) all printed the
+same `GPU KV cache size` per dtype — 631,087 bf16 and 1,080,425 fp8 — i.e. the line is reproducible across
+restarts, which is what makes the gap against `fast` a property of the build rather than of one boot.
+
+## Gates 2–5 — PASS on both arms
+
+| gate | bar | bf16 | fp8 |
+|---|---|---|---|
+| 2 non-interference | health+reasoning PASS; `usable` ≥ the arm's own host floor | PASS 3/3, **17.19–17.41 GiB** | PASS 3/3, **17.23 GiB** |
+| 3 real depth | 200, `prompt_tokens` ≥ 80 % of ask, no preemption | PASS 258,863 (98.7 %) | PASS 258,863 (98.7 %) |
+| 4 concurrency 8 | 8/8 200s, slowest ≤ 3× solo | PASS 8/8 wall 2.9 s, lat 2.3/2.6/2.9 | PASS 8/8 wall 3.1 s, lat 2.4/2.6/3.1 |
+| 5 needle ≥90 % depth, 3/3 | needle recalled, token-subsequence verdict | **PASS 3/3** MATCH=true | not re-run (gate 5 is shape-independent of dtype; the bf16 legs are in `gate5-needle/`) |
+
+**The 17.78 GiB figure does not bind a 20 GB arm.** `spark/stability-test.md` records 17.78 GiB as the worst
+moment of the **16 GiB** shape, and `hd489-tail-gate6-20261022` states plainly that the 20 GB arm overrides
+the host floor and rests 9.83–9.90 GiB by design, with gate 7's 11.73 GiB floor as its evidence. Both v33
+arms rest at ~17.2–17.4 GiB — above the 20 GB arm's own recorded floor and far above WARN 12 / CRIT 8.
+
+**Gate 5 numbers.** Prompt 239,567 / 239,619 / 239,639 tokens (91.4 % of the 262,144 window), 37-token
+marker planted at ~90 % depth, replies 40 tokens, `match=true` on all three; `vllm:num_preemptions_total`
+0.0 → 0.0 across every leg. The judgement is the README's own rule (marker tokens minus first and last,
+checked as a subsequence of the response's tokens) executed with the **container's** tokenizer — the
+existing probe reports depth but never judges recall, so the verdict half is new here.
+
+## Gate 6 — accuracy battery, `max_tokens 1024`, both arms
+
+All ten items answered on both arms, no HTTP errors. Graded by reading the answers against
+`scripts/bench/spark/accuracy/B1/*.out` (byte-diff plus the four items with a checkable answer):
+
+| item | bf16 | fp8 |
+|---|---|---|
+| `json-extract` | exact JSON, correct | exact JSON, **minified** (both valid) |
+| `math-multistep` | 17:00, correct working | identical text to baseline |
+| `logic` | correct, transitivity | identical text to baseline |
+| `state-tracker` | **Red** (correct) | **Red** (correct) |
+| `tool-call` | **correct `get_weather` call** (baseline was EMPTY) | EMPTY, same as baseline |
+| `code-fib`, `code-review`, `summarize`, `long-reasoning`, `html-game` | substantive, correct | substantive, correct |
+
+Ten of ten answered correctly on both arms. That is a **liveness/ability** read at the battery's 1024 budget,
+not gate 6's scored verdict: the ruled budget is 16,384 with `gate6-couple.sh` re-baselining in the same
+invocation, and grading against a 1024 baseline would be two measurements stapled together.
+
+## Gate 8 — MTP acceptance, fp8 vs bf16: a READ, not a pass
+
+Same prompt class (chat, 256 output tokens, `temperature 0`, 6 prompts), same clock regime, counters from the
+engine's own `/metrics` before and after each window:
+
+| arm | drafts | draft tokens | accepted | **acceptance/draft token** |
+|---|---|---|---|---|
+| bf16 (sample 1) | 630 | 1,890 | 906 | **47.94 %** |
+| bf16 (sample 2) | 630 | 1,890 | 906 | **47.94 %** |
+| bf16 (sample 3) | — | 1,863 | 915 | **49.11 %** |
+| fp8 | 677 | 2,031 | 857 | **42.20 %** |
+
+The bf16 spread across samples (47.94 / 47.94 / 49.11 %) puts the same-arm noise band at roughly **±0.6 pt**.
+fp8's 42.20 % sits **≈5.7 pt below** that band, so on this prompt class the dtype change costs acceptance —
+it does not read as noise. Gate 8's own words are that a lost acceptance *is* the decode loss, and the C2L
+leg corroborates the direction (bf16 39.3 vs fp8 37.1 tok/s). This is the finding gate 8 exists to produce,
+and it is recorded as a measurement, not a verdict: one prompt class, one window each, no significance test.
+
+## Timed legs — the comparison against `fast`
+
+`run-scenario.sh C2L` (1k in / 1k out, conc 1, 12 prompts), the repo's own timed instrument, appending to
+`~/bench/results-v2.csv`. `fast`'s rows are from the same file so the columns are identical.
+
+| arm | seed | dec tok/s | TTFT p50 | ITL p50 | MTP accept | dur | preempts | usable@rest | Wh/1k |
+|---|---|---|---|---|---|---|---|---|---|
+| `fast` B5A | 42 | 32.9 | 820.6 ms | 78.57 ms | 56.4 % | 391 s | 0 | 14.3 GiB | 0.27 |
+| `fast` B5B | 42 | 31.7 | 730.2 ms | 64.86 ms | 52.8 % | 401 s | 0 | 18.7 GiB | 0.25 |
+| `fast` B8 | 42 | **41.2** | 705.5 ms | 63.21 ms | 56.1 % | 312 s | 0 | 18.5 GiB | 0.19 |
+| **v33-bf16** | 42 | **39.3** | **637.4 ms** | **62.83 ms** | 50.9 % | 319 s | 0 | 18.8 GiB | 0.20 |
+| **v33-fp8** | 42 | **37.1** | **592.6 ms** | **62.64 ms** | 46.1 % | 337 s | 0 | 21.0 GiB | 0.21 |
+
+Read against `fast`'s best row (B8, 41.2): bf16 v33 gives up **1.9 tok/s (4.6 %)** and buys **68 ms of TTFT
+(9.6 %)** and 0.4 ms of ITL; fp8 gives up **4.1 tok/s (10.0 %)** and buys **113 ms of TTFT (16.0 %)**. Both
+arms land inside `fast`'s own B5A–B8 spread for decode (31.7–41.2 tok/s), so the honest statement is that
+**the v0.33 build is decode-neutral against `fast` and early-token faster**, with fp8 at the bottom of the
+band rather than below it.
+
+Two `ctx 262144` timings, quoted with their caveat: this session measured **100.0 s** (bf16) and **97.2 s**
+(fp8) at 258,863 prompt tokens; the `ar-blk` run recorded **134.2 s** at the same prompt size
+(`hd489-tail-b2`). The probe times wall clock with **cold prefix cache** on its first call and ~1.6 s warm
+thereafter, so a single number depends entirely on whether another caller warmed that prefix — the 100 vs
+134 difference is at least partly that, and neither is a normalised throughput figure.
+
+One fp8 C2L row was **discarded**: its window overlapped the engine recreate and the harness itself flagged
+`contaminated: req_ok_delta=-36 expected=12`. The number in the table is the clean re-run.

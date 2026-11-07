@@ -1,0 +1,9 @@
+
+
+The first train has a 1-hour head start:
+
+- Head start distance = 90 km/h × 1 h = 90 km
+- Relative speed = 120 − 90 = 30 km/h
+- Time to catch up = 90 ÷ 30 = 3 hours
+
+The second train leaves at 15:00, so it overtakes the first at **18:00**.
