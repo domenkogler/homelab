@@ -247,7 +247,7 @@ spark_profile_fast_v33_patch_plan:
     expect: 1
     marker: "spark-v33: this family resolves to AutoGPTQ"
     evidence: |-
-      The first fast-v33-bf16 boot (2026-11-07) died in resolve_quant_method before any weight was
+      The first fast-v33-bf16 boot died in resolve_quant_method before any weight was
       read; the layer had been constructed with the pass-through object. Read against the base at its
       pin digest: one `self.qkv_proj = QKVParallelLinear(` and one
       `quant_config=model.without_modelopt_fp4(quant_config),` in the whole file, so this is the only
@@ -319,7 +319,7 @@ spark_profile_fast_v33_patch_plan:
           "        # BF16, so the config's all-shards-FP8 test answers False for every QSA layer and\n"
           "        # AutoGPTQConfig refuses it outright:\n"
           "        #   \"Detected some but not all shards of ...layers.3.self_attn.qkv_proj are\n"
-          "        #    quantized\"                   (the first fast-v33-bf16 boot, 2026-11-07)\n"
+          "        #    quantized\"                              (the first fast-v33-bf16 boot)\n"
           "        # forward() keeps the unfused branch below, so q/k/v stay FP8 and the indexer\n"
           "        # keeps its checkpoint precision in its own linear. No weight is touched.\n"
           "        # The predicate takes the QKV prefix, not this layer's: _is_fp8_layer maps a\n"
