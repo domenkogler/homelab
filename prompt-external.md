@@ -65,7 +65,6 @@ window-thin or prefill-failed · 5 depth above the servable ceiling refused · 6
 | `scripts/bench/spark/usable-sampler.sh` | HD-494 | the floor of `MemAvailable − CmaFree` across one heavy prefill | a missing field is not a zero; the floor CHOICE stays the owner's |
 | `scripts/bench/spark/needle-window.sh --profile <name>` | HD-376 | PASS-DEPTH per profile: HTTP 200 **and** `prompt_tokens` ≥ 80 % of that profile's own window | run it **detached** and poll (cold prefill is NVMe-bound); an uncertified arm needs the owner's per-run opt-in flag; never ask above 262 144 |
 | `scripts/bench/spark/hd469-baseline.sh` | HD-469 | the `clocks.sm` trace ACROSS the window with usable memory read at both ends | waits on an owner-window profile flip — the live host dial says `fast`, the leg wants `reasoning`; a probe FAIL is a RESULT, not an exit code |
-| the flip converge, then `spark-llm-probe.py ctx 262144` / `concurrent 4` | HD-475 | gate 3's full-window leg answers 200 instead of 502-ing at ~105 s | no wrapper, so no exit contract; never re-fetch the staged set, never `--quantization`, never raise a ceiling; the flip is an owner-window engine recreate |
 
 ## ⛔ Traps that cost a round
 
