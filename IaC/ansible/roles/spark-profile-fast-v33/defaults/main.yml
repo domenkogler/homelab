@@ -134,6 +134,253 @@ spark_profile_fast_v33_patch_plan:
       grep -qF '_fp8_hybrid_apply()' "$G"
       python3 -c 'import ast,os; ast.parse(open(os.environ["VLLM_FILE"]).read())' </dev/null
 
+  # fp8_hybrid_drafter_online — the vendored hook's DRAFTER branch, re-anchored onto v0.33's online
+  # MoE API. It must sit AFTER fp8_hybrid_dispatch: it rewrites the file that entry installs, and
+  # its anchor is read in the base's own auto_gptq.py (the vendored file is not in the base, so it
+  # cannot carry an `expect`). The H-side marker is the proof the branch was rewritten, the
+  # auto_gptq.py marker the proof this entry ran at all.
+  - name: "fp8_hybrid_drafter_online"
+    path: "/usr/local/lib/python3.12/dist-packages/vllm/model_executor/layers/quantization/auto_gptq.py"
+    pattern: "def get_moe_quant_method("
+    expect: 1
+    marker: "spark-v33: the drafter arm delegates"
+    evidence: |-
+      The rc2 bf16 boot got past the QSA/indexer failures and died in the MTP drafter:
+      `TypeError: Fp8PerTensorOnlineMoEMethod.__init__() got an unexpected keyword argument
+      'layer'` at vllm_fp8_hybrid.py:234 (`_maybe_drafter_moe_fp8`, named from :161). Read against
+      the base at its pin digest: `Fp8PerTensorOnlineMoEMethod(*, moe: FusedMoEConfig)` and
+      `Fp8PerBlockOnlineMoEMethod(*, moe: FusedMoEConfig)`; `_Fp8OnlineMoEBase.__init__` is
+      `(*, weight_block_size, moe, weight_key=None, activation_key=None, allow_vllm_cutlass=False)`,
+      and vLLM builds these itself as `quant_method_cls(moe=layer.moe_config)
+      (quantization/online/base.py:402)`, the class coming from `_ONLINE_MOE_METHODS` by the
+      QuantSpec's weight QuantKey (`resolve_quant_method_cls`, same file :266). `layer.moe_config`
+      is the attribute the call wants: fused_moe/routed_experts.py:117 assigns it and :164 is where
+      `_get_quant_method` runs with the same partially-built layer.
+      DECISION: delegate the drafter branch to `OnlineQuantizationConfig.get_quant_method` with a
+      `QuantizationConfigArgs(moe="fp8_per_tensor" | "fp8_per_block")` shorthand, rather than
+      patching the two `layer=` call sites. Reason, read from the code: that method IS the native
+      call (resolve from vLLM's own table, then construct with `moe=layer.moe_config`), so the class
+      choice and the constructor call both stay vLLM's and the next move of that private constructor
+      cannot reach our file — whereas `layer=` → `moe=layer.moe_config` would re-pin both. The
+      model-level `resolve_quant_method` (quantization/base_config.py:295) is NOT the seam: its
+      online config is a model/CLI arg that matches every layer of the kind, and this checkpoint's
+      target experts ARE quantized, so it would take the `checkpoint_is_quantized` ->
+      `set_requantization_source` route over the target's int4 weights — a weighed numerics change
+      on the control arm (fast_v33_draft.md R1). Nothing here touches the target's experts: the
+      prefix regex and the `UnquantizedFusedMoEMethod` guard still gate the branch.
+
+    cmd: |-
+      set -e
+      SP="$(dirname "$VLLM_ROOT")"
+      V="$VLLM_ROOT"
+      G="$V/model_executor/layers/quantization/auto_gptq.py"
+      H="$SP/vllm_fp8_hybrid.py"
+      test -f "$G"
+      test -f "$H"
+      test "$(grep -c -F 'def _maybe_drafter_moe_fp8(' "$H")" -eq 1
+      test "$(grep -c -F 'Fp8PerTensorOnlineMoEMethod(layer=layer)' "$H")" -eq 1
+      test "$(grep -c -F 'Fp8PerBlockOnlineMoEMethod(layer=layer)' "$H")" -eq 1
+      python3 - <<'PY'
+      import os
+      h = os.path.join(os.path.dirname(os.environ["VLLM_ROOT"]), "vllm_fp8_hybrid.py")
+      src = open(h).read()
+      old = "\n".join([
+          '    if mode in ("block", "blockwise"):',
+          '        from vllm.model_executor.layers.quantization.online.fp8 import (',
+          '            Fp8PerBlockOnlineMoEMethod,',
+          '        )',
+          '',
+          '        method = Fp8PerBlockOnlineMoEMethod(layer=layer)',
+          '    else:',
+          '        from vllm.model_executor.layers.quantization.online.fp8 import (',
+          '            Fp8PerTensorOnlineMoEMethod,',
+          '        )',
+          '',
+          '        method = Fp8PerTensorOnlineMoEMethod(layer=layer)',
+      ])
+      new = "\n".join([
+          "    # spark-v33: the drafter arm delegates to vLLM's own online-quantization path",
+          "    # instead of naming a method class. v0.33 moved these constructors from",
+          "    # `(*, layer: torch.nn.Module)` to `(*, moe: FusedMoEConfig)` and builds them",
+          "    # itself as `quant_method_cls(moe=layer.moe_config)`, the class chosen from its",
+          "    # own _ONLINE_MOE_METHODS table (model_executor/layers/quantization/online/",
+          "    # base.py:402). Asking OnlineQuantizationConfig for the method keeps the class",
+          "    # choice AND the constructor call on vLLM's side, so the next move of that",
+          "    # private constructor cannot reach this file; the day-0 spelling pinned both,",
+          "    # and died `TypeError: Fp8PerTensorOnlineMoEMethod.__init__() got an unexpected",
+          "    # keyword argument 'layer'` in the MTP drafter of the rc2 boot.",
+          '    from vllm.config.quantization import QuantizationConfigArgs',
+          '    from vllm.model_executor.layers.quantization.online.base import (',
+          '        OnlineQuantizationConfig,',
+          '    )',
+          '',
+          '    _moe_shorthand = (',
+          '        "fp8_per_block" if mode in ("block", "blockwise") else "fp8_per_tensor"',
+          '    )',
+          '    online_cfg = OnlineQuantizationConfig(QuantizationConfigArgs(moe=_moe_shorthand))',
+          '    method = online_cfg.get_quant_method(layer, prefix)',
+          '    assert method is not None, (',
+          '        "spark-v33: vLLM\'s online quantization declined the drafter experts at "',
+          '        f"{prefix} while {_DRAFTER_ENV}={mode}; the arm cannot do what it says"',
+          '    )',
+      ])
+      assert src.count(old) == 1, src.count(old)
+      src = src.replace(old, new)
+      open(h, "w").write(src)
+      import ast; ast.parse(src)
+      PY
+      grep -qF 'spark-v33: the drafter arm delegates' "$H"
+      printf '\n# spark-v33: the drafter arm delegates to vLLM online quantization -- v0.33 takes\n# `moe: FusedMoEConfig`, so vllm_fp8_hybrid.py asks OnlineQuantizationConfig for the\n# method class instead of naming it.\n' >> "$G"
+      python3 -c 'import ast,os; ast.parse(open(os.environ["VLLM_FILE"]).read())' </dev/null
+
+  # qsa_indexer_reachability — the QSA layer must receive the config that knows about the fp8 hybrid.
+  # Two facts make this a correction rather than a preference: `without_modelopt_fp4()` only unwraps
+  # ModelOpt, and this checkpoint is AutoGPTQ, so the call is a pass-through; but passing the object it
+  # returns would hand the layer a config whose `_is_fp8_layer` the fp8-hybrid hook never installed,
+  # i.e. the one question __init__ asks about this checkpoint could not be answered. Naming the
+  # checkpoint's own quant_config is the same object for every other family, and for AutoGPTQ it is the
+  # hooked class. Sits AFTER fp8_hybrid_dispatch because the marker of that entry is what makes the
+  # predicate meaningful.
+  - name: "qsa_indexer_reachability"
+    path: "/usr/local/lib/python3.12/dist-packages/vllm/models/qwen4_exp/nvidia/qsa.py"
+    pattern: "self.qkv_proj = QKVParallelLinear("
+    expect: 1
+    marker: "spark-v33: this family resolves to AutoGPTQ"
+    evidence: |-
+      The first fast-v33-bf16 boot died in resolve_quant_method before any weight was
+      read; the layer had been constructed with the pass-through object. Read against the base at its
+      pin digest: one `self.qkv_proj = QKVParallelLinear(` and one
+      `quant_config=model.without_modelopt_fp4(quant_config),` in the whole file, so this is the only
+      site that could carry it. The `quant_config=quant_config,` it writes already answers 3 times in
+      the base, which is why the marker is the comment and not the code.
+
+    cmd: |-
+      set -e
+      V="$VLLM_ROOT"
+      Q="$V/models/qwen4_exp/nvidia/qsa.py"
+      test -f "$Q"
+      test "$(grep -cF 'self.qkv_proj = QKVParallelLinear(' "$Q")" -eq 1
+      test "$(grep -cF 'quant_config=model.without_modelopt_fp4(quant_config),' "$Q")" -eq 1
+      python3 - <<'PY'
+      import os
+      p = os.path.join(os.environ["VLLM_ROOT"], "models/qwen4_exp/nvidia/qsa.py")
+      src = open(p).read()
+      old = "            quant_config=model.without_modelopt_fp4(quant_config),"
+      new = (
+          "            # spark-v33: this family resolves to AutoGPTQ, not ModelOpt, so\n"
+          "            # without_modelopt_fp4() only returns its argument; naming the checkpoint's own\n"
+          "            # quant_config keeps the fp8-hybrid hook reachable from this layer, which is the\n"
+          "            # object __init__ asks for the fusion decision below.\n"
+          "            quant_config=quant_config,"
+      )
+      assert src.count(old) == 1, src.count(old)
+      src = src.replace(old, new)
+      open(p, "w").write(src)
+      import ast; ast.parse(src)
+      PY
+      grep -qF 'spark-v33: this family resolves to AutoGPTQ' "$Q"
+      python3 -c 'import ast,os; ast.parse(open(os.environ["VLLM_FILE"]).read())' </dev/null
+
+  # qsa_no_indexer_fusion — the boot fix. v0.33 fuses `indexer.index_qk_proj` into `qkv_proj`, whose
+  # packed mapping then declares four shards; the checkpoint stores q/k/v as blockwise FP8 and the
+  # indexer in BF16, so the config's all-shards-are-FP8 test answers False for all 12 QSA layers and
+  # AutoGPTQConfig refuses the layer outright (ValueError, `gptq_utils.py:160`). qsa.py's own forward()
+  # keeps an unfused branch, so declining the fusion is a supported shape and costs no weight: q/k/v
+  # stay FP8, the indexer keeps its checkpoint precision in its own linear. This is the no-numerics
+  # route (the alternative, quantising the indexer to FP8 at load, would put a lossy change on the arm
+  # whose whole job is to be `fast`'s control — fast_v33_draft.md R1).
+  - name: "qsa_no_indexer_fusion"
+    path: "/usr/local/lib/python3.12/dist-packages/vllm/models/qwen4_exp/nvidia/qsa.py"
+    pattern: "self.fuse_indexer_projection = vllm_config.lora_config is None"
+    expect: 1
+    marker: "spark-v33: an fp8-hybrid checkpoint must NOT fuse the indexer"
+    evidence: |-
+      The predicate is the config's own `_is_fp8_layer`, which the region's or-chain above this line
+      cannot see, so the guard is a getattr on quant_config (False for every non-hybrid config, i.e.
+      today's behaviour is preserved where the hook is absent). Anchors read against the base at its
+      pin digest: the fused mapping is `["q_proj", "k_proj", "v_proj", "indexer.index_qk_proj"]`
+      and every one of the 12 QSA layers is FP8 for q/k/v and BF16 for the indexer.
+
+    cmd: |-
+      set -e
+      V="$VLLM_ROOT"
+      Q="$V/models/qwen4_exp/nvidia/qsa.py"
+      test -f "$Q"
+      test "$(grep -cF 'self.fuse_indexer_projection = vllm_config.lora_config is None' "$Q")" -eq 1
+      python3 - <<'PY'
+      import os
+      p = os.path.join(os.environ["VLLM_ROOT"], "models/qwen4_exp/nvidia/qsa.py")
+      src = open(p).read()
+      old = "        self.fuse_indexer_projection = vllm_config.lora_config is None"
+      new = (
+          "        # spark-v33: an fp8-hybrid checkpoint must NOT fuse the indexer here. The fused\n"
+          "        # wrapper's packed mapping then names indexer.index_qk_proj as a fourth shard of\n"
+          "        # qkv_proj, but the checkpoint stores q/k/v as blockwise FP8 and the indexer in\n"
+          "        # BF16, so the config's all-shards-FP8 test answers False for every QSA layer and\n"
+          "        # AutoGPTQConfig refuses it outright:\n"
+          "        #   \"Detected some but not all shards of ...layers.3.self_attn.qkv_proj are\n"
+          "        #    quantized\"                              (the first fast-v33-bf16 boot)\n"
+          "        # forward() keeps the unfused branch below, so q/k/v stay FP8 and the indexer\n"
+          "        # keeps its checkpoint precision in its own linear. No weight is touched.\n"
+          "        # The predicate takes the QKV prefix, not this layer's: _is_fp8_layer maps a\n"
+          "        # fused name to its shards, and this layer ends in .self_attn.\n"
+          "        self.fuse_indexer_projection = (\n"
+          "            vllm_config.lora_config is None\n"
+          "            and not getattr(quant_config, \"_is_fp8_layer\", lambda p: False)(\n"
+          "                f\"{prefix}.qkv_proj\"\n"
+          "            )\n"
+          "        )"
+      )
+      assert src.count(old) == 1, src.count(old)
+      src = src.replace(old, new)
+      open(p, "w").write(src)
+      import ast; ast.parse(src)
+      PY
+      grep -qF 'spark-v33: an fp8-hybrid checkpoint must NOT fuse the indexer' "$Q"
+      python3 -c 'import ast,os; ast.parse(open(os.environ["VLLM_FILE"]).read())' </dev/null
+
+  # qkv_packed_map_three_shards — the third half of the same decision, and it must move with the other
+  # two: the packed map is what AutoGPTQConfig iterates when it asks "are all of this fused layer's
+  # shards quantized". Narrowing it here is what makes the unfused QSA layer one precision class again.
+  # The map is read live from the class, so no import order is implied.
+  - name: "qkv_packed_map_three_shards"
+    path: "/usr/local/lib/python3.12/dist-packages/vllm/models/qwen4_exp/nvidia/model.py"
+    pattern: '"qkv_proj": ["q_proj", "k_proj", "v_proj", "indexer.index_qk_proj"],'
+    expect: 1
+    marker: "spark-v33: the indexer is NOT a shard of qkv_proj"
+    evidence: |-
+      Base at its pin digest: exactly one four-shard `qkv_proj` listing in model.py (Qwen4ExpForCausalLM;
+      Qwen4ExpForConditionalGeneration copies that same list by name, so one edit covers both), and zero
+      in mtp.py — the MTP drafter already declares the three-shard form at :405, which is the
+      independent witness that three shards is the correct shape rather than a shard dropped for
+      convenience.
+
+    cmd: |-
+      set -e
+      V="$VLLM_ROOT"
+      M="$V/models/qwen4_exp/nvidia/model.py"
+      test -f "$M"
+      test "$(grep -cF '"qkv_proj": ["q_proj", "k_proj", "v_proj", "indexer.index_qk_proj"],' "$M")" -eq 1
+      python3 - <<'PY'
+      import os
+      p = os.path.join(os.environ["VLLM_ROOT"], "models/qwen4_exp/nvidia/model.py")
+      src = open(p).read()
+      old = '        "qkv_proj": ["q_proj", "k_proj", "v_proj", "indexer.index_qk_proj"],'
+      new = (
+          '        # spark-v33: the indexer is NOT a shard of qkv_proj. Qwen4ExpQSAAttention keeps it\n'
+          '        # separate whenever the checkpoint resolves to fp8-hybrid (qsa.py\'s\n'
+          '        # fuse_indexer_projection); listing it here makes every QSA layer mixed-precision to\n'
+          '        # AutoGPTQConfig and refuses the boot.\n'
+          '        "qkv_proj": ["q_proj", "k_proj", "v_proj"],'
+      )
+      assert src.count(old) == 1, src.count(old)
+      src = src.replace(old, new)
+      open(p, "w").write(src)
+      import ast; ast.parse(src)
+      PY
+      grep -qF 'spark-v33: the indexer is NOT a shard of qkv_proj' "$M"
+      python3 -c 'import ast,os; ast.parse(open(os.environ["VLLM_FILE"]).read())' </dev/null
+
   # ple_hook_blazux — the §1 hook row: blazux's vllm_ple_mmap.py (graph-aware mmap + custom-op form), NOT the day-0 overlay (wrong class layout). The append names the class; Qwen4ExpPLEPinnedHostEmbedding stays untouched (fast_v33_draft.md §4).
   - name: "ple_hook_blazux"
     path: "/usr/local/lib/python3.12/dist-packages/vllm/models/qwen4_exp/nvidia/ngram_embedding.py"

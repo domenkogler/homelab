@@ -76,6 +76,12 @@
 {%   set engine_image = spark_vllm_fast_v33_image %}
 {% elif profile.image == 'sglang' %}
 {%   set engine_image = spark_sglang_image %}
+{% elif profile.image == 'strata' %}
+{#  The GGUF engine (Niko1221/Strata). Same rule as the branches above and it matters for the same
+    reason: its pin is EMPTY (the vendor publishes no aarch64 image), the gate refuses the arm first,
+    and NOTHING here may fall through to the `else`, which would boot the day-0 vLLM digest under a
+    launcher argv that image does not have. #}
+{%   set engine_image = spark_strata_image %}
 {% else %}
 {%   set engine_image = spark_vllm_image %}
 {% endif %}
@@ -233,9 +239,12 @@ services:
       - OMP_NUM_THREADS={{ spark_vllm_omp_num_threads }}
       - SAFETENSORS_FAST_GPU=1
       - PYTORCH_CUDA_ALLOC_CONF={{ spark_vllm_pytorch_cuda_alloc_conf }}
+{% if profile.engine != 'strata' %}
       - TORCHINDUCTOR_CACHE_DIR=/root/.cache/torchinductor
+{% endif %}
       - NCCL_NSOCKS_PERTHREAD=4
       - NCCL_SOCKET_NTHREADS=2
+{% if profile.engine != 'strata' %}
       # vLLM's usage-stats writer creates
       # ~/.config/usage_stats.json in the WORKER at startup; with the hardened
       # `read_only: true` root FS that write is OSError[Errno 30] and the worker
@@ -245,15 +254,61 @@ services:
       - VLLM_NO_USAGE_STATS=1
       - VLLM_DO_NOT_TRACK=1
       - DO_NOT_TRACK=1
+{% endif %}
 {% for e in profile.env_extra | default([]) %}
       # profile-specific (profile {{ spark_llm_profile }} · env_extra)
       - {{ e }}
 {% endfor %}
+{% if profile.engine == 'strata' %}
+{#  The GGUF engine's WHOLE configuration: its launcher takes no argv, it takes these. Every name is
+    the vendor's own (its DOCKER.md, the Settings table, at the v0.2.11 tag), not a transliteration of a
+    vLLM flag: MODEL/FAMILY select a set from the vendor's catalog, MODEL_PATH points at files we
+    staged ourselves (which is also what forbids any download), CONTEXT is the served window and
+    PARALLEL the number of requests answered at once.
+
+    PORT is the CONTRACT and not the vendor's default: the launcher listens on 8080 out of the box and
+    the template hands it `spark_engine_port`, so the healthcheck, the loopback publish and the spark
+    edge's llm route keep naming ONE number. MODEL_PATH is /model because that is the bind the
+    profile's own `model_subdir` already renders — the strata arm adds no new path vocabulary.
+
+    The key is the SAME credential the certified lane holds, so a flip strands no client.
+    `replace('$','$$')` is what stops compose's own interpolation from eating a `$` inside the value
+    (the same treatment the vLLM branch gives it), and a compose `environment:` list item cannot use
+    the `>-` block scalar, so this is the form that is available here. #}
+      - PORT={{ spark_engine_port }}
+      - FAMILY=unsloth
+      - MODEL={{ profile.strata_model }}
+      - MODEL_PATH=/model
+      - CONTEXT={{ spark_vllm_max_model_len }}
+      - PARALLEL={{ spark_vllm_max_num_seqs }}
+      - "API_KEY={{ vault['spark-llm_api'].credential | replace('$','$$') }}"
+{% endif %}
     volumes:
+{% if profile.engine == 'strata' %}
+{#  The GGUF engine's storage contract: the staged set (read-only) and ONE writable root.
+
+    1. `/model` — the set's own directory, because the launcher wants the folder that holds one model's
+       shards, not their parent (its own message says which sub-folder to name otherwise). Naming an
+       existing folder also forbids it from downloading anything for the model.
+
+    2. `/data` — the single writable root the vendor's image declares (`VOLUME ["/data"]`): the model
+       pack, the run settings, the generated API key and the logs all land under it. A named dir on XFS
+       and NOT inside `/`: the prepared pack for a 93.7 GB set is tens of GB, and `/` carries 110 GB free
+       against the 150 GB floor an `os`-rooted arm asserts.
+
+    ⚠ THE DRAFT LAYER IS NOT BOUND, deliberately. `spark_artifact_sets.strata-gguf` stages the shared
+    Q8_0 MTP head because it is a real pinned artifact of this set, but the vendor's container contract
+    documents no variable that points the launcher at a draft layer OUTSIDE /data — its own docs put the
+    prepared layer at /data/Strata-data/mtp/rt, written by its conversion step. A bind here would name a
+    path nothing upstream reads, which is worse than an owed act. #}
+      - {{ model_host_dir }}:/model:ro
+      - {{ spark_xfs_mount }}/strata_data:/data
+{% else %}
       # Model (read-only) — <profile models_root>/<profile model_subdir>. `os` = the root
       # partition, so the ~130 GB upstream checkpoint needs
       # no room carved out of XFS and NOTHING has to be deleted for it.
       - {{ model_host_dir }}:/model:ro
+{% endif %}
 {% if profile.ple_overlay %}
       # PLE overlay patches (read-only) — on the XFS data partition. Mapping =
       # spark_llm_overlays (group_vars), the SAME list the profile gate stats.
@@ -268,8 +323,10 @@ services:
 {% if profile.draft_vocab %}
       - {{ spark_draft_vocab_host_file }}:{{ spark_draft_vocab_container }}:ro
 {% endif %}
+{% if profile.engine != 'strata' %}
       # KV Cache (read-write, on XFS)
       - {{ spark_xfs_mount }}/kv_cache:/data/kv_cache
+{% endif %}
 {% if profile.get('ple_offload_bind', '') | length > 0 %}
       # File-backed PLE offload store (READ-WRITE, XFS only). The `file` backend WRITES a sparse
       # ~47.7 GiB n-gram table here, so this bind cannot be :ro and must not fall back to the
@@ -277,6 +334,7 @@ services:
       # gate exists to protect). Rendered only for profiles that declare ple_offload_bind.
       - {{ spark_xfs_mount }}/{{ profile.ple_offload_bind }}:/ple_offload
 {% endif %}
+{% if profile.engine != 'strata' %}
       # Compile/quant caches (rootfs is read-only; persist across restarts).
       # vLLM writes BOTH /root/.cache/vllm (runtime cache) AND
       # /root/.cache/torchinductor (torchinductor compile cache) — mounting only
@@ -288,6 +346,9 @@ services:
       # an engine swap costs boot time, not correctness.)
       - {{ spark_xfs_mount }}/vllm_cache:/root/.cache
       - {{ spark_xfs_mount }}/triton_cache:/root/.triton
+{% endif %}
+{#  For `strata` neither cache is rendered: that image keeps every writable byte under /data (its own
+    HOME is /data/home) and has no torchinductor to place, so a /root/.cache bind would hold nothing. #}
 {% if spark_router_publish | default(false) %}
     ports:
       - "{{ spark_home_ip }}:8000:8000"
@@ -323,15 +384,40 @@ services:
         max-file: "{{ spark_logging_max_file }}"
     healthcheck:
       # Engine-port indirection — curl the same port the spark edge's llm route fronts.
+{% if profile.engine == 'strata' %}
+{#  ⚠ THIS IMAGE HAS NO `curl`. The vLLM/SGLang images do, and the test below is theirs; this one ships
+    `tini`, `ca-certificates`, `libgomp1`, `libatomic1`, `libnuma1`, `zlib1g` and its own bundled CPython
+    (docker/Dockerfile, read at the v0.2.11 tag) — so a `curl` test would report `unhealthy` forever on a
+    working engine, which is the failure mode that gets a real check muted. The bundled interpreter is
+    the one the image's OWN healthcheck.sh uses, so it is known present.
+
+    `/health` answers WITHOUT a key on this engine (serve/server.py: that branch never consults
+    `_authorized()`), which is why this test carries no credential. It also means the check proves the
+    server is UP, not that the model loaded — the same limit the gate doc names for every profile, and
+    the reason the boot-log pool line stays the number of record. #}
+      test: ["CMD-SHELL", "/opt/strata/terminal/python/bin/python3 -c 'import urllib.request,sys; sys.exit(0 if urllib.request.urlopen(\"http://127.0.0.1:{{ spark_engine_port }}/health\", timeout=4).status == 200 else 1)'"]
+{% else %}
       test: ["CMD-SHELL", "curl -sf http://localhost:{{ spark_engine_port }}/health || exit 1"]
+{% endif %}
       interval: 30s
       timeout: 10s
       retries: 8
       start_period: {{ profile.health_start_period }}   # first PLE-table load ~20 min (recipe)
     restart: unless-stopped
+{% if profile.engine == 'strata' %}
+{#  The image's own contract: `docker stop` sends SIGTERM to tini, which passes it to the entrypoint, and
+    the entrypoint runs `strata launch --stop` (drain, unload, free the memory). The vendor's own compose
+    files set TWO minutes because Docker's ten-second default kills a big model (exit 137) — this is the
+    vendor's number, not a tuning knob. #}
+    stop_grace_period: 2m
+{% endif %}
     networks:
       - llm-backend
-{% if profile.engine == 'vllm' %}
+{% if profile.engine == 'strata' %}
+{#  NO `command:` — and that absence is the correct render, not an omission. This image's CMD is `run`,
+    which its entrypoint turns into `strata launch --no-tui …` from the environment. A `command:` here
+    would REPLACE that token and the launcher would print its usage instead of starting. #}
+{% elif profile.engine == 'vllm' %}
     command:
       - --model
       - /model

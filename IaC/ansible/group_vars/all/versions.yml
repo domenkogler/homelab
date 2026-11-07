@@ -487,6 +487,47 @@ spark_vllm_image: "vllm/vllm-openai:qwen38-flash-next@sha256:fc120ece0a388cc0aa1
 # decides the grid still comes from the boot log and not from this file. The first boot pulls ≈14.5 GB.
 spark_sglang_image: "lmsysorg/sglang:nightly-cu134-20261029-1ab008f@sha256:3ec37ac899c195c4fb7936196ded349fcd73bd45ee4917edd58bb3f08fa30253"
 
+# Strata (`strata` — the GGUF engine + its own OpenAI/Anthropic server) — INTENTIONALLY EMPTY, and
+# the empty value IS the refusal (CONVENTIONS §7; the `spark_vllm_blazux_v33_image` precedent).
+#
+# WHAT THE UPSTREAM PUBLISHES, read on the registry itself (`ghcr.io/niko1221/strata`, an anonymous
+# pull token then `GET /v2/…/manifests/<tag>`):
+#   * release `v0.2.11` (GitHub tag commit `c3b3f5035506`, image label `com.strata.engine=0.1.57-linux-x86_64-cuda-cuda13`);
+#   * tag `0.2.11-cuda13` resolves to the single manifest `sha256:871e1e79c063b240184b08075ba0676b6cd2585eac11f76a9d179f4739d2c857`
+#     (8 layers, 858,779,762 B, no manifest list) whose config says `architecture: amd64`, `os: linux`.
+# **EVERY ONE OF THE 46 TAGS ON THAT REPOSITORY IS A SINGLE amd64 MANIFEST** (0.2.1 → 0.2.11, all six
+# flavors), so there is no arm64 image to pin and nothing in the registry can run on GB10/aarch64.
+# That is the whole of why this line is empty: the arm is authored, reviewed and gated, and it cannot
+# boot until upstream publishes an aarch64 manifest.
+#
+# HOW IT GETS FILLED: the moment an aarch64 manifest exists, re-read it with the box's own read-only form
+#   docker buildx imagetools inspect ghcr.io/niko1221/strata:<version>-cuda13
+# take the `linux/arm64` digest it prints, and pin THAT digest with the tag beside it for documentation
+# (`<repo>:<version>-cuda13@sha256:<arm64 digest>`), recording the version + the reading in the same change.
+# ⚠ The x86_64 digest above is NOT that value and must never be pinned here: a pulling host would take
+# an amd64 image and the container would exit at the entrypoint, not at the gate.
+# ⚠ The aarch64 DISTRIBUTION exists as a release tarball, not as an image — `strata-engine-0.1.57-linux-aarch64-cuda-cuda13.tar.gz`
+# (659,232,889 B, sha256:b871dac15d161696e23625c70026a7f360533751d1dd43be0198ef078679ef8e) is consumed by the
+# `strata` Terminal (`strata launch`), a launcher that supervises an engine component and writes a data dir.
+# Serving it means running the Terminal on the host, which is a host-install profile shape this repo does
+# not have; the profile is authored against the container contract the vendor publishes instead.
+spark_strata_image: ""
+
+# The Strata WEIGHTS — a revision, not a branch, and the v3.1 file set the vendor's own 0.2.11 notes check
+# ("Each file is checked by size and SHA-256 against Unsloth's revision d9620119"). Read off the HF API
+#   /api/models/unsloth/Qwen3.8-Flash-Next-GGUF/commits/main
+# where `d96201194f103c906994f283f504209dc8d2a10c` is the commit titled "Better UD 3.1 quants" (the v3.1
+# upload), followed by "Add mix n match engram" and two README updates. The older `38bb39ee9782` is the
+# PRE-v3.1 revision and still carries the old UD-Q4_K_XL split (4 files, 111,251,309,184 B); the v3.1 set
+# at `d9620119` is 4 files / 111,334,654,778 B — different bytes, so the revision is load-bearing.
+spark_strata_weights_revision: "d96201194f103c906994f283f504209dc8d2a10c"
+# Per-file sizes of the ONE quant this profile serves (UD-IQ4_XS-v31, 4 files) and the shared MTP draft
+# head, in bytes, read from the same tree API at that revision. They are here rather than in prose because
+# the profile's disk arithmetic and the staged-artifact check both read them: 3 model shards + the 28.8 GB
+# per-token table that IS the set's last file, plus the Q8_0 shared draft head 2.79 GB.
+spark_strata_iq4xs_bytes: 93672359738        # 10,946,618 + 49,604,491,008 + 15,256,783,680 + 28,800,138,432
+spark_strata_mtp_shared_q8_0_bytes: 2786568256   # MTP/mtp-Qwen3.8-Flash-Next-shared-Q8_0.gguf
+
 # ==== Spark ultra-fast profile matrix — the upstream patch-lineage pins ====
 # Source: github.com/dime-online/qwen3.8-Flash-DGX-UltraFast (Apache-2.0), the recipe for
 # Qwen3.8-Flash-Next on GB10. Its promoted config (v16b) is a vLLM PATCH LINEAGE built on
@@ -602,8 +643,10 @@ spark_vllm_blazux_v33_tag: "spark-blazux:v33-17b025f"   # build output name only
 # Provenance: built by roles/spark-profile-fast-v33 from the plan in its own defaults (the port is
 # this repository's data, so `git log` on that file is the port's history), staging the two pinned
 # recipes below read-only as patch sources.
-spark_vllm_fast_v33_image: "sha256:1df406bca87e6b9cf15d4de2b43ec949f1c0c950c19346b72b1bc0567f01eec1"   # built image ID (roles/spark-profile-fast-v33's deliberate fail prints it); built FROM spark_vllm_v33_base_image at its pin, from the plan in that role's defaults, at recipe commit 0c391a3e74b6…; its tag is never served (§7)
-spark_vllm_fast_v33_tag: "spark-fast:v33-0c391a3"   # build output name only; its own repository, so it can never move a day-0, v32 or blazux tag
+spark_vllm_fast_v33_image: "sha256:023a9f5785c2150f35a99b07fd3cfeff262d966b5b77e04c9da23ef719c7f9a7"   # built image ID (roles/spark-profile-fast-v33's deliberate fail prints it); built FROM spark_vllm_v33_base_image at its pin, from the plan in that role's defaults, at recipe commit 0c391a3e74b6…; its tag spark-fast:v33-rc3 is never served (§7). Supersedes sha256:883128e07b36…, which unfused the QSA indexer but still called the v0.33 online-MoE constructor with day-0's `layer=` keyword and refused the MTP drafter.
+spark_vllm_fast_v33_tag: "spark-fast:v33-rc3"   # rc3 = the drafter-delegation rebuild; the tag is a BUILD OUTPUT name and is never served. Each rc keeps its own name so the artifact a given plan produced stays addressable: rc2 is the QSA-unfused build, rc3 adds the drafter fix.
+# never served. It moved off `v33-0c391a3` because that name still has to resolve to the artifact the patch plan
+# was first executed at — a build name repointed at a different patch set is a name nobody can audit.   # build output name only; its own repository, so it can never move a day-0, v32 or blazux tag
 # The checkpoint that lineage serves: NVIDIA's own NVFP4 export, `quant_method: modelopt` in
 # config.json at this revision, 132.7 GB including its PLE table + MTP head in
 # `model-fp8-mtp-ple.safetensors` (53.7 GB) — the table the mmap hook reads in place.

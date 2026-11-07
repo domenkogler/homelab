@@ -42,7 +42,7 @@
   ansible.builtin.assert:
     that:
       - spark_llm.engine is defined
-      - spark_llm.engine in ['vllm', 'sglang']
+      - spark_llm.engine in ['vllm', 'sglang', 'strata']
       - spark_llm.container | length > 0
       - spark_llm.served_name | length > 0
       - spark_llm.model_subdir | length > 0
@@ -60,7 +60,10 @@
       and the image ID it printed is recorded in group_vars/all/versions.yml (the ID is
       immutable; the build tag is a mutable alias and is never served). For `sglang`: verify
       the arm64 manifest, take the digest, pin it, and record the verification in
-      docs/hardware-spark.md §Bench + engine selection in the same change.
+      docs/hardware-spark.md §Bench + engine selection in the same change. For `strata`: no
+      pin CAN be taken — the vendor publishes no aarch64 image, so the empty value is the
+      refusal and not a pending build; spark_strata_image records the registry reading and
+      what unblocks it.
   tags: [spark, spark-llm-profile, llm]
 
 
@@ -398,6 +401,69 @@
       Flags: spark_llm_profiles.{{ spark_llm_profile }}.args_extra in group_vars/spark.yml.
   tags: [spark, spark-llm-profile, llm]
 
+# ---- Strata lane invariants (`strata-iq4xs`) ----
+# The GGUF engine takes no argv: its launcher reads environment and SUPERVISES its own engine, so none of
+# the vLLM/SGLang arithmetic above reaches it — there is no `--kv-cache-memory-bytes` to grade and no
+# `--mem-fraction-static` to cap. What it does have is a settings vocabulary whose names the container
+# image reads, and three of its own failure modes, each of which would render perfectly and then do the
+# wrong thing:
+#   * a profile that names a coordinate the launcher does not understand (`strata_model` empty) — it would
+#     fall back to "the model this card is recommended", which is NOT the set we staged and NOT the set the
+#     arm's whole memory arithmetic was drawn on;
+#   * `models_root: os` — the pack the launcher prepares under /data is tens of GB, and an `os`-rooted arm
+#     has to pass the 150 GB root floor BEFORE it starts; nothing about strata changes that floor, so the
+#     coordinate is refused up front rather than at the first fill;
+#   * `ple_*` / `draft_vocab` / `ple_dispatch` set on this engine — every one of them renders a vLLM env var
+#     or a bind into a vLLM module tree the GGUF engine does not have, i.e. config that reads as if it did
+#     something.
+- name: Assert the GGUF engine's coordinates are the ones its launcher reads
+  when: spark_llm.engine == 'strata'
+  ansible.builtin.assert:
+    that:
+      - spark_llm.strata_model | default('') | length > 0
+      - spark_llm.models_root == 'xfs'
+      - not (spark_llm.ple_mmap | bool)
+      - not (spark_llm.ple_overlay | bool)
+      - not (spark_llm.ple_offload | bool)
+      - not (spark_llm.draft_vocab | bool)
+      - not (spark_llm.get('ple_dispatch', false) | bool)
+      - (spark_llm.model_staged_marker | default('config.json')) | length > 0
+    fail_msg: >-
+      Profile '{{ spark_llm_profile }}' names a coordinate the GGUF engine cannot use:
+      strata_model='{{ spark_llm.strata_model | default('') }}' (the launcher's MODEL; empty makes it pick
+      its own recommendation for the card, which is not the set this arm staged),
+      models_root='{{ spark_llm.models_root }}' (xfs only: the prepared pack under /data is tens of GB and
+      an `os`-rooted arm must clear the {{ (spark_llm_os_min_free_bytes | int / 1e9) | round(0) }} GB root
+      floor first),
+      ple_mmap={{ spark_llm.ple_mmap }} / ple_overlay={{ spark_llm.ple_overlay }} / ple_offload={{ spark_llm.ple_offload }}
+      / draft_vocab={{ spark_llm.draft_vocab }} / ple_dispatch={{ spark_llm.get('ple_dispatch', false) }}
+      (every one of these renders a vLLM env var or a bind into a vLLM module tree this image does not
+      have — the GGUF engine has no PLE mechanism to choose and its own draft layer is a /data artifact),
+      model_staged_marker='{{ spark_llm.model_staged_marker | default('config.json') }}' (a GGUF set has no
+      config.json; name the set's own first shard).
+  tags: [spark, spark-llm-profile, llm]
+
+- name: Assert the GGUF engine's host cost fits the certified host floor
+  # The launcher plans from the WHOLE machine, so there is no pool for the gate to size — what the gate CAN
+  # price is the resident set, and that is what the arm declares in `fixed_cost_bytes`. A strata profile
+  # that leaves 0 B of pool is arithmetic, not a loophole: the arm claims no KV pool at all, and the sum it
+  # must respect is the same global ceiling every other profile respects.
+  when: spark_llm.engine == 'strata'
+  ansible.builtin.assert:
+    that:
+      - spark_llm.fixed_cost_bytes is defined
+      - (spark_llm.fixed_cost_bytes | int) > 0
+      - (spark_llm.fixed_cost_bytes | int) <= (spark_llm.device_hold_ceiling_bytes | default(spark_llm_device_hold_ceiling_bytes) | int)
+    fail_msg: >-
+      Profile '{{ spark_llm_profile }}' declares a resident cost that does not fit this box:
+      fixed_cost={{ spark_llm.fixed_cost_bytes | default('<unset>') }} B against the host-floor ceiling
+      {{ spark_llm.device_hold_ceiling_bytes | default(spark_llm_device_hold_ceiling_bytes) }} B. The
+      launcher sizes its own pool from total memory, so the declared figure is the WEIGHTS + the pack the
+      engine reads per token + the draft layer — measure it on a boot (the launcher prints its plan) and
+      replace the DERIVED basis; never raise the ceiling for it (docs/hardware-spark.md §Unified-memory
+      budget).
+  tags: [spark, spark-llm-profile, llm]
+
 - name: Assert the CUDA-graph capture cap cannot exceed the decode batch
   when: (spark_llm.max_cudagraph_capture_size | int) > 0
   ansible.builtin.assert:
@@ -442,8 +508,12 @@
   # Resolved path (spark_llm_model_host_dir), because the upstream arms keep their
   # checkpoint on `/` — a stat of the XFS path would approve an arm whose weights are
   # elsewhere, or refuse one whose weights are staged exactly where it points.
+  # The MARKER is per-profile (`model_staged_marker`, default `config.json`): a safetensors checkpoint is
+  # identified by its config.json, while a GGUF set has no such file at all and is identified by its own
+  # first shard. Hardcoding config.json here would make every GGUF arm permanently "not staged" and teach
+  # everyone to pass --skip-artifact-check on it, which is the exemption this assert exists to remove.
   ansible.builtin.stat:
-    path: "{{ spark_llm_model_host_dir }}/config.json"
+    path: "{{ spark_llm_model_host_dir }}/{{ spark_llm.model_staged_marker | default('config.json') }}"
   register: spark_llm_model_stat
   when: not spark_llm_profile_skip_artifact_check | bool
   tags: [spark, spark-llm-profile, llm]

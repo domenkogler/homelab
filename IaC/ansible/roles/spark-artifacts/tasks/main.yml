@@ -110,8 +110,12 @@
   tags: [spark, spark-artifacts, artifacts]
 
 - name: Download PLE quant files (list of files, skipped when all present)
+  # `revision` is honoured when a set declares one: a set with no revision would stage whatever the
+  # repo's default branch holds, which for a weights repo is a moving target (CONVENTIONS §7). The
+  # GGUF sets (spark_artifact_sets.strata-gguf) are the first to name one.
   ansible.builtin.command: >
     {{ spark_hf_cli }} download {{ item.repo_id }}
+    {% if item.revision is defined %}--revision {{ item.revision }} {% endif %}
     {% for f in item.files %}{{ f }} {% endfor %}
     --local-dir {{ item.local_dir | default(spark_xfs_mount) }}
   args:

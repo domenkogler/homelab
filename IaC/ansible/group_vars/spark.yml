@@ -371,6 +371,34 @@ spark_artifact_sets:
       subdir: "{{ spark_ultrafast_drafter_subdir }}"
       marker: "{{ spark_ultrafast_drafter_marker }}"
 
+  # ---- the GGUF engine (`strata-iq4xs`) — XFS, and ONE set out of a 1.5 TB repo ----
+  # `unsloth/Qwen3.8-Flash-Next-GGUF` carries EVERY quant set side by side (BF16 is 354 GB on its
+  # own, Q8_0 188 GB, and there are twelve UD sets), so `kind: weights` — which downloads the whole
+  # repo — is the wrong shape here: one profile serves one set. TWO `files` entries instead, each
+  # naming the shards it fetches: the served set (UD-IQ4_XS, 4 files, 93,672,359,738 B including the
+  # 28.8 GB per-token table that IS the set's last file) and the shared MTP draft head
+  # (2,786,568,256 B). Both are revision-pinned, so a pin bump re-stages instead of silently serving
+  # the old bytes.
+  # Disk: 96.5 GB against XFS's 394,994,212,864 B free — the quant choice is NOT disk-bound (UD-Q4_K_XL
+  # would fit too, at 114.1 GB); it is memory-bound, which is the arithmetic on the profile's
+  # `fixed_cost_bytes`.
+  strata-gguf:
+    - repo_id: "unsloth/Qwen3.8-Flash-Next-GGUF"
+      kind: files
+      revision: "{{ spark_strata_weights_revision }}"
+      files:
+        - "UD-IQ4_XS/Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00004.gguf"
+        - "UD-IQ4_XS/Qwen3.8-Flash-Next-UD-IQ4_XS-00002-of-00004.gguf"
+        - "UD-IQ4_XS/Qwen3.8-Flash-Next-UD-IQ4_XS-00003-of-00004.gguf"
+        - "UD-IQ4_XS/Qwen3.8-Flash-Next-UD-IQ4_XS-00004-of-00004.gguf"
+      local_dir: "{{ spark_models_dir }}"
+    - repo_id: "unsloth/Qwen3.8-Flash-Next-GGUF"
+      kind: files
+      revision: "{{ spark_strata_weights_revision }}"
+      files:
+        - "MTP/mtp-Qwen3.8-Flash-Next-shared-Q8_0.gguf"
+      local_dir: "{{ spark_models_dir }}"
+
 # The manifest the role iterates (flat list, same item shape as before).
 spark_artifacts: "{{ spark_artifact_sets | dict2items | selectattr('key', 'in', spark_artifacts_fetch) | map(attribute='value') | flatten }}"
 
@@ -2024,6 +2052,162 @@ spark_llm_profiles:
       long-reasoning case falling 6/6 → 2/6 — so gate 9's battery decides, not the needles.
     certified_evidence: ""
 
+  # ── 4. STRATA — the GGUF engine (Niko1221/Strata, MIT): a THIRD engine family, and a third
+  #      vocabulary with it. Nothing above renders through it: vLLM takes an argv and sizes a
+  #      --kv-cache-memory-bytes pool; SGLang takes an argv and sizes a --mem-fraction-static pool;
+  #      Strata takes environment variables and SUPERVISES its own engine (`tini` →
+  #      /opt/strata/entrypoint.sh → `strata launch --no-tui`), so its "argv" is a settings set and
+  #      its pool is planned from the whole machine by the launcher. That is why the compose
+  #      template grows a third BRANCH rather than a flag list, and why the entrypoints map carries
+  #      the vendor's two-token form below — a launcher's argv is not an engine's argv.
+  #
+  # NAME. `<engine>-<quant>`, and neither axis is a vLLM one, which is the point: the nomenclature in
+  # docs/spark-llm-profiles.md §Nomenclature spells a vLLM arm `<arm>-<base>-<kv>` out of
+  # spark_llm_base_tokens, and every token in that vocabulary (day0/v32/v33) is a vLLM version read
+  # inside a vLLM image. This arm carries none of it — no vLLM, no KV dtype to choose (Strata's `KV`
+  # is a cache FORMAT, int8 by default, not a dtype dial) — so it gets the `fast-sglang` shape
+  # instead: the engine name IS the identity, and the quant is the second token because unlike
+  # SGLang's RadixArk (one vendor export) Strata serves a FAMILY of Unsloth GGUFs and the arm's
+  # whole memory argument is which one it picked. `strata` also reuses the `sglang: sglang` token in
+  # spark_llm_base_tokens, so a name collides with no existing spelling.
+  #
+  # ⛔ NOT BOOTABLE, AND IT IS ONE UPSTREAM FACT: there is no aarch64 image. The vendor publishes
+  # `ghcr.io/niko1221/strata:<version>-<flavor>`, and all 46 tags on that repository are single
+  # `amd64/linux` manifests (`spark_strata_image` in group_vars/all/versions.yml carries the reading).
+  # GB10 is aarch64, so nothing in the registry can start here — an EMPTY pin is the refusal
+  # (CONVENTIONS §7), which is also why this arm renders IMAGE-PIN-EMPTY(gated) and not a red row.
+  # The arm is authored, not certified, and the render below has NEVER executed on any hardware:
+  # there is no image to execute it against. What is authored here is the vendor's own container
+  # contract (its DOCKER.md + docker/entrypoint.sh + docker/healthcheck.sh at the v0.2.11 tag), and
+  # roles/spark-llm-profile's strata asserts are the offline half that keeps that contract honest.
+  strata-iq4xs:
+    label: "UNCERTIFIED — Strata (GGUF) + Unsloth Qwen3.8-Flash-Next UD-IQ4_XS-v31, bf16 host-resident experts (no arm64 image exists)"
+    engine: strata
+    container: strata-qwen-spark
+    # The Unsloth GGUF SET, not a checkpoint directory: `model_subdir` names the folder the shards of
+    # one set are mounted from (`/models` in the container), and the launcher is told WHICH set by its
+    # own `MODEL` variable — the set name is a coordinate the vendor's catalog keys on, so it is
+    # declared here rather than derived from the path. See the template's strata branch.
+    model_subdir: Qwen3.8-Flash-Next-GGUF/UD-IQ4_XS
+    strata_model: UD-IQ4_XS
+    # The staged GGUF shards carry no `config.json` (that is a safetensors-checkpoint file), so the
+    # staged-artifact assert stats the set's own first shard instead. Default for every other profile
+    # is `config.json`; this key is how a GGUF set stays checkable rather than exempt.
+    model_staged_marker: Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00004.gguf
+    # The shared MTP draft head that `spark_artifact_sets.strata-gguf` stages beside the set (2.79 GB,
+    # the Q8_0 shared variant). It is NOT bind-mounted: the vendor's container contract documents no
+    # variable that points the launcher at a draft layer outside /data — its own docs put the prepared
+    # layer at /data/Strata-data/mtp/rt, written by its conversion step — so a bind here would name a
+    # path nothing upstream reads. The two names are recorded because the ARTIFACT is staged and pinned
+    # (the set is meaningless without its draft head) and because wiring it is an owed act, not a guess.
+    strata_mtp_subdir: Qwen3.8-Flash-Next-GGUF/MTP
+    strata_mtp_file: mtp-Qwen3.8-Flash-Next-shared-Q8_0.gguf
+    # The served id. Strata's `/v1/models` answers with `svc.model` plus whatever `aliases` its run
+    # settings carry (serve/server.py:5086, set_aliases), and the image's entrypoint passes no alias
+    # flag — so out of the box the id is the GGUF model's own name. This key is therefore the id this
+    # arm WOULD answer under once an `aliases` run-settings file is authored (owed, see
+    # `uncertified_reason` (c)); it is not something the render can produce today. The name itself is
+    # DISTINCT from the certified lane's on the `sg-*` precedent (docs/spark-llm-profiles.md §7: "an
+    # uncertified engine is never reachable through `spark/*` routing") — and the canonical id is
+    # exactly what a certified engine must keep unambiguous.
+    served_name: spark/qwen3.8-flash-next-strata
+    # THE CONTRACT TERM THAT IS STILL OPEN: our client window is 262,144; Strata's launcher caps a
+    # context at 262,144 but its own warning line calls anything above 256K "more than the model was
+    # trained on", and its default is 131,072. The arm declares the number we would serve and the
+    # template renders it as `--context`, so a boot would MEASURE the disagreement rather than hide it.
+    max_model_len: 262144
+    # `--parallel`: the launcher's own requests-answered-at-once dial (1…8). 2 is the harness's
+    # parent+one-child shape and, unlike a vLLM pool, it costs nothing in this arm's arithmetic:
+    # Strata plans from total memory and there is no per-sequence byte constant to price.
+    max_num_seqs: 2
+    # The container port comes from `spark_engine_port` like every other profile — ONE number, so the
+    # healthcheck, the loopback publish, the spark edge's llm route and the OOM watchdog cannot
+    # disagree about it. The vendor's own default is 8080; the template renders PORT=spark_engine_port.
+    kv_cache_dtype: auto                  # Strata's conversation-memory FORMAT (`KV`) is a launcher
+                                          #   default (int8), not a profile dial — `auto` here means
+                                          #   "the render picks no dtype token", the same spelling the
+                                          #   bf16 SGLang cells use for the same reason
+    kv_cache_memory: "0"                  # unused: the launcher plans the pool from the machine
+    max_cudagraph_capture_size: 0
+    enforce_eager: false
+    distributed_executor_backend: mp
+    spec_method: mtp                      # Strata's own draft layer (`mtp: true` in the run config)
+    spec_tokens: 0
+    # ⚠ memory_limit IS DECLARED AGAINST THE VENDOR'S OWN ADVICE, deliberately. Strata's documentation
+    # says "Do not put a memory limit on the container: Strata plans from the whole computer's RAM and
+    # loads tens of GB", and the compose template renders this key as `deploy.resources.limits.memory`
+    # for every profile. The repo invariant wins here: a container that can claim the whole 121.63 GiB
+    # unified pool is the incident class this cage exists for (docs/hardware-spark.md §Unified-memory
+    # budget), and the launcher's plan and the kernel's limit disagreeing is a reading a boot would
+    # take, not a reason to weaken the invariant for an arm that cannot boot. 105G matches every other
+    # profile on this box. ⚠ THE FIRST BOOT LEG OF ANY WINDOW MUST TEST THIS: a cgroup kill here is
+    # `OOMKilled: true` (host-RAM mmap pages ARE charged, unlike GPU pages), which is the one OOM on
+    # this box that Docker reports honestly.
+    memory_limit: 105G
+    health_start_period: 7200s            # the image's own HEALTHCHECK start_period is 2h
+    env_extra: []
+    args_extra: []
+    reasoning_surface: always-on-effort-unmeasured   # GGUF chat template's thinking switch is not
+                                                     # measured on this engine here; the probe's
+                                                     # `reasoning` legs are expected to FAIL by design
+    client_context_window: 262144
+    client_max_tokens: 16384
+    image: strata
+    models_root: xfs
+    tool_call_parser: ""                  # Strata parses tool calls in its own server; no engine flag
+    generation_config_override: ""
+    ple_offload: false                    # the n-gram table IS the set's last file and the engine
+    ple_host_base: mount                  #   reads it per token; there is no PLE mechanism to choose
+    ple_host_root: xfs
+    ple_host_subdir: ""
+    ple_container_dir: ""
+    ple_overlay: false
+    ple_mmap: false
+    ple_staged_marker: ""
+    cudagraph_piecewise: false
+    prompt_tokens_details: false
+    never_evict_prompt: ""                # the vLLM flag family; Strata's server has no equivalent
+    never_evict_max_fraction: *nevf
+    draft_vocab: false
+    artifact_sets: [strata-gguf]
+    fixed_cost_bytes: 109000000000        # DERIVED, and it is the whole point of the quant choice:
+                                          #
+                                          # 93.67e9 (UD-IQ4_XS-v31, 4 files at revision d9620119) +
+                                          # 2.79e9 (the shared MTP Q8_0 head) = 96.46e9 of weights, plus
+                                          # the vendor's own interaction table's INPUT (its "all experts
+                                          # in RAM" column reads ~72 GB for this set) plus the dense
+                                          # weights, session state, draft layer and prompt buffers it
+                                          # folds into --expert-cache. The number below is the vendor's
+                                          # RAM column for this set (~72 GB) + DENSE_GB 5 + SYSTEM_ROOM_GB 10
+                                          # from strata_control/gpu_fit.py + the 2.79e9 draft head,
+                                          # rounded UP — the launcher plans from the machine, so what the
+                                          # gate can price is the RESIDENT set, not a pool.
+                                          # ⚠ what it does NOT price: page cache for the 93.7 GB of
+                                          # mmapped GGUF, which is reclaimable and therefore not held.
+    fixed_cost_basis: "DERIVED — VENDOR-PUBLISHED table row (~72 GB experts) + gpu_fit.py's DENSE_GB/SYSTEM_ROOM_GB + the 2.79 GB draft head; never measured on this box (no boot exists)"
+    pool_ceiling_bytes: 17179869184       # no pool is allocated by us; the key exists because the
+                                          #   certified ceiling is the profile's declared bound too
+    certified: false
+    uncertified_reason: >-
+      (a) THE PIN IS EMPTY AND THAT IS THE WHOLE STORY: `spark_strata_image` has no value, because the
+      vendor publishes no aarch64 image — every one of the 46 tags on ghcr.io/niko1221/strata is a
+      single amd64/linux manifest, read on the registry itself. GB10 is aarch64, so no pin can be
+      taken that this box could start, and CONVENTIONS §7 forbids inventing one. The aarch64 engine
+      exists only as a RELEASE TARBALL (strata-engine-0.1.57-linux-aarch64-cuda-cuda13.tar.gz) that the
+      `strata` Terminal installs and supervises; running it would mean a host-install serving shape
+      this repo does not have. That route is an owner decision, not a pin.
+      (b) NO BOOT OF THIS ENGINE HAS EVER RUN HERE, and none can until (a) clears: gates 0–7 are all
+      owed, including the boot-log pool line that would replace this arm's DERIVED fixed cost.
+      (c) TWO CONTRACT TERMS ARE UNRESOLVED and both would have to be settled before a certification
+      window: the served id (this arm declares spark/qwen3.8-flash-next-strata, but Strata answers its
+      GGUF model's own name until an `aliases` run-settings file is AUTHORED — no rendered flag can set
+      it, so the id is currently an intention and not a render product) and the window (we promise
+      262,144, the launcher warns above 256K and defaults to 131,072).
+      (d) The container contract below is the vendor's own (its DOCKER.md, its docker/entrypoint.sh,
+      docker/healthcheck.sh at the v0.2.11 tag), rendered offline only — it has never executed, and
+      nothing here proves it would.
+    certified_evidence: ""
+
 # The shared argv/env fragments live in the "Shared argv/env fragments" section below — that
 # section is the only definition. A duplicated copy of it here is DEAD TEXT: Ansible keeps the
 # LAST mapping key and only warns, so editing the earlier copy changes nothing.
@@ -2114,6 +2298,10 @@ spark_llm_blazux_cudagraph_args:
 spark_llm_engine_entrypoints:
   vllm: ["python3", "-m", "vllm.entrypoints.openai.api_server"]
   sglang: ["python3", "-m", "sglang.launch_server"]
+  # Strata's own entrypoint is the vendor's: tini as PID 1 (so `docker stop` forwards), then the
+  # image's boot script, which runs `strata launch --no-tui` from the environment. It is NOT a python
+  # module, and there is no argv to compose: every setting is an env var the template renders below.
+  strata: ["/usr/bin/tini", "--", "/opt/strata/entrypoint.sh"]
 
 # Engine → image pin. For the GATE only (roles/spark-llm-profile asserts it is not
 # empty); the compose template branches on `profile.engine` and names the pin
@@ -2122,6 +2310,7 @@ spark_llm_engine_entrypoints:
 spark_llm_image_pins:
   vllm: "{{ spark_vllm_image }}"
   sglang: "{{ spark_sglang_image }}"
+  strata: "{{ spark_strata_image }}"
 
 # Profile-referenced image pins. A profile names a LOGICAL image, never a pin: every pin lives in
 # group_vars/all/versions.yml (CONVENTIONS §7) and this map is the only place a name becomes a
@@ -2143,6 +2332,10 @@ spark_llm_profile_images:
   # an ID, so both arms it names are refused by the pin gate before anything else is graded.
   ultrafast-v33: "{{ spark_vllm_fast_v33_image }}"
   sglang: "{{ spark_sglang_image }}"
+  # The GGUF engine (Niko1221/Strata). EMPTY: the vendor publishes no aarch64 image — all 46 registry
+  # tags are single amd64 manifests — so the empty value is the refusal (CONVENTIONS §7) and the
+  # profile that names it renders as an empty-pin arm rather than as a broken one.
+  strata: "{{ spark_strata_image }}"
 
 # The `<base>` axis of a profile's canonical identity `<arm>-<base>-<kv>`
 # (docs/spark-llm-profiles.md §Nomenclature), keyed by the SAME image names as the map above.
@@ -2167,6 +2360,7 @@ spark_llm_base_tokens:
                                   # the first build re-reads it inside the built image, and if the patch set
                                   # moves the version string this row is the line that must change
   sglang: sglang                  # no vLLM inside to read, so the engine name is the honest token
+  strata: strata                  # the same rule for the GGUF engine: no vLLM inside to read
 
 # Resolve the active profile for roles (roles/spark-llm-profile reads this as a real
 # dict at play time). Templates must NOT use it — see the note above.
