@@ -5,7 +5,8 @@
 > sources** (each with the read that produced it), the arithmetic, what the authored profile can and
 > cannot do today, the stop conditions, and what is owed before a window may open. It is a **draft
 > plan, not a decision log**.
-> **Linked from:** nothing yet — the queue row this lane owes does not exist (see §8).
+> **Linked from:** [`docs/spark-llm-profiles.md`](docs/spark-llm-profiles.md) (the `strata-iq4xs` catalogue
+> row and its nomenclature row) — the queue row this lane owes does not exist yet (see §8).
 > **Authority: none.** `docs/spark-llm-profiles.md` owns the catalogue and the arithmetic;
 > `spark/llm-profiles/README.md` owns the gate ladder; `docs/hardware-spark.md` owns the memory budget;
 > `CONVENTIONS.md` §7 owns what a pin is. Where this page disagrees with one of them, that page is
@@ -304,8 +305,9 @@ row**, and a number typed into a brief is the exact shape that goes stale (the r
 > publishes no aarch64 image. ⏳ Fill `spark_strata_image` when an arm64 manifest exists; then settle the
 > served id + the 262,144 window, wire (or drop) the staged MTP head, and run gates 0–7.
 
-The row is the owner's to create. Until it exists, this file is the only record, and `CONVENTIONS.md` §4's
-housekeeping rule does not bind it.
+The row is the owner's to create. Until it exists, the arm's state is the
+`docs/spark-llm-profiles.md` catalogue row plus the IaC comments that rendered it, and this file is the
+working detail behind them — `CONVENTIONS.md` §4's housekeeping rule does not bind a file that carries no row.
 
 ---
 

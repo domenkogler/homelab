@@ -213,11 +213,11 @@ not this list, holds the steps, the file ownership and the converge host. Waves,
    half is the deliberate canary (an owner yes: firing it pages Signal) and **demoting Signal**, which stays in the path
    and stops the workflow before the Matrix node if it fails. The **Alloy fleet pin** is settled state
    ([docs/observability.md](docs/observability.md) §The Alloy pin; ⛔ never `--allow-downgrades`).
-   **LLM token accounting HD-1120 · 1121 · 1122** — **HD-1120** is parked in full (every step needs a `traefik-spark`
+   **LLM token accounting HD-1120 · 1121** — **HD-1120** is parked in full (every step needs a `traefik-spark`
    restart or a spark-slot converge); attribution comes from the **edge access log** (spec + the XFF trap:
    [docs/observability.md](docs/observability.md) §LLM token accounting). **HD-1121** owes the gateway's `prometheus`
-   callback, the auth form and the VPS loopback publish — a **gateway** recreate, not a monitoring one. **HD-1122**'s
-   engine telemetry is live on both legs; what remains is the board render, which is HD-377's owner sign-off.
+   callback, the auth form and the VPS loopback publish — a **gateway** recreate, not a monitoring one. The oldsrv GGUF
+tier's engine telemetry is live on both legs; what remains is the board render, which is HD-377's owner sign-off.
    ⚠ **A rule that is authored is not a rule that is loaded** — prove it with `GET /api/v1/provisioning/alert-rules`,
    never the repo file. ⚠ **Retiring a probe target can be the cheaper half of a fix: check what the rule was watching.**
    The `ha-unreachable` target and rule are retired, so **HA liveness has no firing rule** until the gated `ha_exporter`
@@ -412,7 +412,6 @@ action so no lane re-derives it. An entry marked RULED is AI work, not an owner 
 | **HD-1152** | the first REAL `playbooks/dns-seed.yml` apply per instance, and only after its two defects are repaired — `--check` can never name candidates | vps · oldsrv · pi | [prompt-dns-transport.md](prompt-dns-transport.md) |
 | **HD-1160** | render + `routeros-apply-delta.sh` for the converge template's twin of the retagged `#`-comment (a `#`-line IS rendered output); ⛔ never `--diff`, never from a docs lane, and no converge is behind it | router window, global slot | [prompt-dns-transport.md](prompt-dns-transport.md) |
 | **HD-384** step 2 | point the two LiteLLM gateways at `litellm-engine_api` — only AFTER spark reboots with it in its accepted-key list; inverting the order 401s every upstream call | spark window (PLE load, ~20 min) | [prompt-litellm-consumers.md](prompt-litellm-consumers.md) |
-| **HD-1122** | add the authored `llamacpp:*` panel to `homelab-llm` through `scripts/ansible/build-llm-dashboard.py` — the flag is already true and both legs are scraped, so no flip and no recreate is owed | **oldsrv** | [prompt-observability-alerting.md](prompt-observability-alerting.md) |
 | **HD-1088** | register oldsrv's public key on the live Box — port 23 is key-auth-only, there is no other way in; then `storage_push_music.enabled: true`, converge `--tags storage --limit oldsrv.kogler.si`, `systemctl start push-music.service` once | **oldsrv** | [prompt-media-arrs.md](prompt-media-arrs.md) |
 | **HD-1091** | rotate `lidarr_api` in the forced order (mint → Lidarr's `config.xml` → restart lidarr → re-render soularr's `config.ini` → re-point Seerr); the one-album end-to-end proof waits on a peer, not on an act here | **oldsrv** | [prompt-media-arrs.md](prompt-media-arrs.md) |
 | **HD-1106** RULED | the prune — one `docker volume rm` per row the table marks `prune`; the `onlyoffice-docs` paths are on named volumes, which is what the ruling gated the set on | **VPS** | [prompt-storage-backup.md](prompt-storage-backup.md) |

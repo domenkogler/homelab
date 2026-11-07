@@ -7,222 +7,17 @@
 > is a view, not a second record) and **must be re-synced whenever the backlog changes**.
 > **Linked from:** [`todo.md`](todo.md) · [`prompt.md`](prompt.md) · [`README.md`](README.md) · [`scripts/README.md`](scripts/README.md)
 >
-> **Re-synced 2026-10-21 (the orchestrator's cleanup after the delegation-plane night — two rows deleted, both views
-> re-derived):** the rows **HD-1162** (the seat driver's local `oldsrv` arm) and **HD-1165** (the `check_mode: false`
-> detector's comment-blind pattern plus the site classifier) left the registry: each carried exactly one ⏳ — *prompt.md
-> still names me, so the id sweep is orchestrator work* — and the sweep is now done, so CONVENTIONS §4(a) applies and
-> their records are the owning docs ([docs/harness-pi-seat-identity.md](docs/harness-pi-seat-identity.md) §5a,
-> [docs/deployment-ansible.md](docs/deployment-ansible.md) §Self-converge guardrail) plus the commits that landed the
-> payloads. Deleting them is what makes their claims honest wherever they were copied: §B0, §B, §B9 and §C no longer say
-> the `oldsrv` seat plane cannot be driven FROM oldsrv, and §B/§B9/§D no longer call the `check_safe` claim unenforced.
-> **HD-1160** shrank to ONE item and every view now says the same thing the row says: the retag landed, **no converge is
-> owed**, and what remains is the converge template's twin of the retagged router comment — a `#`-line that IS rendered
-> output, so it waits an owner-present **router window** (§D carries it there). A row joined the registry from the lanes
-> that landed at this tip — **HD-1181** (14 CURRENT vault values in this seat's transcripts; the leak check is red at
-> the tip on purpose, and blind on any checkout without the store) — it reached §B9 when it was minted and has no
-> brief, so it is named in §B0's unbriefed tail. No count is typed below: §B0's unbriefed list and
-> `check_view_registry_sync.py`'s registry∕§B9 diff are the derivation, run them.
->
-> **Re-synced 2026-10-20 (the owner-answer round — nine parked decisions became AI work):** the owner answered the
-> backlog calls in one sitting and the rulings are now written once, to their owning docs, with the AI tail in each row.
-> **HD-1160** one tier-wide DNS upstream (a doc/`group_vars` retag; **no converge owed**) · the `bulk/data/*` replica
-> datasets come out of the snapshotting template — a receive target takes no autosnapshots and rollbacks are
-> source-side (⛔ never a bulk `zfs destroy`; [storage.md](docs/storage.md) §Snapshot & Replication) · **HD-1106** approved **by name**, onlyoffice named volume first, blanket prune still refused ·
-> **HD-1103** `rotate 1` + `maxsize`, a new role-owned file sized against the 100 MB tmpfs · **HD-1140** the ledger owns
-> the laptop's Home reservation, riding an existing router window · **HD-357** `seerrng` stays **tailnet-only**, tile stays
-> linked-not-probed · **HD-443** revoke Pi `admin` on the neutralized state (a `Storage=volatile` journal cannot prove a
-> 30-day silence) · **HD-1110** `api_key` is the fleet `pi_auth` spelling; report drift, never overwrite a live login.
-> **HD-448/HD-460 were re-examined and NOT changed** — the 2026-10-12 KEEP-THE-PARITY ruling stands and a proposal to
-> scope the SSH/RustDesk accepts to IPv4 was weighed and not adopted; separately, chasing inbound IPv6 from the ISP is
-> answered **no** and mints no row. **Secret rotation** (HD-1170 · HD-1181) is the owner's to run, unscheduled,
-> and **HD-1175** waits for the owner to be physically at oldsrv — so every `oldsrv` converge stays parked.
-> **Re-synced 2026-10-20 (the embedder-candidate lane — one row minted, one open question re-axied):**
-> **HD-1178** is the bench that decides the oldsrv `embed` leg's next model — nothing is measured yet, so the
-> row carries the queue entry and [services-ai-bench.md](docs/services-ai-bench.md) §3d carries the candidates,
-> the two gates and the probe commands. **OQ-14 is open on one axis only:** the code-retrieval half, funded as a
-> measurement and not as a build; its docs/multilingual half stays parked on the measured recall floor (hit@5
-> 7/10) and nothing re-asks it above that floor. `EmbeddingGemma 2` as the RAG embed leg is **rejected** in
-> [services-ai-rejected.md](docs/services-ai-rejected.md) — its multilingual movement is +0.21 across a
-> generation, and its native 768 dims would buy a re-ingest before it bought anything.
-> **Re-synced 2026-10-20 (the alert-noise session — both views re-derived, no count recalled):** two rows were
-> minted and carried here so neither view loses them — **HD-1174** (`kopia-server-internal_api` readable in the
-> agent's container log and in the log store, because `kopia repository connect server` echoes the URL it was handed)
-> and **HD-1175** (`oldsrv` publishes nothing since 2026-10-20 10:27 CEST — the host, not a scrape leg, its first step
-> an owner at the console). **HD-1148 left the registry when its last `⏳` landed:** the `pi` `--tags docker` apply ran
-> (`changed=3 failed=0`, six packages to the pin and re-held, Home Assistant back to 200 through the VIP and through
-> the Pi's own edge), so the note below that says the row "still owes" the applies is history, not a pending act —
-> §B9 and §D lost the line with it, and `prompt.md` §2 reads the same way now. The re-derivation belongs to the gate,
-> not to this note: `python3 scripts/gate/check_view_registry_sync.py` prints the registry∕§B9 diff in both directions
-> and the row count, and it is green at this commit. Swept rather than left standing: the poke interval the docs
-> quoted (**30 min → 24 h**, the value the notification policy renders) and the pin-lag fleet table in
-> [docs/observability.md](docs/observability.md) §Pin-lag report, whose `oldsrv`/`nas` cells now say the true thing —
-> **no series is not a match**.
->
-> **Re-synced 2026-10-19 (the session close-out — both views re-derived from `todo.md`, nothing recalled):** the
-> registry stands at **160** rows and §B9 was one behind it again — the row this session minted last
-> (**HD-1169**, the `check_doc_path_refs.py` citation-blind-spot gate) was never carried, so §B9 gained its line and
-> the registry∕§B9 diff re-derives empty in both directions. The unbriefed tail re-derives to **69** (was 68; the
-> +1 is HD-1169, minted by the parent's own cleanup commit, which is exactly how a row escapes the brief index).
-> One stale owner act is corrected in `prompt.md` §2's parked list: **HD-1088**'s entry still asked the owner to seed
-> `/root/.ssh/livebox_push` and `/etc/storage/box_known_hosts`, both of which are done and key-verified on oldsrv —
-> the only act left is the Hetzner-console registration, which is what this view has said since the row moved; the
-> sibling view shed the sentence today and `prompt.md` did not. Three owner-present parks named in `prompt.md`'s
-> parked list had **no row in §D** — **HD-487** (the VPS `--tags netd` delete),
-> **HD-384** step 2 (point the gateways at `litellm-engine_api` after the spark reboot), **HD-1148** (the `pi` docker
-> apply) — §D carries them now, so the human table and the handoff name the same acts. One factual error in this
-> file is corrected rather than left as history: the probe series carries the **exporter's** address
-> (`instance="127.0.0.1:9115"` for every target, `__param_target` being a query parameter that never becomes a
-> label), **not** the target's — the sentence in the stamp below and in §B0's observability line had it backwards,
-> which inverted the whole point of **HD-1166**. §C gained rule 10, this session's lane-residue rule, so the view
-> that dispatches lanes states the exit check the lanes must run.
->
-> **Re-synced 2026-10-19 (the same run's close-out, re-derived from `todo.md` rather than from the views below):** five
-> rows moved materially and their view sentences still described the pre-apply state — **HD-418** (reconciled at BOTH
-> ends, the write owned in IaC under tag `hd418`, proven by behaviour rather than by the YAML; the standby-shaped case
-> has no subject), **HD-1101** (the resolver applies RAN on both hosts — Pi `--check ok=22 changed=0` and apply
-> `ok=22 changed=0` with the guard passing and writing nothing, oldsrv `ok=33 changed=0` — and the tag CLASS was wrong:
-> a keyfile host's write leg is `nm-pi`, while `nm-resolver` selects the guard and the nmcli host's leg), **HD-1103**
-> (logrotate is PROVEN by a real rotation and left the `--failed` list; the two halves now open are the tmpfs-retention
-> choice and the `smartmontools` park, and `--failed` is down to `smartmontools` alone), **HD-1109**
-> (`ha-config-sync.timer` is `enabled` + `active` ON THE PI and fires every ~15 min — the `not-found` was read on the
-> WRONG HOST, which is the class, not a detail). Two rows were minted by this run and §B9 was missing exactly them — **§B9 was
-> re-derived complete: 159 rows, the registry∕§B9 diff empty in both directions.** **HD-1166** (`host-unreachable`
-> cannot name a host: the probe-series `instance` is the EXPORTER's address on every target, so the rule this repo
-> already ships to fix that class was pointed at a string that never appears in the series) and **HD-1167** (rendering the Pi's
-> `pi-eth0.nmconnection` reports `changed` on EVERY converge and restarts NetworkManager on a DNS tier — the same
-> `changed`-lies class, found by watching HD-1101's apply). The unbriefed tail re-derives to **68**.
-> [orchestration.md](docs/orchestration.md) §4 gained the merge rule this run needed: `todo.md` merges row-wise, never
-> by choosing a conflict hunk.
->
-> **Re-synced 2026-10-19 (the close-out of one overnight run of nine lanes):** the registry moved from 151 to **157**
-> open rows — **HD-1160 · 1161 · 1162 · 1165** were minted from what the run measured, and **HD-1119**
-> left with its last prose tail landed, so its record is now the five split harness docs plus git and `--refs` is clean
-> of the id everywhere. §B0's row lists, §B9's index (six lines added, one deleted) and the unbriefed count were
-> **re-derived, not adjusted** — 68 rows carry no brief, up from 66, and the tail's shape is the finding: the two rows a
-> lane proved un-runnable as written (`1152`'s prune leg, `1143`'s privileged probe) sat unbriefed, where nobody reads
-> them. Where a row falsified a view sentence, the VIEW changed: the Pi tertiary's policy half (HD-480–483) landed
-> except the per-upstream column, which turned out to have no mechanism at all (that is HD-1160, ruled 2026-10-20: one tier-wide upstream, and the retag is AI
-> work, not a decision); `nas`'s blind spot moved from "collector misconfigured" to "the collector crash-loops and the box is the one
-> that cannot be rebooted at night"; the standby HA is not cold-deployed but **undeployed**, which silently voided two
-> other rows' acceptance halves; and "the seat legs are run FROM the seat" is false for `oldsrv`, where the driver has
-> no local transport arm. Two premises died in the night without changing a rule, and are recorded rather than
-> repeated: the v6 "dead prefix class" (one global /64, active default route, every `AAAA` destination answered — the
-> fast failures were A-only names) and the DNS orphan that HD-1152's own prune leg turned out to be unable to delete,
-> because the request never carried its filters. ⚠ **The exclusion that governed the whole run** was not a host lock:
-> the session was served by an engine, so **[docs/orchestration.md](docs/orchestration.md) rule 0** held all night — no
-> spark timed/engine leg, no bench, no profile flip, and every spark fact below is a READ. The runner station proved
-> itself on the way: pi/oldsrv/nas legs went out LAN-direct from the WSL Debian seat and the VPS hop was never needed
-> (§0, §C rule 9). The pool flake class is still open and now has a third member — `git-bootstrap.sh --self-test`, red
-> inside the pool, green 5/5 and 10/10 alone, **not** written as fixed; it stays in HD-1117 rather than as its own row,
-> because a second row for the same symptom would be a tidier way of not finding it.
->
-> **Re-synced 2026-10-01 (HD-485 closed, the registry's third duplicate class removed):** `check_todo_done.py` is now
-> duplicate-ID aware — it keys row ids on the numeric stem and exits 1 when one id heads more than one row, and prints
-> the next mintable id so a session mints from evidence. The first thing it caught was its own row's third instance:
-> **`HD-336b` re-numbered to `HD-491`** (CrewAI pilot — unrelated to `HD-336` agent memory by its own sentence, so it
-> was independent work wearing a sub-ID). No `HD-336b` and no open `HD-485` row exists any more. **Landed 2026-10-05**
-> from the oldsrv lane's unpushed commit: that lane had minted `HD-489`, but main had taken 489 for the spark
-> ultra-fast funnel during the four days the commit sat on one disk — the collision class this checker exists to
-> catch, which is why the CrewAI row is 491 and not 489.
-> **Re-synced 2026-10-08 (overnight sweep — the HD-1098/495/450/488/494/1083/487 commits):** six rows shrank and one
-> class gained a tool. The recurring finding was **a second copy that silently outranks the one value** — a duplicate YAML key
-> (HD-1098, now gated), a profile restating the global ceiling (HD-494, copies deleted), and a ROLE var that makes a render guard
-> always-true (HD-487). Plus: the seat can drive the RouterOS API (HD-495) and the Pi resolves internally again (HD-488). New tool:
-> `scripts/ansible/probe-net-manager.sh`.
-> **Re-synced 2026-10-06 (spark, after the HD-489 tail + legs sessions merged):** the legs are measured and the rows shrank. HD-494
-> holds two items — the global host-floor re-derive (the 2026-10-06 transient burst is its reserve evidence) and HD-380's
-> `gpu_top_mib` growth check, whose gate-7 window is accruing since 11:19Z. HD-489 holds the certificate's last lines: `fast`'s
-> gate 6 on the live shape, the gate-7 read, then the `fast.certified_evidence` rewrite — after a legs session that closed B9
-> (FAIL-BOOT: the dispatch knobs are constitutive), B5 (no cliff) and B8 (monitoring live), with B10's gates 6/8/9 declined by
-> owner. Enforcement is armed on the box (`SPARK_OOM_REARM_GIB=12`, `no-enforce` removed, `usable` rests ≈ 13.3 GiB).
-> **Re-synced 2026-10-07b (same lane, HD-450 leg):** the silent-failure collector is live on oldsrv + the Pi, so **HD-450**
-> keeps three items instead of one open question. Minted from the same pass: **HD-1094** — the `alloy_version` pin had
-> fallen behind the box and made the monitoring role un-convergeable on oldsrv (apt: `Packages were downgraded and -y was
-> used without --allow-downgrades`); resolved for that host, the fleet question is the owner's.
-> **Re-synced 2026-10-07 (the downloads + observability lane):** **HD-1090** and **HD-1089** shrink to their
-> owner-witnessed tails after the oldsrv converge, and **HD-466** is closed and deleted — `check_todo_done.py`
-> now charges a `prompt.md` marker to the ENTRY that names the id instead of to whichever id sits inside
-> ±60/+90 characters (six shapes pinned by `--self-test`; the contract is in
-> [scripts/README.md](scripts/README.md)).
-> **Re-synced 2026-10-08 (pi.dev seat lane, HD-1110/1114):** the lane is no longer a plan — the driver and every plane script exist, the Win11 seat is in sync on all planes it can run, and the pi BUILD is pinned and gated (`pi-self-update.sh`). Three rows left the registry as done (HD-1111 pins, HD-1112 the deleted root `update_pi.cmd`, HD-1113 tmux §keyboard); what remains is the two Debian seats’ live legs and the Win11 `pi_auth` auth-mode divergence the driver surfaced (HD-1110’s tail). Also retired this evening (HD-1116): commit signing — the SSH key is gone from GitHub, `gpgsign=false` is the seat default and the rebuild paths say so too, so nothing restores a policy that would only hang a non-interactive committer.
-> **Re-synced 2026-10-13 (the owner-answer wave — ten rulings landed):** the owner answered ten open calls and each answer
-> became work: the secrets that wave rotated are deployed and proven delivered, HD-1148's Docker suite is pinned in `versions.yml`,
-> HD-1131's orphan is gone from all three instances with a prune leg minted as **HD-1152**, HD-1088's music master is in
-> Kopia scope with its serving push authored and unarmed, HD-494's rest floor is the measured one, HD-357 has a brief again,
-> and OQ-14 is parked on a trigger instead of on the owner. The gate count moved (re-derive with `--list`), and the router
-> delta retirement is ruled-but-scheduled, so its legs stay parked on a window that has no date yet.
-> **Re-synced 2026-10-13 (the cleanup lane — the views catch up with the run):** §B9 re-derived with the command above,
-> which named 13 registry rows the view had never carried (**HD-1135 · 1137 · 1138 · 1139 · 1140 · 1141 · 1142 · 1143 ·
-> 1146 · 1147 · 1148 · 1149 · 1150**) and two view rows the registry no longer carries (**HD-1132 · HD-1134**). The
-> recurrence the 2026-10-12 note describes, at the same seam. Also corrected where the registry proves the sentence false:
-> the memory-plane block (**OQ-12** and **OQ-13** are answered — `agentmemory` is the one central plane and the
-> Qdrant + central-server + direct-clients blueprint is the target; **OQ-14**, the `bge-m3` leg, is **parked on a measured re-open condition**),
-> **HD-454** (the buy-vs-accept question is a ruling now), **HD-1108** (the Matrix leg is live in the workflow), **HD-1109** (the standby IS cold-deployed — the
-> takeover is the unproven half) *[superseded the same day by the row's own host read: oldsrv runs 39 containers and no
-> standby among them, so it is UNDEPLOYED and the create is owed before any takeover claim — see §B9 and the close-out
-> stamp above; the sentence is left legible here because this paragraph's own claim was that the registry had proved a
-> sentence false, and on this one it had proved the opposite]*. §B0's unbriefed count and tail were re-derived, not incremented. No row was closed,
-> minted or renumbered by this sweep, and no HD id was added to `prompt.md`'s prose.
-> **Re-synced 2026-10-18 (the scripts/docs lane, and the corpus-diff call):** **HD-1119** landed both halves — the
-> harness body split by subject into five `docs/harness-pi-*.md` with the whole-tree reference sweep behind it, and the
-> domain checker registered in the run; **HD-1141**'s record row left the registry on the owner's confirmation and every
-> brief reference to it now names the checker instead of a dead id; the ledger gained the **Phase 4c** section the runbook
-> had been numbering without, and the phase capture now reads every single-letter suffix, with a canary that reddens if
-> the regex is narrowed. **HD-1156** and **HD-1157** were minted for gate blind spots found while proving the split (an
-> anchor that prefix-matches a lettered sub-number; and two gates that verify a thing is present without reading what it
-> says). **HD-1158** is closed: `corpus_diff.py`'s add/drop-line rule carries the same token anchor the changed-line
-> rule always had, which is what lets `--gate` sit in the pool at all — the window is re-signed at a wave tip, and
-> the staleness cap tripping is the re-sign announcing itself.
-> View hygiene re-derived here, not typed: `grep -c '^| HD-' todo.md` against the same extraction over the row table is
-> **152 = 152** after §B9 shed the **HD-217** line that outlived its registry row (CONVENTIONS §4(a)) and the topical line
-> that named two rows now names one. This re-sync closed **HD-1158**'s line (the row is gone
-> from [todo.md](todo.md), so the view sheds it too) and added the **HD-1159** line that the mint had left out — the
-> two sides re-derived with the grep above, not carried over.
-> **Re-synced 2026-10-17b (the docker leg — one converge ran and one owner call landed):** **HD-1147**'s row left the
-> registry. Its one open `⏳` was the VPS `--tags monitoring` converge that loads `pkg-pin-drift`; that converge has
-> run and the rule reads back out of the ruler API (`Homelab · Warning`, `count by (instance)
-> (homelab_pkg_pin_result{result="differ"})`, `for: 30m`, `noDataState: OK`) — an authored rule is now a loaded rule,
-> so CONVENTIONS §4(a) deletes the row and this view's §B9 line with it, and the durable proof stays in
-> [docs/observability.md](docs/observability.md) §Pin-lag report, where the per-host read already lives. The
-> `docker-ce-rootless-extras` owner call is taken and landed: `docker_ce_suite_packages` is the ONE list that drives
-> the apt call, the pre-install hold decision and the read-back assert, so a pin bump lifts the hold for exactly the
-> names it moves. **HD-1148** therefore still owes exactly what it owed — the owner-windowed `--tags docker` applies
-> (`vps` + `pi` maintenance windows, `spark` an owner window, `oldsrv` nothing, `nas` no docker role) — plus the
-> `pi`/`vps`/`spark` red those applies clear. Both derivations re-run, not adjusted: the §B9 ↔ registry set diff over
-> `grep -o '^| HD-[0-9a-zA-Z()]*'` is empty at **153 = 153**, and §B0's unbriefed count is **68** (the registry's row
-> ids minus the ids §B0's row-lists name).
-> **Re-synced 2026-10-17 (the cleanup lane — the post-merge views catch up again):** **HD-1146**'s row left the
-> registry, proof-complete by its own tail, so its §B9 line and its `prompt.md` pointer left with it and the two
-> sentences in **HD-1147**'s and **HD-1148**'s rows that named it now name the mechanism instead
-> (`roles/common/tasks/apt-holds.yml`) — a retired id is not a pointer. §B9 was re-derived with the diff command
-> below: it had fallen one row behind (**HD-1153** was never carried) and now matches the registry exactly — the
-> check is the two extractions, `grep -c '^| HD-' todo.md` against the same extraction over §B9, never a number
-> quoted here. §B0's unbriefed count and tail were re-derived the same way, not incremented, and the observability
-> row-list lost the retired **HD-1094**. The rows the merged waves moved were corrected in place, never re-flowed:
-> **HD-450** (leg (c) and the VPS box cert are live and the `acme.sh` premise was false; the Matrix re-point is all
-> that remains), **HD-487** (the per-host config-manager truth is declared in `host_vars` and held by a
-> gate; nas settled on NM and spark's `/etc/systemd/network` read EMPTY on 2026-10-18, so the row's "spark is the one
-> entry owed" is now contradicted by the box — the dns lane verifies or closes it), **HD-1117**
-> (no wall clock enters a render, and the drift check is wired), **HD-1119** (the domain is registered, the domain checker is landed and wired, and the split landed), **HD-1147** (the
-> series were live; its pending item was the one VPS `--tags monitoring` converge — the note above records it run
-> and the row deleted), **HD-1148** (the suite is pinned; the applies are what is owed). No row was minted, renumbered
-> or closed by this sweep besides HD-1146's deletion.
-> **Re-synced 2026-10-12 (HD-1136 landed; §B9 re-derived complete:** the appendix had fallen behind the registry again — comparing the registry's row ids with the same extraction over §B9 named **HD-1128 · 1129 · 1130 · 1131 · 1132 · 1133 · 1134 · 1135** missing, the recurrence of exactly what the 2026-10-09 note below records at 18 rows. Re-derive it with `grep -o '^| HD-[0-9a-zA-Z()]*' todo.md` against the same extraction over §B9 and diff the two sorted lists: a row the registry carries and this appendix does not is the bug this file's own header warns about, and it is invisible to every gate because nothing lint cross-checks the view against the registry.
-> **Re-synced 2026-10-09 (the brief restructure switch):** the eight per-HD lane briefs are **deleted** and their
-> rows redistributed across 11 domain briefs (§B0 is the index; CONVENTIONS §6 now requires the host+domain name).
-> No row was minted, closed or re-scoped to make that true — a row with no successor here is **unbriefed**, and
-> HD-357 is the one that lost a brief rather than gaining one. The restructure plan itself (`prompt-tasks-rework.md`)
-> went with them, and §B9 was re-derived complete at 131 rows because the appendix had silently fallen 18 rows
-> behind the registry. Dated entries above this one keep their wording: where they name a brief that no longer
-> exists, that is what the tree looked like on that date.
-> **Re-synced 2026-10-05 (the pi-seat lane closed):** **445 · 446 · 484** rows are gone and **442 · 443 · 492 · 493** carry what is
-> actually left, all of it owner-gated. `prompt-pi.md` died with its lane (O7); the oldsrv slot is free for **prompt-361**.
-> **Re-synced 2026-10-01 (HD-484 landed and live-verified on the box):** oldsrv now has a deliberate host-side resolver — own Technitium instance first, Pi tertiary second — so the AI seat there names `llm.kogler.si` and the engine leg works end to end ([network-dns.md](docs/network-dns.md) §Host-side resolver). Minted from the same pass: **HD-488** (the same host-resolver class on the Pi / nas / spark) and **HD-487** (the unfinished networkd-vs-NetworkManager decision on oldsrv: the role renders inert units naming a NIC that does not exist). **HD-484** stays open, trimmed to its seat-local pi-defaults tail.
-> **Re-synced 2026-09-30 (DNS lane closed):** **HD-476** landed on the VPS primary + oldsrv secondary too (owner call A1 — both, one shared list), so all three Technitium instances now forward; the §Per-Subnet reconcile minted **HD-480** (client groups + block lists — the missing mechanism) · **HD-481** (Kids filtering, incl. the per-MAC kids-tablet NAT that lands on a nonexistent group) · **HD-482** (IoT upstream + `logQueries` = the per-device visibility nothing can observe today) · **HD-483** (resolver tuning no role owns) · **HD-484** (oldsrv's own resolver is Cloudflare — why the AI seat on that box cannot name `llm.kogler.si`) · **HD-485** (`check_todo_done.py` is not duplicate-ID aware: the registry carried **two HD-476 and two HD-477 rows** through merge `350751a`; the DNS rows keep the numbers, the laptop-lane pair takes the next free ones — which is why this lane minted from **480** and left 478/479 unclaimed). **Re-synced 2026-09-29d (DNS lane, HD-476 landed + HD-477 minted):** the Pi tertiary now forwards to two public upstreams instead of chasing every cold name from the root servers (browser-style fan-out p50 **143 → 60 ms**), and the measurement pass recorded that the §Per-Subnet DNS Policy table is **design-only** — no block lists, no client groups and `logQueries=false` on both instances read. **Re-synced 2026-09-29** (HD-469 run #3 merged WITH its follow-up review: the `clockcap` unit **converged** 15:45, but GB10 turns out to have **no clock read-back** — `clocks.max.sm` is a capability field that stays 3003 with the lock on, so the role's assert failed a converge that had applied the cap and the owner ruled it removed; `--check` now prints state as context and the apply is `changed_when: false`. Run #3's "under-cap baseline is measured" claim is **retracted** — its evidence directory held none of it — so the baseline is open work again and **no timed figure in the repo is a certified under-cap number**. `fast` booted healthy and failed gate 3 on `VLLM_GDN_DECODE_KERNEL=triton`; `graded` re-confirmed BLOCKED-ON-IMAGE). **Re-synced 2026-09-28c** (HD-469's prep lane merged into main: the fp8 engine-pin lane is registered as **HD-473** — main had already minted 471/472 while that branch was open, and the collision was silent because both rows sit in the same §2.7 table — the registry's `architecturally impossible` fp8 claim is gone, `graded` is closed as a REPORT rather than a boot, and HD-469 is **not running**: run #3 waits for an operator whose own model is not spark). **Re-synced 2026-09-28b** (Docling lane: HD-402 closed by measurement and deleted, HD-471/HD-472 minted, HD-421/HD-103 re-scoped; original 2026-09-28 note: handoff restructure: briefs referenced from the rows, `prompt-436/361.md` added, 414/417/420 deleted, HD-470 re-minted; §B9 derived from the current registry). **Task detail does not live here**: a row in this view is one short line + the owning
+> **Task detail does not live here**: a row in this view is one short line + the owning
 > link, and findings, measurements and closeout history belong to [`todo.md`](todo.md), the owning `docs/*.md`, and
 > git. Hence two mechanical rules — a finished item **leaves this view in the same change that finished it**
 > (CONVENTIONS §4(a)), and any row count is **re-derived from [`todo.md`](todo.md)**, never typed. §A = decision
 > record (not a queue) · §A2 = residue needing an owner hand · §B0 = row→brief index · dispatch rules: [docs/orchestration.md](docs/orchestration.md) §4.
+> **Re-syncing is a command, not a note.** `python3 scripts/gate/check_view_registry_sync.py` proves the
+> registry and §B9 hold the same row ids in both directions, and `check_brief_coverage.py` proves that
+> the row→brief index, the brief headers and `prompt.md` name the same rows, and `check_todo_done.py
+> --refs` proves every id a root brief names still has a row. Re-derive with those three; do **not** leave a
+> dated re-sync account in this header — what a session did is the commit message's job, and git is the only
+> changelog this repo keeps (CONVENTIONS §6).
 
 ---
 
@@ -401,7 +196,7 @@ these rows are *queued behind a slot*, which is waiting work, not missing work.
 | [prompt-edge-identity.md](prompt-edge-identity.md) SSO tails, Matrix federation, zipline, published names | **3** | **147** · **457** · **458** · **459** · **112** · **47** · **357** | the **VPS** only (`vps.yml` recreates that whole service set) + the separate Authentik blueprint apply. **357** joined here (promoted 2026-10-13) when the family-surface brief died; its remaining file is `group_vars/vps.yml`, so the VPS-only host set does not widen, and what is left is the owner's visual pass on the launchpad — an O4 park, not work |
 | [prompt-seat-cockpit-grants.md](prompt-seat-cockpit-grants.md) cockpit on both nodes, the coding seats, grants, the seat plane | **3** | **361** · **442** · **443** · **465** · **495** · **1227** · **1110** · **1161** · **1126** | **oldsrv** + **nas** (SSH-lockout class — drive them off-box); `roles/access` touches **every** host slot, so run it host-by-host. The **seat plane is not a converge**: **1161** is the installer defect the 2026-10-19 seat reads surfaced (`scripts/harness/**`, provable with `--self-test` arms and no host); the driver's own `oldsrv` arm landed, so the seat driver now runs where its seat lives (record: [docs/harness-pi-seat-identity.md](docs/harness-pi-seat-identity.md) §5a). **1126** is `scripts/git/` only — the wiring is landed and measured, and what is owed is the assertion that a **Debian** seat STAYS on the modal-free route (the Win11 bootstrap verdicts the route and fails closed; `git-bootstrap.sh` has no such verdict), which the owner ruled lives in `scripts/git/`, not in the seat matrix. **1227** is the seat-parity successor of the closed tmux row: the special mouse/OSC-52 legs come OFF oldsrv and the WSL seat through the one SSOT — ⛔ never by giving the Win11 host a tmux setup it deliberately does not have |
 | [prompt-passeo.md](prompt-passeo.md) the Paseo coding seats on all three boxes, and the cockpit they retire | **3** | **1240** | **oldsrv** for the seat's host side (`roles/seat`) and its `.ts` router — the `win11`/`wsl` legs are the seat plane and elevation, never a converge. ⚠ The **oldsrv** slot this lane needs is the one [prompt-seat-cockpit-grants.md](prompt-seat-cockpit-grants.md) holds in this wave, so it **sequences behind** that lane rather than claiming a second one (O3); retire the cockpit legs only after the phone verdict lands, or the phone loses its door before it gains one |
-| [prompt-observability-alerting.md](prompt-observability-alerting.md) silent-failure rules, Matrix alerting, boards | **3** | **450** · **1108** · **342** · **344** · **315** · **343** · **377** · **1120** · **1121** · **1122** · **1166** · **1182** · **14** | the **VPS** is the primary slot (`--tags monitoring` restarts the scrape tier); oldsrv carries the MCP servers + the network-clients exporter; nas/pi/spark are collector legs. The LLM-telemetry trio adds a **spark** hunk (`spark-dashboard` access log) and an **oldsrv** `docker_services` hunk (`--metrics`) — neither in a bench window. **1166** is the reachability half of that sweep: `host-unreachable` cannot name a host, because the probe-series `instance` is the EXPORTER's address (`127.0.0.1:9115`) on every target and never the probed host's — its first act is one `count by (job, instance) (probe_success)` read, no converge. **1182** is the HA liveness rule and **14** is the `ha_exporter` enable it depends on — one gated job plus its bearer-token mount, so they land as one change and cross-name each other; the converge is the **VPS** `--tags monitoring` half and `alloy_ha_exporter` is set where oldsrv reads it. **14** is filed under smart-home by the docs and its work is this lane's — the smart-home lane owns the HA instance, this lane owns its observability — and the `ha_api` long-lived token stays an owner leg (O4) |
+| [prompt-observability-alerting.md](prompt-observability-alerting.md) silent-failure rules, Matrix alerting, boards | **3** | **450** · **1108** · **344** · **315** · **343** · **377** · **1120** · **1121** · **1166** · **1182** · **14** | the **VPS** is the primary slot (`--tags monitoring` restarts the scrape tier); oldsrv carries the MCP servers + the network-clients exporter; nas/pi/spark are collector legs. The LLM-telemetry pair adds a **spark** hunk (`spark-dashboard` access log) and an **oldsrv** `docker_services` hunk (`--metrics`) — neither in a bench window. **1166** is the reachability half of that sweep: `host-unreachable` cannot name a host, because the probe-series `instance` is the EXPORTER's address (`127.0.0.1:9115`) on every target and never the probed host's — its first act is one `count by (job, instance) (probe_success)` read, no converge. **1182** is the HA liveness rule and **14** is the `ha_exporter` enable it depends on — one gated job plus its bearer-token mount, so they land as one change and cross-name each other; the converge is the **VPS** `--tags monitoring` half and `alloy_ha_exporter` is set where oldsrv reads it. **14** is filed under smart-home by the docs and its work is this lane's — the smart-home lane owns the HA instance, this lane owns its observability — and the `ha_api` long-lived token stays an owner leg (O4) |
 | [prompt-storage-backup.md](prompt-storage-backup.md) nas ZFS policy units, Kopia, the DR story | **3** | **06** · **207** · **1105** · **1106** · **191** · **238** · **1129** · **1183** · **1174** | **nas** is the primary slot (`storage.yml`); **oldsrv** the Kopia-agent legs; **VPS** `kopia-server` + the volume inventory; the **nas+pi+oldsrv** `nut` legs are one logical change. **1174** is an **oldsrv** `--tags storage` leg on those Kopia-agent legs, run **off-box** ([docs/deployment-ansible.md](docs/deployment-ansible.md) §Self-converge guardrail: a storage run FROM oldsrv is refused); the rotate that follows it is an owner act (O4), not a converge act. **1129** moves the VPS-NVMe residue onto the Box mount and re-points the Immich storage path — the **VPS** slot this brief already holds, no new host. **1183** is an **oldsrv** `--tags storage` act that must run **OFF-BOX**: the HD-413 self-converge guard refuses a storage run FROM oldsrv, and `--check` cannot reach the `findmnt` assert it fixes; its paging half — putting the unit on `monitoring_hygiene_units` — belongs to the observability lane, not here |
 | [prompt-secrets.md](prompt-secrets.md) the **leak-debt lane** — the four tools that stop the next transcript leak, and the debts only a rotation closes | **2** | **1181** · **1170** · **1216** · **1218** · **1219** | **none of its own** — every tool is in-repo (`scripts/**`, `pi-agent/extensions/**`, one `scripts/lib/seat-planes.yml` entry), so it pairs with any host lane. The converges that propagate a rotation belong to the host that ISSUES the value, and each of those sits parked on the owner (O4) or in a window another brief holds (**spark** for HD-1170's close, **router** for `wg_password` / `network-snmp_api`). ⛔ no lane rotates a vault item, and no transcript is deleted to make a check green |
 | [prompt-mcp.md](prompt-mcp.md) the seat's MCP client config — the one harness artifact with no repo-side SSOT, plus the tool-server carrier and the C# tool leg | **2** | **1238** | **none of its own** — it is a seat plane fanned out by [`scripts/harness/pi-seat-sync.sh`](scripts/harness/pi-seat-sync.sh) from each seat's own clone, so it claims no converge slot and pairs with any host lane. ⛔ a `STALE-CLONE` pre-flight is the plane never having run, not a red to chase in IaC; and a `url` entry is CONNECTED, never launched, so the drift read is the port and not the file |
@@ -543,21 +338,17 @@ never name candidates there.
 
 ### Observability
 
-The brief for this section is now [prompt-observability-alerting.md](prompt-observability-alerting.md); the
-per-HD brief it replaced, `prompt-420.md`, was deleted 2026-09-28. Its two surviving rows — **HD-377(a)** owner
-sign-off and the **HD-342** backup tail (whose dependency, HD-191, belongs to
-[prompt-storage-backup.md](prompt-storage-backup.md)) — are indexed here like every other. Everything else it
-carried has landed: the cadence row (**HD-420**), the spark watchdog (**HD-395** — fixed, then the recycle term
-switched off by owner), the SNMP labels (**HD-345**) and **HD-377(b)**. The oldsrv `monitoring` converge and the
-VPS `monitoring` converge both ran 2026-09-23; the rest of this section is independent of it and of each other.
+The brief for this section is [prompt-observability-alerting.md](prompt-observability-alerting.md). Its
+surviving rows — **HD-377** (the owner's board sign-off) and **HD-344** (the MCP registrations) — are
+indexed here like every other. Everything else that brief once carried has landed, and the section's
+converge legs are done: the oldsrv `monitoring` converge and the VPS `monitoring` converge both ran
+2026-09-23, so the rest of this section is independent of them and of each other.
 
 | HD | P | Goal | ⏳ Next action | Note |
 |----|---|------|----------------|------|
 | HD-344 | 3 | AI can query metrics/logs through MCP from its own tools | register the MCP endpoints in pi / Open WebUI / OpenClaw — **ports are `mcp_metrics_port` 8083 / `mcp_logs_port` 8084**, not :8080/:8081 | servers live on oldsrv; registration is the whole remaining row. ⚠ use the vars, never a literal port |
-| HD-342 | 2 | the observability data itself is backed up | Kopia client wiring for the Victoria data dirs | the Victoria cutover is live; this is its backup tail · 📋 no brief — plain row |
 | **HD-1166** | 2 | a page can say WHICH host is dark — the probe series, not the rule | read `count by (job, instance) (probe_success)` first: if each probe job answers ONE `127.0.0.1:9115` line, the fix is one `"target" = "<host>"` entry per target in `roles/monitoring/templates/alloy.river.j2` (or a `prometheus.relabel` moving `__param_target` into `instance`), which makes every existing probe rule name hosts for free | ⚠ **`ha-unreachable` is already structurally green** — it filters `instance="https://ha.kogler.si"`, a label value no series can carry once every HTTP target collapses to the exporter's address — so `Normal (NoData)` for it is the expected state, not evidence it works. The label rule is already written down for SNMP and was never applied to the probe jobs · 📋 [prompt-observability-alerting.md](prompt-observability-alerting.md) |
 | **HD-1121** | 2 | gateway-side LLM usage — **a finding, not a scrape job** | nothing to build: the row's premise resolved as "there is no scrape job and none should be added" — `/metrics` answers **401** without a `prometheus` auth callback in the config (all three instances have none) and **404** with one, on the pinned image | so the metering decision (**HD-1120**'s attribution half) is the whole remainder: edge access-log join vs per-key keys. Adding a scrape job today would be machinery aimed at an endpoint that cannot answer · 📋 [prompt-observability-alerting.md](prompt-observability-alerting.md) |
-| **HD-1122** | 2 | engine tokens + GPU into one board | ⏳ **one owner-present flip:** `ai_tier_metrics_publish: true` + converge **oldsrv** `--tags docker_services,monitoring` (recreates two serving containers; the flag, the `127.0.0.1` publish and the `prometheus.scrape "llama_cpp"` leg are ONE change) | the **RX 7600** counters are LIVE and boarded tonight (AMD GPU metrics exporter on the process-name contract + a `gpu_io` row proven populated) — that half is the one the GPU board never had; the llama.cpp half stays off because a serving restart is not a night act. One gap is llama.cpp's feature boundary, not ours: `DetectVramTotal = 0`, so VRAM % is computed from the config · 📋 [prompt-observability-alerting.md](prompt-observability-alerting.md) |
 
 ### Docs / policy (no host risk)
 
@@ -717,7 +508,6 @@ truncated on purpose. The ROW stays the authority; `⏳` shown here is the row's
 | HD-1157 | 2 | AI + gate | 2.10 Docs & Family | Two more gates join the present-but-unread class: a checker proves a thing is THERE and never reads WHAT THE SENTENCE ABOUT IT SAYS. Found while correcting the vault catalog: `docs/deployment-secrets.md` stated of the cockpit's to… | ⏳ Fix shape: (a) `check_vault_docs.py` — a state-word read over the vault item table: parse §Master Secret List of `docs/deployment-secrets.md` row by row and FAIL when the `field=` cell is not a field… | [prompt-external.md](prompt-external.md) |
 | HD-57 | 3 | AI + Human | 2.11 Finance & Subscriptions | Finance stack: Actual Budget / Enable Banking | Deploy-gated: human tokens + EB app creation (services-finance.md Open Questions), n8n import/categorization workflows (Phase 1), WG AllowedIPs scope for the :5006 API leg, first deploy + live verify… | — |
 | HD-133 | 3 | AI | 2.11 Finance & Subscriptions | Subscription renewal reminders (Homepage + calendar + n8n) | 3 · Subscription renewal reminders (Homepage + calendar + n8n) — SSOT = subscriptions.yml; drives Homepage Subscriptions/calendar + n8n renewal notify; subscription.md derived table. · subscription.md… | — |
-| HD-342 | 2 | AI | 2.12 Observability / Alerting | Observability: Victoria stack implementation + LIVE CUTOVER (VPS) | Remaining tails: kopia client wiring for /srv/docker/victoria-*/data; oldsrv MCP (HD-344). · observability.md · IaC/ansible/roles/monitoring/ · 📋 lane brief deleted 2026-09-28 · 2026-09-22, the kopia… | — |
 | HD-344 | 3 | AI | 2.12 Observability / Alerting | MCP AI-debugging servers on oldsrv — ✅ ENABLED + DEPLOYED 2026-09-14. | Remaining (AI): register endpoints in pi / Open WebUI / OpenClaw; tailnet redo = owner. · observability.md §MCP · | — |
 | HD-377 | 2 | AI | 2.12 Observability / Alerting | Unified | owner renders it again) — owner: "instead of many dashboards, I want 1 … include CPU, GPU, RAM usage from spark … include indicator for vLLM/SGLang readiness (health)"; RX 7600 comes later. ✅ Generate… | — |
 | HD-380 | 2 | AI | 2.12 Observability / Alerting | spark unified-memory governor term 2 + OOM forensics watchdog — code LIVE, docs DONE; alert + measurement tail… | Watch for a curve growing >2 GiB/h under traffic that does not return at idle (/mnt/spark_nvme/oom-watchdog/state/samples.csv, gpu_top_mib) — that and only that re-arms C3 --enforce-eager. | prompt-spark-llm.md |
@@ -726,7 +516,6 @@ truncated on purpose. The ROW stays the authority; `⏳` shown here is the row's
 | HD-384 | 2 | AI | 2.12 Observability / Alerting | Simple-querier tier gets a route (decided 2026-09-21: the spark/qwen3.8-flash-next ROW only, never spark/*; ma… | The llm-router client credential that stops spark-llm_api being triple-used — two shapes (own credential vs an edge allow-list on the llm router = traefik-internal territory), no owner call yet. · ser… | prompt-litellm-consumers.md |
 | HD-1120 | 2 | AI | 2.12 Observability / Alerting | Per-client attribution of LLM traffic from the edge access log — the metering-proxy shape is REJECTED (owner 2026-10-09)… | measure which peer the spark edge logs on each path (Home vs tailnet over WG S2S), enable `--accesslog` on `traefik-spark`, deliver a per-client VictoriaLogs… | prompt-observability-alerting.md |
 | HD-1121 | 2 | AI | 2.12 Observability / Alerting | Scrape the two LiteLLM gateways so gateway-side usage reaches VM at all — today `grep -rn litellm roles/monitoring/` = 0 hits… | LiteLLM's `/metrics` is not scrapable as wired — and the row's premise is now settled as a FINDING: there is no gateway-scrape job here, and none should be added until the metering decision is made | ⏳ the decision, not a scrape job: HD-1120's attribution half (edge access-log join vs per-key keys) is the only thing that can put gateway usage into a board |
-| HD-1122 | 3 | AI | 2.12 Observability / Alerting | The oldsrv serving tier reports nothing to VM (llama.cpp `--metrics` absent from the rendered command lists; no scrape job names it) | LLM engine telemetry is HALF live: the RX 7600 counters (AMD GPU metrics exporter + a dashboard row) are in and boarded, while the llama.cpp counters ride `ai_tier_metrics_publish: false` on purpose | ⏳ one owner-present flip of `ai_tier_metrics_publish: true` + a `--tags docker_services,monitoring` converge on oldsrv (recreates two serving containers) — the flag, the `127.0.0.1` publish and the `prometheus.scrape "llama_cpp"` leg are ONE change; the GPU row's one gap is `DetectVramTotal = 0`, a llama.cpp feature boundary |
 | HD-1166 | **2** | AI + gate | 2.12 Observability | **The host-unreachable rule cannot name the host that is down — `probe_success{job="blackbox_icmp"}` carries the EXPORTER's address as `instance`, so five probes collapse into ONE series** — `count by (instance) (probe_success{job="blackbox_icmp"})` returns exactly one series, `instance="127.0.0.1:9115"`, which is blackbox-exporter's own address and not a target: the `prometheus.scrape "blackbox_icmp"` block in `roles/monitoring/templates/alloy.river.j2` sets `__address__ = "127.0.0.1:9115"` on every target and names the probed box only in `__param_target`, a query PARAMETER that never becomes a label, so all five targets (router + switch on Mgmt, nas + oldsrv + pi on Home, every address from `network_static_hosts`) leave the scrape with identical label sets and the store keeps one series for the job. So `host-unreachable` (critical) fires with an `instance=` that means nothing and a page cannot say which box is dark — which is why the dark-host class was covered in practice by the generated `absent_over_time(up{job="alloy",…})` set rather than by the rule built for it. ⚠ **`ha-unreachable` is the quieter victim:** it filters `probe_success{job="blackbox_http_probes", instance="https://ha.kogler.si"}`, a shape no series can carry, so with the only sane `noDataState` for a `== 0` rule it is structurally green and a `Normal (NoData)` for it is expected, not evidence it works. The class is already written down for SNMP — own `instance` per device or two devices collapse into one flat series — and was never applied to the probe jobs | ⏳ first act is one read, nothing written: `count by (job, instance) (probe_success)` through the datasource proxy — one `127.0.0.1:9115` line per probe job is the finding, printed; a job whose count is 1 is a job whose targets cannot be told apart. ⏳ then fix it in one of exactly two shapes, not a third: (a) name the target in `alloy.river.j2` — a `"target" = "<host>"` entry on `blackbox_icmp`, `blackbox_http_probes` and `wg_icmp`, or a `prometheus.relabel` moving `__param_target` into `instance` — or (b) generate one rule per probed host the way `scripts/gate/check_host_reporting.py` derives its expected set, from the SAME `network_static_hosts` select the scrape loop already uses, so rules and targets cannot drift when a host is added. ⏳ **acceptance is the rule watched red once:** with one probe genuinely failing, the page names that host and `count by (instance) (probe_success{job="blackbox_icmp"})` answers five. A green suite proves nothing about this row · [observability.md](docs/observability.md) §Silent-failure hygiene, §Operational gotchas (the probe-label rule) |
 | HD-248 | 3 | AI | 2.12 Observability / Alerting | OWUI two-instance split + msg./chat. remap (v2) — parked by owner 2026-09-21: no second instance until a secon… | OWUI two-instance split + msg./chat. remap (v2) — parked by owner 2026-09-21: no second instance until a second audience exists. Resume from services-ai.md §Open WebUI, which owns the spec, the live-s… | — |
 | HD-45 | 3 | AI | 2.12 Observability / Alerting | Network dashboard + Homelable — LIVE implementation (re-scoped 2026-09-09, owner): | Network dashboard + Homelable — LIVE implementation (re-scoped 2026-09-09, owner): the owner wants (i) who-is-on-network, (ii) topology map, (iii) a combined dashboard. Homelable (Pouzor/homelable, MI… | — |
@@ -860,7 +649,6 @@ authored waiting. Neither list is the whole truth on its own.
 | **HD-1151** | 2 | **two device-side lines on the MikroTiks, settled with `/snmp print` and `/snmp community print` on each box:** switch SNMP on for the two hAP ac²s — they answer ICMP from the Mgmt plane and take a RouterOS API connection from the same source yet stay silent on UDP/161 with every community and version, which points at `/snmp enabled=no`, and no IaC carries an `/snmp` block for the APs — and take out the factory `public` community that still answers on both boxes beside the vault item, because the converge templates only add/set the named one | the collector half is landed and presence-enforced; once the APs answer, their series land too and `probe-snmp-presence.sh` can enforce them as it does the two switches · 📋 no brief — plain row · [docs/observability.md](docs/observability.md) §SNMP coverage |
 | **HD-1143** | 2 | one privileged act on oldsrv: `docker exec` into the HA container (the socket is `root:docker`) or reload the KNX integration, so exactly one `GroupValueRead` leaves the Pi | read the reverse rule's counters either side; the derived-list half is already proved equal on the device · 📋 [prompt-smart-home.md](prompt-smart-home.md) |
 | **HD-1152** | 2 | the first REAL `playbooks/dns-seed.yml` apply per instance — ⚠ `--check` prints `CHANGED=0 … FATAL=0` for that play because the Technitium block is `check_mode`-gated, so a green check says nothing here | after its two defects are repaired (no query string on the request; `prune-queries.yml` has no Jinja header), with the `orphan_ok` floor as the backstop · 📋 no brief — plain row |
-| **HD-1122** | 2 | flip `ai_tier_metrics_publish: true` and converge **oldsrv** `--tags docker_services,monitoring` — it recreates two serving containers, so not at night | the flag, the `127.0.0.1` publish and the `prometheus.scrape "llama_cpp"` leg are ONE change; the GPU half is already live and boarded · 📋 [prompt-observability-alerting.md](prompt-observability-alerting.md) |
 | **HD-1103 · HD-1167 · HD-1109** | 1–2 | **one owner-window Pi visit, plus a reboot** — what that window now carries: the boot that makes HD-1103's fstab `mode=0755` true on the mount (HA restart authorized 2026-10-08), the one-time re-render of `pi-eth0.nmconnection` that **HD-1167** needs to bring an existing box in line (it notifies `reload NetworkManager` on a DNS-tier box — the written rollback is HD-1101's: `sed` the `dns=` line, `nmcli connection reload && nmcli device reapply eth0`, then `getent hosts ha.kogler.si` + `getent hosts github.com`), and the UNTAGGED converge that applies `ai_diag`'s derived smartd mask. **DONE, so do not re-run them:** the `nm-resolver` guard apply on both hosts and HD-418's `.storage/http` reconcile (`--tags hd418`). **HD-1109's cold create on oldsrv is a separate window** (`--tags ha_failover`, it writes SSH keys). ✅ **HD-1103's retention is RULED 2026-10-20: `rotate 1` + `maxsize`** — a new role-owned logrotate file sized against `size=100m`, so the only thing left in this window is applying it | pair the Pi work with the boot so the box reboots once; run the standby leg before trusting either launchpad card · 📋 [prompt-smart-home.md](prompt-smart-home.md) |
 | **HD-1175** | **1** | **be on `oldsrv` as root and read the 22 h 18 m stop** — boot −1's journal tail and `/sys/fs/pstore` are `0640 root:adm`, `dmesg` is EPERM to `domen` and `sudo -n` answers `a password is required`, so no AI leg can reach them: `journalctl -b -1 -k -p warning` and its last 80 lines, `journalctl -b -1 -n 200`, `ls -la /sys/fs/pstore` and whatever `console-ramoops` / `dmesg-ramoops-*` it names, plus `mcelog` / `edac` if present — with no out-of-band path, and **HD-454**'s WoL re-test still never run | the hardware-vs-kernel call, written once to the doc — ⛔ no cause may be named from the store's four exclusions · 📋 no brief — plain row · [docs/hardware-oldsrv.md](docs/hardware-oldsrv.md) |
 | **HD-443** | **1** | ✅ **RULED 2026-10-20 (owner): revoke.** A `Storage=volatile` journal reaches back one boot and cannot prove a 30-day silence, so the delete rests on the neutralized state — empty `authorized_keys`, and the dated `.disabled-20261005` copy holding exactly the fingerprint the logged acceptances carry | nothing: **AI work in a scheduled `pi` window**, in this order — prove `ansible-admin` and `domen` log in and one `--check` leg is `failed=0`, THEN drop `admin` from `access_admit_extra` + delete the account and its sudoers drop-in, re-read the `Host pi` alias (it already targets `domen`), and `check_ssh_grants.py` green with the placement struck · 📋 [prompt-seat-cockpit-grants.md](prompt-seat-cockpit-grants.md) |
