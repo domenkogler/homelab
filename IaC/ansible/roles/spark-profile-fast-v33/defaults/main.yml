@@ -134,6 +134,154 @@ spark_profile_fast_v33_patch_plan:
       grep -qF '_fp8_hybrid_apply()' "$G"
       python3 -c 'import ast,os; ast.parse(open(os.environ["VLLM_FILE"]).read())' </dev/null
 
+  # qsa_indexer_reachability — the QSA layer must receive the config that knows about the fp8 hybrid.
+  # Two facts make this a correction rather than a preference: `without_modelopt_fp4()` only unwraps
+  # ModelOpt, and this checkpoint is AutoGPTQ, so the call is a pass-through; but passing the object it
+  # returns would hand the layer a config whose `_is_fp8_layer` the fp8-hybrid hook never installed,
+  # i.e. the one question __init__ asks about this checkpoint could not be answered. Naming the
+  # checkpoint's own quant_config is the same object for every other family, and for AutoGPTQ it is the
+  # hooked class. Sits AFTER fp8_hybrid_dispatch because the marker of that entry is what makes the
+  # predicate meaningful.
+  - name: "qsa_indexer_reachability"
+    path: "/usr/local/lib/python3.12/dist-packages/vllm/models/qwen4_exp/nvidia/qsa.py"
+    pattern: "self.qkv_proj = QKVParallelLinear("
+    expect: 1
+    marker: "spark-v33: this family resolves to AutoGPTQ"
+    evidence: |-
+      The first fast-v33-bf16 boot (2026-11-07) died in resolve_quant_method before any weight was
+      read; the layer had been constructed with the pass-through object. Read against the base at its
+      pin digest: one `self.qkv_proj = QKVParallelLinear(` and one
+      `quant_config=model.without_modelopt_fp4(quant_config),` in the whole file, so this is the only
+      site that could carry it. The `quant_config=quant_config,` it writes already answers 3 times in
+      the base, which is why the marker is the comment and not the code.
+
+    cmd: |-
+      set -e
+      V="$VLLM_ROOT"
+      Q="$V/models/qwen4_exp/nvidia/qsa.py"
+      test -f "$Q"
+      test "$(grep -cF 'self.qkv_proj = QKVParallelLinear(' "$Q")" -eq 1
+      test "$(grep -cF 'quant_config=model.without_modelopt_fp4(quant_config),' "$Q")" -eq 1
+      python3 - <<'PY'
+      import os
+      p = os.path.join(os.environ["VLLM_ROOT"], "models/qwen4_exp/nvidia/qsa.py")
+      src = open(p).read()
+      old = "            quant_config=model.without_modelopt_fp4(quant_config),"
+      new = (
+          "            # spark-v33: this family resolves to AutoGPTQ, not ModelOpt, so\n"
+          "            # without_modelopt_fp4() only returns its argument; naming the checkpoint's own\n"
+          "            # quant_config keeps the fp8-hybrid hook reachable from this layer, which is the\n"
+          "            # object __init__ asks for the fusion decision below.\n"
+          "            quant_config=quant_config,"
+      )
+      assert src.count(old) == 1, src.count(old)
+      src = src.replace(old, new)
+      open(p, "w").write(src)
+      import ast; ast.parse(src)
+      PY
+      grep -qF 'spark-v33: this family resolves to AutoGPTQ' "$Q"
+      python3 -c 'import ast,os; ast.parse(open(os.environ["VLLM_FILE"]).read())' </dev/null
+
+  # qsa_no_indexer_fusion — the boot fix. v0.33 fuses `indexer.index_qk_proj` into `qkv_proj`, whose
+  # packed mapping then declares four shards; the checkpoint stores q/k/v as blockwise FP8 and the
+  # indexer in BF16, so the config's all-shards-are-FP8 test answers False for all 12 QSA layers and
+  # AutoGPTQConfig refuses the layer outright (ValueError, `gptq_utils.py:160`). qsa.py's own forward()
+  # keeps an unfused branch, so declining the fusion is a supported shape and costs no weight: q/k/v
+  # stay FP8, the indexer keeps its checkpoint precision in its own linear. This is the no-numerics
+  # route (the alternative, quantising the indexer to FP8 at load, would put a lossy change on the arm
+  # whose whole job is to be `fast`'s control — fast_v33_draft.md R1).
+  - name: "qsa_no_indexer_fusion"
+    path: "/usr/local/lib/python3.12/dist-packages/vllm/models/qwen4_exp/nvidia/qsa.py"
+    pattern: "self.fuse_indexer_projection = vllm_config.lora_config is None"
+    expect: 1
+    marker: "spark-v33: an fp8-hybrid checkpoint must NOT fuse the indexer"
+    evidence: |-
+      The predicate is the config's own `_is_fp8_layer`, which the region's or-chain above this line
+      cannot see, so the guard is a getattr on quant_config (False for every non-hybrid config, i.e.
+      today's behaviour is preserved where the hook is absent). Anchors read against the base at its
+      pin digest: the fused mapping is `["q_proj", "k_proj", "v_proj", "indexer.index_qk_proj"]`
+      and every one of the 12 QSA layers is FP8 for q/k/v and BF16 for the indexer.
+
+    cmd: |-
+      set -e
+      V="$VLLM_ROOT"
+      Q="$V/models/qwen4_exp/nvidia/qsa.py"
+      test -f "$Q"
+      test "$(grep -cF 'self.fuse_indexer_projection = vllm_config.lora_config is None' "$Q")" -eq 1
+      python3 - <<'PY'
+      import os
+      p = os.path.join(os.environ["VLLM_ROOT"], "models/qwen4_exp/nvidia/qsa.py")
+      src = open(p).read()
+      old = "        self.fuse_indexer_projection = vllm_config.lora_config is None"
+      new = (
+          "        # spark-v33: an fp8-hybrid checkpoint must NOT fuse the indexer here. The fused\n"
+          "        # wrapper's packed mapping then names indexer.index_qk_proj as a fourth shard of\n"
+          "        # qkv_proj, but the checkpoint stores q/k/v as blockwise FP8 and the indexer in\n"
+          "        # BF16, so the config's all-shards-FP8 test answers False for every QSA layer and\n"
+          "        # AutoGPTQConfig refuses it outright:\n"
+          "        #   \"Detected some but not all shards of ...layers.3.self_attn.qkv_proj are\n"
+          "        #    quantized\"                   (the first fast-v33-bf16 boot, 2026-11-07)\n"
+          "        # forward() keeps the unfused branch below, so q/k/v stay FP8 and the indexer\n"
+          "        # keeps its checkpoint precision in its own linear. No weight is touched.\n"
+          "        # The predicate takes the QKV prefix, not this layer's: _is_fp8_layer maps a\n"
+          "        # fused name to its shards, and this layer ends in .self_attn.\n"
+          "        self.fuse_indexer_projection = (\n"
+          "            vllm_config.lora_config is None\n"
+          "            and not getattr(quant_config, \"_is_fp8_layer\", lambda p: False)(\n"
+          "                f\"{prefix}.qkv_proj\"\n"
+          "            )\n"
+          "        )"
+      )
+      assert src.count(old) == 1, src.count(old)
+      src = src.replace(old, new)
+      open(p, "w").write(src)
+      import ast; ast.parse(src)
+      PY
+      grep -qF 'spark-v33: an fp8-hybrid checkpoint must NOT fuse the indexer' "$Q"
+      python3 -c 'import ast,os; ast.parse(open(os.environ["VLLM_FILE"]).read())' </dev/null
+
+  # qkv_packed_map_three_shards — the third half of the same decision, and it must move with the other
+  # two: the packed map is what AutoGPTQConfig iterates when it asks "are all of this fused layer's
+  # shards quantized". Narrowing it here is what makes the unfused QSA layer one precision class again.
+  # The map is read live from the class, so no import order is implied.
+  - name: "qkv_packed_map_three_shards"
+    path: "/usr/local/lib/python3.12/dist-packages/vllm/models/qwen4_exp/nvidia/model.py"
+    pattern: '"qkv_proj": ["q_proj", "k_proj", "v_proj", "indexer.index_qk_proj"],'
+    expect: 1
+    marker: "spark-v33: the indexer is NOT a shard of qkv_proj"
+    evidence: |-
+      Base at its pin digest: exactly one four-shard `qkv_proj` listing in model.py (Qwen4ExpForCausalLM;
+      Qwen4ExpForConditionalGeneration copies that same list by name, so one edit covers both), and zero
+      in mtp.py — the MTP drafter already declares the three-shard form at :405, which is the
+      independent witness that three shards is the correct shape rather than a shard dropped for
+      convenience.
+
+    cmd: |-
+      set -e
+      V="$VLLM_ROOT"
+      M="$V/models/qwen4_exp/nvidia/model.py"
+      test -f "$M"
+      test "$(grep -cF '"qkv_proj": ["q_proj", "k_proj", "v_proj", "indexer.index_qk_proj"],' "$M")" -eq 1
+      python3 - <<'PY'
+      import os
+      p = os.path.join(os.environ["VLLM_ROOT"], "models/qwen4_exp/nvidia/model.py")
+      src = open(p).read()
+      old = '        "qkv_proj": ["q_proj", "k_proj", "v_proj", "indexer.index_qk_proj"],'
+      new = (
+          '        # spark-v33: the indexer is NOT a shard of qkv_proj. Qwen4ExpQSAAttention keeps it\n'
+          '        # separate whenever the checkpoint resolves to fp8-hybrid (qsa.py\'s\n'
+          '        # fuse_indexer_projection); listing it here makes every QSA layer mixed-precision to\n'
+          '        # AutoGPTQConfig and refuses the boot.\n'
+          '        "qkv_proj": ["q_proj", "k_proj", "v_proj"],'
+      )
+      assert src.count(old) == 1, src.count(old)
+      src = src.replace(old, new)
+      open(p, "w").write(src)
+      import ast; ast.parse(src)
+      PY
+      grep -qF 'spark-v33: the indexer is NOT a shard of qkv_proj' "$M"
+      python3 -c 'import ast,os; ast.parse(open(os.environ["VLLM_FILE"]).read())' </dev/null
+
   # ple_hook_blazux — the §1 hook row: blazux's vllm_ple_mmap.py (graph-aware mmap + custom-op form), NOT the day-0 overlay (wrong class layout). The append names the class; Qwen4ExpPLEPinnedHostEmbedding stays untouched (fast_v33_draft.md §4).
   - name: "ple_hook_blazux"
     path: "/usr/local/lib/python3.12/dist-packages/vllm/models/qwen4_exp/nvidia/ngram_embedding.py"
