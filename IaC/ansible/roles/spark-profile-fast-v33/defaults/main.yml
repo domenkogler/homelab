@@ -134,6 +134,105 @@ spark_profile_fast_v33_patch_plan:
       grep -qF '_fp8_hybrid_apply()' "$G"
       python3 -c 'import ast,os; ast.parse(open(os.environ["VLLM_FILE"]).read())' </dev/null
 
+  # fp8_hybrid_drafter_online — the vendored hook's DRAFTER branch, re-anchored onto v0.33's online
+  # MoE API. It must sit AFTER fp8_hybrid_dispatch: it rewrites the file that entry installs, and
+  # its anchor is read in the base's own auto_gptq.py (the vendored file is not in the base, so it
+  # cannot carry an `expect`). The H-side marker is the proof the branch was rewritten, the
+  # auto_gptq.py marker the proof this entry ran at all.
+  - name: "fp8_hybrid_drafter_online"
+    path: "/usr/local/lib/python3.12/dist-packages/vllm/model_executor/layers/quantization/auto_gptq.py"
+    pattern: "def get_moe_quant_method("
+    expect: 1
+    marker: "spark-v33: the drafter arm delegates"
+    evidence: |-
+      The rc2 bf16 boot got past the QSA/indexer failures and died in the MTP drafter:
+      `TypeError: Fp8PerTensorOnlineMoEMethod.__init__() got an unexpected keyword argument
+      'layer'` at vllm_fp8_hybrid.py:234 (`_maybe_drafter_moe_fp8`, named from :161). Read against
+      the base at its pin digest: `Fp8PerTensorOnlineMoEMethod(*, moe: FusedMoEConfig)` and
+      `Fp8PerBlockOnlineMoEMethod(*, moe: FusedMoEConfig)`; `_Fp8OnlineMoEBase.__init__` is
+      `(*, weight_block_size, moe, weight_key=None, activation_key=None, allow_vllm_cutlass=False)`,
+      and vLLM builds these itself as `quant_method_cls(moe=layer.moe_config)
+      (quantization/online/base.py:402)`, the class coming from `_ONLINE_MOE_METHODS` by the
+      QuantSpec's weight QuantKey (`resolve_quant_method_cls`, same file :266). `layer.moe_config`
+      is the attribute the call wants: fused_moe/routed_experts.py:117 assigns it and :164 is where
+      `_get_quant_method` runs with the same partially-built layer.
+      DECISION: delegate the drafter branch to `OnlineQuantizationConfig.get_quant_method` with a
+      `QuantizationConfigArgs(moe="fp8_per_tensor" | "fp8_per_block")` shorthand, rather than
+      patching the two `layer=` call sites. Reason, read from the code: that method IS the native
+      call (resolve from vLLM's own table, then construct with `moe=layer.moe_config`), so the class
+      choice and the constructor call both stay vLLM's and the next move of that private constructor
+      cannot reach our file — whereas `layer=` → `moe=layer.moe_config` would re-pin both. The
+      model-level `resolve_quant_method` (quantization/base_config.py:295) is NOT the seam: its
+      online config is a model/CLI arg that matches every layer of the kind, and this checkpoint's
+      target experts ARE quantized, so it would take the `checkpoint_is_quantized` ->
+      `set_requantization_source` route over the target's int4 weights — a weighed numerics change
+      on the control arm (fast_v33_draft.md R1). Nothing here touches the target's experts: the
+      prefix regex and the `UnquantizedFusedMoEMethod` guard still gate the branch.
+
+    cmd: |-
+      set -e
+      SP="$(dirname "$VLLM_ROOT")"
+      V="$VLLM_ROOT"
+      G="$V/model_executor/layers/quantization/auto_gptq.py"
+      H="$SP/vllm_fp8_hybrid.py"
+      test -f "$G"
+      test -f "$H"
+      test "$(grep -c -F 'def _maybe_drafter_moe_fp8(' "$H")" -eq 1
+      test "$(grep -c -F 'Fp8PerTensorOnlineMoEMethod(layer=layer)' "$H")" -eq 1
+      test "$(grep -c -F 'Fp8PerBlockOnlineMoEMethod(layer=layer)' "$H")" -eq 1
+      python3 - <<'PY'
+      import os
+      h = os.path.join(os.path.dirname(os.environ["VLLM_ROOT"]), "vllm_fp8_hybrid.py")
+      src = open(h).read()
+      old = "\n".join([
+          '    if mode in ("block", "blockwise"):',
+          '        from vllm.model_executor.layers.quantization.online.fp8 import (',
+          '            Fp8PerBlockOnlineMoEMethod,',
+          '        )',
+          '',
+          '        method = Fp8PerBlockOnlineMoEMethod(layer=layer)',
+          '    else:',
+          '        from vllm.model_executor.layers.quantization.online.fp8 import (',
+          '            Fp8PerTensorOnlineMoEMethod,',
+          '        )',
+          '',
+          '        method = Fp8PerTensorOnlineMoEMethod(layer=layer)',
+      ])
+      new = "\n".join([
+          "    # spark-v33: the drafter arm delegates to vLLM's own online-quantization path",
+          "    # instead of naming a method class. v0.33 moved these constructors from",
+          "    # `(*, layer: torch.nn.Module)` to `(*, moe: FusedMoEConfig)` and builds them",
+          "    # itself as `quant_method_cls(moe=layer.moe_config)`, the class chosen from its",
+          "    # own _ONLINE_MOE_METHODS table (model_executor/layers/quantization/online/",
+          "    # base.py:402). Asking OnlineQuantizationConfig for the method keeps the class",
+          "    # choice AND the constructor call on vLLM's side, so the next move of that",
+          "    # private constructor cannot reach this file; the day-0 spelling pinned both,",
+          "    # and died `TypeError: Fp8PerTensorOnlineMoEMethod.__init__() got an unexpected",
+          "    # keyword argument 'layer'` in the MTP drafter of the rc2 boot.",
+          '    from vllm.config.quantization import QuantizationConfigArgs',
+          '    from vllm.model_executor.layers.quantization.online.base import (',
+          '        OnlineQuantizationConfig,',
+          '    )',
+          '',
+          '    _moe_shorthand = (',
+          '        "fp8_per_block" if mode in ("block", "blockwise") else "fp8_per_tensor"',
+          '    )',
+          '    online_cfg = OnlineQuantizationConfig(QuantizationConfigArgs(moe=_moe_shorthand))',
+          '    method = online_cfg.get_quant_method(layer, prefix)',
+          '    assert method is not None, (',
+          '        "spark-v33: vLLM\'s online quantization declined the drafter experts at "',
+          '        f"{prefix} while {_DRAFTER_ENV}={mode}; the arm cannot do what it says"',
+          '    )',
+      ])
+      assert src.count(old) == 1, src.count(old)
+      src = src.replace(old, new)
+      open(h, "w").write(src)
+      import ast; ast.parse(src)
+      PY
+      grep -qF 'spark-v33: the drafter arm delegates' "$H"
+      printf '\n# spark-v33: the drafter arm delegates to vLLM online quantization -- v0.33 takes\n# `moe: FusedMoEConfig`, so vllm_fp8_hybrid.py asks OnlineQuantizationConfig for the\n# method class instead of naming it.\n' >> "$G"
+      python3 -c 'import ast,os; ast.parse(open(os.environ["VLLM_FILE"]).read())' </dev/null
+
   # qsa_indexer_reachability — the QSA layer must receive the config that knows about the fp8 hybrid.
   # Two facts make this a correction rather than a preference: `without_modelopt_fp4()` only unwraps
   # ModelOpt, and this checkpoint is AutoGPTQ, so the call is a pass-through; but passing the object it
