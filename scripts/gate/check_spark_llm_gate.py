@@ -112,6 +112,13 @@ def patterns_from_role():
          "(HD-489 tail B10)"),
         ("spark_llm_checkpoints", "refuses a staged checkpoint whose own config.json disagrees "
          "with the checkpoint the profile names"),
+        ("spark_llm.engine in ['vllm', 'sglang', 'strata']", "admits a third engine family at all — "
+         "without it the strata arm is refused as an unknown engine, which is a different verdict "
+         "from the gate this script grades"),
+        ("spark_llm.strata_model", "refuses a GGUF arm whose launcher would fall back to its own "
+         "model recommendation instead of the set the arm staged"),
+        ("spark_llm.model_staged_marker", "stats the marker a GGUF set actually has (its first shard, "
+         "not a config.json it never ships)"),
     ]:
         if marker not in text:
             print(f"ERROR: {ROLE.relative_to(ROOT)} no longer contains {marker!r}, but this "
@@ -333,6 +340,60 @@ def vllm_verdicts(profile, cat):
     return out
 
 
+def strata_verdicts(profile, cat):
+    """The invariants `roles/spark-llm-profile` asserts for a strata (GGUF) profile.
+
+    A third engine is a third vocabulary, and the ONE thing this function must not do is grade it with
+    another engine's rules: `sglang_verdicts` reads `--mem-fraction-static` out of `args_extra`, which a
+    strata profile does not carry at all, so borrowing it would report a 1.0 mem-fraction breach on a
+    correct arm. The invariants here are the role's own (tasks/main.yml, the two strata asserts), read
+    from the same profile keys.
+
+    A profile with no image pin is GATED, not failed — the empty pin IS the refusal (CONVENTIONS §7).
+    """
+    out = {}
+    gated = out["_gated"] = []
+    img = profile.get("image")
+    out["image-pin"] = (img in PIN_PINS,
+                        f"profile.image={img!r} is not a name in spark_llm_profile_images "
+                        f"(known: {', '.join(sorted(PIN_PINS))})")
+    if img in PIN_PINS and not PIN_PINS[img]:
+        gated.append(f"{img}: no image pin in versions.yml — the gate refuses it "
+                     "(the vendor publishes no aarch64 manifest; see the pin's own comment)")
+    out["coordinates"] = (profile.get("models_root") == "xfs",
+                          f"models_root={profile.get('models_root')!r} — the GGUF launcher prepares a "
+                          "tens-of-GB pack under /data, and an `os`-rooted arm must clear the root floor first")
+    out["launcher-model"] = (bool(str(profile.get("strata_model") or "")),
+                             "strata_model is empty — the launcher would fall back to its own "
+                             "recommendation for the card instead of the set this arm staged")
+    out["no-vllm-mechanisms"] = (
+        not any(profile.get(k) for k in ("ple_mmap", "ple_overlay", "ple_offload", "draft_vocab", "ple_dispatch")),
+        f"ple_mmap={profile.get('ple_mmap')} ple_overlay={profile.get('ple_overlay')} "
+        f"ple_offload={profile.get('ple_offload')} draft_vocab={profile.get('draft_vocab')} "
+        f"ple_dispatch={profile.get('ple_dispatch')} — each renders a vLLM env var or a bind into a vLLM "
+        "module tree the GGUF engine does not have")
+    out["staged-marker"] = (bool(str(profile.get("model_staged_marker") or "")),
+                            "model_staged_marker is empty: a GGUF set has no config.json, so the "
+                            "staged-artifact assert has nothing to stat")
+    fc = profile.get("fixed_cost_bytes")
+    hold_ceil = int(profile.get("device_hold_ceiling_bytes") or cat["spark_llm_device_hold_ceiling_bytes"])
+    if fc is None:
+        out["host-floor"] = (False, "fixed_cost_bytes undeclared (fail-loud: no default)")
+    else:
+        out["host-floor"] = (0 < int(fc) <= hold_ceil,
+                             f"resident cost {fc} B must be > 0 and <= the host-floor ceiling "
+                             f"{hold_ceil} B")
+    basis = str(profile.get("fixed_cost_basis") or "")
+    out["cost-labelled"] = (
+        (basis.split()[0].rstrip(":,") if basis.split() else "")
+        in ("MEASURED", "DERIVED", "VENDOR-PUBLISHED", "VENDOR"),
+        f"fixed_cost_basis must lead with MEASURED | DERIVED | VENDOR-PUBLISHED, got {basis[:52]!r}")
+    cap = int(profile.get("max_cudagraph_capture_size", 0) or 0)
+    out["cudagraph-cap"] = (cap <= 0 or cap <= int(profile["max_num_seqs"]),
+                            f"capture cap {cap} > max_num_seqs {profile['max_num_seqs']}")
+    return out
+
+
 def verdict_table(cat, pats, label):
     print(f"\n[{label}] every profile under the invariants the role asserts")
     # Width from the catalogue: an identity spelled as a dial value (`<arm>-<base>-<kv>`,
@@ -344,8 +405,12 @@ def verdict_table(cat, pats, label):
         if name.startswith("_"):
             continue          # HD-489 merge anchor of shared defaults, not a servable profile
         engine = prof.get("engine")
-        verdicts = (vllm_verdicts(prof, cat) if engine == "vllm"
-                    else sglang_verdicts(prof, pats))
+        if engine == "vllm":
+            verdicts = vllm_verdicts(prof, cat)
+        elif engine == "strata":
+            verdicts = strata_verdicts(prof, cat)
+        else:
+            verdicts = sglang_verdicts(prof, pats)
         cells = []
         for key, passed in ((k, v[0]) for k, v in verdicts.items() if not k.startswith("_")):
             cells.append(f"{key}={'✓' if passed else '✗'}")
@@ -425,6 +490,45 @@ def canary(cat, pats):
         else:
             fail(f"canary {expect}: NOT rejected — the gate would converge it. "
                  f"{ {k: v[0] for k, v in verdicts.items() if not k.startswith('_')} }")
+    # ---- strata (GGUF engine) ----
+    # A third engine lane is only gated if its own invariants can REJECT something. Each breach below is
+    # bred from the authored `strata-iq4xs` arm, so the mutation is the only difference from a row this
+    # run printed green — the same discipline as the vllm/sglang canaries above.
+    st = cat["spark_llm_profiles"].get("strata-iq4xs")
+    if st is None:
+        fail("canary: no strata-iq4xs profile to mutate — the strata invariants are untested")
+    else:
+        st_breaches = [
+            ("launcher-model", lambda p: p.update(strata_model="")),
+            ("coordinates", lambda p: p.update(models_root="os")),
+            ("no-vllm-mechanisms", lambda p: p.update(ple_mmap=True)),
+            ("no-vllm-mechanisms", lambda p: p.update(ple_offload=True)),
+            ("no-vllm-mechanisms", lambda p: p.update(ple_dispatch=True)),
+            ("staged-marker", lambda p: p.update(model_staged_marker="")),
+            ("host-floor", lambda p: p.update(fixed_cost_bytes="0")),
+            ("host-floor", lambda p: p.pop("fixed_cost_bytes", None)),
+            # The empty-pin arm is GATED, not failed — but an UNKNOWN image NAME is a failure, so the two
+            # states cannot be confused (an arm naming a typo must not read as "waiting on a pin").
+            ("image-pin", lambda p: p.update(image="ghcr.io/niko1221/strata:latest")),
+        ]
+        for expect, mutate in st_breaches:
+            prof = copy.deepcopy(st)
+            mutate(prof)
+            verdicts = strata_verdicts(prof, cat)
+            rejected = expect in verdicts and not verdicts[expect][0]
+            if rejected:
+                ok(f"canary strata/{expect}: REJECTED — {verdicts[expect][1]}")
+            else:
+                fail(f"canary strata/{expect}: NOT rejected — the gate would converge it. "
+                     f"{ {k: v[0] for k, v in verdicts.items() if not k.startswith('_')} }")
+        # …and the GATE state itself must be reported, not swallowed: an empty pin on a KNOWN image name is
+        # a gated arm, which is a different verdict from a red one.
+        if strata_verdicts(copy.deepcopy(st), cat).get("_gated"):
+            ok("canary strata/image-pin: the authored arm reports GATED (an empty pin IS the refusal)")
+        else:
+            fail("canary strata/image-pin: the authored arm reports neither gated nor failed — "
+                 "an arm that cannot boot must not read as deployable")
+
     sg = cat["spark_llm_profiles"].get("fast-sglang")
     if sg is None:
         fail("canary: no fast-sglang profile to mutate — the sglang invariants are untested")
