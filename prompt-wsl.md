@@ -116,7 +116,7 @@ if `$PI_PROVIDER=spark`. Rehearse-everything rule in §4.
 The spark engine lane is not this brief's work and is barred for the whole run by the spark-served dispatch filter,
 children included: the `reasoning` under-cap baseline, every gate that produces `tok/s`/TTFT/ITL, the `spark-ai`
 re-renders and the engine-boot converges carried by [prompt-spark-llm.md](prompt-spark-llm.md) — today
-HD-469 · HD-473 · HD-475 · HD-489 · HD-494 · HD-376 · HD-400 · HD-359 · HD-367 · HD-380 plus the v32 lineage rows
+HD-469 · HD-473 · HD-489 · HD-494 · HD-376 · HD-400 · HD-359 · HD-367 · HD-380 plus the v32 lineage rows
 HD-1206 · HD-1214 · HD-1215 · HD-1220 · HD-1221 · HD-1222, whose flips are engine recreates (re-derive the ids there;
 this list is a pointer, never the authority). What *is* allowed from a spark-served session on this box is
 the provably engine-safe door in §C2 — with the engine's id + `StartedAt` + `RestartCount` read before and after and
